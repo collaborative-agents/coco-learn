@@ -30,6 +30,8 @@ import {
   systemPreferences,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { DesktopAppUpdater } from './app-updater';
+import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
 import axios from 'axios';
 import { resolveHtmlPath } from './util';
@@ -121,7 +123,7 @@ import type { SessionStartTrigger } from '../shared/session-start';
 
 const dotenv = require('dotenv');
 
-type EmbeddedRouterConfig = { url?: string };
+type EmbeddedRouterConfig = { url?: string; gatewayUrl?: string };
 declare const __COCO_BUILD_ROUTER_CONFIG__: EmbeddedRouterConfig | undefined;
 
 const embeddedRouterConfig: EmbeddedRouterConfig =
@@ -129,12 +131,21 @@ const embeddedRouterConfig: EmbeddedRouterConfig =
     ? {}
     : __COCO_BUILD_ROUTER_CONFIG__;
 
-const PACKAGED_GATEWAY_URL = 'https://coco.upskilling.saltlab.stanford.edu';
+const PACKAGED_GATEWAY_URL = embeddedRouterConfig.gatewayUrl ||
+  'https://coco.upskilling.saltlab.stanford.edu';
 // Bump this whenever a packaged release must make every participant complete
 // onboarding once again. Development builds do not use this release gate.
 const PACKAGED_ONBOARDING_VERSION = 'auth-onboarding-v1';
 
-app.setName('coco');
+app.setName('CoCo Learn');
+
+// Set before the instance lock so CoCo Learn can coexist with CoCo. Existing
+// CoCo profiles stay in their original directory; users sign in here once.
+if (app.isPackaged) {
+  const packagedUserDataDir = path.join(app.getPath('appData'), 'coco-learn');
+  fs.mkdirSync(packagedUserDataDir, { recursive: true });
+  app.setPath('userData', packagedUserDataDir);
+}
 
 // Keep development data separate from installed builds. Otherwise `npm start`
 // writes onboarding/auth state to the same macOS Application Support folder as
@@ -144,7 +155,7 @@ if (!app.isPackaged) {
     process.env.COCO_DESKTOP_USER_DATA_DIR?.trim();
   const resolvedUserDataDir = developmentUserDataOverride
     ? path.resolve(developmentUserDataOverride)
-    : path.join(app.getPath('appData'), 'coco-development');
+    : path.join(app.getPath('appData'), 'coco-learn-development');
   fs.mkdirSync(resolvedUserDataDir, { recursive: true });
   app.setPath('userData', resolvedUserDataDir);
   log.info(`[Development] userData directory: ${resolvedUserDataDir}`);
@@ -172,7 +183,7 @@ if (app.isPackaged) {
 
 // Create default workspace directory if it doesn't exist
 const ensureDefaultWorkspaceExists = () => {
-  const workspaceDir = path.join(os.homedir(), 'coco', 'tmp_workspace');
+  const workspaceDir = path.join(os.homedir(), 'coco-learn', 'tmp_workspace');
   try {
     if (!fs.existsSync(workspaceDir)) {
       fs.mkdirSync(workspaceDir, { recursive: true });
@@ -183,13 +194,18 @@ const ensureDefaultWorkspaceExists = () => {
   }
 };
 
-class AppUpdater {
-  constructor() {
-    log.transports.file.level = 'info';
-    autoUpdater.logger = log;
-    autoUpdater.checkForUpdatesAndNotify();
-  }
-}
+let installUpdateAfterShutdown = false;
+const desktopAppUpdater = new DesktopAppUpdater({
+  updater: autoUpdater,
+  logger: log,
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  currentVersion: () => app.getVersion(),
+  requestRestartAndInstall: () => {
+    installUpdateAfterShutdown = true;
+    app.quit();
+  },
+});
 
 // ── Window state ─────────────────────────────────────────────────────────────
 // avatarWindow      : always-on-top 150×150 pet/avatar (loads local index.html)
@@ -560,6 +576,7 @@ const createAvatarWindow = () => {
     // out of the Dock's window list while the main chat remains listed there.
     avatarWindow.excludedFromShownWindowsMenu = true;
   }
+  configureFullscreenCompanionWindow(avatarWindow);
 
   avatarWindow.loadURL(resolveHtmlPath('index.html'));
 
@@ -569,7 +586,7 @@ const createAvatarWindow = () => {
     } else if (process.env.START_MINIMIZED) {
       avatarWindow?.minimize();
     } else {
-      avatarWindow?.show();
+      avatarWindow?.showInactive();
     }
   });
 
@@ -990,6 +1007,13 @@ function createTray(): void {
   if (authRequired) setupLabel = 'Sign in';
   else if (isOnboardingComplete()) setupLabel = 'Open Model Setup';
   const sleeping = isCocoSleeping();
+  const updateMenuItems: Electron.MenuItemConstructorOptions[] =
+    desktopAppUpdater.isSupported()
+      ? [{
+          label: 'Check for Updates…',
+          click: () => { void desktopAppUpdater.checkForUpdates(true); },
+        }]
+      : [];
   tray.setToolTip(
     pendingSetup ? 'Coco' : `Coco — ${sleeping ? 'Sleeping' : 'Awake'}`,
   );
@@ -1001,6 +1025,7 @@ function createTray(): void {
               label: setupLabel,
               click: openPrimaryTrayAction,
             },
+            ...updateMenuItems,
             { type: 'separator' },
             { label: 'Quit', click: () => app.quit() },
           ]
@@ -1034,6 +1059,7 @@ function createTray(): void {
                 openChatSettings();
               },
             },
+            ...updateMenuItems,
             { type: 'separator' },
             { label: 'Quit', click: () => app.quit() },
           ],
@@ -1431,6 +1457,7 @@ const showNotification = (payload: {
   if (process.platform === 'darwin') {
     nextNotificationWindow.excludedFromShownWindowsMenu = true;
   }
+  configureFullscreenCompanionWindow(nextNotificationWindow);
   notificationWindow = nextNotificationWindow;
 
   // AI-upskilling suggestions open directly on the interactive framework
@@ -1449,7 +1476,7 @@ const showNotification = (payload: {
 
   nextNotificationWindow.on('ready-to-show', () => {
     if (notificationWindow !== nextNotificationWindow) return;
-    nextNotificationWindow.show();
+    nextNotificationWindow.showInactive();
     nextNotificationWindow.webContents.send('notification', {
       ...payload,
       notificationId: shouldPersist ? notificationId : undefined,
@@ -4126,9 +4153,6 @@ const createWindow = async () => {
     applyAvatarVisibility(readHideAvatarSetting());
   }
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
-  new AppUpdater();
 };
 
 /**
@@ -4582,6 +4606,7 @@ const startObserver = () => {
 app
   .whenReady()
   .then(async () => {
+    desktopAppUpdater.start();
     await configureLocalServicePorts();
     initializeWakeWordService();
     powerMonitor.on('suspend', () => {
@@ -4732,17 +4757,25 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   isQuitting = true;
   log.info('App quitting: waiting up to 10s for services to stop...');
+  desktopAppUpdater.stop();
   stopObservationStream();
   wakeWordService?.stop('disabled');
   const shutdownTimeoutMs = 10_000;
+  const finishQuit = () => {
+    if (installUpdateAfterShutdown) {
+      autoUpdater.quitAndInstall(true, true);
+    } else {
+      app.quit();
+    }
+  };
   serviceManager
     .shutdown(shutdownTimeoutMs)
     .then(() => {
       log.info('Services stopped, quitting app.');
-      app.quit();
+      finishQuit();
     })
     .catch((e) => {
       log.warn('Error while stopping services, quitting anyway', e);
-      app.quit();
+      finishQuit();
     });
 });

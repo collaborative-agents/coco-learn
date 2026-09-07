@@ -9,10 +9,22 @@ The initial import uses the application snapshot from `coco/dev/upskilling`
 (`7da34eba`), which matches the application files in `monorepo/sensing-growth`
 at `a935207f`. It does not include the `dev/nv` personalization scheduler.
 
-This initial import retains the existing `coco` application identity and local
-data directory. A separate CoCo Learn app identity and the `dev/nv` updater
-integration are still pending; automatic updates from this repository are not
-configured yet. macOS packaging requires this repository to have the
+CoCo Learn has its own application ID and `coco-learn` local data directory,
+so it can coexist with CoCo. Install CoCo Learn and sign in once; local CoCo
+settings and history are not automatically copied. The app checks this
+repository's stable Releases 10 seconds after launch and every six hours.
+It asks before downloading and installs on restart or after you quit. You can
+also choose **Check for Updates…** from the tray menu. Existing CoCo packages
+do not automatically switch to this repository: install CoCo Learn once first.
+
+To publish an update, increase `version` in `desktop/release/app/package.json`
+and `desktop/release/app/package-lock.json`, commit and push, then run
+**Package & Release** in Actions with that version and release notes. Select
+all platforms used by your participants so the stable release contains their
+update files. The workflow publishes installers, blockmaps, `latest.yml`, and
+`latest-mac.yml`. It defaults to the upskilling Gateway and shared Router URLs;
+repository variables `COCO_GATEWAY_URL` and `LLM_ROUTER_URL` can override them.
+macOS packaging requires this repository to have the
 `MAC_CERT`, `MAC_CERT_PWD`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, and
 `APPLE_API_ISSUER` Actions secrets configured.
 
@@ -125,9 +137,11 @@ distribution.
 
 Everything Coco stores about you (settings, activity history, session records) lives in the app's user-data folder:
 
-- **macOS**: `~/Library/Application Support/coco`
-- **Windows**: `%APPDATA%\coco` (e.g. `C:\Users\<you>\AppData\Roaming\coco`)
-- **Linux**: `$XDG_CONFIG_HOME/coco` or `~/.config/coco`
+- **macOS**: `~/Library/Application Support/coco-learn`
+- **Windows**: `%APPDATA%\coco-learn`
+- **Linux**: `$XDG_CONFIG_HOME/coco-learn` or `~/.config/coco-learn`
+
+Development builds use `coco-learn-development` instead.
 
 Screenshots are deleted the moment the observer has read them, so nothing accumulates on disk. If you want to save the screenshots for potential training purposes, set `COLLECT_TRAINING_SCREENSHOTS=1` in `.env`, and they'll be copied into the records folder before deletion (disk-heavy — enable it deliberately).
 

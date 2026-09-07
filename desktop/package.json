@@ -1,5 +1,5 @@
 {
-  "name": "coco",
+  "name": "coco-learn",
   "description": "Coco, your proactive co-assistant",
   "keywords": [
     "coco",
@@ -8,13 +8,13 @@
     "react",
     "typescript"
   ],
-  "homepage": "https://github.com/collaborative-agents/coco#readme",
+  "homepage": "https://github.com/collaborative-agents/coco-learn#readme",
   "bugs": {
-    "url": "https://github.com/collaborative-agents/coco/issues"
+    "url": "https://github.com/collaborative-agents/coco-learn/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/collaborative-agents/coco.git"
+    "url": "git+https://github.com/collaborative-agents/coco-learn.git"
   },
   "license": "Apache-2.0",
   "author": {
@@ -191,8 +191,8 @@
     "webpack-merge": "^6.0.1"
   },
   "build": {
-    "productName": "coco",
-    "appId": "io.github.collaborative-agents.coco",
+    "productName": "CoCo Learn",
+    "appId": "io.github.collaborative-agents.coco-learn",
     "asar": true,
     "compression": "maximum",
     "asarUnpack": "**\\*.{node,dll}",
@@ -215,7 +215,14 @@
       "target": "default",
       "type": "distribution",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "publish": {
+        "provider": "github",
+        "owner": "collaborative-agents",
+        "repo": "coco-learn",
+        "channel": "latest"
+      },
+      "artifactName": "coco-learn-${version}-${arch}-mac.${ext}"
     },
     "dmg": {
       "contents": [
@@ -235,13 +242,21 @@
       "icon": "assets/pet1.png",
       "target": [
         "nsis"
-      ]
+      ],
+      "publish": {
+        "provider": "github",
+        "owner": "collaborative-agents",
+        "repo": "coco-learn",
+        "channel": "latest"
+      },
+      "artifactName": "coco-learn-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": true
     },
     "linux": {
       "icon": "assets/pet1.png",

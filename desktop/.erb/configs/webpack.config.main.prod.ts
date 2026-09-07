@@ -29,6 +29,8 @@ deleteSourceMaps();
 const buildHarnessVersion = readHarnessVersion();
 const buildRouterConfig = {
   url: process.env.LLM_ROUTER_URL?.trim() || '',
+  gatewayUrl: process.env.COCO_GATEWAY_URL?.trim() ||
+    'https://coco.upskilling.saltlab.stanford.edu',
 };
 
 const configuration: webpack.Configuration = {

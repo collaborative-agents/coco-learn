@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "New stable app version, e.g. 0.1.1 (applied automatically during build)"
+        description: "Suggested next version: 0.1.2 (after v0.1.1). Change if already released."
         required: true
+        default: "0.1.2"
         type: string
       release_notes:
         description: "What's new in this version (Markdown supported)"

@@ -31,6 +31,7 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
+import { installDockUpdateMenu } from './dock-menu';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
 import axios from 'axios';
@@ -4607,6 +4608,7 @@ app
   .whenReady()
   .then(async () => {
     desktopAppUpdater.start();
+    installDockUpdateMenu(desktopAppUpdater);
     await configureLocalServicePorts();
     initializeWakeWordService();
     powerMonitor.on('suspend', () => {

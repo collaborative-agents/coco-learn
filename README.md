@@ -17,9 +17,11 @@ It asks before downloading and installs on restart or after you quit. You can
 also choose **Check for Updates…** from the tray menu. Existing CoCo packages
 do not automatically switch to this repository: install CoCo Learn once first.
 
-To publish an update, increase `version` in `desktop/release/app/package.json`
-and `desktop/release/app/package-lock.json`, commit and push, then run
-**Package & Release** in Actions with that version and release notes. Select
+To publish an update, push your code, then run **Package & Release** in Actions
+with a new stable version (for example `0.1.1`, without `v`) and release notes.
+Use a version higher than the installed version. The workflow applies it to
+the app manifest and lockfile in each build; no manual JSON edits or version
+commits are required. Existing version tags cannot be reused. Select
 all platforms used by your participants so the stable release contains their
 update files. The workflow publishes installers, blockmaps, `latest.yml`, and
 `latest-mac.yml`. It defaults to the upskilling Gateway and shared Router URLs;

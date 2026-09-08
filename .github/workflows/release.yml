@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Stable app version (must match desktop/release/app/package.json)"
+        description: "New stable app version, e.g. 0.1.1 (applied automatically during build)"
         required: true
-        default: "0.1.0"
         type: string
       release_notes:
         description: "What's new in this version (Markdown supported)"
@@ -31,6 +30,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: coco-learn-release
+  cancel-in-progress: false
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -49,26 +52,25 @@ jobs:
           RELEASE_VERSION: ${{ github.event.inputs.version }}
           RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: |
-          release_version="$RELEASE_VERSION"
-          package_version="$(node -p "require('./desktop/release/app/package.json').version")"
-          lock_version="$(node -p "require('./desktop/release/app/package-lock.json').packages[''].version")"
-
-          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release version must be stable semver, for example 0.1.1" >&2
-            exit 1
-          fi
-          if [[ "$release_version" != "$package_version" ]]; then
-            echo "Requested version $release_version does not match packaged app version $package_version" >&2
-            exit 1
-          fi
-          if [[ "$package_version" != "$lock_version" ]]; then
-            echo "Packaged app version $package_version does not match lockfile version $lock_version" >&2
-            exit 1
-          fi
+          node --test desktop/scripts/set-release-version.test.mjs
+          node desktop/scripts/set-release-version.mjs "$RELEASE_VERSION"
           if [[ -z "${RELEASE_NOTES//[[:space:]]/}" ]]; then
             echo "Release notes must describe what's new in this version" >&2
             exit 1
           fi
+
+      - name: Prevent reusing a release tag
+        uses: actions/github-script@v7
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        with:
+          script: |
+            try {
+              await github.rest.git.getRef({ ...context.repo, ref: `tags/v${process.env.RELEASE_VERSION}` });
+              core.setFailed('This version tag already exists. Choose a new version for an update.');
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
 
       - name: Test macOS update manifest tooling
         run: node --test desktop/scripts/create-mac-update-manifest.test.mjs
@@ -135,6 +137,10 @@ jobs:
       - name: Install desktop dependencies
         working-directory: ./desktop
         run: npm ci
+
+      - name: Apply requested app version
+        shell: bash
+        run: node desktop/scripts/set-release-version.mjs "$RELEASE_VERSION"
 
       - name: Build services
         working-directory: ./desktop
@@ -334,6 +340,7 @@ jobs:
         with:
           name: CoCo Learn v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
+          target_commitish: ${{ github.sha }}
           body: ${{ github.event.inputs.release_notes }}
           files: artifacts/**
           draft: false

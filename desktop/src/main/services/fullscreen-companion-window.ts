@@ -17,9 +17,6 @@ export default function configureFullscreenCompanionWindow(
   if (platform === 'darwin') {
     window.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
-      // Avoid the process-type transformation that can remove the running
-      // indicator from the Dock when companion windows are created repeatedly.
-      skipTransformProcessType: true,
     });
   }
 }

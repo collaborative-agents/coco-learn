@@ -12,7 +12,6 @@ describe('configureFullscreenCompanionWindow', () => {
     expect(window.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating');
     expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
       visibleOnFullScreen: true,
-      skipTransformProcessType: true,
     });
   });
 

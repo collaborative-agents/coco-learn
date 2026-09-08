@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import FriendsView from './FriendsView';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -625,6 +626,7 @@ export default function SessionChatView() {
   const [contentZoomFactor, setContentZoomFactor] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
   const [conversations, setConversations] = useState<SavedConversation[]>([]);
@@ -1958,6 +1960,7 @@ export default function SessionChatView() {
           >
             ◷
           </button>
+          <button type="button" style={{ ...S.iconBtn, width: 'auto', padding: '0 8px', fontSize: 13 }} title="Chat with friends" aria-label="Chat with friends" onClick={() => setShowFriends(true)}>Friends</button>
           <button
             type="button"
             style={{ ...S.iconBtn, ...(showSettings ? S.iconBtnActive : {}) }}
@@ -1998,6 +2001,7 @@ export default function SessionChatView() {
           }}
         >
 
+      {showFriends && <FriendsView onClose={() => setShowFriends(false)} />}
       {showSettings && (
         <div style={S.settings}>
           <div style={S.groupLabel}>Health</div>

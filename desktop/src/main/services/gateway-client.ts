@@ -380,9 +380,14 @@ export class CocoGatewayClient {
     }
   }
 
+  async requestJson(path: string, method: 'GET' | 'POST' | 'PATCH', body?: object): Promise<Record<string, unknown>> {
+    if (!this.authToken) throw new Error('Please sign in to use Friends.');
+    return this.authRequest(path, method, body);
+  }
+
   private async authRequest(
     path: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     body?: object,
   ): Promise<Record<string, unknown>> {
     let response: Response;

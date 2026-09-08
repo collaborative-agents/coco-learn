@@ -30,6 +30,27 @@ macOS packaging requires this repository to have the
 `MAC_CERT`, `MAC_CERT_PWD`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, and
 `APPLE_API_ISSUER` Actions secrets configured.
 
+### Chat with people
+
+Open the CoCo chat panel and select **Friends** in its header. Add the other
+person's exact CoCo Learn username; after they accept, select their name to
+exchange messages. This is separate from the AI tutor and does not start a
+tutoring session. The inbox refreshes every five seconds while Friends is open.
+This first port supports friend requests and one-to-one text messages, not
+dev/nv's group administration or personalized knowledge answers.
+
+The upskilling Gateway must deploy `server/coco_gateway/social.py` and its
+registration in `server/coco_gateway/main.py` from the monorepo sensing-growth
+checkout. Packaging alone does not install these endpoints. The social API
+uses existing sign-in tokens and the study database's `Friendships` and
+`DirectMessages` collections; messages require an accepted friendship.
+The desktop Social API adapter is ported from CoCo dev/nv `a199a169`.
+
+Avatar, notification and chat windows use the macOS fullscreen companion
+configuration. Process-type transformation is enabled: skipping it prevented
+the avatar from appearing over Chrome fullscreen. Visibility was confirmed in
+development; packaged fullscreen and Dock behavior should also be checked.
+
 <p align="center">
   <img src="assets/github-logo.svg" width="40%">
 </p>

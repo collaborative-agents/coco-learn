@@ -32,6 +32,7 @@ import {
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
+import { SocialService, registerSocialIpcHandlers } from './services/social-service';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
 import axios from 'axios';
@@ -376,6 +377,7 @@ let pendingAuthLaunch: 'signin' | 'signup' | null = null;
 let currentSessionId: string | null = null;
 let pendingTaskLabel: string | null = null;
 let gatewayClient: CocoGatewayClient | null = null;
+registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
 let currentTutorModelId: string | null = null;
 // Preserve the original Upskilling session invitation cadence even though the
 // sensing-side Judge owns the decision itself.
@@ -635,6 +637,7 @@ const createChatWindow = () => {
     webPreferences: { preload: preloadPath(), backgroundThrottling: false },
   });
 
+  configureFullscreenCompanionWindow(chatWindow);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
 
   const reportChatContentZoom = () => {

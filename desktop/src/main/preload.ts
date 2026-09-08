@@ -8,6 +8,13 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'social-list-friendships'
+  | 'social-request-friend'
+  | 'social-accept-friend'
+  | 'social-decline-friend'
+  | 'social-list-messages'
+  | 'social-send-message'
+  | 'social-mark-read'
   | 'open-main-window'
   | 'close-main-window'
   | 'notification'

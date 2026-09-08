@@ -184,6 +184,21 @@ agreement and must also be addressed in the consent process.
 
 ## Required approvals before publication
 
+### Human-to-human Friends chat
+
+When the Friends API is deployed, adding a friend sends their username to the
+study Gateway. The Gateway stores the two account IDs, request status and
+timestamps in `Friendships`. After acceptance, text messages are stored in
+`DirectMessages`, including message/conversation IDs, sender and recipient IDs,
+content, creation time, read time and deployment identifier. The recipient can
+read these messages. This route does not send messages to the LLM Router or
+AI tutor and does not start an AI tutoring session. Messages are not end-to-end
+encrypted; authorized backend/database operators can access stored content.
+No automatic expiration is configured for these two collections. A retention
+and deletion policy must be approved before study use.
+
+### Approval checklist
+
 - [ ] Add the study name, responsible institution, and IRB/protocol number if applicable.
 - [ ] Add the study contact and privacy/deletion contact.
 - [ ] Approve a retention period for Gateway Users, Sessions, and Messages.

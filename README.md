@@ -18,8 +18,12 @@ also choose **Check for Updates…** from the tray menu. Existing CoCo packages
 do not automatically switch to this repository: install CoCo Learn once first.
 
 To publish an update, push your code, then run **Package & Release** in Actions
-with a new stable version (for example `0.1.1`, without `v`) and release notes.
-Use a version higher than the installed version. The workflow applies it to
+with version `auto` (the default) and release notes. At execution time, the
+workflow reads the highest stable `vX.Y.Z` tag and increments its patch number:
+for example, `v0.1.2` becomes `0.1.3`. The form displays `auto`, not a live
+numeric suggestion; the prepare job summary shows the current, suggested, and
+selected versions. You can instead enter a stable version without `v` that is
+higher than the latest stable tag. The workflow applies the selected version to
 the app manifest and lockfile in each build; no manual JSON edits or version
 commits are required. Existing version tags cannot be reused. Select
 all platforms used by your participants so the stable release contains their

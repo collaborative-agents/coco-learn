@@ -3850,6 +3850,7 @@ ipcMain.handle(
         'utf-8',
       );
       applyAvatarVisibility(hideAvatar);
+      chatWindow?.webContents.send('avatar-visibility-changed', { hideAvatar });
       return { success: true };
     } catch (err) {
       log.error('[Settings] Failed to update avatar visibility:', err);

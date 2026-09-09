@@ -675,6 +675,13 @@ export default function SessionChatView() {
   );
   const [editTools, setEditTools] = useState<string[]>([]);
   const [editHideAvatar, setEditHideAvatar] = useState(false);
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('avatar-visibility-changed', (value) => {
+      const next = value as { hideAvatar?: boolean } | undefined;
+      if (typeof next?.hideAvatar === 'boolean') setEditHideAvatar(next.hideAvatar);
+    });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [avatarSaveError, setAvatarSaveError] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);

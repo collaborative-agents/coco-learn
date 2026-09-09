@@ -9,6 +9,28 @@ import {
 import App from '../renderer/App';
 
 describe('App', () => {
+  it('hides the avatar from the three-dot menu without sleeping or quitting', async () => {
+    const invoke = jest.fn().mockResolvedValue({ success: true });
+    const sendMessage = jest.fn();
+    (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage } };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('update-avatar-visibility', { hideAvatar: true }));
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(invoke.mock.calls.some(([channel]) => channel === 'set-coco-sleep-mode')).toBe(false);
+  });
+
+  it('keeps the menu open when hiding fails', async () => {
+    const invoke = jest.fn(async (channel) => channel === 'update-avatar-visibility' ? { success: false } : []);
+    (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage: jest.fn() } };
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not hide Coco');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
   it('should render', () => {
     expect(render(<App />)).toBeTruthy();
   });

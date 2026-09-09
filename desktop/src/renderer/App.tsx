@@ -49,13 +49,16 @@ const WIN_SUGGESTION_H = 520;
 const WIN_HISTORY_W = 440;  // activity panel ~260 + 168 offset + slack
 const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
 const WIN_ACTION_MENU_W = 200;
-const WIN_ACTION_MENU_H = 315;
+const WIN_ACTION_MENU_H = 395;
 
 function PetMenuIcon({
   name,
 }: {
-  name: 'sleep' | 'wake' | 'history' | 'settings';
+  name: 'sleep' | 'wake' | 'history' | 'settings' | 'hide';
 }) {
+  if (name === 'hide') {
+    return <svg viewBox="0 0 24 24" aria-hidden><path d="M3 3l18 18M10.5 5.2c5.3-.8 9 4.2 10.5 6.8a19 19 0 0 1-3 3.8M6.1 6.1A20 20 0 0 0 3 12c2.5 4 5.5 7 9 7a10 10 0 0 0 4-1M10 10a3 3 0 0 0 4 4" /></svg>;
+  }
   if (name === 'sleep') {
     return (
       <svg viewBox="0 0 24 24" aria-hidden>
@@ -490,6 +493,8 @@ function PetView() {
   const [showHistory, setShowHistory] = useState(false);
   const [cocoSleeping, setCocoSleeping] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [hideError, setHideError] = useState('');
+  const [hidingAvatar, setHidingAvatar] = useState(false);
   const petActionsRef = useRef<HTMLDivElement | null>(null);
 
   // Use refs so listener captures the latest cleanup targets without
@@ -1107,6 +1112,7 @@ function PetView() {
           onClick={(e) => {
             e.stopPropagation();
             setShowHistory(false);
+            setHideError('');
             setActionsMenuOpen((open) => !open);
           }}
           title="More actions"
@@ -1123,6 +1129,27 @@ function PetView() {
             role="menu"
             aria-label="Coco actions"
           >
+            <button
+              type="button"
+              role="menuitem"
+              disabled={hidingAvatar}
+              onClick={async (event) => {
+                event.stopPropagation();
+                setHideError('');
+                setHidingAvatar(true);
+                try {
+                  const result = await window.electron?.ipcRenderer.invoke('update-avatar-visibility', { hideAvatar: true }) as { success?: boolean } | undefined;
+                  if (!result?.success) throw new Error('Could not hide Coco. Please try again.');
+                  setActionsMenuOpen(false);
+                } catch {
+                  setHideError('Could not hide Coco. Please try again.');
+                } finally { setHidingAvatar(false); }
+              }}
+            >
+              <PetMenuIcon name="hide" />
+              <span>{hidingAvatar ? 'Hiding…' : 'Hide'}</span>
+            </button>
+            {hideError && <div role="alert" style={{ padding: '4px 10px', fontSize: 11 }}>{hideError}</div>}
             <button
               type="button"
               role="menuitem"

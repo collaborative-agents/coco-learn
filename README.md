@@ -32,7 +32,8 @@ macOS packaging requires this repository to have the
 
 ### Chat with people
 
-Open the CoCo chat panel and select **Friends** in its header. Add the other
+Open the CoCo chat panel and select the heart-shaped **Social and messages**
+button in its header. Add the other
 person's exact CoCo Learn username; after they accept, select their name to
 exchange messages. This is separate from the AI tutor and does not start a
 tutoring session. The inbox refreshes every five seconds while Friends is open.
@@ -44,7 +45,12 @@ registration in `server/coco_gateway/main.py` from the monorepo sensing-growth
 checkout. Packaging alone does not install these endpoints. The social API
 uses existing sign-in tokens and the study database's `Friendships` and
 `DirectMessages` collections; messages require an accepted friendship.
-The desktop Social API adapter is ported from CoCo dev/nv `a199a169`.
+The desktop Social API adapter and Friends UI (cards, message bubbles,
+composer, emoji picker and timestamps) are ported from CoCo dev/nv `a199a169`.
+Group, knowledge-answer, GIF and reaction controls are omitted because this
+Gateway exposes only friend requests and direct text messaging. Text emojis
+are supported. The UI polls the Learn API instead of relying on dev/nv's
+background inbox broadcasts.
 
 Avatar, notification and chat windows use the macOS fullscreen companion
 configuration. Process-type transformation is enabled: skipping it prevented

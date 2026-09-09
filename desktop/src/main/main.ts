@@ -32,6 +32,7 @@ import {
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
+import { avatarRecoveryItems } from './avatar-menu';
 import { SocialService, registerSocialIpcHandlers } from './services/social-service';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
@@ -1011,6 +1012,12 @@ function createTray(): void {
   if (authRequired) setupLabel = 'Sign in';
   else if (isOnboardingComplete()) setupLabel = 'Open Model Setup';
   const sleeping = isCocoSleeping();
+  const showAvatarItems = avatarRecoveryItems(hideAvatarMode, () => {
+    const result = updateAvatarVisibilitySetting(false);
+    if (!result.success) {
+      dialog.showErrorBox('Could not show Coco', result.error || 'Please try again.');
+    }
+  });
   const updateMenuItems: Electron.MenuItemConstructorOptions[] =
     desktopAppUpdater.isSupported()
       ? [{
@@ -1025,6 +1032,7 @@ function createTray(): void {
     Menu.buildFromTemplate(
       pendingSetup
         ? [
+            ...showAvatarItems,
             {
               label: setupLabel,
               click: openPrimaryTrayAction,
@@ -1034,6 +1042,7 @@ function createTray(): void {
             { label: 'Quit', click: () => app.quit() },
           ]
         : [
+            ...showAvatarItems,
             {
               label: sleeping ? 'Status: Sleeping' : 'Status: Awake',
               enabled: false,
@@ -3829,10 +3838,7 @@ ipcMain.on('activity-support-rated', (_event, payload) => {
 
 // The desktop-avatar toggle is independent from the other editable settings,
 // so persist and apply it as soon as the checkbox changes.
-ipcMain.removeHandler('update-avatar-visibility');
-ipcMain.handle(
-  'update-avatar-visibility',
-  (_event, { hideAvatar }: { hideAvatar?: boolean } = {}) => {
+function updateAvatarVisibilitySetting(hideAvatar: unknown): { success: boolean; error?: string } {
     if (typeof hideAvatar !== 'boolean') {
       return { success: false, error: 'Invalid avatar visibility setting.' };
     }
@@ -3856,8 +3862,10 @@ ipcMain.handle(
       log.error('[Settings] Failed to update avatar visibility:', err);
       return { success: false, error: String(err) };
     }
-  },
-);
+}
+
+ipcMain.removeHandler('update-avatar-visibility');
+ipcMain.handle('update-avatar-visibility', (_event, { hideAvatar }: { hideAvatar?: boolean } = {}) => updateAvatarVisibilitySetting(hideAvatar));
 
 // Update the agent mode + AI tools live from the chat's Settings panel.
 // Persists to the profile and applies the change to the running servers so the

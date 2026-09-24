@@ -6,6 +6,19 @@ import {
 } from './system-permission-warning';
 
 describe('system permission warning', () => {
+  it('skips granted Accessibility and offers Screen Recording only', () => {
+    expect(getSystemPermissionWarning('darwin', {
+      accessibilityTrusted: true,
+      screenCaptureStatus: 'denied',
+    })?.settingsTargets).toEqual(['screen-recording']);
+  });
+
+  it('skips granted Screen Recording and offers Accessibility only', () => {
+    expect(getSystemPermissionWarning('darwin', {
+      accessibilityTrusted: false,
+      screenCaptureStatus: 'granted',
+    })?.settingsTargets).toEqual(['accessibility']);
+  });
   it('does not show the macOS consent warning on Windows', () => {
     expect(
       getSystemPermissionWarning('win32', {
@@ -24,18 +37,14 @@ describe('system permission warning', () => {
     ).toBeNull();
   });
 
-  it('lists input and screen permissions when both are unavailable', () => {
+  it('lists only permissions actually checked, not an inferred Input Monitoring status', () => {
     expect(
       getSystemPermissionWarning('darwin', {
         accessibilityTrusted: false,
         screenCaptureStatus: 'denied',
       }),
     ).toMatchObject({
-      settingsTargets: [
-        'accessibility',
-        'input-monitoring',
-        'screen-recording',
-      ],
+      settingsTargets: ['accessibility', 'screen-recording'],
     });
   });
 

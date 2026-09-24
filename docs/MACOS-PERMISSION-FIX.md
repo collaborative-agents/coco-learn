@@ -15,6 +15,15 @@ update. It does not reset any user's macOS permissions or modify their profile.
 - Consent enumeration is bounded to three seconds so a pending native dialog
   cannot block access to settings. The launch explicitly targets Apple's
   `com.apple.systempreferences` bundle; errors show manual instructions.
+- Only one missing permission is offered at a time. After opening settings,
+  Check Again re-reads Accessibility and Screen Recording status and skips
+  granted permissions. Later exits the flow without forcing a grant.
+- Input Monitoring is not inferred from Accessibility status; this flow does
+  not independently verify Input Monitoring. Microphone consent remains in
+  the voice-input flow.
+- Unsigned local packages may not match an existing macOS permission grant.
+  Validate permission persistence using the signed release, not repeated
+  unsigned replacement builds.
 
 ## Verification before release
 
@@ -30,7 +39,8 @@ test account/VM). Do not reset a participant's permissions to run this test.
 2. Choose Open Screen Recording. Verify System Settings/consent is visible,
    not obscured by the login window, and CoCo Learn can be enabled.
 3. If it is absent, use + in Screen Recording to select the installed app.
-4. Return to Permissions and check the other settings independently.
+4. Choose Check Again. Confirm granted permissions disappear and only the
+   next missing permission is offered. Later should stop the flow.
 5. Verify Quit CoCo Learn and the standard quit action terminate the process.
 6. Relaunch after granting permission; confirm the warning no longer asks for
    Screen Recording. Confirm login and onboarding still work.

@@ -44,8 +44,8 @@ export const getSystemPermissionWarning = (
   const settingsTargets: SystemPermissionSettingsTarget[] = [];
 
   if (missingAccessibility) {
-    requirements.push('Accessibility and Input Monitoring');
-    settingsTargets.push('accessibility', 'input-monitoring');
+    requirements.push('Accessibility');
+    settingsTargets.push('accessibility');
   }
   if (missingScreenCapture) {
     requirements.push('Screen Recording');

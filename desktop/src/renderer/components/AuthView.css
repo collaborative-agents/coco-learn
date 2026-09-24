@@ -3,15 +3,37 @@
 .auth-root {
   width: 100vw;
   height: 100vh;
+  overflow-y: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   background: transparent;
   font-family: 'PT Sans', sans-serif;
   -webkit-app-region: drag;
 }
 
+.auth-utilities {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.auth-utilities button {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #29486d;
+  cursor: pointer;
+  font: inherit;
+}
+.auth-utilities button:focus-visible {
+  outline: 2px solid #204a79;
+  outline-offset: 2px;
+}
+
 .auth-card {
+  margin: auto 0;
   width: 420px;
   padding: 28px;
   border-radius: 16px;

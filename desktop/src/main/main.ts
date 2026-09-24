@@ -13,7 +13,7 @@ import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { createServer } from 'net';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import {
   app,
   BrowserWindow,
@@ -28,6 +28,7 @@ import {
   screen,
   powerMonitor,
   systemPreferences,
+  desktopCapturer,
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
@@ -94,8 +95,8 @@ import {
   getSystemPermissionWarning,
   needsWindowsMicrophoneSettings,
   systemPermissionButtonLabel,
-  systemPermissionSettingsUrl,
 } from './system-permission-warning';
+import { openSystemPermissionSettings } from './open-system-permission-settings';
 import {
   defaultTutor,
   isLlmRouterConfigured,
@@ -483,7 +484,8 @@ const createAuthWindow = () => {
     height: h,
     transparent: true,
     frame: false,
-    alwaysOnTop: true,
+    // Setup must never cover macOS consent dialogs or System Settings.
+    alwaysOnTop: false,
     resizable: false,
     // On macOS skipTaskbar changes the activation policy for the entire app,
     // which makes Coco disappear from the Dock even while it is still running.
@@ -500,10 +502,22 @@ const createAuthWindow = () => {
   authWindow.on('close', (event) => {
     if (isQuitting || isAuthenticated) return;
     event.preventDefault();
-    authWindow?.hide();
-    createTray();
+    app.quit();
   });
 };
+
+ipcMain.on('quit-from-auth', (event) => {
+  if (event.sender === authWindow?.webContents) app.quit();
+});
+ipcMain.handle('open-system-permissions', async (event) => {
+  if (event.sender !== authWindow?.webContents) return { success: false };
+  try {
+    await showSystemPermissionWarning(true);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+});
 
 // ── Onboarding window ─────────────────────────────────────────────────────────
 // Shown once on first launch (when coco-profile.json doesn't exist yet).
@@ -525,7 +539,7 @@ const createOnboardingWindow = (modelsOnly = false) => {
     height: h,
     transparent: true,
     frame: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     resizable: false,
     skipTaskbar: process.platform !== 'darwin',
     webPreferences: { preload: preloadPath() },
@@ -4212,35 +4226,95 @@ const showModelsRequiredWarning = () => {
   });
 };
 
-const showSystemPermissionWarning = async (): Promise<void> => {
-  if (process.platform !== 'darwin' || systemPermissionWarningShown) return;
+let systemPermissionDialogOpen = false;
+const showSystemPermissionWarning = async (force = false): Promise<void> => {
+  if (systemPermissionDialogOpen) return;
+  if (process.platform !== 'darwin') {
+    if (force)
+      await dialog.showMessageBox({
+        type: 'info',
+        message: 'No macOS permissions are required on this computer.',
+        detail:
+          'Microphone access is checked separately when voice input is enabled.',
+      });
+    return;
+  }
+  if (systemPermissionWarningShown && !force) return;
 
   const warning = getSystemPermissionWarning(process.platform, {
-    accessibilityTrusted:
-      systemPreferences.isTrustedAccessibilityClient(false),
+    accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false),
     screenCaptureStatus: systemPreferences.getMediaAccessStatus('screen'),
   });
-  if (!warning) return;
+  if (!warning) {
+    if (force)
+      await dialog.showMessageBox({
+        type: 'info',
+        message: 'Screen Recording and Accessibility are enabled.',
+      });
+    return;
+  }
 
-  systemPermissionWarningShown = true;
-  log.warn(`[Permissions] ${warning.detail}`);
-  const buttons = [
-    ...warning.settingsTargets.map(systemPermissionButtonLabel),
-    'Later',
-  ];
-  const { response } = await dialog.showMessageBox({
-    type: 'warning',
-    title: 'Coco permissions required',
-    message: warning.message,
-    detail: warning.detail,
-    buttons,
-    defaultId: 0,
-    cancelId: buttons.length - 1,
-    noLink: true,
-  });
-  const selectedTarget = warning.settingsTargets[response];
-  if (selectedTarget) {
-    await shell.openExternal(systemPermissionSettingsUrl(selectedTarget));
+  systemPermissionDialogOpen = true;
+  try {
+    systemPermissionWarningShown = true;
+    log.warn(`[Permissions] ${warning.detail}`);
+    const buttons = [
+      ...warning.settingsTargets.map(systemPermissionButtonLabel),
+      'Later',
+    ];
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Coco permissions required',
+      message: warning.message,
+      detail: warning.detail,
+      buttons,
+      defaultId: 0,
+      cancelId: buttons.length - 1,
+      noLink: true,
+    });
+    const selectedTarget = warning.settingsTargets[response];
+    if (selectedTarget) {
+      try {
+        await openSystemPermissionSettings(selectedTarget, {
+          screenStatus: () => systemPreferences.getMediaAccessStatus('screen'),
+          // A minimal thumbnail still exercises the capture permission path.
+          // Results are discarded, never saved or sent to a model/server.
+          requestScreenAccess: () =>
+            desktopCapturer
+              .getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1, height: 1 },
+                fetchWindowIcons: false,
+              })
+              .then(() => undefined),
+          // Explicitly target Apple's settings app rather than a registered URL
+          // handler, and wait for launch errors so we can show the fallback.
+          openExternal: (url) =>
+            new Promise<void>((resolve, reject) => {
+              execFile(
+                '/usr/bin/open',
+                ['-b', 'com.apple.systempreferences', url],
+                { timeout: 5000 },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                },
+              );
+            }),
+          warn: (message) => log.warn(`[Permissions] ${message}`),
+        });
+      } catch (error) {
+        log.warn(
+          `[Permissions] Could not open System Settings: ${String(error)}`,
+        );
+        dialog.showErrorBox(
+          'Open System Settings manually',
+          'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add CoCo Learn from Applications if it is missing. Quit and reopen CoCo Learn after enabling access.',
+        );
+      }
+    }
+  } finally {
+    systemPermissionDialogOpen = false;
   }
 };
 

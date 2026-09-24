@@ -8,6 +8,8 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'quit-from-auth'
+  | 'open-system-permissions'
   | 'social-list-friendships'
   | 'social-request-friend'
   | 'social-accept-friend'

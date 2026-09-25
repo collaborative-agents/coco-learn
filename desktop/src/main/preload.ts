@@ -8,6 +8,16 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'open-training'
+  | 'study-me'
+  | 'study-access'
+  | 'study-start'
+  | 'study-complete'
+  | 'study-download'
+  | 'study-upload'
+  | 'study-admin-users'
+  | 'study-admin-role'
+  | 'study-admin-tutoring'
   | 'social-list-friendships'
   | 'social-request-friend'
   | 'social-accept-friend'

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import FriendsView, { FriendsButton } from './FriendsView';
+import useStudyAccess from '../useStudyAccess';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -627,6 +628,7 @@ export default function SessionChatView() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
+  const studyAccess = useStudyAccess();
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
   const [conversations, setConversations] = useState<SavedConversation[]>([]);
@@ -1910,6 +1912,14 @@ export default function SessionChatView() {
     !cocoSleeping &&
     (serviceUnavailable || modelUnavailable || modelConfigurationIssue);
 
+  if (studyAccess !== true) return <div style={{ ...S.root, padding: 24 }}>
+    <div style={S.header}><h2>CoCo Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}>×</button></div>
+    <p>{studyAccess === null ? 'Checking study access…' : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}</p>
+    <button type="button" style={S.newSessionBtn} onClick={() => window.electron.ipcRenderer.sendMessage('open-training')}>Training & Administration</button>
+    <FriendsButton active={showFriends} style={S.iconBtn} activeStyle={S.iconBtnActive} onClick={() => setShowFriends(true)} />
+    {showFriends && <FriendsView onClose={() => setShowFriends(false)} />}
+  </div>;
+
   return (
     <div style={S.root}>
       <div
@@ -1968,6 +1978,7 @@ export default function SessionChatView() {
             ◷
           </button>
           <FriendsButton active={showFriends} style={S.iconBtn} activeStyle={S.iconBtnActive} onClick={() => setShowFriends(true)} />
+          <button type="button" style={S.iconBtn} title="Training & Administration" aria-label="Training & Administration" onClick={() => window.electron.ipcRenderer.sendMessage('open-training')}>▤</button>
           <button
             type="button"
             style={{ ...S.iconBtn, ...(showSettings ? S.iconBtnActive : {}) }}

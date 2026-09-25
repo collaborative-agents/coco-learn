@@ -7,6 +7,9 @@ import {
   waitFor,
 } from '@testing-library/react';
 import SessionChatView from '../renderer/components/SessionChatView';
+// Existing tutor behavior tests run as an authorized study participant.
+// Fail-closed policy behavior has its own useStudyAccess tests.
+jest.mock('../renderer/useStudyAccess', () => ({ __esModule: true, default: () => true }));
 
 describe('deferred suggestion context', () => {
   it('shows editable model settings when no saved configuration is available', async () => {

@@ -381,7 +381,7 @@ export class CocoGatewayClient {
   }
 
   async requestJson(path: string, method: 'GET' | 'POST' | 'PATCH', body?: object): Promise<Record<string, unknown>> {
-    if (!this.authToken) throw new Error('Please sign in to use Friends.');
+    if (!this.authToken) throw new Error('Please sign in to continue.');
     return this.authRequest(path, method, body);
   }
 
@@ -390,10 +390,12 @@ export class CocoGatewayClient {
     method: 'GET' | 'POST' | 'PATCH',
     body?: object,
   ): Promise<Record<string, unknown>> {
-    let response: Response;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      response = await this.fetchImpl(`${this.gatewayUrl}${path}`, {
+      const response = await this.fetchImpl(`${this.gatewayUrl}${path}`, {
         method,
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           ...(this.authToken
@@ -402,20 +404,16 @@ export class CocoGatewayClient {
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-    } catch (error) {
-      throw new Error(
-        `Could not connect to the Coco backend. ${String(error)}`,
-      );
+      let result: Record<string, unknown> = {};
+      try {
+        result = (await response.json()) as Record<string, unknown>;
+      } catch {
+        if (response.ok) throw new Error('The Coco backend returned an invalid response.');
+      }
+      if (!response.ok) throw new Error(String(result.detail ?? `HTTP ${response.status}`));
+      return result;
+    } finally {
+      clearTimeout(timeout);
     }
-    let result: Record<string, unknown> = {};
-    try {
-      result = (await response.json()) as Record<string, unknown>;
-    } catch {
-      // A non-JSON backend response is handled by the HTTP fallback below.
-    }
-    if (!response.ok) {
-      throw new Error(String(result.detail ?? `HTTP ${response.status}`));
-    }
-    return result;
   }
 }

@@ -34,6 +34,8 @@ import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
 import { avatarRecoveryItems } from './avatar-menu';
 import { SocialService, registerSocialIpcHandlers } from './services/social-service';
+import { registerStudyIpc } from './services/study-service';
+import type { StudyState } from '../shared/study';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
 import axios from 'axios';
@@ -258,7 +260,9 @@ const WAKE_WORDS = ['COCO', 'HI COCO', 'HEY COCO'] as const;
 const WAKE_WORD_MODEL =
   'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
 
-const isCocoSleeping = () => cocoSleeping;
+const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
+let tutoringAllowed = false;
+process.env.COCO_TUTORING_ALLOWED = '0';
 
 const wakeWordSettingsPath = () =>
   path.join(app.getPath('userData'), 'wake-word.json');
@@ -379,6 +383,18 @@ let currentSessionId: string | null = null;
 let pendingTaskLabel: string | null = null;
 let gatewayClient: CocoGatewayClient | null = null;
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
+registerStudyIpc(ipcMain, () => gatewayClient);
+ipcMain.handle('study-access', () => ({ tutoring_allowed: tutoringAllowed }));
+let trainingWindow: BrowserWindow | null = null;
+const openTraining = () => {
+  if (!isAuthenticated) return;
+  if (trainingWindow && !trainingWindow.isDestroyed()) { trainingWindow.show(); trainingWindow.focus(); return; }
+  trainingWindow = new BrowserWindow({ width: 1000, height: 780, minWidth: 380, minHeight: 500,
+    title: 'CoCo Learn — Training', webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false } });
+  trainingWindow.loadURL(`${resolveHtmlPath('index.html')}?view=training`);
+  trainingWindow.on('closed', () => { trainingWindow = null; });
+};
+ipcMain.on('open-training', openTraining);
 let currentTutorModelId: string | null = null;
 // Preserve the original Upskilling session invitation cadence even though the
 // sensing-side Judge owns the decision itself.
@@ -1025,6 +1041,7 @@ function createTray(): void {
           click: () => { void desktopAppUpdater.checkForUpdates(true); },
         }]
       : [];
+  if (isAuthenticated) updateMenuItems.unshift({ label: 'Training & Administration…', click: openTraining });
   tray.setToolTip(
     pendingSetup ? 'Coco' : `Coco — ${sleeping ? 'Sleeping' : 'Awake'}`,
   );
@@ -1204,6 +1221,7 @@ const showSessionSetupWindow = async (taskLabel: string | null) => {
 // ── Session-recap floating window ────────────────────────────────────────────
 // Generates a local recap from TutorSystem's in-memory conversation history.
 const showSessionRecapWindow = () => {
+  if (!tutoringAllowed) return;
   sessionRecapWindow?.destroy();
 
   const {
@@ -1354,6 +1372,7 @@ const showNotification = (payload: {
   scenario?: string;
   category?: string;
 }) => {
+  if (!tutoringAllowed) return;
   if (
     payload.notifType === 'session-end-prompt' &&
     sessionRecapWindow &&
@@ -1764,6 +1783,7 @@ async function testModelConnection(
     apiKey?: string;
   } = {},
 ): Promise<{ success: boolean; message?: string; error?: string }> {
+  if (!tutoringAllowed) return { success: false, error: 'AI tutoring is disabled for this account.' };
   if ((role !== 'sensing' && role !== 'tutor') || !connection) {
     return { success: false, error: 'Invalid model test request.' };
   }
@@ -2232,6 +2252,7 @@ ipcMain.handle('get-coco-sleep-mode', () => ({
 }));
 
 async function setCocoSleepMode(sleeping: boolean) {
+  if (!sleeping && !tutoringAllowed) return { success: false, sleeping: true, error: 'AI tutoring is not available for this account.' };
   if (cocoSleeping === sleeping) {
     return { success: true, sleeping };
   }
@@ -2250,6 +2271,8 @@ async function setCocoSleepMode(sleeping: boolean) {
     ]);
   } else if (observerStarted) {
     await serviceManager.startAll();
+  } else if (isOnboardingComplete()) {
+    startObserver();
   }
 
   const state = { sleeping };
@@ -2817,6 +2840,7 @@ ipcMain.removeHandler('get-instant-suggestion');
 ipcMain.handle(
   'get-instant-suggestion',
   async (_event, { observationId }: { observationId?: string }) => {
+    if (!tutoringAllowed) return { status: 'missing' };
     const entry = observationId
       ? suggestionCache.get(observationId)
       : undefined;
@@ -2959,6 +2983,7 @@ async function createProactiveTutorSession(
   seed?: ChatSeed,
   options: { sessionId?: string; openChat?: boolean } = {},
 ): Promise<string | null> {
+  if (!tutoringAllowed) return null;
   // Read the user's onboarding profile to get their selected AI tools and mode.
   const { aiTools, scenario, customObserverPrompt, userName } = readProfile();
 
@@ -3341,6 +3366,7 @@ ipcMain.handle(
     const tutorPort = process.env.TUTOR_PORT || '8081';
     const tutor = `http://127.0.0.1:${tutorPort}`;
     const sessionStartText = (displayText ?? userText).trim();
+    if (!tutoringAllowed) return { error: 'AI tutoring is disabled for this account.' };
     if (
       !isSessionActive &&
       shouldStartSessionFromUserMessage(
@@ -3562,6 +3588,7 @@ ipcMain.handle(
     if (!audioData || audioData.length > 16_000_000) {
       return { error: 'The voice recording is empty or too large.' };
     }
+    if (!tutoringAllowed) return { error: 'AI tutoring is disabled for this account.' };
     if (!isSessionActive) {
       // A pre-session invite may already be visible from the last sensing tick.
       // Voice input is itself an explicit session start, so remove that stale UI.
@@ -4047,12 +4074,51 @@ interface DesktopAuthCredentials {
 }
 
 const configureParticipantRouterCredential = async (): Promise<void> => {
+  if (!gatewayClient) throw new Error('The study server is unavailable.');
+  const policy = await gatewayClient.requestJson('/api/study/me', 'GET') as unknown as StudyState;
+  tutoringAllowed = policy.tutoring_allowed === true;
+  process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
+  if (!tutoringAllowed) { delete process.env.LLM_ROUTER_API_KEY; return; }
   if (!gatewayClient || !process.env.LLM_ROUTER_URL?.trim()) return;
   const credential = await gatewayClient.issueRouterCredential();
   process.env.LLM_ROUTER_API_KEY = credential.token;
   ensureRouterManagedModels();
   log.info('[Auth] participant-scoped Router credential configured');
 };
+
+let policyRefreshRunning = false;
+async function refreshTutoringAccess() {
+  if (!isAuthenticated || !gatewayClient || policyRefreshRunning) return;
+  policyRefreshRunning = true;
+  const wasAllowed = tutoringAllowed;
+  try {
+    const policy = await gatewayClient.requestJson('/api/study/me', 'GET');
+    tutoringAllowed = policy.tutoring_allowed === true;
+    process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
+    if (!wasAllowed && tutoringAllowed) {
+      await configureParticipantRouterCredential();
+      if (!cocoSleeping && isOnboardingComplete()) startObserver();
+    }
+  } catch (error) {
+    tutoringAllowed = false; // Fail closed when authorization cannot be checked.
+    process.env.COCO_TUTORING_ALLOWED = '0';
+    log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
+  } finally {
+    if (!tutoringAllowed) {
+      delete process.env.LLM_ROUTER_API_KEY;
+      notificationWindow?.destroy();
+      sessionRecapWindow?.destroy();
+      sessionSetupWindow?.destroy();
+      suggestionCache.clear();
+      stopObservationStream();
+      if (isSessionActive) endCurrentSession();
+      await Promise.all([serviceManager.stopService('tutor-server'), serviceManager.stopService('sensing-server')]);
+      observerStarted = false;
+    }
+    syncWakeWordService();
+    policyRefreshRunning = false;
+  }
+}
 
 const authenticate = async (
   mode: 'signin' | 'signup',
@@ -4100,6 +4166,8 @@ const authenticate = async (
     return { success: true, participantId: session.participantId };
   } catch (error) {
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
+    tutoringAllowed = false;
+    process.env.COCO_TUTORING_ALLOWED = '0';
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -4148,6 +4216,12 @@ const createWindow = async () => {
   }
   if (isDebug) {
     await installExtensions();
+  }
+
+  if (!tutoringAllowed) {
+    applyAvatarVisibility(readHideAvatarSetting());
+    openTraining();
+    return;
   }
 
   const onboardingComplete = isOnboardingComplete();
@@ -4282,6 +4356,7 @@ const ensureRouterManagedModels = (): void => {
 // is complete (or immediately on subsequent launches where it's already done),
 // and again from update-settings the moment the user first saves their models.
 const startObserver = () => {
+  if (!tutoringAllowed) return;
   // Already running — nothing to do (guards the two call sites + the
   // start-on-save path in update-settings).
   if (observerStarted) return;
@@ -4384,6 +4459,7 @@ const startObserver = () => {
       'next-learning-review-state.json',
     ),
     onFirstUse: async ({ startTs: todayStartTs }) => {
+      if (!tutoringAllowed) return false;
       // Do not replace something time-sensitive. Returning false leaves the
       // date unhandled, so the next observation retries the summary.
       if (notificationWindow && !notificationWindow.isDestroyed()) {
@@ -4459,6 +4535,7 @@ const startObserver = () => {
   startObservationStream({
     url: `http://127.0.0.1:${sensingPort}/observations/stream`,
     onEvent: (event) => {
+      if (!tutoringAllowed) return;
       if (observationSleepGuard.shouldSuppress(event.ts)) {
         if (event.observation) {
           log.info(
@@ -4696,6 +4773,8 @@ app
     }
 
     createWindow();
+    const studyPolicyTimer = setInterval(() => { void refreshTutoringAccess(); }, 30000);
+    studyPolicyTimer.unref();
     createWakeWordCaptureWindow();
     // Keep chat state alive while its panel is closed.
     createChatWindow();

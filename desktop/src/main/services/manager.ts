@@ -294,6 +294,10 @@ export class ServiceManager {
 
   /** start a single service by id (uses registered config) */
   public startService(id: string) {
+    if (process.env.COCO_TUTORING_ALLOWED === '0' && ['sensing-server', 'tutor-server'].includes(id)) {
+      log.info(`[ServiceManager] skipping ${id}: tutoring is not authorized`);
+      return;
+    }
     if (this.isShuttingDown) {
       log.info(`[ServiceManager] skipping ${id}: shutdown is in progress`);
       return;

@@ -49,7 +49,7 @@ const WIN_SUGGESTION_H = 520;
 const WIN_HISTORY_W = 440;  // activity panel ~260 + 168 offset + slack
 const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
 const WIN_ACTION_MENU_W = 200;
-const WIN_ACTION_MENU_H = 395;
+const WIN_ACTION_MENU_H = 440;
 
 function PetMenuIcon({
   name,
@@ -1175,6 +1175,9 @@ function PetView() {
               <span>History</span>
             </button>
             <div className="pet-actions-divider" role="separator" />
+            <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setActionsMenuOpen(false); window.electron?.ipcRenderer.sendMessage('open-training'); }}>
+              <PetMenuIcon name="history" /><span>Training</span>
+            </button>
             <button
               type="button"
               role="menuitem"

@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import App from './App';
 import NotificationView from './components/NotificationView';
 import ImagePreviewView from './components/ImagePreviewView';
+import TrainingView from './components/TrainingView';
 import OnboardingView from './components/OnboardingView';
 import SessionSetupView from './components/SessionSetupView';
 import SessionChatView from './components/SessionChatView';
@@ -23,6 +24,8 @@ if (view === 'auth') {
   rendered = <NotificationView />;
 } else if (view === 'session-setup') {
   rendered = <SessionSetupView />;
+} else if (view === 'training') {
+  rendered = <TrainingView />;
 } else if (view === 'session') {
   rendered = <SessionChatView />;
 } else if (view === 'session-recap') {

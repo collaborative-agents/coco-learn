@@ -18,6 +18,8 @@ export type Channels =
   | 'study-admin-users'
   | 'study-admin-role'
   | 'study-admin-tutoring'
+  | 'quit-from-auth'
+  | 'open-system-permissions'
   | 'social-list-friendships'
   | 'social-request-friend'
   | 'social-accept-friend'

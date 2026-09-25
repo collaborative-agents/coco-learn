@@ -44,8 +44,8 @@ export const getSystemPermissionWarning = (
   const settingsTargets: SystemPermissionSettingsTarget[] = [];
 
   if (missingAccessibility) {
-    requirements.push('Accessibility and Input Monitoring');
-    settingsTargets.push('accessibility', 'input-monitoring');
+    requirements.push('Accessibility');
+    settingsTargets.push('accessibility');
   }
   if (missingScreenCapture) {
     requirements.push('Screen Recording');
@@ -56,7 +56,7 @@ export const getSystemPermissionWarning = (
     message: 'Coco needs permission to observe your activity.',
     detail: `${requirements.join(
       ' and ',
-    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, Coco may stay open but its History and proactive suggestions will stop updating. Enable Coco in System Settings, then quit and reopen Coco.`,
+    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, History and proactive suggestions will not update. Open Screen Recording also requests macOS consent when needed; no screen image is saved by this permission check. If CoCo Learn is missing from the list, use + to add it from Applications. Enable access, then quit and reopen CoCo Learn. You can reopen this dialog using Permissions on the sign-in screen.`,
     settingsTargets,
   };
 };

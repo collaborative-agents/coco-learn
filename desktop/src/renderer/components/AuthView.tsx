@@ -180,6 +180,37 @@ export default function AuthView() {
             {submitLabel}
           </button>
         </form>
+        <div className="auth-utilities">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const result = (await window.electron.ipcRenderer.invoke(
+                  'open-system-permissions',
+                )) as AuthResult;
+                if (!result?.success)
+                  setError(
+                    result?.error ||
+                      'Could not open permissions. Open System Settings manually.',
+                  );
+              } catch {
+                setError(
+                  'Could not open permissions. Open System Settings manually.',
+                );
+              }
+            }}
+          >
+            Permissions
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              window.electron.ipcRenderer.sendMessage('quit-from-auth')
+            }
+          >
+            Quit CoCo Learn
+          </button>
+        </div>
       </section>
     </main>
   );

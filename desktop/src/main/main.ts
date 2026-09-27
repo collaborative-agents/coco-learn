@@ -546,8 +546,9 @@ ipcMain.handle('open-system-permissions', async (event) => {
 
 const createOnboardingWindow = (modelsOnly = false) => {
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const w = 440;
-  const h = 700;
+  // Leave room around the 420px card for its CSS shadow.
+  const w = 476;
+  const h = 740;
   const x = Math.round((sw - w) / 2);
   const y = Math.round((sh - h) / 2);
 
@@ -559,6 +560,9 @@ const createOnboardingWindow = (modelsOnly = false) => {
     height: h,
     transparent: true,
     frame: false,
+    // The card draws its own CSS shadow; the native one would outline the
+    // full transparent window bounds.
+    hasShadow: false,
     alwaysOnTop: false,
     resizable: false,
     skipTaskbar: process.platform !== 'darwin',
@@ -1495,6 +1499,9 @@ const showNotification = (payload: {
     height: initialHeight,
     transparent: true,
     frame: false,
+    // The card draws its own CSS shadow; the native one would outline the
+    // full transparent window bounds, including space below compact cards.
+    hasShadow: false,
     alwaysOnTop: true,
     resizable: adjustable,
     minimizable: false,

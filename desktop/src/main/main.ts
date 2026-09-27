@@ -491,7 +491,8 @@ const createAuthWindow = () => {
   }
   const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
   const w = 476;
-  const h = 650;
+  // Tall enough for sign-up with a validation error, plus the card shadow.
+  const h = 760;
   authWindow = new BrowserWindow({
     show: false,
     x: Math.round((sw - w) / 2),
@@ -500,6 +501,9 @@ const createAuthWindow = () => {
     height: h,
     transparent: true,
     frame: false,
+    // The card draws its own CSS shadow; the native one would outline the
+    // full transparent window bounds.
+    hasShadow: false,
     // Setup must never cover macOS consent dialogs or System Settings.
     alwaysOnTop: false,
     resizable: false,

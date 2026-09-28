@@ -210,6 +210,22 @@ interface SleepingServiceHealthView {
   sleeping: true;
 }
 
+type SystemPermissionTarget =
+  | 'accessibility'
+  | 'input-monitoring'
+  | 'screen-recording';
+
+interface MissingSystemPermission {
+  target: SystemPermissionTarget;
+  label: string;
+  actionLabel: string;
+  explanation: string;
+}
+
+interface SystemPermissionHealth {
+  missing: MissingSystemPermission[];
+}
+
 interface ConnectionTestStatus {
   state: 'testing' | 'success' | 'error';
   message: string;
@@ -725,6 +741,11 @@ export default function SessionChatView() {
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthView | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState('');
+  const [systemPermissionHealth, setSystemPermissionHealth] =
+    useState<SystemPermissionHealth>({ missing: [] });
+  const [permissionOpening, setPermissionOpening] =
+    useState<SystemPermissionTarget | null>(null);
+  const [permissionError, setPermissionError] = useState('');
   const [cocoSleeping, setCocoSleeping] = useState(false);
   const [cocoSleepModeKnown, setCocoSleepModeKnown] = useState(false);
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
@@ -843,6 +864,46 @@ export default function SessionChatView() {
       if (!cocoSleepingRef.current) setHealthLoading(false);
     }
   }, [applyCocoSleepMode]);
+
+  const refreshSystemPermissions = useCallback(async () => {
+    try {
+      const result = (await window.electron?.ipcRenderer.invoke(
+        'get-system-permissions',
+      )) as SystemPermissionHealth | undefined;
+      if (result && Array.isArray(result.missing)) {
+        setSystemPermissionHealth(result);
+      }
+    } catch {
+      // Permission health is advisory. Leave the section hidden if macOS
+      // cannot report a status instead of showing a false warning.
+    }
+  }, []);
+
+  const openSystemPermission = useCallback(
+    async (target: SystemPermissionTarget) => {
+      setPermissionOpening(target);
+      setPermissionError('');
+      try {
+        const result = (await window.electron?.ipcRenderer.invoke(
+          'open-system-permissions',
+          target,
+        )) as { success?: boolean; error?: string } | undefined;
+        if (!result?.success) {
+          throw new Error(
+            result?.error || 'Could not open macOS System Settings.',
+          );
+        }
+        await refreshSystemPermissions();
+      } catch (error) {
+        setPermissionError(
+          error instanceof Error ? error.message : String(error),
+        );
+      } finally {
+        setPermissionOpening(null);
+      }
+    },
+    [refreshSystemPermissions],
+  );
 
   // Keep each active conversation on disk. A short debounce avoids a write for
   // every streaming token while still preserving completed turns promptly.
@@ -1481,6 +1542,7 @@ export default function SessionChatView() {
   // Load the agent memory whenever the Settings panel is opened.
   useEffect(() => {
     if (!showSettings) return;
+    void refreshSystemPermissions();
     window.electron?.ipcRenderer
       .invoke('get-memory')
       .then((r: any) => {
@@ -1489,7 +1551,7 @@ export default function SessionChatView() {
         setMemoryLoaded(mem);
       })
       .catch(() => {});
-  }, [showSettings]);
+  }, [refreshSystemPermissions, showSettings]);
 
   useEffect(() => {
     window.electron?.ipcRenderer
@@ -1930,7 +1992,10 @@ export default function SessionChatView() {
   ].some((health) =>
     health.modelAssessment?.status === 'legacy_unassessed' ||
     health.modelAssessment?.status === 'not_configured'));
-  const chatHealthLabel = cocoSleeping
+  const systemPermissionIssue = systemPermissionHealth.missing.length > 0;
+  const chatHealthLabel = systemPermissionIssue
+    ? 'Permission required'
+    : cocoSleeping
     ? 'Sleeping'
     : serviceUnavailable
       ? 'Service issue'
@@ -1943,7 +2008,9 @@ export default function SessionChatView() {
             : healthLoading
               ? 'Checking health…'
               : 'Health unknown';
-  const chatHealthColor = cocoSleeping
+  const chatHealthColor = systemPermissionIssue
+    ? '#dc2626'
+    : cocoSleeping
     ? '#6b7280'
     : serviceUnavailable || modelUnavailable
       ? '#dc2626'
@@ -1952,7 +2019,9 @@ export default function SessionChatView() {
         : modelsVerified
           ? '#16a34a'
           : '#6b7280';
-  const chatHealthTitle = cocoSleeping
+  const chatHealthTitle = systemPermissionIssue
+    ? `${systemPermissionHealth.missing.map(({ label }) => label).join(' and ')} must be enabled. Click to open Settings.`
+    : cocoSleeping
     ? 'Coco is asleep. Service health checks are paused until Coco wakes.'
     : serviceUnavailable
       ? [
@@ -1976,8 +2045,9 @@ export default function SessionChatView() {
             ? 'Local services and configured models passed their connection tests.'
             : 'Checking local service health.';
   const hasChatHealthIssue =
-    !cocoSleeping &&
-    (serviceUnavailable || modelUnavailable || modelConfigurationIssue);
+    systemPermissionIssue ||
+    (!cocoSleeping &&
+      (serviceUnavailable || modelUnavailable || modelConfigurationIssue));
 
   if (studyAccess !== true) return <div style={{ ...S.root, padding: 24 }}>
     <div style={S.header}><h2>Coco Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}><HeaderActionIcon name="close" /></button></div>
@@ -2108,12 +2178,50 @@ export default function SessionChatView() {
       {showFriends && <FriendsView onClose={() => setShowFriends(false)} />}
       {showSettings && (
         <div style={S.settings}>
-          <div style={S.groupLabel}>Health</div>
+          <div style={S.groupLabel}>Coco Health</div>
           <div style={S.helpText}>
             {cocoSleeping
               ? 'Coco is asleep. Service health checks are paused until Coco wakes.'
               : "Checks Coco's local services and sends short real requests to the configured models. The sensing test includes a small test image."}
           </div>
+          {systemPermissionHealth.missing.length > 0 && (
+            <div role="alert" style={S.healthList}>
+              {systemPermissionHealth.missing.map((permission) => (
+                <div key={permission.target} style={S.healthRow}>
+                  <span style={{ ...S.healthDot, background: '#ef4444' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={S.healthName}>
+                      {permission.label} permission required
+                    </div>
+                    <div style={{ ...S.healthDetail, color: '#b45309' }}>
+                      {permission.explanation}
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        ...S.connectionTestButton,
+                        marginTop: 7,
+                        ...(permissionOpening ? S.sendBtnDisabled : {}),
+                      }}
+                      disabled={permissionOpening !== null}
+                      onClick={() =>
+                        void openSystemPermission(permission.target)
+                      }
+                    >
+                      {permissionOpening === permission.target
+                        ? 'Opening…'
+                        : permission.actionLabel}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {permissionError && (
+                <div style={{ color: '#b91c1c', fontSize: 11.5 }}>
+                  {permissionError}
+                </div>
+              )}
+            </div>
+          )}
           {cocoSleeping && (
             <div role="status" style={S.healthDetail}>
               Sleeping intentionally stops the sensing server and tutor agent.

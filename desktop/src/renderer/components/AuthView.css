@@ -10,27 +10,8 @@
   -webkit-app-region: drag;
 }
 
-.auth-utilities {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
-}
-.auth-utilities button {
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: #29486d;
-  cursor: pointer;
-  font: 13px var(--coco-font-family);
-}
-.auth-utilities button:focus-visible {
-  outline: 2px solid var(--coco-color-primary);
-  outline-offset: 2px;
-}
-
 .auth-card {
+  position: relative;
   margin: auto 0;
   width: 420px;
   padding: 28px;
@@ -39,6 +20,98 @@
   box-shadow: var(--coco-shadow-panel);
   color: var(--coco-color-text);
 }
+
+.auth-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8490a1;
+  font: 22px/30px var(--coco-font-family);
+  cursor: pointer;
+}
+
+.auth-close-btn:hover {
+  background: #eef2f7;
+  color: #36445a;
+}
+
+.auth-close-btn:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 2px;
+}
+
+.auth-quit-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  border-radius: inherit;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+
+.auth-quit-dialog {
+  width: 100%;
+  max-width: 320px;
+  padding: 22px;
+  border: 1px solid #d7dee8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(23, 32, 51, 0.24);
+}
+
+.auth-quit-dialog h2 {
+  margin: 0 0 8px;
+  color: #172033;
+  font-size: 19px;
+}
+
+.auth-quit-dialog p {
+  margin: 0 0 20px;
+  color: #6b778b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-quit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.auth-quit-actions button {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: 700 13px var(--coco-font-family);
+  cursor: pointer;
+}
+
+.auth-quit-cancel {
+  border: 1px solid #cfd7e3;
+  background: #fff;
+  color: #36445a;
+}
+
+.auth-quit-confirm {
+  border: 1px solid #b42318;
+  background: #b42318;
+  color: #fff;
+}
+
+.auth-quit-actions button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 2px;
+}
+
 .auth-card input,
 .auth-card button,
 .auth-card label {

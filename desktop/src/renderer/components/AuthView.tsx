@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import './AuthView.css';
 
 type AuthMode = 'signin' | 'signup';
@@ -16,8 +16,19 @@ export default function AuthView() {
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showQuitConfirmation, setShowQuitConfirmation] = useState(false);
   let submitLabel = mode === 'signin' ? 'Sign in' : 'Create account';
   if (submitting) submitLabel = 'Please wait…';
+
+  useEffect(() => {
+    const cleanup = window.electron.ipcRenderer.on(
+      'auth-quit-requested',
+      () => setShowQuitConfirmation(true),
+    );
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
+  }, []);
 
   const switchMode = (next: AuthMode) => {
     setMode(next);
@@ -64,6 +75,15 @@ export default function AuthView() {
   return (
     <main className="auth-root">
       <section className="auth-card">
+        <button
+          type="button"
+          className="auth-close-btn"
+          aria-label="Close Coco Learn"
+          title="Quit Coco Learn"
+          onClick={() => setShowQuitConfirmation(true)}
+        >
+          ×
+        </button>
         <header className="auth-header">
           <div className="auth-brand">
             <span className="auth-brand-dot" />
@@ -180,37 +200,45 @@ export default function AuthView() {
             {submitLabel}
           </button>
         </form>
-        <div className="auth-utilities">
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const result = (await window.electron.ipcRenderer.invoke(
-                  'open-system-permissions',
-                )) as AuthResult;
-                if (!result?.success)
-                  setError(
-                    result?.error ||
-                      'Could not open permissions. Open System Settings manually.',
-                  );
-              } catch {
-                setError(
-                  'Could not open permissions. Open System Settings manually.',
-                );
-              }
+        {showQuitConfirmation && (
+          <div
+            className="auth-quit-overlay"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="auth-quit-title"
+            aria-describedby="auth-quit-detail"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setShowQuitConfirmation(false);
             }}
           >
-            Permissions
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              window.electron.ipcRenderer.sendMessage('quit-from-auth')
-            }
-          >
-            Quit Coco Learn
-          </button>
-        </div>
+            <div className="auth-quit-dialog">
+              <h2 id="auth-quit-title">Quit Coco Learn?</h2>
+              <p id="auth-quit-detail">
+                Are you sure you want to quit? You will need to reopen the app
+                to continue.
+              </p>
+              <div className="auth-quit-actions">
+                <button
+                  type="button"
+                  className="auth-quit-cancel"
+                  autoFocus
+                  onClick={() => setShowQuitConfirmation(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="auth-quit-confirm"
+                  onClick={() =>
+                    window.electron.ipcRenderer.sendMessage('quit-from-auth')
+                  }
+                >
+                  Quit Coco Learn
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -56,7 +56,7 @@ export const getSystemPermissionWarning = (
     message: 'Coco needs permission to observe your activity.',
     detail: `${requirements.join(
       ' and ',
-    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, History and proactive suggestions will not update. Open Screen Recording also requests macOS consent when needed; no screen image is saved by this permission check. If Coco Learn is missing from the list, use + to add it from Applications. Enable access, then quit and reopen Coco Learn. You can reopen this dialog using Permissions on the sign-in screen.`,
+    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, History and proactive suggestions will not update. Open Screen Recording also requests macOS consent when needed; no screen image is saved by this permission check. If Coco Learn is missing from the list, use + to add it from Applications. Enable access, then quit and reopen Coco Learn. Missing permissions are shown under Coco Health in Settings.`,
     settingsTargets,
   };
 };

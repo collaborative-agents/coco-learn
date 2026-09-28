@@ -97,6 +97,7 @@ import {
   getSystemPermissionWarning,
   needsWindowsMicrophoneSettings,
   systemPermissionButtonLabel,
+  systemPermissionExplanation,
 } from './system-permission-warning';
 import { openSystemPermissionSettings } from './open-system-permission-settings';
 import {
@@ -4374,71 +4375,63 @@ const showSystemPermissionWarning = async (force = false): Promise<void> => {
       log.warn(`[Permissions] ${warning.detail}`);
       const target = warning.settingsTargets[0];
       const label = systemPermissionButtonLabel(target).replace(/^Open /, '');
-      const buttons = [systemPermissionButtonLabel(target), 'Later'];
-      const { response } = await dialog.showMessageBox({
+      await dialog.showMessageBox({
         type: 'warning',
-        title: 'Coco permissions required',
-        message: `${label} permission is not enabled.`,
-        detail: `Enable ${label} for ${app.isPackaged ? 'CoCo Learn' : 'Electron (development app)'} in System Settings. Return here and choose Check Again. If macOS asks you to quit and reopen the app, do so. Previously granted permissions will be skipped.`,
-        buttons,
+        title: 'CoCo Learn permissions required',
+        message: `Allow ${label}`,
+        detail: `${systemPermissionExplanation(target)}\n\nOpen System Settings and enable ${label} for ${app.isPackaged ? 'CoCo Learn' : 'Electron (development app)'}. Return here and choose Check Again. If macOS asks you to quit and reopen the app, do so.`,
+        buttons: [systemPermissionButtonLabel(target)],
         defaultId: 0,
-        cancelId: buttons.length - 1,
         noLink: true,
       });
-      const selectedTarget = response === 0 ? target : undefined;
-      if (!selectedTarget) break;
-      if (selectedTarget) {
-        try {
-          await openSystemPermissionSettings(selectedTarget, {
-            screenStatus: () =>
-              systemPreferences.getMediaAccessStatus('screen'),
-            // A minimal thumbnail still exercises the capture permission path.
-            // Results are discarded, never saved or sent to a model/server.
-            requestScreenAccess: () =>
-              desktopCapturer
-                .getSources({
-                  types: ['screen'],
-                  thumbnailSize: { width: 1, height: 1 },
-                  fetchWindowIcons: false,
-                })
-                .then(() => undefined),
-            // Explicitly target Apple's settings app rather than a registered URL
-            // handler, and wait for launch errors so we can show the fallback.
-            openExternal: (url) =>
-              new Promise<void>((resolve, reject) => {
-                execFile(
-                  '/usr/bin/open',
-                  ['-b', 'com.apple.systempreferences', url],
-                  { timeout: 5000 },
-                  (error) => {
-                    if (error) reject(error);
-                    else resolve();
-                  },
-                );
-              }),
-            warn: (message) => log.warn(`[Permissions] ${message}`),
-          });
-        } catch (error) {
-          log.warn(
-            `[Permissions] Could not open System Settings: ${String(error)}`,
-          );
-          dialog.showErrorBox(
-            'Open System Settings manually',
-            'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add CoCo Learn from Applications if it is missing. Quit and reopen CoCo Learn after enabling access.',
-          );
-        }
+      try {
+        await openSystemPermissionSettings(target, {
+          screenStatus: () =>
+            systemPreferences.getMediaAccessStatus('screen'),
+          // A minimal thumbnail still exercises the capture permission path.
+          // Results are discarded, never saved or sent to a model/server.
+          requestScreenAccess: () =>
+            desktopCapturer
+              .getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1, height: 1 },
+                fetchWindowIcons: false,
+              })
+              .then(() => undefined),
+          // Explicitly target Apple's settings app rather than a registered URL
+          // handler, and wait for launch errors so we can show the fallback.
+          openExternal: (url) =>
+            new Promise<void>((resolve, reject) => {
+              execFile(
+                '/usr/bin/open',
+                ['-b', 'com.apple.systempreferences', url],
+                { timeout: 5000 },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                },
+              );
+            }),
+          warn: (message) => log.warn(`[Permissions] ${message}`),
+        });
+      } catch (error) {
+        log.warn(
+          `[Permissions] Could not open System Settings: ${String(error)}`,
+        );
+        dialog.showErrorBox(
+          'Open System Settings manually',
+          'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add CoCo Learn from Applications if it is missing. Quit and reopen CoCo Learn after enabling access.',
+        );
       }
-      const check = await dialog.showMessageBox({
+      await dialog.showMessageBox({
         type: 'info',
         title: 'Check permission',
         message: `Have you enabled ${label}?`,
         detail:
           'After changing the setting, choose Check Again. If the permission still appears missing, quit and reopen the app to refresh macOS permission status.',
-        buttons: ['Check Again', 'Later'],
+        buttons: ['Check Again'],
         defaultId: 0,
-        cancelId: 1,
       });
-      if (check.response !== 0) break;
       warning = readWarning();
       if (!warning) {
         await dialog.showMessageBox({

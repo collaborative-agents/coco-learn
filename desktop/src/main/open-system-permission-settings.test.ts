@@ -1,6 +1,6 @@
 import { openSystemPermissionSettings } from './open-system-permission-settings';
 
-function deps(status = 'not-determined') {
+function deps(status = 'denied') {
   return {
     screenStatus: () => status,
     requestScreenAccess: jest.fn().mockResolvedValue([]),
@@ -10,18 +10,21 @@ function deps(status = 'not-determined') {
 }
 
 afterEach(() => jest.useRealTimers());
-it('requests first-time consent and then opens Screen Recording, not Coco', async () => {
-  const d = deps();
-  await openSystemPermissionSettings('screen-recording', d);
-  expect(d.requestScreenAccess).toHaveBeenCalledTimes(1);
-  expect(d.openExternal).toHaveBeenCalledWith(
-    'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
-  );
-  expect(d.requestScreenAccess.mock.invocationCallOrder[0]).toBeLessThan(
-    d.openExternal.mock.invocationCallOrder[0],
-  );
-});
-it.each(['granted', 'denied', 'restricted'])(
+it.each(['denied', 'not-determined', 'unknown'])(
+  'requests screen access for an ungranted status (%s) before opening settings',
+  async (status) => {
+    const d = deps(status);
+    await openSystemPermissionSettings('screen-recording', d);
+    expect(d.requestScreenAccess).toHaveBeenCalledTimes(1);
+    expect(d.openExternal).toHaveBeenCalledWith(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+    );
+    expect(d.requestScreenAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      d.openExternal.mock.invocationCallOrder[0],
+    );
+  },
+);
+it.each(['granted', 'restricted'])(
   'does not repeat a decided permission request (%s)',
   async (status) => {
     const d = deps(status);

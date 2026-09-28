@@ -2,6 +2,7 @@ import {
   getSystemPermissionWarning,
   needsWindowsMicrophoneSettings,
   systemPermissionButtonLabel,
+  systemPermissionExplanation,
   systemPermissionSettingsUrl,
 } from './system-permission-warning';
 
@@ -54,6 +55,15 @@ describe('system permission warning', () => {
     );
     expect(systemPermissionSettingsUrl('input-monitoring')).toContain(
       'Privacy_ListenEvent',
+    );
+  });
+
+  it('explains why Screen Recording and Accessibility are required', () => {
+    expect(systemPermissionExplanation('screen-recording')).toBe(
+      'CoCo Learn uses screenshots to understand your current task and offer relevant assistance. Screenshots are deleted after processing and are not collected.',
+    );
+    expect(systemPermissionExplanation('accessibility')).toBe(
+      'CoCo Learn uses Accessibility access to detect keyboard and mouse activity so it can understand when your task changes. Raw keyboard and mouse activity is processed locally and is not uploaded or sent to a model.',
     );
   });
 

@@ -106,7 +106,7 @@ export class SocialService {
 
   private gateway(): CocoGatewayClient {
     const gateway = this.gatewayProvider();
-    if (!gateway) throw new Error('The CoCo Learn server is not configured.');
+    if (!gateway) throw new Error('The Coco Learn server is not configured.');
     return gateway;
   }
   private friendRequestAction(requestId: string, action: 'accept' | 'decline') {

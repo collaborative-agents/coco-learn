@@ -208,7 +208,7 @@ export default function AuthView() {
               window.electron.ipcRenderer.sendMessage('quit-from-auth')
             }
           >
-            Quit CoCo Learn
+            Quit Coco Learn
           </button>
         </div>
       </section>

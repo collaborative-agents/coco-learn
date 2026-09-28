@@ -144,9 +144,9 @@ const PACKAGED_GATEWAY_URL = embeddedRouterConfig.gatewayUrl ||
 // onboarding once again. Development builds do not use this release gate.
 const PACKAGED_ONBOARDING_VERSION = 'auth-onboarding-v1';
 
-app.setName('CoCo Learn');
+app.setName('Coco Learn');
 
-// Set before the instance lock so CoCo Learn can coexist with CoCo. Existing
+// Set before the instance lock so Coco Learn can coexist with CoCo. Existing
 // CoCo profiles stay in their original directory; users sign in here once.
 if (app.isPackaged) {
   const packagedUserDataDir = path.join(app.getPath('appData'), 'coco-learn');
@@ -397,7 +397,7 @@ const openTraining = () => {
   if (!isAuthenticated) return;
   if (trainingWindow && !trainingWindow.isDestroyed()) { trainingWindow.show(); trainingWindow.focus(); return; }
   trainingWindow = new BrowserWindow({ width: 1000, height: 780, minWidth: 380, minHeight: 500,
-    title: 'CoCo Learn — Training', webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false } });
+    title: 'Coco Learn — Training', webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false } });
   trainingWindow.loadURL(`${resolveHtmlPath('index.html')}?view=training`);
   trainingWindow.on('closed', () => { trainingWindow = null; });
 };
@@ -4377,9 +4377,9 @@ const showSystemPermissionWarning = async (force = false): Promise<void> => {
       const label = systemPermissionButtonLabel(target).replace(/^Open /, '');
       await dialog.showMessageBox({
         type: 'warning',
-        title: 'CoCo Learn permissions required',
+        title: 'Coco Learn permissions required',
         message: `Allow ${label}`,
-        detail: `${systemPermissionExplanation(target)}\n\nOpen System Settings and enable ${label} for ${app.isPackaged ? 'CoCo Learn' : 'Electron (development app)'}. Return here and choose Check Again. If macOS asks you to quit and reopen the app, do so.`,
+        detail: `${systemPermissionExplanation(target)}\n\nOpen System Settings and enable ${label} for ${app.isPackaged ? 'Coco Learn' : 'Electron (development app)'}. Return here and choose Check Again. If macOS asks you to quit and reopen the app, do so.`,
         buttons: [systemPermissionButtonLabel(target)],
         defaultId: 0,
         noLink: true,
@@ -4420,7 +4420,7 @@ const showSystemPermissionWarning = async (force = false): Promise<void> => {
         );
         dialog.showErrorBox(
           'Open System Settings manually',
-          'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add CoCo Learn from Applications if it is missing. Quit and reopen CoCo Learn after enabling access.',
+          'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add Coco Learn from Applications if it is missing. Quit and reopen Coco Learn after enabling access.',
         );
       }
       await dialog.showMessageBox({

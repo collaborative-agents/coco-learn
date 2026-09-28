@@ -56,7 +56,7 @@ export const getSystemPermissionWarning = (
     message: 'Coco needs permission to observe your activity.',
     detail: `${requirements.join(
       ' and ',
-    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, History and proactive suggestions will not update. Open Screen Recording also requests macOS consent when needed; no screen image is saved by this permission check. If CoCo Learn is missing from the list, use + to add it from Applications. Enable access, then quit and reopen CoCo Learn. You can reopen this dialog using Permissions on the sign-in screen.`,
+    )} ${requirements.length === 1 ? 'is' : 'are'} not enabled. Without these permissions, History and proactive suggestions will not update. Open Screen Recording also requests macOS consent when needed; no screen image is saved by this permission check. If Coco Learn is missing from the list, use + to add it from Applications. Enable access, then quit and reopen Coco Learn. You can reopen this dialog using Permissions on the sign-in screen.`,
     settingsTargets,
   };
 };
@@ -100,11 +100,11 @@ export const systemPermissionExplanation = (
 ): string => {
   switch (target) {
     case 'accessibility':
-      return 'CoCo Learn uses Accessibility access to detect keyboard and mouse activity so it can understand when your task changes. Raw keyboard and mouse activity is processed locally and is not uploaded or sent to a model.';
+      return 'Coco Learn uses Accessibility access to detect keyboard and mouse activity so it can understand when your task changes. Raw keyboard and mouse activity is processed locally and is not uploaded or sent to a model.';
     case 'input-monitoring':
-      return 'CoCo Learn uses Input Monitoring access to detect keyboard activity so it can understand when your task changes. Raw keyboard activity is processed locally and is not uploaded or sent to a model.';
+      return 'Coco Learn uses Input Monitoring access to detect keyboard activity so it can understand when your task changes. Raw keyboard activity is processed locally and is not uploaded or sent to a model.';
     case 'screen-recording':
-      return 'CoCo Learn uses screenshots to understand your current task and offer relevant assistance. Screenshots are deleted after processing and are not collected.';
+      return 'Coco Learn uses screenshots to understand your current task and offer relevant assistance. Screenshots are deleted after processing and are not collected.';
     default: {
       const exhaustive: never = target;
       return exhaustive;

@@ -8,7 +8,7 @@ describe('participant authentication', () => {
     const invoke = jest.fn();
     (window as any).electron = { ipcRenderer: { invoke, sendMessage } };
     render(<AuthView />);
-    fireEvent.click(screen.getByRole('button', { name: 'Quit CoCo Learn' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quit Coco Learn' }));
     expect(sendMessage).toHaveBeenCalledWith('quit-from-auth');
     expect(invoke).not.toHaveBeenCalled();
   });

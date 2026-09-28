@@ -1980,7 +1980,7 @@ export default function SessionChatView() {
     (serviceUnavailable || modelUnavailable || modelConfigurationIssue);
 
   if (studyAccess !== true) return <div style={{ ...S.root, padding: 24 }}>
-    <div style={S.header}><h2>CoCo Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}><HeaderActionIcon name="close" /></button></div>
+    <div style={S.header}><h2>Coco Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}><HeaderActionIcon name="close" /></button></div>
     <p>{studyAccess === null ? 'Checking study access…' : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}</p>
     <button type="button" style={S.newSessionBtn} onClick={() => window.electron.ipcRenderer.sendMessage('open-training')}>Training & Administration</button>
     <FriendsButton active={showFriends} style={S.iconBtn} activeStyle={S.iconBtnActive} onClick={() => setShowFriends(true)} />

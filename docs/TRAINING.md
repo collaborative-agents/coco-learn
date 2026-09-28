@@ -47,3 +47,29 @@ along with material metadata, access flags and admin-change audit records.
 Materials are private files on the server. No automatic deletion period is
 configured yet; include these records/files in the study's privacy and
 retention policy.
+# Pre-intervention evaluation files
+
+The My tasks page includes two baseline task ZIP downloads above the seven-day
+training journey. Instructions are distributed separately. Downloads require
+sign-in, but do not require tutoring access or training enrollment and never
+start, complete, or unlock training days. No evaluation completion tracking is
+added. Existing tutoring permissions are unchanged.
+
+The Gateway exposes availability through `evaluation_tasks` on `/api/study/me`
+and serves files through `/api/study/evaluation/pre/{task}/download` (task 1 or 2).
+An older Gateway without these fields leaves the buttons disabled.
+
+Materials are private server files, not public repository/package assets.
+Deploy `server/coco_gateway/training.py` and `import_evaluation.py`, then run from
+the private Gateway's `server/` directory:
+
+```sh
+.venv/bin/python -m coco_gateway.import_evaluation /private/Task1.zip /private/Task2.zip
+.venv/bin/python -m coco_gateway.import_evaluation /private/Task1.zip /private/Task2.zip --apply
+```
+
+The importer preserves ZIP bytes, checks task directories and archive integrity,
+and refuses to replace different existing materials. Metadata is stored in
+`EvaluationMaterials`; blobs live under the existing `COCO_TRAINING_DIR`.
+Restart the Gateway after deploying code. A new desktop package is required to
+display the download section.

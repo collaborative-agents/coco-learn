@@ -263,6 +263,7 @@ const WAKE_WORD_MODEL =
 
 const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
 let tutoringAllowed = false;
+let studyAccessStatus: 'checking' | 'allowed' | 'disabled' | 'unavailable' = 'checking';
 process.env.COCO_TUTORING_ALLOWED = '0';
 
 const wakeWordSettingsPath = () =>
@@ -385,7 +386,11 @@ let pendingTaskLabel: string | null = null;
 let gatewayClient: CocoGatewayClient | null = null;
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
 registerStudyIpc(ipcMain, () => gatewayClient);
-ipcMain.handle('study-access', () => ({ tutoring_allowed: tutoringAllowed }));
+ipcMain.handle('study-access', () => ({ tutoring_allowed: tutoringAllowed, status: studyAccessStatus }));
+ipcMain.handle('study-refresh-access', async () => {
+  await refreshTutoringAccess();
+  return { tutoring_allowed: tutoringAllowed, status: studyAccessStatus };
+});
 let trainingWindow: BrowserWindow | null = null;
 const openTraining = () => {
   if (!isAuthenticated) return;
@@ -4131,12 +4136,13 @@ const configureParticipantRouterCredential = async (): Promise<void> => {
   const policy = await gatewayClient.requestJson('/api/study/me', 'GET') as unknown as StudyState;
   tutoringAllowed = policy.tutoring_allowed === true;
   process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
-  if (!tutoringAllowed) { delete process.env.LLM_ROUTER_API_KEY; return; }
+  if (!tutoringAllowed) { studyAccessStatus = 'disabled'; delete process.env.LLM_ROUTER_API_KEY; return; }
   if (!gatewayClient || !process.env.LLM_ROUTER_URL?.trim()) return;
   const credential = await gatewayClient.issueRouterCredential();
   process.env.LLM_ROUTER_API_KEY = credential.token;
   ensureRouterManagedModels();
   log.info('[Auth] participant-scoped Router credential configured');
+  studyAccessStatus = 'allowed';
 };
 
 let policyRefreshRunning = false;
@@ -4152,7 +4158,9 @@ async function refreshTutoringAccess() {
       await configureParticipantRouterCredential();
       if (!cocoSleeping && isOnboardingComplete()) startObserver();
     }
+    studyAccessStatus = tutoringAllowed ? 'allowed' : 'disabled';
   } catch (error) {
+    studyAccessStatus = 'unavailable';
     tutoringAllowed = false; // Fail closed when authorization cannot be checked.
     process.env.COCO_TUTORING_ALLOWED = '0';
     log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
@@ -4219,6 +4227,7 @@ const authenticate = async (
     return { success: true, participantId: session.participantId };
   } catch (error) {
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
+    studyAccessStatus = 'unavailable';
     tutoringAllowed = false;
     process.env.COCO_TUTORING_ALLOWED = '0';
     return {

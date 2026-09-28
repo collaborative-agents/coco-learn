@@ -2,17 +2,17 @@ import { useEffect, useState } from 'react';
 
 /** Unknown/unreachable policy never enables tutor controls. */
 export default function useStudyAccess() {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null | 'unavailable'>(null);
   useEffect(() => {
     let mounted = true;
     const refresh = async () => {
       try {
         const value = (await window.electron.ipcRenderer.invoke(
           'study-access',
-        )) as { tutoring_allowed?: boolean };
-        if (mounted) setAllowed(value?.tutoring_allowed === true);
+        )) as { tutoring_allowed?: boolean; status?: string };
+        if (mounted) setAllowed(value?.tutoring_allowed === true ? true : value?.status === 'disabled' ? false : value?.status === 'checking' ? null : 'unavailable');
       } catch {
-        if (mounted) setAllowed(false);
+        if (mounted) setAllowed('unavailable');
       }
     };
     void refresh();

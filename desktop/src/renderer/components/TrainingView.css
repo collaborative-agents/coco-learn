@@ -1,3 +1,9 @@
+.training-evaluation-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .training-page {
   height: 100vh;
   overflow: auto;

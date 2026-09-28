@@ -37,6 +37,23 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+it('offers baseline files before enrollment even without tutoring', async () => {
+  me.started_at = null;
+  me.evaluation_tasks = [1, 2].map((task) => ({ task, available: true, filename: `Task${task}.zip` }));
+  render(<TrainingView />);
+  const download = await screen.findByRole('button', { name: 'Download Task 1 files' });
+  expect(download).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Download Task 2 files' })).toBeEnabled();
+  fireEvent.click(download);
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-evaluation-download', 1));
+  expect(invoke).not.toHaveBeenCalledWith('study-start', expect.anything());
+});
+
+it('does not offer downloads when an older server omits evaluation materials', async () => {
+  render(<TrainingView />);
+  expect(await screen.findByRole('button', { name: 'Download Task 1 files' })).toBeDisabled();
+});
+
 it('keeps downloads available without tutoring but locks future days', async () => {
   render(<TrainingView />);
   await screen.findByText('Task 1');

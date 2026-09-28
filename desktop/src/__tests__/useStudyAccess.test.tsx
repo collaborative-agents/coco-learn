@@ -6,7 +6,7 @@ it.each([true, false])('uses verified policy %s', async (allowed) => {
     configurable: true,
     value: {
       ipcRenderer: {
-        invoke: jest.fn().mockResolvedValue({ tutoring_allowed: allowed }),
+        invoke: jest.fn().mockResolvedValue({ tutoring_allowed: allowed, status: allowed ? 'allowed' : 'disabled' }),
       },
     },
   });
@@ -24,5 +24,14 @@ it('fails closed if IPC is unavailable', async () => {
     },
   });
   const { result } = renderHook(() => useStudyAccess());
-  await waitFor(() => expect(result.current).toBe(false));
+  await waitFor(() => expect(result.current).toBe('unavailable'));
+});
+
+it('does not describe a failed policy fetch as an admin restriction', async () => {
+  Object.defineProperty(window, 'electron', {
+    configurable: true,
+    value: { ipcRenderer: { invoke: jest.fn().mockResolvedValue({ tutoring_allowed: false, status: 'unavailable' }) } },
+  });
+  const { result } = renderHook(() => useStudyAccess());
+  await waitFor(() => expect(result.current).toBe('unavailable'));
 });

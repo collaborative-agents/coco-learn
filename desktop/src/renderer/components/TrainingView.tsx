@@ -182,6 +182,7 @@ export default function TrainingView() {
   const refresh = useCallback(async () => {
     const data = (await api('study-me')) as StudyState;
     setState(data);
+    setError('');
     if (data.role === 'participant') {
       setTab('tasks');
       setUsers([]);
@@ -249,7 +250,7 @@ export default function TrainingView() {
       </aside>
       {error && (
         <div role="alert" className="training-error">
-          {error}
+          {/fetch failed|network|timed? ?out|abort/i.test(error) ? 'Unable to connect to the study server. Please check your connection and retry.' : error}
           <button type="button" onClick={() => void act(refresh)}>
             Retry
           </button>
@@ -261,7 +262,7 @@ export default function TrainingView() {
         </p>
       )}
       {!state ? (
-        <p>Loading your training…</p>
+        <p>{error ? 'Training could not be loaded.' : 'Loading your training…'}</p>
       ) : (
         <>
           <div className="training-toolbar">
@@ -297,6 +298,20 @@ export default function TrainingView() {
           )}
           {tab === 'tasks' ? (
             <>
+              <section className="training-card" aria-labelledby="pre-evaluation-title">
+                <h2 id="pre-evaluation-title">Pre-intervention Evaluation</h2>
+                <p>Download your task files below. Task instructions are provided separately.</p>
+                <div className="training-evaluation-downloads">
+                  {[1, 2].map((task) => {
+                    const available = state.evaluation_tasks?.find((item) => item.task === task)?.available;
+                    return <button key={task} type="button" disabled={busy || !available}
+                      onClick={() => void act(() => api('study-evaluation-download', task))}>
+                      Download Task {task} files
+                    </button>;
+                  })}
+                </div>
+                {!state.evaluation_tasks?.some((item) => item.available) && <p>Evaluation materials are not available yet.</p>}
+              </section>
               <TrainingJourney state={state} />
               {!state.started_at && (
                 <section className="training-card">

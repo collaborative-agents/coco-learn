@@ -642,6 +642,22 @@ const createAvatarWindow = () => {
     return { action: 'deny' };
   });
 
+  // Native drag regions do not reliably dispatch DOM context-menu events. Use
+  // Electron's native hooks, then ask the renderer to reveal the same menu as
+  // the ellipsis button so both entry points stay visually and functionally
+  // consistent.
+  const revealActionsMenu = () => {
+    avatarWindow?.webContents.send('open-avatar-actions-menu');
+  };
+  avatarWindow.webContents.on('context-menu', (event) => {
+    event.preventDefault();
+    revealActionsMenu();
+  });
+  avatarWindow.on('system-context-menu', (event) => {
+    event.preventDefault();
+    revealActionsMenu();
+  });
+
   // (notification is screen-pinned; no need to reposition on move)
 };
 

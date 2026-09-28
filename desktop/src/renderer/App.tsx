@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import ObservationBubble, {
@@ -54,8 +54,15 @@ const WIN_ACTION_MENU_H = 440;
 function PetMenuIcon({
   name,
 }: {
-  name: 'sleep' | 'wake' | 'history' | 'settings' | 'hide';
+  name: 'chat' | 'sleep' | 'wake' | 'history' | 'settings' | 'hide';
 }) {
+  if (name === 'chat') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M4 5.5h16v11H9l-5 4v-15Z" />
+      </svg>
+    );
+  }
   if (name === 'hide') {
     return <svg viewBox="0 0 24 24" aria-hidden><path d="M3 3l18 18M10.5 5.2c5.3-.8 9 4.2 10.5 6.8a19 19 0 0 1-3 3.8M6.1 6.1A20 20 0 0 0 3 12c2.5 4 5.5 7 9 7a10 10 0 0 0 4-1M10 10a3 3 0 0 0 4 4" /></svg>;
   }
@@ -555,10 +562,19 @@ function PetView() {
       'open-observation-history',
       () => setShowHistory(true),
     );
+    const cleanupActionsMenu = window.electron?.ipcRenderer.on(
+      'open-avatar-actions-menu',
+      () => {
+        setShowHistory(false);
+        setHideError('');
+        setActionsMenuOpen(true);
+      },
+    );
     window.electron?.ipcRenderer.sendMessage('avatar-renderer-ready');
     return () => {
       if (typeof cleanupToggle === 'function') cleanupToggle();
       if (typeof cleanupOpen === 'function') cleanupOpen();
+      if (typeof cleanupActionsMenu === 'function') cleanupActionsMenu();
     };
   }, []);
 
@@ -797,10 +813,10 @@ function PetView() {
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
 
-  // Clicking the pet opens the chat. If a Tier-1 ("progress"/"observing") bubble
-  // is showing — i.e. the system offered no proactive suggestion — a pet click
-  // is an explicit "I need help anyway": a false-negative signal.
-  const handleClick = (e?: React.SyntheticEvent) => {
+  // Opening chat is an explicit menu action. If a Tier-1
+  // ("progress"/"observing") bubble is showing — i.e. the system offered no
+  // proactive suggestion — record the action as a false-negative signal.
+  const handleOpenChat = (e?: SyntheticEvent) => {
     e?.stopPropagation?.();
     if (bubble && !bubble.tutorMessage && !bubble.showHelpButton) {
       window.electron?.ipcRenderer.sendMessage('training-feedback', {
@@ -1094,17 +1110,20 @@ function PetView() {
           aria-hidden
         />
       )}
-      <div ref={petActionsRef} className="pet-container">
+      <div
+        ref={petActionsRef}
+        className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}`}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setShowHistory(false);
+          setHideError('');
+          setActionsMenuOpen(true);
+        }}
+      >
         <PetSprite mood={cocoSleeping ? 'sleep' : mood} />
-        <button
-          type="button"
-          className="open-button"
-          onClick={handleClick}
-          title="Open the chat"
-          aria-label="Open the chat"
-        >
-          <span aria-hidden>Open Coco</span>
-        </button>
+        <span className="pet-drag-hint" aria-hidden>
+          Right-click for menu
+        </span>
 
         <button
           type="button"
@@ -1129,6 +1148,18 @@ function PetView() {
             role="menu"
             aria-label="Coco actions"
           >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(event) => {
+                setActionsMenuOpen(false);
+                handleOpenChat(event);
+              }}
+            >
+              <PetMenuIcon name="chat" />
+              <span>Open Chat</span>
+            </button>
+            <div className="pet-actions-divider" role="separator" />
             <button
               type="button"
               role="menuitem"

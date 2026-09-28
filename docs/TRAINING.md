@@ -1,9 +1,13 @@
 # Seven-day training
 
 Open **Training** in the fox's three-dot menu, or **Training & Administration**
-in the tray/chat header. Download the unlocked task and check **I have completed
-this task** after finishing it. The next task opens no earlier than the calendar
-day after the previous task unlocked, and only after that task is complete.
+in the tray/chat header. Download the unlocked task, then choose **Add screenshot
+& complete** and submit a screenshot of the most exciting part of your work.
+Screenshots may be PNG, JPEG, or WebP files up to 10 MiB. The next task opens no
+earlier than the calendar day after the previous task unlocked, and only after
+that task is complete. Screenshots stay on the participant's computer under the
+Coco user-data folder in `training-screenshots/<username>`; they are not sent to
+the Gateway.
 Your timezone is recorded when you choose **Start Day 1** and cannot be changed.
 Progress is stored on the study server, so reinstalling does not reset it.
 
@@ -39,6 +43,7 @@ policy verification fails. Re-enabling access is picked up without signing out.
    need to be included in the desktop package.
 
 The backend stores training start time, fixed timezone and completion dates,
-material metadata, access flags and admin-change audit records. Materials are
-private files on the server. No automatic deletion period is configured yet;
-include these records/files in the study's privacy and retention policy.
+along with material metadata, access flags and admin-change audit records.
+Materials are private files on the server. No automatic deletion period is
+configured yet; include these records/files in the study's privacy and
+retention policy.

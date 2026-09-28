@@ -1,4 +1,4 @@
-import { dialog } from 'electron';
+import { app, dialog } from 'electron';
 import fs from 'fs/promises';
 import path from 'path';
 import type { IpcMain } from 'electron';
@@ -32,9 +32,41 @@ export function registerStudyIpc(
   ipc.handle('study-start', (_event, timezone: string) =>
     request('/start', 'POST', { timezone }),
   );
-  ipc.handle('study-complete', (_event, day: number) =>
-    request(`/days/${dayNumber(day)}/complete`, 'POST', { completed: true }),
-  );
+  ipc.handle('study-complete', async (_event, day: number, userId: string) => {
+    const validDay = dayNumber(day);
+    if (typeof userId !== 'string' || !userId.trim())
+      throw new Error('Username is required.');
+    const selected = await dialog.showOpenDialog({
+      title: 'Share the most exciting part of your work',
+      buttonLabel: 'Use screenshot',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Screenshot', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+      ],
+    });
+    if (selected.canceled || !selected.filePaths[0]) return { canceled: true };
+    const file = selected.filePaths[0];
+    const extension = path.extname(file).toLowerCase();
+    if (!['.png', '.jpg', '.jpeg', '.webp'].includes(extension))
+      throw new Error('Screenshot must be a PNG, JPEG, or WebP image.');
+    if ((await fs.stat(file)).size > 10 * 1024 * 1024)
+      throw new Error('Screenshot exceeds 10 MiB.');
+    const userFolder = userId
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 100);
+    const screenshotFolder = path.join(
+      app.getPath('userData'),
+      'training-screenshots',
+      userFolder,
+    );
+    await fs.mkdir(screenshotFolder, { recursive: true });
+    await fs.copyFile(
+      file,
+      path.join(screenshotFolder, `day-${validDay}${extension}`),
+    );
+    return request(`/days/${validDay}/complete`, 'POST', { completed: true });
+  });
   ipc.handle('study-admin-users', (_event, after = '') =>
     request(`/admin/users?after=${encodeURIComponent(after)}`),
   );

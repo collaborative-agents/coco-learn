@@ -542,6 +542,40 @@ describe('deferred suggestion context', () => {
     });
   });
 
+  it('aligns header actions and uses a todo icon for Training', () => {
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn(() => jest.fn()),
+        sendMessage: jest.fn(),
+        invoke: jest.fn(async () => null),
+      },
+    };
+
+    const { container } = render(<SessionChatView />);
+    const actions = [
+      screen.getByRole('button', { name: 'Start a new session' }),
+      screen.getByRole('button', { name: 'Review past conversations' }),
+      screen.getByRole('button', { name: 'Social and messages' }),
+      screen.getByRole('button', { name: 'Training & Administration' }),
+      screen.getByRole('button', { name: 'Settings' }),
+      screen.getByRole('button', { name: 'Expand' }),
+      screen.getByRole('button', { name: 'Close' }),
+    ];
+
+    actions.forEach((action) => expect(action).toHaveStyle({ height: '28px' }));
+    const icons = container.querySelectorAll('[data-header-icon]');
+    expect(icons).toHaveLength(7);
+    icons.forEach((icon) => {
+      expect(icon).toHaveAttribute('width', '15');
+      expect(icon).toHaveAttribute('height', '15');
+    });
+    expect(
+      screen
+        .getByRole('button', { name: 'Training & Administration' })
+        .querySelector('[data-header-icon="todo"]'),
+    ).toBeInTheDocument();
+  });
+
   it('restores the active transcript after a renderer reload', async () => {
     const listeners = new Map<string, (data: unknown) => void>();
     const writeText = jest.fn(async () => undefined);

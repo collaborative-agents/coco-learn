@@ -153,7 +153,7 @@ describe('App', () => {
     expect(sendMessage).toHaveBeenCalledWith('open-main-window');
   });
 
-  it('opens History and Settings from the contextual action menu', async () => {
+  it('opens History, Training, and Settings from the contextual action menu', async () => {
     const sendMessage = jest.fn();
     (window as any).electron = {
       ipcRenderer: {
@@ -176,6 +176,15 @@ describe('App', () => {
     fireEvent.click(screen.getByTitle('More actions'));
     fireEvent.click(screen.getByText('History'));
     expect(screen.getByText('Activity')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('More actions'));
+    const trainingItem = screen.getByRole('menuitem', { name: 'Training' });
+    expect(trainingItem).toHaveClass('pet-training-action');
+    expect(
+      trainingItem.querySelector('.pet-menu-icon--training'),
+    ).toBeInTheDocument();
+    fireEvent.click(trainingItem);
+    expect(sendMessage).toHaveBeenCalledWith('open-training');
 
     fireEvent.click(screen.getByTitle('More actions'));
     fireEvent.click(screen.getByText('Settings'));

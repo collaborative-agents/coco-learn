@@ -3,10 +3,9 @@ import { EmojiPicker } from './SocialEmojiControls';
 
 const COMPOSER_COLLAPSED_MAX_HEIGHT = 120;
 const COMPOSER_EXPANDED_MAX_HEIGHT = 320;
-const ACCENT = '#204A79';
-const BORDER = '#e5e7eb';
-const FONT =
-  "'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const ACCENT = 'var(--coco-color-primary)';
+const BORDER = 'var(--coco-color-border)';
+const FONT = 'var(--coco-font-family)';
 
 export default function SocialMessageComposer({
   ariaLabel,

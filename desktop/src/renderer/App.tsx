@@ -54,7 +54,14 @@ const WIN_ACTION_MENU_H = 440;
 function PetMenuIcon({
   name,
 }: {
-  name: 'chat' | 'sleep' | 'wake' | 'history' | 'settings' | 'hide';
+  name:
+    | 'chat'
+    | 'sleep'
+    | 'wake'
+    | 'history'
+    | 'training'
+    | 'settings'
+    | 'hide';
 }) {
   if (name === 'chat') {
     return (
@@ -87,6 +94,15 @@ function PetMenuIcon({
         <path d="M4.5 8.5H1.8V5.8" />
         <path d="M3 8a9 9 0 1 1-.2 7.5" />
         <path d="M12 7.2V12l3.2 2" />
+      </svg>
+    );
+  }
+  if (name === 'training') {
+    return (
+      <svg className="pet-menu-icon--training" viewBox="0 0 24 24" aria-hidden>
+        <path d="M6 5.5h12v15H6z" />
+        <path d="M9 3.5h6v4H9z" />
+        <path d="m9.2 13.5 1.8 1.8 4-4" />
       </svg>
     );
   }
@@ -1206,8 +1222,18 @@ function PetView() {
               <span>History</span>
             </button>
             <div className="pet-actions-divider" role="separator" />
-            <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setActionsMenuOpen(false); window.electron?.ipcRenderer.sendMessage('open-training'); }}>
-              <PetMenuIcon name="history" /><span>Training</span>
+            <button
+              type="button"
+              className="pet-training-action"
+              role="menuitem"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionsMenuOpen(false);
+                window.electron?.ipcRenderer.sendMessage('open-training');
+              }}
+            >
+              <PetMenuIcon name="training" />
+              <span>Training</span>
             </button>
             <button
               type="button"

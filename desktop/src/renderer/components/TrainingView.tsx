@@ -59,7 +59,7 @@ export default function TrainingView() {
   }, [refresh]);
   return (
     <main className="training-page">
-      <header>
+      <header className="training-header">
         <span className="training-eyebrow">COCO LEARN</span>
         <h1>Your seven-day practice</h1>
         <p>
@@ -75,7 +75,11 @@ export default function TrainingView() {
           </button>
         </div>
       )}
-      {notice && <p role="status">{notice}</p>}
+      {notice && (
+        <p role="status" className="training-notice">
+          {notice}
+        </p>
+      )}
       {!state ? (
         <p>Loading your training…</p>
       ) : (
@@ -84,12 +88,17 @@ export default function TrainingView() {
             <span>
               {state.user_id} · {state.role.replace('_', ' ')}
             </span>
-            <button type="button" onClick={() => setTab('tasks')}>
+            <button
+              type="button"
+              aria-pressed={tab === 'tasks'}
+              onClick={() => setTab('tasks')}
+            >
               My tasks
             </button>
             {state.role !== 'participant' && (
               <button
                 type="button"
+                aria-pressed={tab === 'admin'}
                 disabled={busy}
                 onClick={() => {
                   setTab('admin');
@@ -108,7 +117,7 @@ export default function TrainingView() {
           )}
           {tab === 'tasks' ? (
             <>
-              <p>
+              <p className="training-progress">
                 Progress: {state.days.filter((d) => d.completed_at).length} / 7
                 completed{state.timezone && ` · Calendar: ${state.timezone}`}
               </p>

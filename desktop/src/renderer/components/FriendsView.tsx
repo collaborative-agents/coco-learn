@@ -44,11 +44,10 @@ const EMPTY_FRIENDSHIPS: FriendshipList = {
   incoming: [],
   outgoing: [],
 };
-const ACCENT = '#204A79';
-const ACCENT_BG = '#E9EFFF';
-const BORDER = '#e5e7eb';
-const FONT =
-  "'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const ACCENT = 'var(--coco-color-primary)';
+const ACCENT_BG = 'var(--coco-color-accent-soft)';
+const BORDER = 'var(--coco-color-border)';
+const FONT = 'var(--coco-font-family)';
 
 const styles: Record<string, React.CSSProperties> = {
   root: {

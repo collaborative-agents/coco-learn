@@ -259,12 +259,12 @@ function formatMetricLatency(ms?: number): string {
 }
 
 // ── Styles (inline so the view is self-contained in a transparent window) ──────
-// Palette mirrors the onboarding panel: SALT Lab blue with a light-blue accent.
-const ACCENT = '#204A79'; // primary blue
-const ACCENT_BG = '#E9EFFF'; // light blue fill
-const ACCENT_BORDER = '#BCD0FC'; // light blue border
-const BORDER = '#e5e7eb';
-const FONT = "'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+// Palette mirrors the onboarding panel: Coco blue with a light-blue accent.
+const ACCENT = 'var(--coco-color-primary)';
+const ACCENT_BG = 'var(--coco-color-accent-soft)';
+const ACCENT_BORDER = 'var(--coco-color-accent-border)';
+const BORDER = 'var(--coco-color-border)';
+const FONT = 'var(--coco-font-family)';
 const S: Record<string, React.CSSProperties> = {
   root: {
     display: 'flex', flexDirection: 'column', height: '100vh',

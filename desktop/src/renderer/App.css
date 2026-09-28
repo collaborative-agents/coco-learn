@@ -2,22 +2,6 @@
  * @NOTE: Prepend a `~` to css file paths that are in your node_modules
  *        See https://github.com/webpack-contrib/sass-loader#imports
  */
-@import url('https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap');
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: transparent;
-}
-
 /* The avatar window is resized dynamically by main.ts to fit whatever is on
    stage (just-pet vs. bubble vs. history panel). The stage is a transparent
    flex row: bubble on the left, pet anchored bottom-right. */
@@ -107,7 +91,7 @@ body,
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.06),
     0 8px 22px rgba(31, 41, 55, 0.14);
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   -webkit-app-region: no-drag;
   pointer-events: auto;
   opacity: 0;
@@ -353,7 +337,7 @@ body,
   padding: 5px 10px;
   font-size: 12px;
   font-weight: 600;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   letter-spacing: 0.01em;
   border-radius: 8px;
   border: 1px solid var(--bubble-accent-soft);
@@ -652,6 +636,19 @@ body,
   outline: none;
 }
 
+.pet-actions-menu button.pet-training-action {
+  background: var(--coco-color-primary);
+  color: var(--coco-color-surface);
+  font-weight: 650;
+  box-shadow: 0 1px 3px rgba(var(--coco-color-primary-rgb), 0.24);
+}
+
+.pet-actions-menu button.pet-training-action:hover,
+.pet-actions-menu button.pet-training-action:focus-visible {
+  background: var(--coco-color-primary-hover);
+  box-shadow: 0 2px 5px rgba(var(--coco-color-primary-rgb), 0.3);
+}
+
 .pet-actions-menu svg {
   width: 16px;
   height: 16px;
@@ -661,6 +658,10 @@ body,
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.pet-actions-menu .pet-training-action svg {
+  stroke: currentColor;
 }
 
 .pet-actions-divider {
@@ -698,7 +699,20 @@ body,
     background: rgba(255, 255, 255, 0.09);
   }
 
+  .pet-actions-menu button.pet-training-action {
+    background: var(--coco-color-accent);
+    color: var(--coco-color-surface);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+  }
+
+  .pet-actions-menu button.pet-training-action:hover,
+  .pet-actions-menu button.pet-training-action:focus-visible {
+    background: var(--coco-color-primary);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
   .pet-actions-menu svg { stroke: rgba(255, 255, 255, 0.7); }
+  .pet-actions-menu .pet-training-action svg { stroke: currentColor; }
   .pet-actions-divider { background: rgba(255, 255, 255, 0.12); }
 }
 
@@ -722,7 +736,7 @@ body,
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.08),
     0 12px 32px rgba(31, 41, 55, 0.18);
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   -webkit-app-region: no-drag;
   pointer-events: auto;
   z-index: 10;
@@ -1069,7 +1083,7 @@ body,
   font-size: 13px;
   line-height: 1.5;
   color: #4f4f4f;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   margin: 0;
   flex: 1;
   min-width: 0;
@@ -1180,7 +1194,7 @@ body,
     0 2px 6px rgba(0, 0, 0, 0.14);
   /* Match SessionChatView exactly. PT Sans is the product font; the system
      fallbacks keep every window consistent if the web font is unavailable. */
-  font-family: 'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--coco-font-family);
   overflow: hidden;
 }
 
@@ -1436,7 +1450,7 @@ body,
 .chat-markdown .task-list-item input {
   margin: 0 6px 0 -19px;
   vertical-align: -1px;
-  accent-color: #204a79;
+  accent-color: var(--coco-color-primary);
 }
 
 .chat-markdown hr {
@@ -1449,7 +1463,7 @@ body,
 .chat-markdown blockquote {
   margin: 7px 0;
   padding: 3px 0 3px 10px;
-  border-left: 3px solid #bcd0fc;
+  border-left: 3px solid var(--coco-color-accent-border);
   color: #4b5563;
 }
 
@@ -1458,9 +1472,9 @@ body,
 }
 
 .chat-markdown a {
-  color: #204a79;
+  color: var(--coco-color-primary);
   text-decoration: underline;
-  text-decoration-color: #bcd0fc;
+  text-decoration-color: var(--coco-color-accent-border);
   text-underline-offset: 2px;
 }
 
@@ -1517,7 +1531,7 @@ body,
 }
 
 .chat-markdown th {
-  background: #e9efff;
+  background: var(--coco-color-accent-soft);
   color: #1f2937;
   font-weight: 700;
 }
@@ -1724,9 +1738,9 @@ body,
 }
 
 .toast-tool-action {
-  color: #204a79;
-  border-color: #bcd0fc;
-  background: #e9efff;
+  color: var(--coco-color-primary);
+  border-color: var(--coco-color-accent-border);
+  background: var(--coco-color-accent-soft);
 }
 
 .toast-coco-chat-action {
@@ -1768,8 +1782,8 @@ body,
 .toast-rating-btn:hover,
 .toast-rating-btn.is-rated {
   opacity: 1;
-  background: #e9efff;
-  border-color: #bcd0fc;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
 }
 
 .toast-rating-btn:disabled:not(.is-rated) {
@@ -1816,7 +1830,7 @@ body,
   box-shadow:
     0 4px 6px rgba(0, 0, 0, 0.07),
     0 12px 28px rgba(0, 0, 0, 0.14);
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   padding: 14px 16px 16px;
   overflow: hidden;
 }
@@ -2033,7 +2047,7 @@ body,
 
 /* ── Session-rating floating window ─────────────────────────────────────────
    Follows the evaluation_platform design language:
-   Primary blue #204A79 · Light surface #E9EFFF · PT Sans · pill buttons
+   Uses the shared Coco primary, accent surface, typography, and control shape.
    ────────────────────────────────────────────────────────────────────────── */
 
 .rating-root {
@@ -2056,7 +2070,7 @@ body,
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(32, 74, 121, 0.10);
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   overflow: hidden;
 }
 
@@ -2073,14 +2087,14 @@ body,
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #204A79;
+  background: var(--coco-color-primary);
   flex-shrink: 0;
 }
 
 .rating-header-title {
   font-size: 12px;
   font-weight: 700;
-  color: #204A79;
+  color: var(--coco-color-primary);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -2103,9 +2117,9 @@ body,
 }
 
 .rating-close:hover {
-  background: #E9EFFF;
-  border-color: #BCD0FC;
-  color: #204A79;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
+  color: var(--coco-color-primary);
 }
 
 .rating-block {
@@ -2130,7 +2144,7 @@ body,
   display: flex;
   justify-content: space-between;
   gap: 5px;
-  font-family: 'PT Sans', sans-serif;
+  font-family: var(--coco-font-family);
 }
 
 .rating-option {
@@ -2148,13 +2162,13 @@ body,
 }
 
 .rating-option:hover {
-  background: #E9EFFF;
-  border-color: #BCD0FC;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
 }
 
 .rating-option--selected {
-  background: #E9EFFF;
-  border-color: #204A79;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-primary);
 }
 
 .rating-circle {
@@ -2172,7 +2186,7 @@ body,
 }
 
 .rating-option--selected .rating-circle {
-  background: #204A79;
+  background: var(--coco-color-primary);
   color: #ffffff;
 }
 
@@ -2185,7 +2199,7 @@ body,
 }
 
 .rating-option--selected .rating-option-label {
-  color: #204A79;
+  color: var(--coco-color-primary);
   font-weight: 700;
 }
 
@@ -2204,18 +2218,18 @@ body,
   justify-content: center;
   padding: 5px 20px;
   border-radius: 999px;
-  border: 2px solid #204A79;
+  border: 2px solid var(--coco-color-primary);
   background: #ffffff;
-  color: #204A79;
+  color: var(--coco-color-primary);
   font-size: 14px;
   font-weight: 600;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .rating-btn-skip:hover {
-  background: #204A79;
+  background: var(--coco-color-primary);
   color: #ffffff;
 }
 
@@ -2226,11 +2240,11 @@ body,
   padding: 5px 20px;
   border-radius: 999px;
   border: none;
-  background: #204A79;
+  background: var(--coco-color-primary);
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -2240,14 +2254,14 @@ body,
 }
 
 .rating-btn-submit:disabled {
-  background: #BCD0FC;
+  background: var(--coco-color-accent-border);
   color: #ffffff;
   cursor: not-allowed;
 }
 
 /* ── Session-recap floating window ─────────────────────────────────────────
    Follows the evaluation_platform design language:
-   Primary blue #204A79 · Light surface #E9EFFF · PT Sans · pill buttons
+   Uses the shared Coco primary, accent surface, typography, and control shape.
    ────────────────────────────────────────────────────────────────────────── */
 
 .recap-root {
@@ -2270,7 +2284,7 @@ body,
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(32, 74, 121, 0.10);
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   overflow: hidden;
 }
 
@@ -2296,14 +2310,14 @@ body,
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #204A79;
+  background: var(--coco-color-primary);
   flex-shrink: 0;
 }
 
 .recap-header-title {
   font-size: 12px;
   font-weight: 700;
-  color: #204A79;
+  color: var(--coco-color-primary);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -2326,9 +2340,9 @@ body,
 }
 
 .recap-close:hover {
-  background: #E9EFFF;
-  border-color: #BCD0FC;
-  color: #204A79;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
+  color: var(--coco-color-primary);
 }
 
 /* ── Loading state ── */
@@ -2345,8 +2359,8 @@ body,
 .recap-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid #E9EFFF;
-  border-top-color: #204A79;
+  border: 3px solid var(--coco-color-accent-soft);
+  border-top-color: var(--coco-color-primary);
   border-radius: 50%;
   animation: recap-spin 0.75s linear infinite;
 }
@@ -2388,7 +2402,7 @@ body,
   gap: 6px;
   font-size: 12px;
   font-weight: 700;
-  color: #204A79;
+  color: var(--coco-color-primary);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 10px;
@@ -2401,8 +2415,8 @@ body,
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  background: #E9EFFF;
-  color: #204A79;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-primary);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -2439,7 +2453,7 @@ body,
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #204A79;
+  background: var(--coco-color-primary);
   margin-top: 6px;
 }
 
@@ -2475,15 +2489,15 @@ body,
   background: #ffffff;
   color: rgba(0, 0, 0, 0.87);
   font-size: 15px;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
   line-height: 1.45;
 }
 
 .recap-choice:hover:not(:disabled) {
-  background: #E9EFFF;
-  border-color: #BCD0FC;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
 }
 
 .recap-choice-letter {
@@ -2599,18 +2613,18 @@ body,
   justify-content: center;
   padding: 5px 20px;
   border-radius: 999px;
-  border: 2px solid #204A79;
+  border: 2px solid var(--coco-color-primary);
   background: #ffffff;
-  color: #204A79;
+  color: var(--coco-color-primary);
   font-size: 14px;
   font-weight: 600;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .recap-btn-skip:hover {
-  background: #204A79;
+  background: var(--coco-color-primary);
   color: #ffffff;
 }
 
@@ -2621,11 +2635,11 @@ body,
   padding: 5px 20px;
   border-radius: 999px;
   border: none;
-  background: #204A79;
+  background: var(--coco-color-primary);
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
-  font-family: 'PT Sans', Arial, Helvetica, sans-serif;
+  font-family: var(--coco-font-family);
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -2635,7 +2649,7 @@ body,
 }
 
 .recap-btn-continue:disabled {
-  background: #BCD0FC;
+  background: var(--coco-color-accent-border);
   color: #ffffff;
   cursor: not-allowed;
 }

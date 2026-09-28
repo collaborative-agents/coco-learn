@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap');
-
 .auth-root {
   width: 100vw;
   height: 100vh;
@@ -8,7 +6,7 @@
   align-items: flex-start;
   justify-content: center;
   background: transparent;
-  font-family: 'PT Sans', sans-serif;
+  font-family: var(--coco-font-family);
   -webkit-app-region: drag;
 }
 
@@ -25,12 +23,10 @@
   padding: 6px 10px;
   color: #29486d;
   cursor: pointer;
-  font:
-    13px 'PT Sans',
-    sans-serif;
+  font: 13px var(--coco-font-family);
 }
 .auth-utilities button:focus-visible {
-  outline: 2px solid #204a79;
+  outline: 2px solid var(--coco-color-primary);
   outline-offset: 2px;
 }
 
@@ -39,9 +35,9 @@
   width: 420px;
   padding: 28px;
   border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 6px 20px rgba(20, 45, 74, 0.18);
-  color: #172033;
+  background: var(--coco-color-surface);
+  box-shadow: var(--coco-shadow-panel);
+  color: var(--coco-color-text);
 }
 .auth-card input,
 .auth-card button,
@@ -67,7 +63,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #204a79;
+  background: var(--coco-color-primary);
 }
 .auth-header h1 {
   margin: 0 0 6px;
@@ -94,14 +90,12 @@
   padding: 9px;
   background: transparent;
   color: #68758a;
-  font:
-    700 14px 'PT Sans',
-    sans-serif;
+  font: 700 14px var(--coco-font-family);
   cursor: pointer;
 }
 .auth-tabs button.active {
   background: #fff;
-  color: #204a79;
+  color: var(--coco-color-primary);
   box-shadow: 0 1px 5px rgba(32, 74, 121, 0.14);
 }
 
@@ -123,9 +117,7 @@
   border-radius: 9px;
   color: #172033;
   background: #fff;
-  font:
-    15px 'PT Sans',
-    sans-serif;
+  font: 15px var(--coco-font-family);
   outline: none;
 }
 .auth-form > input:focus {
@@ -150,7 +142,7 @@
   width: 17px;
   height: 17px;
   margin-top: 2px;
-  accent-color: #204a79;
+  accent-color: var(--coco-color-primary);
 }
 .auth-checkbox span {
   display: flex;
@@ -177,15 +169,13 @@
   border: 0;
   border-radius: 10px;
   padding: 12px;
-  background: #204a79;
+  background: var(--coco-color-primary);
   color: white;
-  font:
-    700 15px 'PT Sans',
-    sans-serif;
+  font: 700 15px var(--coco-font-family);
   cursor: pointer;
 }
 .auth-submit:hover {
-  background: #173d68;
+  background: var(--coco-color-primary-hover);
 }
 .auth-submit:disabled {
   opacity: 0.55;

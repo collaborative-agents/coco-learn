@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import type { ReactElement } from 'react';
+import './global.css';
 import App from './App';
 import NotificationView from './components/NotificationView';
 import ImagePreviewView from './components/ImagePreviewView';

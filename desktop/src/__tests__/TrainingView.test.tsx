@@ -40,6 +40,15 @@ afterEach(() => jest.restoreAllMocks());
 it('keeps downloads available without tutoring but locks future days', async () => {
   render(<TrainingView />);
   await screen.findByText('Task 1');
+  expect(
+    screen.getByRole('heading', { name: 'Camp awards' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Finish all seven daily tasks.*pre- and post-assessments/s,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Top Performer/)).toBeInTheDocument();
   expect(screen.getByText(/AI tutoring is disabled/)).toBeInTheDocument();
   expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   const downloads = screen.getAllByRole('button', { name: 'Download task' });
@@ -47,8 +56,37 @@ it('keeps downloads available without tutoring but locks future days', async () 
   expect(downloads[1]).toBeDisabled();
   fireEvent.click(downloads[0]);
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-download', 1));
-  fireEvent.click(screen.getAllByRole('checkbox')[0]);
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-complete', 1));
+  fireEvent.click(
+    screen.getAllByRole('button', { name: 'Add screenshot & complete' })[0],
+  );
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('study-complete', 1, 'alice'),
+  );
+  expect(
+    await screen.findByText(
+      'Level 1 complete — screenshot saved locally and 100 XP earned.',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('shows progress as a seven-level journey with Coco at the current level', async () => {
+  me.days[0].completed_at = '2026-09-24T01:00:00Z';
+  me.days[1].unlocked = true;
+
+  const { container } = render(<TrainingView />);
+
+  expect(await screen.findByText('Level 2 of 7')).toBeInTheDocument();
+  expect(screen.getByLabelText('100 experience points')).toBeInTheDocument();
+  expect(screen.getByLabelText('Level 1: done')).toBeInTheDocument();
+  expect(screen.getByLabelText('Level 2: current')).toBeInTheDocument();
+  expect(screen.getByLabelText('Level 3: locked')).toBeInTheDocument();
+  expect(
+    screen.getByRole('progressbar', { name: 'Training journey progress' }),
+  ).toHaveAttribute('aria-valuenow', '14');
+  expect(container.querySelector('.training-runner img')).toHaveAttribute(
+    'src',
+    'test-file-stub',
+  );
 });
 
 it('does not begin training while materials are missing', async () => {

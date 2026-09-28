@@ -4,11 +4,18 @@ import { registerStudyIpc } from './study-service';
 import type { CocoGatewayClient } from './gateway-client';
 
 jest.mock('electron', () => ({
+  app: { getPath: jest.fn().mockReturnValue('/coco') },
   dialog: { showSaveDialog: jest.fn(), showOpenDialog: jest.fn() },
 }));
 jest.mock('fs/promises', () => ({
   __esModule: true,
-  default: { writeFile: jest.fn(), readFile: jest.fn(), stat: jest.fn() },
+  default: {
+    copyFile: jest.fn(),
+    mkdir: jest.fn(),
+    writeFile: jest.fn(),
+    readFile: jest.fn(),
+    stat: jest.fn(),
+  },
 }));
 
 function fixture(response: object) {
@@ -30,6 +37,47 @@ function fixture(response: object) {
 }
 
 beforeEach(() => jest.clearAllMocks());
+
+it('requires and saves a screenshot locally when completing a training day', async () => {
+  const screenshot = Buffer.from('image');
+  const { invoke, requestJson } = fixture({ success: true });
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePaths: ['/chosen/favorite-moment.png'],
+  });
+  (fs.stat as jest.Mock).mockResolvedValue({ size: screenshot.length });
+
+  await expect(invoke('study-complete', 1, 'alice')).resolves.toEqual({
+    success: true,
+  });
+  expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-screenshots/alice', {
+    recursive: true,
+  });
+  expect(fs.copyFile).toHaveBeenCalledWith(
+    '/chosen/favorite-moment.png',
+    '/coco/training-screenshots/alice/day-1.png',
+  );
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/days/1/complete',
+    'POST',
+    { completed: true },
+  );
+});
+
+it('does not complete a training day when screenshot selection is cancelled', async () => {
+  const { invoke, requestJson } = fixture({ success: true });
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: true,
+    filePaths: [],
+  });
+
+  await expect(invoke('study-complete', 1, 'alice')).resolves.toEqual({
+    canceled: true,
+  });
+  expect(requestJson).not.toHaveBeenCalled();
+  expect(fs.copyFile).not.toHaveBeenCalled();
+});
+
 it('saves an authenticated download only to the user-selected location', async () => {
   const { invoke, requestJson } = fixture({
     filename: 'task.pdf',

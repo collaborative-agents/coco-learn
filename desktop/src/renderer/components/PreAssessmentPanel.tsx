@@ -296,96 +296,98 @@ export default function PreAssessmentPanel({
     }
   };
 
+  const challengeContent = state ? (
+    <>
+      <div
+        className="pre-assessment-tabs"
+        role="tablist"
+        aria-label="Pre-assessment challenges"
+      >
+        {(['A', 'E'] as const).map((set, index) => (
+          <button
+            key={set}
+            type="button"
+            role="tab"
+            aria-selected={activeSet === set}
+            onClick={() => setActiveSet(set)}
+          >
+            <span>{state.sets[set] ? '✓' : index + 1}</span>
+            Challenge {index + 1}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel">
+        {activeSet === 'A' ? (
+          <SetAChallenge result={state.sets.A} onSubmit={submit} busy={busy} />
+        ) : (
+          <SetEChallenge result={state.sets.E} onSubmit={submit} busy={busy} />
+        )}
+      </div>
+    </>
+  ) : (
+    <p>Loading your pre-assessments…</p>
+  );
+
   return (
     <section
-      className="training-card pre-assessment"
+      className={`training-card pre-assessment${state?.complete ? ' pre-assessment--complete' : ''}`}
       aria-labelledby="pre-assessment-title"
     >
-      <div className="pre-assessment-intro">
-        <div>
-          <span className="training-eyebrow">BEFORE CAMP</span>
-          <h2 id="pre-assessment-title">
-            Complete both pre-assessment challenges
-          </h2>
-          <p>
-            {required
-              ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after both challenges are complete.'
-              : 'This is the participant pre-assessment experience. Admin accounts can preview and complete both challenges without restricting administration tools.'}
-          </p>
-        </div>
-        <div
-          className="pre-assessment-progress"
-          role="progressbar"
-          aria-label="Pre-assessment progress"
-          aria-valuemin={0}
-          aria-valuemax={2}
-          aria-valuenow={completedCount}
-        >
-          <strong>{completedCount}/2</strong>
-          <span>complete</span>
-        </div>
-      </div>
-
-      {state?.complete && (
-        <div className="pre-assessment-unlocked" role="status">
-          <span aria-hidden>✓</span>
-          <div>
-            <strong>
-              {required
-                ? 'You did it—Coco is unlocked!'
-                : 'Participant preview complete'}
-            </strong>
-            <p>
-              {required
-                ? 'Both pre-assessments are complete. You can now use Coco and begin your camp challenges.'
-                : 'You completed the participant pre-assessment preview.'}
-            </p>
+      {state?.complete ? (
+        <details className="pre-assessment-complete-details">
+          <summary className="pre-assessment-complete-summary">
+            <span className="pre-assessment-complete-icon" aria-hidden>
+              ✓
+            </span>
+            <span className="pre-assessment-complete-title">
+              <span className="training-eyebrow">BEFORE CAMP</span>
+              <h2 id="pre-assessment-title">
+                <s>Complete both pre-assessment challenges</s>
+              </h2>
+            </span>
+            <span className="pre-assessment-complete-label">Completed</span>
+          </summary>
+          <div className="pre-assessment-complete-content">
+            {error && (
+              <p className="training-error" role="alert">
+                {error}
+              </p>
+            )}
+            {challengeContent}
           </div>
-        </div>
-      )}
-
-      {error && (
-        <p className="training-error" role="alert">
-          {error}
-        </p>
-      )}
-      {!state ? (
-        <p>Loading your pre-assessments…</p>
+        </details>
       ) : (
         <>
-          <div
-            className="pre-assessment-tabs"
-            role="tablist"
-            aria-label="Pre-assessment challenges"
-          >
-            {(['A', 'E'] as const).map((set, index) => (
-              <button
-                key={set}
-                type="button"
-                role="tab"
-                aria-selected={activeSet === set}
-                onClick={() => setActiveSet(set)}
-              >
-                <span>{state.sets[set] ? '✓' : index + 1}</span>
-                Challenge {index + 1}
-              </button>
-            ))}
+          <div className="pre-assessment-intro">
+            <div>
+              <span className="training-eyebrow">BEFORE CAMP</span>
+              <h2 id="pre-assessment-title">
+                Complete both pre-assessment challenges
+              </h2>
+              <p>
+                {required
+                  ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after both challenges are complete.'
+                  : 'This is the participant pre-assessment experience. Admin accounts can preview and complete both challenges without restricting administration tools.'}
+              </p>
+            </div>
+            <div
+              className="pre-assessment-progress"
+              role="progressbar"
+              aria-label="Pre-assessment progress"
+              aria-valuemin={0}
+              aria-valuemax={2}
+              aria-valuenow={completedCount}
+            >
+              <strong>{completedCount}/2</strong>
+              <span>complete</span>
+            </div>
           </div>
-          <div role="tabpanel">
-            {activeSet === 'A' ? (
-              <SetAChallenge
-                result={state.sets.A}
-                onSubmit={submit}
-                busy={busy}
-              />
-            ) : (
-              <SetEChallenge
-                result={state.sets.E}
-                onSubmit={submit}
-                busy={busy}
-              />
-            )}
-          </div>
+          {error && (
+            <p className="training-error" role="alert">
+              {error}
+            </p>
+          )}
+          {challengeContent}
         </>
       )}
     </section>

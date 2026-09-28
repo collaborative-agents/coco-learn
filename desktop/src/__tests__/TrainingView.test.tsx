@@ -1,6 +1,12 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import TrainingView from '../renderer/components/TrainingView';
 import type { StudyState } from '../shared/study';
 import type { PreAssessmentState } from '../shared/pre-assessment';
@@ -101,6 +107,26 @@ it('replaces evaluation downloads with two in-app pre-assessment challenges', as
   ).toBeDisabled();
 });
 
+it('folds a completed pre-assessment into a struck-through completion row', async () => {
+  assessments = completedAssessments();
+  const { container } = render(<TrainingView />);
+
+  expect(await screen.findByText('Completed')).toBeInTheDocument();
+  const title = screen.getByRole('heading', {
+    name: 'Complete both pre-assessment challenges',
+  });
+  expect(title.querySelector('s')).toBeInTheDocument();
+  expect(container.querySelector('.pre-assessment-unlocked')).toBeNull();
+  const details = screen.getByText('Completed').closest('details')!;
+  expect(details).not.toHaveAttribute('open');
+
+  fireEvent.click(screen.getByText('Completed').closest('summary')!);
+  expect(details).toHaveAttribute('open');
+  expect(
+    await screen.findByRole('tab', { name: /Challenge 1/ }),
+  ).toBeInTheDocument();
+});
+
 it('keeps downloads available without tutoring but locks future days', async () => {
   assessments = completedAssessments();
   render(<TrainingView />);
@@ -121,30 +147,77 @@ it('keeps downloads available without tutoring but locks future days', async () 
   expect(downloads[1]).toBeDisabled();
   fireEvent.click(downloads[0]);
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-download', 1));
+  const firstTask = screen
+    .getByRole('heading', { name: 'Task 1' })
+    .closest('section')!;
+  expect(
+    screen.queryByText(
+      /The tasks I worked on in today’s session were relevant/,
+    ),
+  ).not.toBeInTheDocument();
   fireEvent.click(
-    screen.getAllByRole('button', { name: 'Add screenshot & complete' })[0],
+    within(firstTask).getByRole('button', { name: 'Submit task' }),
   );
+  const reflection = await screen.findByRole('dialog', {
+    name: 'Tell us about your practice',
+  });
+  expect(
+    within(reflection).getByText(
+      /The tasks I worked on in today’s session were relevant/,
+    ),
+  ).toBeInTheDocument();
+  const submit = within(reflection).getByRole('button', {
+    name: 'Submit reflection & add screenshot',
+  });
+  expect(submit).toBeDisabled();
+  const ratings = within(reflection).getAllByRole('radio');
+  for (let index = 0; index < ratings.length; index += 5)
+    fireEvent.click(ratings[index]);
+  within(reflection)
+    .getAllByRole('textbox')
+    .forEach((textbox, index) =>
+      fireEvent.change(textbox, {
+        target: { value: `Reflection answer ${index + 1}` },
+      }),
+    );
+  expect(submit).toBeEnabled();
+  fireEvent.click(submit);
   await waitFor(() =>
-    expect(invoke).toHaveBeenCalledWith('study-complete', 1, 'alice'),
+    expect(invoke).toHaveBeenCalledWith(
+      'study-complete',
+      1,
+      'alice',
+      expect.objectContaining({
+        q1: 1,
+        q5: 1,
+        q6: 'Reflection answer 1',
+        q8: 'Reflection answer 3',
+      }),
+    ),
   );
   expect(
     await screen.findByText(
-      'Level 1 complete — screenshot saved locally and 100 XP earned.',
+      'Level 1 complete — reflection and screenshot saved locally, and 100 XP earned.',
     ),
   ).toBeInTheDocument();
 });
 
 it('keeps Challenge 1 open to show its score after submission', async () => {
   render(<TrainingView />);
-  const radios = await screen.findAllByRole('radio');
+  const challenge = (
+    await screen.findByRole('heading', {
+      name: 'Conceptual Understanding',
+    })
+  ).closest('section')!;
+  const radios = within(challenge).getAllByRole('radio');
   for (let index = 0; index < radios.length; index += 4) {
     fireEvent.click(radios[index]);
   }
-  fireEvent.click(
-    screen.getByRole('button', {
-      name: 'Finish Challenge 1 & see my score',
-    }),
-  );
+  const submit = within(challenge).getByRole('button', {
+    name: 'Finish Challenge 1 & see my score',
+  });
+  await waitFor(() => expect(submit).toBeEnabled());
+  fireEvent.click(submit);
 
   expect(await screen.findByText('2 / 8')).toBeInTheDocument();
   expect(

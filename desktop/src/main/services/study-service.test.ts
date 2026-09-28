@@ -38,6 +38,17 @@ function fixture(response: object) {
 
 beforeEach(() => jest.clearAllMocks());
 
+const reflection = {
+  q1: 5,
+  q2: 4,
+  q3: 5,
+  q4: 4,
+  q5: 5,
+  q6: 'Drafting a useful plan.',
+  q7: 'I was briefly unsure about the prompt.',
+  q8: 'I would like more examples.',
+};
+
 it('requires and saves a screenshot locally when completing a training day', async () => {
   const screenshot = Buffer.from('image');
   const { invoke, requestJson } = fixture({ success: true });
@@ -47,7 +58,9 @@ it('requires and saves a screenshot locally when completing a training day', asy
   });
   (fs.stat as jest.Mock).mockResolvedValue({ size: screenshot.length });
 
-  await expect(invoke('study-complete', 1, 'alice')).resolves.toEqual({
+  await expect(
+    invoke('study-complete', 1, 'alice', reflection),
+  ).resolves.toEqual({
     success: true,
   });
   expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-screenshots/alice', {
@@ -56,6 +69,14 @@ it('requires and saves a screenshot locally when completing a training day', asy
   expect(fs.copyFile).toHaveBeenCalledWith(
     '/chosen/favorite-moment.png',
     '/coco/training-screenshots/alice/day-1.png',
+  );
+  expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-reflections/alice', {
+    recursive: true,
+  });
+  expect(fs.writeFile).toHaveBeenCalledWith(
+    '/coco/training-reflections/alice/day-1.json',
+    expect.stringContaining('"q6": "Drafting a useful plan."'),
+    'utf8',
   );
   expect(requestJson).toHaveBeenCalledWith(
     '/api/study/days/1/complete',
@@ -71,11 +92,22 @@ it('does not complete a training day when screenshot selection is cancelled', as
     filePaths: [],
   });
 
-  await expect(invoke('study-complete', 1, 'alice')).resolves.toEqual({
-    canceled: true,
-  });
+  await expect(
+    invoke('study-complete', 1, 'alice', reflection),
+  ).resolves.toEqual({ canceled: true });
   expect(requestJson).not.toHaveBeenCalled();
   expect(fs.copyFile).not.toHaveBeenCalled();
+});
+
+it('requires every reflection answer before opening the screenshot chooser', async () => {
+  const { invoke, requestJson } = fixture({ success: true });
+
+  await expect(
+    invoke('study-complete', 1, 'alice', { ...reflection, q7: ' ' }),
+  ).rejects.toThrow('Please answer every reflection question.');
+
+  expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+  expect(requestJson).not.toHaveBeenCalled();
 });
 
 it('saves an authenticated download only to the user-selected location', async () => {

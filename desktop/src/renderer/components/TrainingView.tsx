@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import trainingAnimation from '../../../assets/training.gif';
-import type { StudyState, TrainingDay } from '../../shared/study';
+import {
+  DAILY_REFLECTION_OPEN_QUESTIONS,
+  DAILY_REFLECTION_RATING_QUESTIONS,
+  type DailyReflection,
+  type StudyState,
+  type TrainingDay,
+} from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
 import './TrainingView.css';
 
@@ -59,6 +65,151 @@ function JourneyMarker({
     );
   }
   return <span aria-hidden>{day}</span>;
+}
+
+const emptyReflection = (): DailyReflection => ({
+  q1: 0,
+  q2: 0,
+  q3: 0,
+  q4: 0,
+  q5: 0,
+  q6: '',
+  q7: '',
+  q8: '',
+});
+
+function DailyReflectionForm({
+  day,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  day: number;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (answers: DailyReflection) => Promise<void>;
+}) {
+  const [answers, setAnswers] = useState<DailyReflection>(emptyReflection);
+  const ratingKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
+  const responseKeys = ['q6', 'q7', 'q8'] as const;
+  const ready =
+    ratingKeys.every((key) => answers[key] >= 1 && answers[key] <= 5) &&
+    responseKeys.every((key) => answers[key].trim().length > 0);
+
+  return (
+    <div className="training-reflection-page">
+      <section
+        className="training-reflection"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`day-${day}-reflection-title`}
+      >
+        <div className="training-reflection-header">
+          <div>
+            <span className="training-eyebrow">LEVEL {day} REFLECTION</span>
+            <h3 id={`day-${day}-reflection-title`}>
+              Tell us about your practice
+            </h3>
+            <p>
+              There are no right or wrong answers. Your honest feedback helps us
+              improve the camp.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="training-reflection-close"
+            aria-label="Close reflection"
+            disabled={busy}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="training-reflection-ratings">
+          {DAILY_REFLECTION_RATING_QUESTIONS.map((question, questionIndex) => {
+            const key = ratingKeys[questionIndex];
+            return (
+              <fieldset key={key}>
+                <legend>
+                  {questionIndex + 1}. {question}
+                </legend>
+                <div className="training-rating-scale">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <label key={rating} htmlFor={`day-${day}-${key}-${rating}`}>
+                      <input
+                        id={`day-${day}-${key}-${rating}`}
+                        type="radio"
+                        name={`day-${day}-${key}`}
+                        value={rating}
+                        checked={answers[key] === rating}
+                        disabled={busy}
+                        onChange={() =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [key]: rating,
+                          }))
+                        }
+                      />
+                      <span>{rating}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="training-rating-labels" aria-hidden>
+                  <span>Strongly disagree</span>
+                  <span>Strongly agree</span>
+                </div>
+              </fieldset>
+            );
+          })}
+        </div>
+
+        <div className="training-reflection-writing">
+          {DAILY_REFLECTION_OPEN_QUESTIONS.map((question, questionIndex) => {
+            const key = responseKeys[questionIndex];
+            return (
+              <label key={key} htmlFor={`day-${day}-${key}`}>
+                <strong>
+                  {questionIndex + 6}. {question}
+                </strong>
+                <textarea
+                  id={`day-${day}-${key}`}
+                  rows={4}
+                  maxLength={5000}
+                  value={answers[key]}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setAnswers((current) => ({
+                      ...current,
+                      [key]: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="training-reflection-submit">
+          <div>
+            <strong>One last step</strong>
+            <span>
+              After submitting your reflection, choose a screenshot of your
+              favorite moment.
+            </span>
+          </div>
+          <button
+            type="button"
+            className="training-proof-action"
+            disabled={busy || !ready}
+            onClick={() => void onSubmit(answers)}
+          >
+            Submit reflection &amp; add screenshot
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function TrainingJourney({ state }: { state: StudyState }) {
@@ -181,6 +332,9 @@ export default function TrainingView() {
   const [title, setTitle] = useState('');
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [studentMode, setStudentMode] = useState(false);
+  const [reflectionDayNumber, setReflectionDayNumber] = useState<number | null>(
+    null,
+  );
   const handlePreAssessmentCompletion = useCallback((complete: boolean) => {
     setPreAssessmentComplete(complete);
   }, []);
@@ -229,6 +383,9 @@ export default function TrainingView() {
   }, [refresh]);
   const studentExperience = state?.role === 'participant' || studentMode;
   const trainingUnlocked = !studentExperience || preAssessmentComplete;
+  const reflectionDay = state?.days.find(
+    (day) => day.day === reflectionDayNumber,
+  );
   return (
     <main className="training-page">
       <header className="training-header">
@@ -430,40 +587,27 @@ export default function TrainingView() {
                         <div className="training-proof-copy">
                           <strong>
                             {day.completed_at
-                              ? 'Highlight submitted'
-                              : 'Share your favorite moment'}
+                              ? 'Practice submitted'
+                              : day.unlocked && day.available
+                                ? 'Reflect and share your favorite moment'
+                                : 'Reflection unlocks with this level'}
                           </strong>
                           <span>
                             {day.completed_at
-                              ? 'Your screenshot was saved in your local Coco folder.'
-                              : 'Take a screenshot of the most exciting part of your work, then add it to complete this level.'}
+                              ? 'Your reflection and screenshot were saved in your local Coco folders.'
+                              : day.unlocked && day.available
+                                ? 'Answer the short reflection, then add a screenshot to complete this level.'
+                                : 'Complete the previous level before submitting this reflection.'}
                           </span>
                         </div>
-                        {!day.completed_at && (
+                        {!day.completed_at && day.unlocked && day.available && (
                           <button
                             type="button"
                             className="training-proof-action"
-                            disabled={
-                              busy ||
-                              !trainingUnlocked ||
-                              !day.unlocked ||
-                              !day.available
-                            }
-                            onClick={() =>
-                              void act(async () => {
-                                const result = (await api(
-                                  'study-complete',
-                                  day.day,
-                                  state.user_id,
-                                )) as { canceled?: boolean };
-                                if (!result.canceled)
-                                  setNotice(
-                                    `Level ${day.day} complete — screenshot saved locally and 100 XP earned.`,
-                                  );
-                              })
-                            }
+                            disabled={busy || !trainingUnlocked}
+                            onClick={() => setReflectionDayNumber(day.day)}
                           >
-                            Add screenshot &amp; complete
+                            Submit task
                           </button>
                         )}
                       </div>
@@ -471,6 +615,34 @@ export default function TrainingView() {
                   );
                 })}
               </div>
+              {reflectionDay &&
+                !reflectionDay.completed_at &&
+                reflectionDay.unlocked &&
+                reflectionDay.available && (
+                  <DailyReflectionForm
+                    day={reflectionDay.day}
+                    busy={busy}
+                    onClose={() => setReflectionDayNumber(null)}
+                    onSubmit={async (answers) => {
+                      let completed = false;
+                      await act(async () => {
+                        const result = (await api(
+                          'study-complete',
+                          reflectionDay.day,
+                          state.user_id,
+                          answers,
+                        )) as { canceled?: boolean };
+                        if (!result.canceled) {
+                          completed = true;
+                          setNotice(
+                            `Level ${reflectionDay.day} complete — reflection and screenshot saved locally, and 100 XP earned.`,
+                          );
+                        }
+                      });
+                      if (completed) setReflectionDayNumber(null);
+                    }}
+                  />
+                )}
             </>
           ) : (
             <>

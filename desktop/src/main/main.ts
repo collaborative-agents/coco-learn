@@ -1019,6 +1019,18 @@ function openPrimaryTrayAction(): void {
   openCoco().catch((err) => log.warn(`[Tray] Could not open Coco: ${err}`));
 }
 
+// Bring Coco forward when the user asks for it from outside the app: a Dock
+// click or reopening the app while it is already running. The chat panel is
+// hidden rather than destroyed, so "no window object" can't be the signal.
+function revealCoco(): void {
+  if (isQuitting) return;
+  if (!setupPending() && !tutoringAllowed) {
+    openTraining();
+    return;
+  }
+  openPrimaryTrayAction();
+}
+
 function handleTrayClick(): void {
   // Preserve the setup-window recovery path, but once setup is complete let
   // the user choose an explicit action instead of opening chat immediately.
@@ -4280,19 +4292,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('second-instance', () => {
-  if (!isAuthenticated) {
-    createAuthWindow();
-  } else if (onboardingWindow && !onboardingWindow.isDestroyed()) {
-    onboardingWindow.show();
-    onboardingWindow.focus();
-  } else if (chatWindow && !chatWindow.isDestroyed()) {
-    showChatPanel();
-  } else if (avatarWindow && !avatarWindow.isDestroyed()) {
-    avatarWindow.show();
-    avatarWindow.focus();
-  } else {
-    openPrimaryTrayAction();
-  }
+  revealCoco();
 });
 
 app.on('will-quit', () => {
@@ -4951,9 +4951,10 @@ app
     });
 
     app.on('activate', () => {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
-      if (avatarWindow === null && chatWindow === null) createWindow();
+      // A Dock click or reopening the running app must always surface Coco,
+      // even when the chat panel is merely hidden and the menu bar icon isn't
+      // visible.
+      revealCoco();
     });
   })
   .catch(console.log);

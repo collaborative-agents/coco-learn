@@ -342,16 +342,17 @@ export function FriendsButton({
       onClick={onClick}
     >
       <svg
+        data-header-icon="social"
         viewBox="0 0 24 24"
-        width="12"
-        height="12"
+        width="15"
+        height="15"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden
-        style={{ display: 'block' }}
+        style={{ display: 'block', flex: '0 0 15px' }}
       >
         <path d="M20.8 4.7a5.5 5.5 0 0 0-7.8 0L12 5.8l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.4 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
       </svg>

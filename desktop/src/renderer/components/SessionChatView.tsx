@@ -258,6 +258,68 @@ function formatMetricLatency(ms?: number): string {
   return `${Math.round(ms)}ms`;
 }
 
+type HeaderActionIconName =
+  | 'new'
+  | 'history'
+  | 'todo'
+  | 'settings'
+  | 'expand'
+  | 'collapse'
+  | 'close';
+
+function HeaderActionIcon({ name }: { name: HeaderActionIconName }) {
+  let paths: React.ReactNode;
+  if (name === 'new') {
+    paths = <path d="M12 5v14M5 12h14" />;
+  } else if (name === 'history') {
+    paths = (
+      <>
+        <path d="M4.5 8.5H2V6" />
+        <path d="M3.2 8a9 9 0 1 1-.3 7.4" />
+        <path d="M12 7v5l3 2" />
+      </>
+    );
+  } else if (name === 'todo') {
+    paths = (
+      <>
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="m7.5 8.5 1.4 1.4 2.4-2.7M13.5 8.5h3M7.5 15l1.4 1.4 2.4-2.7M13.5 15h3" />
+      </>
+    );
+  } else if (name === 'settings') {
+    paths = (
+      <>
+        <path d="M9.6 3.2h4.8l.6 2.2 1.5.9 2.2-.6 2.4 4.1-1.6 1.6v1.7l1.6 1.6-2.4 4.1-2.2-.6-1.5.9-.6 2.2H9.6L9 19.1l-1.5-.9-2.2.6-2.4-4.1 1.6-1.6v-1.7L2.9 9.8l2.4-4.1 2.2.6L9 5.4l.6-2.2Z" />
+        <circle cx="12" cy="12.2" r="3" />
+      </>
+    );
+  } else if (name === 'expand') {
+    paths = <path d="M9 4H4v5M15 20h5v-5M4 4l6 6M20 20l-6-6" />;
+  } else if (name === 'collapse') {
+    paths = <path d="M10 10H5V5M14 14h5v5M5 5l6 6M19 19l-6-6" />;
+  } else {
+    paths = <path d="M5 5l14 14M19 5 5 19" />;
+  }
+
+  return (
+    <svg
+      data-header-icon={name}
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ display: 'block', flex: '0 0 15px' }}
+    >
+      {paths}
+    </svg>
+  );
+}
+
 // ── Styles (inline so the view is self-contained in a transparent window) ──────
 // Palette mirrors the onboarding panel: Coco blue with a light-blue accent.
 const ACCENT = 'var(--coco-color-primary)';
@@ -284,7 +346,7 @@ const S: Record<string, React.CSSProperties> = {
   statusDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   sub: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 11, color: '#9ca3af', fontWeight: 400 },
   healthHeaderButton: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: FONT, fontSize: 11, lineHeight: 1.2, fontWeight: 700, whiteSpace: 'nowrap', WebkitAppRegion: 'no-drag' } as React.CSSProperties,
-  headerBtns: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, WebkitAppRegion: 'no-drag' } as React.CSSProperties,
+  headerBtns: { marginLeft: 'auto', height: 28, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, WebkitAppRegion: 'no-drag' } as React.CSSProperties,
   modelSelect: {
     width: 120, minWidth: 120, maxWidth: 120,
     border: `1px solid ${ACCENT_BORDER}`, background: '#fff',
@@ -293,14 +355,19 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   } as React.CSSProperties,
   iconBtn: {
-    border: 'none', background: 'transparent', cursor: 'pointer',
-    fontSize: 15, color: '#9ca3af', padding: '3px 5px', borderRadius: 7,
+    width: 28, minWidth: 28, height: 28, display: 'inline-flex',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    boxSizing: 'border-box', border: 'none', background: 'transparent',
+    cursor: 'pointer', color: '#9ca3af', padding: 0, borderRadius: 7,
+    lineHeight: 1, fontFamily: FONT,
   },
   iconBtnActive: { background: ACCENT_BG, color: ACCENT },
   newSessionBtn: {
-    border: `1px solid ${ACCENT_BORDER}`, background: '#fff', cursor: 'pointer',
-    fontSize: 11.5, color: ACCENT, padding: '3px 8px', borderRadius: 7,
-    fontFamily: FONT, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+    height: 28, display: 'inline-flex', alignItems: 'center', gap: 4,
+    boxSizing: 'border-box', border: `1px solid ${ACCENT_BORDER}`,
+    background: '#fff', cursor: 'pointer', fontSize: 11.5, color: ACCENT,
+    padding: '0 8px', borderRadius: 7, lineHeight: 1, fontFamily: FONT,
+    fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
   },
   historyPanel: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#fff' },
   historyPanelHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: `1px solid ${BORDER}` },
@@ -1913,7 +1980,7 @@ export default function SessionChatView() {
     (serviceUnavailable || modelUnavailable || modelConfigurationIssue);
 
   if (studyAccess !== true) return <div style={{ ...S.root, padding: 24 }}>
-    <div style={S.header}><h2>CoCo Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}>×</button></div>
+    <div style={S.header}><h2>CoCo Learn</h2><button type="button" style={S.iconBtn} title="Close" aria-label="Close" onClick={() => window.close()}><HeaderActionIcon name="close" /></button></div>
     <p>{studyAccess === null ? 'Checking study access…' : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}</p>
     <button type="button" style={S.newSessionBtn} onClick={() => window.electron.ipcRenderer.sendMessage('open-training')}>Training & Administration</button>
     <FriendsButton active={showFriends} style={S.iconBtn} activeStyle={S.iconBtnActive} onClick={() => setShowFriends(true)} />
@@ -1966,7 +2033,8 @@ export default function SessionChatView() {
             disabled={sending || startingNewSession}
             onClick={handleNewSession}
           >
-            {startingNewSession ? 'Starting…' : '+ New'}
+            <HeaderActionIcon name="new" />
+            <span>{startingNewSession ? 'Starting…' : 'New'}</span>
           </button>
           <button
             type="button"
@@ -1975,35 +2043,53 @@ export default function SessionChatView() {
             aria-label="Review past conversations"
             onClick={openHistory}
           >
-            ◷
+            <HeaderActionIcon name="history" />
           </button>
           <FriendsButton active={showFriends} style={S.iconBtn} activeStyle={S.iconBtnActive} onClick={() => setShowFriends(true)} />
-          <button type="button" style={S.iconBtn} title="Training & Administration" aria-label="Training & Administration" onClick={() => window.electron.ipcRenderer.sendMessage('open-training')}>▤</button>
+          <button
+            type="button"
+            style={S.iconBtn}
+            title="Training & Administration"
+            aria-label="Training & Administration"
+            onClick={() =>
+              window.electron.ipcRenderer.sendMessage('open-training')
+            }
+          >
+            <HeaderActionIcon name="todo" />
+          </button>
           <button
             type="button"
             style={{ ...S.iconBtn, ...(showSettings ? S.iconBtnActive : {}) }}
             title="Settings"
+            aria-label="Settings"
             onClick={() => {
               setShowHistory(false);
               setReviewing(null);
               setShowSettings((v) => !v);
             }}
           >
-            ⚙
+            <HeaderActionIcon name="settings" />
           </button>
           <button
             type="button"
             style={S.iconBtn}
             title={expanded ? 'Collapse' : 'Expand'}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
             onClick={() => {
               setExpanded((v) => !v);
               window.electron?.ipcRenderer.sendMessage('toggle-float-window');
             }}
           >
-            {expanded ? '⇥' : '⇤'}
+            <HeaderActionIcon name={expanded ? 'collapse' : 'expand'} />
           </button>
-          <button type="button" style={S.iconBtn} title="Close" onClick={() => window.close()}>
-            ×
+          <button
+            type="button"
+            style={S.iconBtn}
+            title="Close"
+            aria-label="Close"
+            onClick={() => window.close()}
+          >
+            <HeaderActionIcon name="close" />
           </button>
         </div>
       </div>

@@ -50,6 +50,7 @@ export type Channels =
   | 'get-chat-content-zoom-factor'
   | 'chat-content-zoom-factor'
   | 'open-chat-settings'
+  | 'open-avatar-actions-menu'
   // Proactive session flow
   | 'session-active'
   | 'show-session-setup'

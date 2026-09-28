@@ -59,32 +59,35 @@ body,
   transform: scale(0.78);
 }
 
-.open-button {
+.pet-drag-hint {
   position: absolute;
-  top: 50%;
   left: 50%;
-  z-index: 1;
-  width: 48px;
-  height: 48px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
+  bottom: 2px;
+  z-index: 29;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: rgba(31, 41, 55, 0.9);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  color: #fff;
+  font: 500 10.5px/1.2 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 140ms ease 450ms,
+    transform 140ms ease 450ms;
 }
 
-.open-button span {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+.pet-image:hover + .pet-drag-hint {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
-.open-button:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.55);
-  outline-offset: -5px;
+.pet-container.has-open-actions .pet-drag-hint {
+  opacity: 0;
+  transition-delay: 0ms;
 }
 
 /* ── Observation thought-bubble ────────────────────────────────────────── */

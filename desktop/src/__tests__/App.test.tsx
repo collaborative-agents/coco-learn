@@ -68,7 +68,8 @@ describe('App', () => {
     expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
   });
 
-  it('keeps Coco asleep on fox click and wakes it from the menu', async () => {
+  it('keeps Coco asleep on avatar click and wakes it from the menu', async () => {
+    const sendMessage = jest.fn();
     const invoke = jest.fn(
       (channel: string, payload?: { sleeping?: boolean }) => {
         if (channel === 'get-coco-sleep-mode') {
@@ -80,7 +81,7 @@ describe('App', () => {
     (window as any).electron = {
       ipcRenderer: {
         on: jest.fn(() => jest.fn()),
-        sendMessage: jest.fn(),
+        sendMessage,
         invoke,
       },
     };
@@ -98,7 +99,8 @@ describe('App', () => {
       });
     });
 
-    fireEvent.click(screen.getByTitle('Open the chat'));
+    fireEvent.click(screen.getByAltText('Desktop Pet'));
+    expect(sendMessage).not.toHaveBeenCalledWith('open-main-window');
     expect(invoke).not.toHaveBeenCalledWith('set-coco-sleep-mode', {
       sleeping: false,
     });
@@ -110,6 +112,45 @@ describe('App', () => {
         sleeping: false,
       });
     });
+  });
+
+  it('opens the action menu when the avatar is right-clicked', () => {
+    const sendMessage = jest.fn();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn(
+          (channel: string, callback: (...args: unknown[]) => void) => {
+            listeners.set(channel, callback);
+            return () => listeners.delete(channel);
+          },
+        ),
+        sendMessage,
+        invoke: jest.fn().mockResolvedValue({ sleeping: false }),
+      },
+    };
+
+    render(<App />);
+    expect(screen.getByText('Right-click for menu')).toBeInTheDocument();
+    const avatarContainer = screen
+      .getByAltText('Desktop Pet')
+      .closest('.pet-container');
+    expect(avatarContainer).not.toBeNull();
+
+    fireEvent.contextMenu(avatarContainer!);
+    expect(
+      screen.getByRole('menu', { name: 'Coco actions' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Open Chat')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('More actions'));
+    act(() => listeners.get('open-avatar-actions-menu')?.());
+    expect(
+      screen.getByRole('menu', { name: 'Coco actions' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Open Chat'));
+    expect(sendMessage).toHaveBeenCalledWith('open-main-window');
   });
 
   it('opens History and Settings from the contextual action menu', async () => {

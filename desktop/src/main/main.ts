@@ -37,6 +37,10 @@ import { avatarRecoveryItems } from './avatar-menu';
 import { SocialService, registerSocialIpcHandlers } from './services/social-service';
 import { registerStudyIpc } from './services/study-service';
 import type { StudyState } from '../shared/study';
+import {
+  arePreAssessmentsComplete,
+  registerPreAssessmentIpc,
+} from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
 import axios from 'axios';
@@ -98,6 +102,7 @@ import {
   needsWindowsMicrophoneSettings,
   systemPermissionButtonLabel,
   systemPermissionExplanation,
+  type SystemPermissionSettingsTarget,
 } from './system-permission-warning';
 import { openSystemPermissionSettings } from './open-system-permission-settings';
 import {
@@ -246,7 +251,6 @@ let wakeWordService: WakeWordService | null = null;
 let wakeWordEnabled = false;
 let wakeWordStatus: WakeWordStatusEvent = { status: 'disabled' };
 let systemSuspended = false;
-let systemPermissionWarningShown = false;
 let wakeWordCapturePaused = false;
 let wakeWordCapturePauseTimer: ReturnType<typeof setTimeout> | null = null;
 let wakeWordCaptureState = 'stopped';
@@ -264,8 +268,24 @@ const WAKE_WORD_MODEL =
 
 const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
 let tutoringAllowed = false;
-let studyAccessStatus: 'checking' | 'allowed' | 'disabled' | 'unavailable' = 'checking';
+let studyPolicyAllowsTutoring = false;
+let currentStudyRole: StudyState['role'] | null = null;
+let adminStudentMode = false;
+let studyAccessStatus:
+  | 'checking'
+  | 'allowed'
+  | 'preassessment'
+  | 'disabled'
+  | 'unavailable' = 'checking';
 process.env.COCO_TUTORING_ALLOWED = '0';
+
+const isStudentExperienceActive = () =>
+  currentStudyRole === 'participant' || adminStudentMode;
+
+const areRequiredPreAssessmentsComplete = () =>
+  !isAuthenticated ||
+  !isStudentExperienceActive() ||
+  arePreAssessmentsComplete(app.getPath('userData'), currentUserId);
 
 const wakeWordSettingsPath = () =>
   path.join(app.getPath('userData'), 'wake-word.json');
@@ -387,10 +407,48 @@ let pendingTaskLabel: string | null = null;
 let gatewayClient: CocoGatewayClient | null = null;
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
 registerStudyIpc(ipcMain, () => gatewayClient);
-ipcMain.handle('study-access', () => ({ tutoring_allowed: tutoringAllowed, status: studyAccessStatus }));
+registerPreAssessmentIpc(
+  ipcMain,
+  () => app.getPath('userData'),
+  () => currentUserId,
+  async () => {
+    await refreshTutoringAccess();
+    createTray();
+  },
+);
+ipcMain.handle('study-access', () => ({
+  tutoring_allowed: tutoringAllowed,
+  status: studyAccessStatus,
+}));
 ipcMain.handle('study-refresh-access', async () => {
   await refreshTutoringAccess();
   return { tutoring_allowed: tutoringAllowed, status: studyAccessStatus };
+});
+ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
+  const available =
+    currentStudyRole === 'admin' || currentStudyRole === 'super_admin';
+  if (typeof enabled === 'boolean') {
+    if (!available) throw new Error('Administrator access required.');
+    const wasAllowed = tutoringAllowed;
+    adminStudentMode = enabled;
+    applyEffectiveStudyAccess();
+    if (!tutoringAllowed) {
+      await stopTutoringForAccess();
+    } else if (!wasAllowed) {
+      try {
+        await configureParticipantRouterCredential();
+        if (!cocoSleeping && isOnboardingComplete()) startObserver();
+      } catch (error) {
+        tutoringAllowed = false;
+        studyAccessStatus = 'unavailable';
+        process.env.COCO_TUTORING_ALLOWED = '0';
+        await stopTutoringForAccess();
+        throw error;
+      }
+    }
+    createTray();
+  }
+  return { available, enabled: available && adminStudentMode };
 });
 let trainingWindow: BrowserWindow | null = null;
 const openTraining = () => {
@@ -402,6 +460,24 @@ const openTraining = () => {
   trainingWindow.on('closed', () => { trainingWindow = null; });
 };
 ipcMain.on('open-training', openTraining);
+
+const showPreAssessmentLockedMessage = () => {
+  void dialog
+    .showMessageBox({
+      type: 'info',
+      title: 'Finish your pre-assessments first',
+      message:
+        'Coco chat will unlock after you finish both pre-assessment challenges.',
+      detail:
+        'Complete Challenge 1 and Challenge 2 in Training to unlock Coco chat, tutoring, and sensing.',
+      buttons: ['Open pre-assessments', 'Not now'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    .then(({ response }) => {
+      if (response === 0) openTraining();
+    });
+};
 let currentTutorModelId: string | null = null;
 // Preserve the original Upskilling session invitation cadence even though the
 // sensing-side Judge owns the decision itself.
@@ -528,17 +604,46 @@ const createAuthWindow = () => {
   authWindow.on('close', (event) => {
     if (isQuitting || isAuthenticated) return;
     event.preventDefault();
-    app.quit();
+    authWindow?.webContents.send('auth-quit-requested');
   });
 };
 
 ipcMain.on('quit-from-auth', (event) => {
   if (event.sender === authWindow?.webContents) app.quit();
 });
-ipcMain.handle('open-system-permissions', async (event) => {
-  if (event.sender !== authWindow?.webContents) return { success: false };
+
+const readSystemPermissionWarning = () =>
+  getSystemPermissionWarning(process.platform, {
+    accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false),
+    screenCaptureStatus: systemPreferences.getMediaAccessStatus('screen'),
+  });
+
+const readSystemPermissionHealth = () => {
+  const warning = readSystemPermissionWarning();
+  return {
+    missing: (warning?.settingsTargets ?? []).map((target) => ({
+      target,
+      label: systemPermissionButtonLabel(target).replace(/^Open /, ''),
+      actionLabel: systemPermissionButtonLabel(target),
+      explanation: systemPermissionExplanation(target),
+    })),
+  };
+};
+
+ipcMain.handle('get-system-permissions', (event) => {
+  if (event.sender !== chatWindow?.webContents) return { missing: [] };
+  return readSystemPermissionHealth();
+});
+ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
+  if (event.sender !== chatWindow?.webContents) return { success: false };
+  const requestedTarget =
+    target === 'accessibility' ||
+    target === 'input-monitoring' ||
+    target === 'screen-recording'
+      ? target
+      : undefined;
   try {
-    await showSystemPermissionWarning(true);
+    await showSystemPermissionWarning(requestedTarget);
     return { success: true };
   } catch (error) {
     return { success: false, error: String(error) };
@@ -970,6 +1075,10 @@ const initializeWakeWordService = (): void => {
 };
 
 const openChatSettings = () => {
+  if (!areRequiredPreAssessmentsComplete()) {
+    showPreAssessmentLockedMessage();
+    return;
+  }
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
@@ -994,6 +1103,10 @@ ipcMain.on('open-chat-settings', () => {
 });
 
 async function openCoco(): Promise<void> {
+  if (!areRequiredPreAssessmentsComplete()) {
+    showPreAssessmentLockedMessage();
+    return;
+  }
   if (isSessionActive && currentSessionId) {
     openChatForSession(currentSessionId, pendingTaskLabel || '');
     return;
@@ -1029,6 +1142,10 @@ function openPrimaryTrayAction(): void {
     createAuthWindow();
     return;
   }
+  if (!areRequiredPreAssessmentsComplete()) {
+    showPreAssessmentLockedMessage();
+    return;
+  }
   if (setupPending()) {
     if (!onboardingWindow || onboardingWindow.isDestroyed()) {
       createOnboardingWindow(isOnboardingComplete());
@@ -1046,6 +1163,10 @@ function openPrimaryTrayAction(): void {
 // hidden rather than destroyed, so "no window object" can't be the signal.
 function revealCoco(): void {
   if (isQuitting) return;
+  if (!areRequiredPreAssessmentsComplete()) {
+    openTraining();
+    return;
+  }
   if (!setupPending() && !tutoringAllowed) {
     openTraining();
     return;
@@ -1056,6 +1177,10 @@ function revealCoco(): void {
 function handleTrayClick(): void {
   // Preserve the setup-window recovery path, but once setup is complete let
   // the user choose an explicit action instead of opening chat immediately.
+  if (!areRequiredPreAssessmentsComplete()) {
+    openTraining();
+    return;
+  }
   if (setupPending()) {
     openPrimaryTrayAction();
     return;
@@ -1078,7 +1203,8 @@ function createTray(): void {
     tray = new Tray(image);
     tray.on('click', handleTrayClick);
   }
-  const pendingSetup = setupPending();
+  const assessmentLocked = !areRequiredPreAssessmentsComplete();
+  const pendingSetup = setupPending() && !assessmentLocked;
   const authRequired = !isAuthenticated;
   let setupLabel = 'Continue Setup';
   if (authRequired) setupLabel = 'Sign in';
@@ -1103,7 +1229,22 @@ function createTray(): void {
   );
   tray.setContextMenu(
     Menu.buildFromTemplate(
-      pendingSetup
+      assessmentLocked
+        ? [
+            ...showAvatarItems,
+            {
+              label: 'Pre-assessments required',
+              enabled: false,
+            },
+            {
+              label: 'Open Pre-assessments…',
+              click: openTraining,
+            },
+            ...updateMenuItems,
+            { type: 'separator' },
+            { label: 'Quit', click: () => app.quit() },
+          ]
+        : pendingSetup
         ? [
             ...showAvatarItems,
             {
@@ -4134,17 +4275,49 @@ interface DesktopAuthCredentials {
 
 const configureParticipantRouterCredential = async (): Promise<void> => {
   if (!gatewayClient) throw new Error('The study server is unavailable.');
-  const policy = await gatewayClient.requestJson('/api/study/me', 'GET') as unknown as StudyState;
-  tutoringAllowed = policy.tutoring_allowed === true;
-  process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
-  if (!tutoringAllowed) { studyAccessStatus = 'disabled'; delete process.env.LLM_ROUTER_API_KEY; return; }
-  if (!gatewayClient || !process.env.LLM_ROUTER_URL?.trim()) return;
+  const policy = (await gatewayClient.requestJson(
+    '/api/study/me',
+    'GET',
+  )) as unknown as StudyState;
+  applyStudyPolicy(policy);
+  if (!tutoringAllowed) {
+    delete process.env.LLM_ROUTER_API_KEY;
+    return;
+  }
+  if (!process.env.LLM_ROUTER_URL?.trim()) return;
   const credential = await gatewayClient.issueRouterCredential();
   process.env.LLM_ROUTER_API_KEY = credential.token;
   ensureRouterManagedModels();
   log.info('[Auth] participant-scoped Router credential configured');
-  studyAccessStatus = 'allowed';
 };
+
+function applyStudyPolicy(policy: StudyState): void {
+  currentStudyRole = policy.role;
+  studyPolicyAllowsTutoring = policy.tutoring_allowed === true;
+  applyEffectiveStudyAccess();
+}
+
+function applyEffectiveStudyAccess(): void {
+  const assessmentsComplete = areRequiredPreAssessmentsComplete();
+  tutoringAllowed = studyPolicyAllowsTutoring && assessmentsComplete;
+  process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
+  if (!assessmentsComplete) studyAccessStatus = 'preassessment';
+  else if (!studyPolicyAllowsTutoring) studyAccessStatus = 'disabled';
+  else studyAccessStatus = 'allowed';
+}
+
+async function stopTutoringForAccess(): Promise<void> {
+  delete process.env.LLM_ROUTER_API_KEY;
+  notificationWindow?.destroy();
+  sessionRecapWindow?.destroy();
+  sessionSetupWindow?.destroy();
+  suggestionCache.clear();
+  stopObservationStream();
+  if (isSessionActive) endCurrentSession();
+  await Promise.all([serviceManager.stopService('tutor-server'), serviceManager.stopService('sensing-server')]);
+  observerStarted = false;
+  syncWakeWordService();
+}
 
 let policyRefreshRunning = false;
 async function refreshTutoringAccess() {
@@ -4152,14 +4325,15 @@ async function refreshTutoringAccess() {
   policyRefreshRunning = true;
   const wasAllowed = tutoringAllowed;
   try {
-    const policy = await gatewayClient.requestJson('/api/study/me', 'GET');
-    tutoringAllowed = policy.tutoring_allowed === true;
-    process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
+    const policy = (await gatewayClient.requestJson(
+      '/api/study/me',
+      'GET',
+    )) as unknown as StudyState;
+    applyStudyPolicy(policy);
     if (!wasAllowed && tutoringAllowed) {
       await configureParticipantRouterCredential();
       if (!cocoSleeping && isOnboardingComplete()) startObserver();
     }
-    studyAccessStatus = tutoringAllowed ? 'allowed' : 'disabled';
   } catch (error) {
     studyAccessStatus = 'unavailable';
     tutoringAllowed = false; // Fail closed when authorization cannot be checked.
@@ -4167,17 +4341,8 @@ async function refreshTutoringAccess() {
     log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
   } finally {
     if (!tutoringAllowed) {
-      delete process.env.LLM_ROUTER_API_KEY;
-      notificationWindow?.destroy();
-      sessionRecapWindow?.destroy();
-      sessionSetupWindow?.destroy();
-      suggestionCache.clear();
-      stopObservationStream();
-      if (isSessionActive) endCurrentSession();
-      await Promise.all([serviceManager.stopService('tutor-server'), serviceManager.stopService('sensing-server')]);
-      observerStarted = false;
-    }
-    syncWakeWordService();
+      await stopTutoringForAccess();
+    } else syncWakeWordService();
     policyRefreshRunning = false;
   }
 }
@@ -4211,9 +4376,11 @@ const authenticate = async (
       mode === 'signup'
         ? await gatewayClient.signUp(request)
         : await gatewayClient.signIn(request);
-    await configureParticipantRouterCredential();
     currentUserId = session.participantId;
     isAuthenticated = true;
+    currentStudyRole = null;
+    adminStudentMode = false;
+    await configureParticipantRouterCredential();
     pendingAuthLaunch = mode;
     if (request.keepSignedIn) {
       saveAuthSession(app.getPath('userData'), {
@@ -4228,6 +4395,10 @@ const authenticate = async (
     return { success: true, participantId: session.participantId };
   } catch (error) {
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
+    currentUserId = null;
+    isAuthenticated = false;
+    currentStudyRole = null;
+    adminStudentMode = false;
     studyAccessStatus = 'unavailable';
     tutoringAllowed = false;
     process.env.COCO_TUTORING_ALLOWED = '0';
@@ -4251,6 +4422,12 @@ ipcMain.on('authentication-ui-complete', () => {
   const launch = pendingAuthLaunch;
   pendingAuthLaunch = null;
   authWindow?.destroy();
+  if (studyAccessStatus === 'preassessment') {
+    applyAvatarVisibility(readHideAvatarSetting());
+    openTraining();
+    createTray();
+    return;
+  }
   if (launch === 'signup') {
     // Every newly created account sees the full onboarding, even when this
     // computer has an older local profile from a previous installation.
@@ -4302,7 +4479,6 @@ const createWindow = async () => {
   } else {
     applyAvatarVisibility(readHideAvatarSetting());
   }
-
 };
 
 /**
@@ -4338,109 +4514,72 @@ const showModelsRequiredWarning = () => {
 };
 
 let systemPermissionDialogOpen = false;
-const showSystemPermissionWarning = async (force = false): Promise<void> => {
+const showSystemPermissionWarning = async (
+  preferredTarget?: SystemPermissionSettingsTarget,
+): Promise<void> => {
   if (systemPermissionDialogOpen) return;
   if (process.platform !== 'darwin') {
-    if (force)
-      await dialog.showMessageBox({
-        type: 'info',
-        message: 'No macOS permissions are required on this computer.',
-        detail:
-          'Microphone access is checked separately when voice input is enabled.',
-      });
     return;
   }
-  if (systemPermissionWarningShown && !force) return;
-
-  const readWarning = () =>
-    getSystemPermissionWarning(process.platform, {
-      accessibilityTrusted:
-        systemPreferences.isTrustedAccessibilityClient(false),
-      screenCaptureStatus: systemPreferences.getMediaAccessStatus('screen'),
-    });
-  let warning = readWarning();
+  const warning = readSystemPermissionWarning();
   if (!warning) {
-    if (force)
-      await dialog.showMessageBox({
-        type: 'info',
-        message: 'Screen Recording and Accessibility are enabled.',
-      });
     return;
   }
 
   systemPermissionDialogOpen = true;
   try {
-    while (warning) {
-      systemPermissionWarningShown = true;
-      log.warn(`[Permissions] ${warning.detail}`);
-      const target = warning.settingsTargets[0];
-      const label = systemPermissionButtonLabel(target).replace(/^Open /, '');
-      await dialog.showMessageBox({
-        type: 'warning',
-        title: 'Coco Learn permissions required',
-        message: `Allow ${label}`,
-        detail: `${systemPermissionExplanation(target)}\n\nOpen System Settings and enable ${label} for ${app.isPackaged ? 'Coco Learn' : 'Electron (development app)'}. Return here and choose Check Again. If macOS asks you to quit and reopen the app, do so.`,
-        buttons: [systemPermissionButtonLabel(target)],
-        defaultId: 0,
-        noLink: true,
+    log.warn(`[Permissions] ${warning.detail}`);
+    const target =
+      preferredTarget && warning.settingsTargets.includes(preferredTarget)
+        ? preferredTarget
+        : warning.settingsTargets[0];
+    const label = systemPermissionButtonLabel(target).replace(/^Open /, '');
+    await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Coco Learn permissions required',
+      message: `Allow ${label}`,
+      detail: `${systemPermissionExplanation(target)}\n\nOpen System Settings and enable ${label} for ${app.isPackaged ? 'Coco Learn' : 'Electron (development app)'}. Then quit and reopen Coco Learn so macOS can apply the change.`,
+      buttons: [systemPermissionButtonLabel(target)],
+      defaultId: 0,
+      noLink: true,
+    });
+    try {
+      await openSystemPermissionSettings(target, {
+        screenStatus: () => systemPreferences.getMediaAccessStatus('screen'),
+        // A minimal thumbnail still exercises the capture permission path.
+        // Results are discarded, never saved or sent to a model/server.
+        requestScreenAccess: () =>
+          desktopCapturer
+            .getSources({
+              types: ['screen'],
+              thumbnailSize: { width: 1, height: 1 },
+              fetchWindowIcons: false,
+            })
+            .then(() => undefined),
+        // Explicitly target Apple's settings app rather than a registered URL
+        // handler, and wait for launch errors so we can show the fallback.
+        openExternal: (url) =>
+          new Promise<void>((resolve, reject) => {
+            execFile(
+              '/usr/bin/open',
+              ['-b', 'com.apple.systempreferences', url],
+              { timeout: 5000 },
+              (error) => {
+                if (error) reject(error);
+                else resolve();
+              },
+            );
+          }),
+        warn: (message) => log.warn(`[Permissions] ${message}`),
       });
-      try {
-        await openSystemPermissionSettings(target, {
-          screenStatus: () =>
-            systemPreferences.getMediaAccessStatus('screen'),
-          // A minimal thumbnail still exercises the capture permission path.
-          // Results are discarded, never saved or sent to a model/server.
-          requestScreenAccess: () =>
-            desktopCapturer
-              .getSources({
-                types: ['screen'],
-                thumbnailSize: { width: 1, height: 1 },
-                fetchWindowIcons: false,
-              })
-              .then(() => undefined),
-          // Explicitly target Apple's settings app rather than a registered URL
-          // handler, and wait for launch errors so we can show the fallback.
-          openExternal: (url) =>
-            new Promise<void>((resolve, reject) => {
-              execFile(
-                '/usr/bin/open',
-                ['-b', 'com.apple.systempreferences', url],
-                { timeout: 5000 },
-                (error) => {
-                  if (error) reject(error);
-                  else resolve();
-                },
-              );
-            }),
-          warn: (message) => log.warn(`[Permissions] ${message}`),
-        });
-      } catch (error) {
-        log.warn(
-          `[Permissions] Could not open System Settings: ${String(error)}`,
-        );
-        dialog.showErrorBox(
-          'Open System Settings manually',
-          'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add Coco Learn from Applications if it is missing. Quit and reopen Coco Learn after enabling access.',
-        );
-      }
-      await dialog.showMessageBox({
-        type: 'info',
-        title: 'Check permission',
-        message: `Have you enabled ${label}?`,
-        detail:
-          'After changing the setting, choose Check Again. If the permission still appears missing, quit and reopen the app to refresh macOS permission status.',
-        buttons: ['Check Again'],
-        defaultId: 0,
-      });
-      warning = readWarning();
-      if (!warning) {
-        await dialog.showMessageBox({
-          type: 'info',
-          message: 'Screen Recording and Accessibility are enabled.',
-          detail:
-            'Microphone permission is checked separately when you enable voice input.',
-        });
-      }
+    } catch (error) {
+      log.warn(
+        `[Permissions] Could not open System Settings: ${String(error)}`,
+      );
+      dialog.showErrorBox(
+        'Open System Settings manually',
+        'Open System Settings → Privacy & Security and select the requested permission. For Screen Recording, use the + button to add Coco Learn from Applications if it is missing. Quit and reopen Coco Learn after enabling access.',
+      );
     }
   } finally {
     systemPermissionDialogOpen = false;
@@ -4879,12 +5018,18 @@ app
         const restored = await gatewayClient.restoreAuthSession(
           storedAuth.token,
         );
-        await configureParticipantRouterCredential();
         currentUserId = restored.participantId;
         isAuthenticated = true;
+        currentStudyRole = null;
+        adminStudentMode = false;
+        await configureParticipantRouterCredential();
         log.info(`[Auth] restored session for ${restored.participantId}`);
       } catch (error) {
         clearAuthSession(app.getPath('userData'));
+        currentUserId = null;
+        isAuthenticated = false;
+        currentStudyRole = null;
+        adminStudentMode = false;
         log.warn(
           `[Auth] saved session could not be restored: ${String(error)}`,
         );
@@ -4909,9 +5054,6 @@ app
     createWakeWordCaptureWindow();
     // Keep chat state alive while its panel is closed.
     createChatWindow();
-    void showSystemPermissionWarning().catch((error) => {
-      log.warn(`[Permissions] Could not show permission warning: ${error}`);
-    });
 
     // Register global shortcut to toggle DevTools (Cmd/Ctrl+Shift+I)
     globalShortcut.register('CommandOrControl+Shift+I', () => {
@@ -4925,6 +5067,10 @@ app
     // Register global shortcut for screenshot capture (Cmd+Shift+Space).
     // Works system-wide even when Electron is not the focused app.
     globalShortcut.register('CommandOrControl+Shift+Space', () => {
+      if (!areRequiredPreAssessmentsComplete()) {
+        showPreAssessmentLockedMessage();
+        return;
+      }
       // Open the chat panel immediately so the preview has somewhere to land
       // (and the keypress feels responsive). If it was closed, this creates a
       // fresh renderer whose readiness handshake drives the flush below.

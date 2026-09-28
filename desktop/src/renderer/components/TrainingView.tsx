@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import trainingAnimation from '../../../assets/training.gif';
 import type { StudyState, TrainingDay } from '../../shared/study';
+import PreAssessmentPanel from './PreAssessmentPanel';
 import './TrainingView.css';
 
 const api = (
@@ -178,12 +179,21 @@ export default function TrainingView() {
   const [target, setTarget] = useState('');
   const [uploadDay, setUploadDay] = useState(1);
   const [title, setTitle] = useState('');
+  const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
+  const [studentMode, setStudentMode] = useState(false);
+  const handlePreAssessmentCompletion = useCallback((complete: boolean) => {
+    setPreAssessmentComplete(complete);
+  }, []);
   const currentTrainingDay = state?.days.find((day) => !day.completed_at);
   const refresh = useCallback(async () => {
-    const data = (await api('study-me')) as StudyState;
+    const [data, mode] = (await Promise.all([
+      api('study-me'),
+      api('study-student-mode'),
+    ])) as [StudyState, { enabled?: boolean }];
     setState(data);
+    setStudentMode(mode?.enabled === true);
     setError('');
-    if (data.role === 'participant') {
+    if (data.role === 'participant' || mode?.enabled === true) {
       setTab('tasks');
       setUsers([]);
     }
@@ -217,6 +227,8 @@ export default function TrainingView() {
     const timer = setInterval(update, 30000);
     return () => clearInterval(timer);
   }, [refresh]);
+  const studentExperience = state?.role === 'participant' || studentMode;
+  const trainingUnlocked = !studentExperience || preAssessmentComplete;
   return (
     <main className="training-page">
       <header className="training-header">
@@ -250,7 +262,9 @@ export default function TrainingView() {
       </aside>
       {error && (
         <div role="alert" className="training-error">
-          {/fetch failed|network|timed? ?out|abort/i.test(error) ? 'Unable to connect to the study server. Please check your connection and retry.' : error}
+          {/fetch failed|network|timed? ?out|abort/i.test(error)
+            ? 'Unable to connect to the study server. Please check your connection and retry.'
+            : error}
           <button type="button" onClick={() => void act(refresh)}>
             Retry
           </button>
@@ -262,12 +276,15 @@ export default function TrainingView() {
         </p>
       )}
       {!state ? (
-        <p>{error ? 'Training could not be loaded.' : 'Loading your training…'}</p>
+        <p>
+          {error ? 'Training could not be loaded.' : 'Loading your training…'}
+        </p>
       ) : (
         <>
           <div className="training-toolbar">
             <span>
-              {state.user_id} · {state.role.replace('_', ' ')}
+              {state.user_id} ·{' '}
+              {studentMode ? 'student mode' : state.role.replace('_', ' ')}
             </span>
             <button
               type="button"
@@ -277,6 +294,21 @@ export default function TrainingView() {
               My tasks
             </button>
             {state.role !== 'participant' && (
+              <button
+                type="button"
+                aria-pressed={studentMode}
+                disabled={busy}
+                onClick={() =>
+                  void act(async () => {
+                    await api('study-student-mode', !studentMode);
+                    setTab('tasks');
+                  })
+                }
+              >
+                {studentMode ? 'Exit student mode' : 'Student mode'}
+              </button>
+            )}
+            {state.role !== 'participant' && !studentMode && (
               <button
                 type="button"
                 aria-pressed={tab === 'admin'}
@@ -292,26 +324,23 @@ export default function TrainingView() {
           </div>
           {!state.tutoring_allowed && (
             <p className="training-info">
-              AI tutoring is disabled for your account. Training downloads and
-              messages with other participants remain available.
+              AI tutoring is disabled for your account. You can still complete
+              the pre-assessments and view your camp journey.
             </p>
           )}
           {tab === 'tasks' ? (
             <>
-              <section className="training-card" aria-labelledby="pre-evaluation-title">
-                <h2 id="pre-evaluation-title">Pre-intervention Evaluation</h2>
-                <p>Download your task files below. Task instructions are provided separately.</p>
-                <div className="training-evaluation-downloads">
-                  {[1, 2].map((task) => {
-                    const available = state.evaluation_tasks?.find((item) => item.task === task)?.available;
-                    return <button key={task} type="button" disabled={busy || !available}
-                      onClick={() => void act(() => api('study-evaluation-download', task))}>
-                      Download Task {task} files
-                    </button>;
-                  })}
-                </div>
-                {!state.evaluation_tasks?.some((item) => item.available) && <p>Evaluation materials are not available yet.</p>}
-              </section>
+              <PreAssessmentPanel
+                required={studentExperience}
+                onCompletionChange={handlePreAssessmentCompletion}
+              />
+              {!trainingUnlocked && (
+                <p className="training-locked-notice">
+                  <span aria-hidden>🔒</span>
+                  Finish both pre-assessment challenges above to unlock Coco and
+                  your camp tasks.
+                </p>
+              )}
               <TrainingJourney state={state} />
               {!state.started_at && (
                 <section className="training-card">
@@ -323,7 +352,9 @@ export default function TrainingView() {
                   </p>
                   <button
                     type="button"
-                    disabled={busy || !state.days[0].available}
+                    disabled={
+                      busy || !trainingUnlocked || !state.days[0].available
+                    }
                     onClick={() =>
                       void act(() =>
                         api(
@@ -374,7 +405,12 @@ export default function TrainingView() {
                       </p>
                       <button
                         type="button"
-                        disabled={busy || !day.unlocked || !day.available}
+                        disabled={
+                          busy ||
+                          !trainingUnlocked ||
+                          !day.unlocked ||
+                          !day.available
+                        }
                         onClick={() =>
                           void act(async () => {
                             const result = (await api(
@@ -407,7 +443,12 @@ export default function TrainingView() {
                           <button
                             type="button"
                             className="training-proof-action"
-                            disabled={busy || !day.unlocked || !day.available}
+                            disabled={
+                              busy ||
+                              !trainingUnlocked ||
+                              !day.unlocked ||
+                              !day.available
+                            }
                             onClick={() =>
                               void act(async () => {
                                 const result = (await api(

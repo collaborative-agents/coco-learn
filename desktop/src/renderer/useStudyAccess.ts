@@ -10,7 +10,16 @@ export default function useStudyAccess() {
         const value = (await window.electron.ipcRenderer.invoke(
           'study-access',
         )) as { tutoring_allowed?: boolean; status?: string };
-        if (mounted) setAllowed(value?.tutoring_allowed === true ? true : value?.status === 'disabled' ? false : value?.status === 'checking' ? null : 'unavailable');
+        if (mounted) {
+          if (value?.tutoring_allowed === true) setAllowed(true);
+          else if (
+            value?.status === 'disabled' ||
+            value?.status === 'preassessment'
+          )
+            setAllowed(false);
+          else if (value?.status === 'checking') setAllowed(null);
+          else setAllowed('unavailable');
+        }
       } catch {
         if (mounted) setAllowed('unavailable');
       }

@@ -3,9 +3,31 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import TrainingView from '../renderer/components/TrainingView';
 import type { StudyState } from '../shared/study';
+import type { PreAssessmentState } from '../shared/pre-assessment';
 
 let me: StudyState;
 let invoke: jest.Mock;
+let assessments: PreAssessmentState;
+let studentMode: boolean;
+const completedAssessments = (): PreAssessmentState => ({
+  complete: true,
+  sets: {
+    A: {
+      set: 'A',
+      score: 8,
+      maxScore: 8,
+      completedAt: '2026-09-23T00:00:00Z',
+      answers: {},
+    },
+    E: {
+      set: 'E',
+      score: 4,
+      maxScore: 4,
+      completedAt: '2026-09-23T00:00:00Z',
+      answers: { e1: 'answer', e2: 'source', e3: 'risk' },
+    },
+  },
+});
 beforeEach(() => {
   me = {
     user_id: 'alice',
@@ -23,8 +45,31 @@ beforeEach(() => {
       completed_at: null,
     })),
   };
-  invoke = jest.fn(async (channel) => {
+  assessments = { complete: false, sets: { A: null, E: null } };
+  studentMode = false;
+  invoke = jest.fn(async (channel, ...args) => {
     if (channel === 'study-me') return me;
+    if (channel === 'pre-assessment-state') return assessments;
+    if (channel === 'pre-assessment-submit') {
+      const set = args[0] as 'A' | 'E';
+      const result = {
+        set,
+        score: set === 'A' ? 2 : 1,
+        maxScore: set === 'A' ? 8 : 4,
+        completedAt: '2026-09-23T00:00:00Z',
+        answers: args[1] as Record<string, string>,
+      };
+      assessments.sets[set] = result;
+      assessments.complete = Boolean(assessments.sets.A && assessments.sets.E);
+      return result;
+    }
+    if (channel === 'study-student-mode') {
+      if (typeof args[0] === 'boolean') studentMode = args[0];
+      return {
+        available: me.role !== 'participant',
+        enabled: studentMode,
+      };
+    }
     if (channel === 'study-admin-users')
       return { users: [me], next_after: null };
     return { success: true };
@@ -37,24 +82,27 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-it('offers baseline files before enrollment even without tutoring', async () => {
+it('replaces evaluation downloads with two in-app pre-assessment challenges', async () => {
   me.started_at = null;
-  me.evaluation_tasks = [1, 2].map((task) => ({ task, available: true, filename: `Task${task}.zip` }));
   render(<TrainingView />);
-  const download = await screen.findByRole('button', { name: 'Download Task 1 files' });
-  expect(download).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Download Task 2 files' })).toBeEnabled();
-  fireEvent.click(download);
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-evaluation-download', 1));
-  expect(invoke).not.toHaveBeenCalledWith('study-start', expect.anything());
-});
-
-it('does not offer downloads when an older server omits evaluation materials', async () => {
-  render(<TrainingView />);
-  expect(await screen.findByRole('button', { name: 'Download Task 1 files' })).toBeDisabled();
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Complete both pre-assessment challenges',
+    }),
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByRole('tab', { name: /Challenge 1/ }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: /Challenge 2/ })).toBeInTheDocument();
+  expect(screen.queryByText(/Download Task 1 files/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Start Day 1' })).toBeDisabled();
+  expect(
+    screen.getAllByRole('button', { name: 'Download task' })[0],
+  ).toBeDisabled();
 });
 
 it('keeps downloads available without tutoring but locks future days', async () => {
+  assessments = completedAssessments();
   render(<TrainingView />);
   await screen.findByText('Task 1');
   expect(
@@ -69,7 +117,7 @@ it('keeps downloads available without tutoring but locks future days', async () 
   expect(screen.getByText(/AI tutoring is disabled/)).toBeInTheDocument();
   expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   const downloads = screen.getAllByRole('button', { name: 'Download task' });
-  expect(downloads[0]).toBeEnabled();
+  await waitFor(() => expect(downloads[0]).toBeEnabled());
   expect(downloads[1]).toBeDisabled();
   fireEvent.click(downloads[0]);
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-download', 1));
@@ -84,6 +132,27 @@ it('keeps downloads available without tutoring but locks future days', async () 
       'Level 1 complete — screenshot saved locally and 100 XP earned.',
     ),
   ).toBeInTheDocument();
+});
+
+it('keeps Challenge 1 open to show its score after submission', async () => {
+  render(<TrainingView />);
+  const radios = await screen.findAllByRole('radio');
+  for (let index = 0; index < radios.length; index += 4) {
+    fireEvent.click(radios[index]);
+  }
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Finish Challenge 1 & see my score',
+    }),
+  );
+
+  expect(await screen.findByText('2 / 8')).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: 'Conceptual Understanding' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole('heading', { name: 'Anti-Blind-Acceptance' }),
+  ).not.toBeInTheDocument();
 });
 
 it('shows progress as a seven-level journey with Coco at the current level', async () => {
@@ -117,10 +186,13 @@ it('does not begin training while materials are missing', async () => {
 
 it('shows progress to admins but reserves role changes for the super admin', async () => {
   me.role = 'admin';
+  assessments = completedAssessments();
   render(<TrainingView />);
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Administration' }),
-  );
+  const administration = await screen.findByRole('button', {
+    name: 'Administration',
+  });
+  await waitFor(() => expect(administration).toBeEnabled());
+  fireEvent.click(administration);
   await screen.findByText('Participant progress');
   expect(
     screen.queryByRole('button', { name: 'Add admin' }),
@@ -134,13 +206,47 @@ it('shows progress to admins but reserves role changes for the super admin', asy
   );
 });
 
+it('lets an admin enter and exit the gated student experience', async () => {
+  me.role = 'admin';
+  render(<TrainingView />);
+
+  const enter = await screen.findByRole('button', { name: 'Student mode' });
+  fireEvent.click(enter);
+
+  expect(
+    await screen.findByRole('button', { name: 'Exit student mode' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Administration' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getAllByRole('button', { name: 'Download task' })[0],
+  ).toBeDisabled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Exit student mode' }));
+  expect(
+    await screen.findByRole('button', { name: 'Student mode' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Administration' }),
+  ).toBeInTheDocument();
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole('button', { name: 'Download task' })[0],
+    ).toBeEnabled(),
+  );
+});
+
 it('protects the super admin in the UI too', async () => {
   me.role = 'super_admin';
   me.user_id = 'shunta-test';
+  assessments = completedAssessments();
   render(<TrainingView />);
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Administration' }),
-  );
+  const administration = await screen.findByRole('button', {
+    name: 'Administration',
+  });
+  await waitFor(() => expect(administration).toBeEnabled());
+  fireEvent.click(administration);
   await screen.findByText('Participant progress');
   fireEvent.change(screen.getByLabelText('Username'), {
     target: { value: 'shunta-test' },

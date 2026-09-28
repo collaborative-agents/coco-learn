@@ -38,15 +38,6 @@ function fixture(response: object) {
 
 beforeEach(() => jest.clearAllMocks());
 
-it('downloads evaluation files independently of training progress', async () => {
-  const { invoke, requestJson } = fixture({ filename: 'Task1.zip', data: 'YWJj' });
-  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: false, filePath: '/chosen/Task1.zip' });
-  await expect(invoke('study-evaluation-download', 1)).resolves.toEqual({ success: true });
-  expect(requestJson).toHaveBeenCalledWith('/api/study/evaluation/pre/1/download', 'GET', undefined);
-  expect(fs.writeFile).toHaveBeenCalledWith('/chosen/Task1.zip', Buffer.from('abc'));
-  await expect(invoke('study-evaluation-download', 3)).rejects.toThrow('Invalid evaluation task');
-});
-
 it('requires and saves a screenshot locally when completing a training day', async () => {
   const screenshot = Buffer.from('image');
   const { invoke, requestJson } = fixture({ success: true });

@@ -8,7 +8,6 @@ export interface TrainingDay {
   completed_at: string | null;
 }
 export interface StudyState {
-  evaluation_tasks?: { task: number; available: boolean; filename: string | null }[];
   user_id: string;
   role: 'super_admin' | 'admin' | 'participant';
   tutoring_allowed: boolean;

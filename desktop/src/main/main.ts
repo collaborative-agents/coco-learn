@@ -38,8 +38,8 @@ import { SocialService, registerSocialIpcHandlers } from './services/social-serv
 import { registerStudyIpc } from './services/study-service';
 import type { StudyState } from '../shared/study';
 import {
-  arePreAssessmentsComplete,
   registerPreAssessmentIpc,
+  syncPreAssessmentState,
 } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import log from 'electron-log';
@@ -269,6 +269,7 @@ const WAKE_WORD_MODEL =
 const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
 let tutoringAllowed = false;
 let studyPolicyAllowsTutoring = false;
+let serverPreAssessmentsComplete = false;
 let currentStudyRole: StudyState['role'] | null = null;
 let adminStudentMode = false;
 let studyAccessStatus:
@@ -285,7 +286,7 @@ const isStudentExperienceActive = () =>
 const areRequiredPreAssessmentsComplete = () =>
   !isAuthenticated ||
   !isStudentExperienceActive() ||
-  arePreAssessmentsComplete(app.getPath('userData'), currentUserId);
+  serverPreAssessmentsComplete;
 
 const wakeWordSettingsPath = () =>
   path.join(app.getPath('userData'), 'wake-word.json');
@@ -411,6 +412,7 @@ registerPreAssessmentIpc(
   ipcMain,
   () => app.getPath('userData'),
   () => currentUserId,
+  () => gatewayClient,
   async () => {
     await refreshTutoringAccess();
     createTray();
@@ -4269,12 +4271,19 @@ ipcMain.handle('set-user-id', async (event, userId) => {
 
 interface DesktopAuthCredentials {
   participantId?: string;
+  email?: string;
   password?: string;
   keepSignedIn?: boolean;
 }
 
 const configureParticipantRouterCredential = async (): Promise<void> => {
   if (!gatewayClient) throw new Error('The study server is unavailable.');
+  if (currentUserId)
+    await syncPreAssessmentState(
+      app.getPath('userData'),
+      currentUserId,
+      gatewayClient,
+    );
   const policy = (await gatewayClient.requestJson(
     '/api/study/me',
     'GET',
@@ -4294,6 +4303,7 @@ const configureParticipantRouterCredential = async (): Promise<void> => {
 function applyStudyPolicy(policy: StudyState): void {
   currentStudyRole = policy.role;
   studyPolicyAllowsTutoring = policy.tutoring_allowed === true;
+  serverPreAssessmentsComplete = policy.pre_assessments_complete === true;
   applyEffectiveStudyAccess();
 }
 
@@ -4359,16 +4369,21 @@ const authenticate = async (
   }
   if (
     typeof credentials?.participantId !== 'string' ||
-    typeof credentials?.password !== 'string'
+    typeof credentials?.password !== 'string' ||
+    (mode === 'signup' && typeof credentials?.email !== 'string')
   ) {
     return {
       success: false,
-      error: 'Username and password are required.',
+      error:
+        mode === 'signup'
+          ? 'Username, email, and password are required.'
+          : 'Username and password are required.',
     };
   }
   try {
     const request = {
       participantId: credentials.participantId,
+      ...(mode === 'signup' ? { email: credentials.email?.trim() } : {}),
       password: credentials.password,
       keepSignedIn: credentials.keepSignedIn !== false,
     };
@@ -4379,6 +4394,7 @@ const authenticate = async (
     currentUserId = session.participantId;
     isAuthenticated = true;
     currentStudyRole = null;
+    serverPreAssessmentsComplete = false;
     adminStudentMode = false;
     await configureParticipantRouterCredential();
     pendingAuthLaunch = mode;
@@ -4398,6 +4414,7 @@ const authenticate = async (
     currentUserId = null;
     isAuthenticated = false;
     currentStudyRole = null;
+    serverPreAssessmentsComplete = false;
     adminStudentMode = false;
     studyAccessStatus = 'unavailable';
     tutoringAllowed = false;
@@ -5021,6 +5038,7 @@ app
         currentUserId = restored.participantId;
         isAuthenticated = true;
         currentStudyRole = null;
+        serverPreAssessmentsComplete = false;
         adminStudentMode = false;
         await configureParticipantRouterCredential();
         log.info(`[Auth] restored session for ${restored.participantId}`);
@@ -5029,6 +5047,7 @@ app
         currentUserId = null;
         isAuthenticated = false;
         currentStudyRole = null;
+        serverPreAssessmentsComplete = false;
         adminStudentMode = false;
         log.warn(
           `[Auth] saved session could not be restored: ${String(error)}`,

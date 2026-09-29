@@ -274,6 +274,7 @@ describe('CocoGatewayClient', () => {
 
     const session = await client.signUp({
       participantId: 'participant-1',
+      email: 'participant@example.com',
       password: 'password-123',
       keepSignedIn: true,
     });
@@ -283,6 +284,7 @@ describe('CocoGatewayClient', () => {
     expect(restored).toEqual({ participantId: 'participant-1' });
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
       participant_id: 'participant-1',
+      email: 'participant@example.com',
       password: 'password-123',
       keep_signed_in: true,
     });

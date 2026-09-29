@@ -15,6 +15,14 @@ interface StoredAssessments {
   users: Record<string, PreAssessmentState>;
 }
 
+interface PreAssessmentGateway {
+  requestJson(
+    route: string,
+    method: 'GET' | 'POST',
+    body?: object,
+  ): Promise<Record<string, unknown>>;
+}
+
 const emptyState = (): PreAssessmentState => ({
   complete: false,
   sets: { A: null, E: null },
@@ -43,6 +51,89 @@ function writeStore(userDataPath: string, store: StoredAssessments): void {
   const temporary = `${destination}.tmp`;
   fs.writeFileSync(temporary, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
   fs.renameSync(temporary, destination);
+}
+
+function writeState(
+  userDataPath: string,
+  userId: string,
+  state: PreAssessmentState,
+): void {
+  const store = readStore(userDataPath);
+  store.users[userId] = state;
+  writeStore(userDataPath, store);
+}
+
+function resultFromServer(
+  raw: unknown,
+  expectedSet: PreAssessmentSet,
+): PreAssessmentResult {
+  if (!raw || typeof raw !== 'object')
+    throw new Error('The study server returned an invalid assessment result.');
+  const candidate = raw as Record<string, unknown>;
+  const responses = candidate.responses;
+  if (
+    candidate.set !== expectedSet ||
+    !Number.isInteger(candidate.score) ||
+    !Number.isInteger(candidate.max_score) ||
+    typeof candidate.completed_at !== 'string' ||
+    !responses ||
+    typeof responses !== 'object'
+  )
+    throw new Error('The study server returned an invalid assessment result.');
+  return {
+    set: expectedSet,
+    score: Number(candidate.score),
+    maxScore: Number(candidate.max_score),
+    completedAt: candidate.completed_at,
+    answers: responses as SetAAnswers | SetEAnswers,
+  };
+}
+
+function stateFromServer(raw: unknown): PreAssessmentState {
+  if (!raw || typeof raw !== 'object')
+    throw new Error('The study server returned invalid assessment progress.');
+  const candidate = raw as Record<string, unknown>;
+  const sets = candidate.sets as Record<string, unknown> | undefined;
+  if (!sets || typeof sets !== 'object')
+    throw new Error('The study server returned invalid assessment progress.');
+  const state: PreAssessmentState = {
+    complete: false,
+    sets: {
+      A: sets.A ? resultFromServer(sets.A, 'A') : null,
+      E: sets.E ? resultFromServer(sets.E, 'E') : null,
+    },
+  };
+  state.complete = Boolean(state.sets.A && state.sets.E);
+  return state;
+}
+
+const submissionBody = (result: PreAssessmentResult) => ({
+  responses: result.answers,
+  score: result.score,
+  max_score: result.maxScore,
+});
+
+export async function syncPreAssessmentState(
+  userDataPath: string,
+  userId: string,
+  client: PreAssessmentGateway,
+): Promise<PreAssessmentState> {
+  const local = readPreAssessmentState(userDataPath, userId);
+  // Backfill results created before server persistence was introduced.
+  for (const set of ['A', 'E'] as const) {
+    const result = local.sets[set];
+    if (result)
+      await client.requestJson(
+        `/api/study/pre-assessments/${set}`,
+        'POST',
+        submissionBody(result),
+      );
+  }
+  const remote = stateFromServer(
+    await client.requestJson('/api/study/pre-assessments', 'GET'),
+  );
+  writeState(userDataPath, userId, remote);
+  return remote;
 }
 
 export function readPreAssessmentState(
@@ -125,11 +216,19 @@ export function registerPreAssessmentIpc(
   ipc: Pick<IpcMain, 'handle'>,
   userDataPath: () => string,
   currentUserId: () => string | null,
+  gateway: () => PreAssessmentGateway | null,
   onCompleted: () => Promise<void> | void,
 ): void {
-  ipc.handle('pre-assessment-state', () =>
-    readPreAssessmentState(userDataPath(), currentUserId()),
-  );
+  ipc.handle('pre-assessment-state', async () => {
+    const userId = currentUserId();
+    if (!userId) return emptyState();
+    const local = readPreAssessmentState(userDataPath(), userId);
+    const client = gateway();
+    if (!client) return local;
+    const remote = await syncPreAssessmentState(userDataPath(), userId, client);
+    await onCompleted();
+    return remote;
+  });
   ipc.handle(
     'pre-assessment-submit',
     async (_event, set: PreAssessmentSet, rawAnswers: unknown) => {
@@ -138,23 +237,33 @@ export function registerPreAssessmentIpc(
         throw new Error('Please sign in before taking the pre-assessment.');
       if (set !== 'A' && set !== 'E')
         throw new Error('Invalid pre-assessment set.');
-      const store = readStore(userDataPath());
-      const state = store.users[userId] ?? emptyState();
-      if (state.sets[set]) return state.sets[set];
-
-      const scored =
-        set === 'A' ? scoreSetA(rawAnswers) : scoreSetE(rawAnswers);
-      const result: PreAssessmentResult = {
+      const state = readPreAssessmentState(userDataPath(), userId);
+      let proposed = state.sets[set];
+      if (!proposed) {
+        const scored =
+          set === 'A' ? scoreSetA(rawAnswers) : scoreSetE(rawAnswers);
+        proposed = {
+          set,
+          score: scored.score,
+          maxScore: set === 'A' ? 8 : 4,
+          completedAt: new Date().toISOString(),
+          answers: scored.answers,
+        };
+      }
+      const client = gateway();
+      if (!client)
+        throw new Error('The study server is unavailable. Please try again.');
+      const result = resultFromServer(
+        await client.requestJson(
+          `/api/study/pre-assessments/${set}`,
+          'POST',
+          submissionBody(proposed),
+        ),
         set,
-        score: scored.score,
-        maxScore: set === 'A' ? 8 : 4,
-        completedAt: new Date().toISOString(),
-        answers: scored.answers,
-      };
+      );
       state.sets[set] = result;
       state.complete = Boolean(state.sets.A && state.sets.E);
-      store.users[userId] = state;
-      writeStore(userDataPath(), store);
+      writeState(userDataPath(), userId, state);
       await onCompleted();
       return result;
     },

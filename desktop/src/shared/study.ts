@@ -11,6 +11,7 @@ export interface StudyState {
   user_id: string;
   role: 'super_admin' | 'admin' | 'participant';
   tutoring_allowed: boolean;
+  pre_assessments_complete: boolean;
   started_at: string | null;
   timezone: string | null;
   days: TrainingDay[];

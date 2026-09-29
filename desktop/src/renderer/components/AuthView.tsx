@@ -11,6 +11,7 @@ interface AuthResult {
 export default function AuthView() {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [participantId, setParticipantId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
@@ -21,9 +22,8 @@ export default function AuthView() {
   if (submitting) submitLabel = 'Please wait…';
 
   useEffect(() => {
-    const cleanup = window.electron.ipcRenderer.on(
-      'auth-quit-requested',
-      () => setShowQuitConfirmation(true),
+    const cleanup = window.electron.ipcRenderer.on('auth-quit-requested', () =>
+      setShowQuitConfirmation(true),
     );
     return () => {
       if (typeof cleanup === 'function') cleanup();
@@ -32,6 +32,7 @@ export default function AuthView() {
 
   const switchMode = (next: AuthMode) => {
     setMode(next);
+    setEmail('');
     setPassword('');
     setConfirmPassword('');
     setError('');
@@ -50,6 +51,16 @@ export default function AuthView() {
       );
       return;
     }
+    const normalizedEmail = email.trim();
+    if (
+      mode === 'signup' &&
+      (!normalizedEmail ||
+        normalizedEmail.length > 254 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))
+    ) {
+      setError('Enter a valid email address.');
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -62,7 +73,12 @@ export default function AuthView() {
     setError('');
     const result = (await window.electron.ipcRenderer.invoke(
       mode === 'signup' ? 'auth-signup' : 'auth-signin',
-      { participantId: normalizedParticipantId, password, keepSignedIn },
+      {
+        participantId: normalizedParticipantId,
+        password,
+        keepSignedIn,
+        ...(mode === 'signup' ? { email: normalizedEmail } : {}),
+      },
     )) as AuthResult;
     setSubmitting(false);
     if (!result?.success) {
@@ -135,10 +151,30 @@ export default function AuthView() {
             required
           />
           {mode === 'signup' && (
-            <div className="auth-help">
-              3–64 characters: letters, numbers, periods, underscores, or
-              hyphens.
-            </div>
+            <>
+              <div className="auth-help">
+                3–64 characters: letters, numbers, periods, underscores, or
+                hyphens.
+              </div>
+              <div className="auth-field-label" id="email-label">
+                Email
+              </div>
+              <input
+                id="email"
+                aria-labelledby="email-label"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                maxLength={254}
+                placeholder="you@example.com"
+                required
+              />
+              <div className="auth-help">
+                We&apos;ll only use your email to track your bootcamp progress
+                and contact you if you&apos;re selected for a prize.
+              </div>
+            </>
           )}
 
           <div className="auth-field-label" id="password-label">

@@ -81,7 +81,7 @@ it('requires and saves a screenshot locally when completing a training day', asy
   expect(requestJson).toHaveBeenCalledWith(
     '/api/study/days/1/complete',
     'POST',
-    { completed: true },
+    { completed: true, reflection },
   );
 });
 

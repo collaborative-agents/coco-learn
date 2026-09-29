@@ -39,6 +39,7 @@ beforeEach(() => {
     user_id: 'alice',
     role: 'participant',
     tutoring_allowed: false,
+    pre_assessments_complete: false,
     started_at: '2026-09-24T00:00:00Z',
     timezone: 'Asia/Tokyo',
     days: Array.from({ length: 7 }, (_, index) => ({

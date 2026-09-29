@@ -126,7 +126,10 @@ export function registerStudyIpc(
         )}\n`,
         'utf8',
       );
-      return request(`/days/${validDay}/complete`, 'POST', { completed: true });
+      return request(`/days/${validDay}/complete`, 'POST', {
+        completed: true,
+        reflection,
+      });
     },
   );
   ipc.handle('study-admin-users', (_event, after = '') =>

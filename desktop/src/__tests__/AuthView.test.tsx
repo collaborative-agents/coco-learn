@@ -54,6 +54,43 @@ describe('participant authentication', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Enter your username.');
   });
 
+  it('requires a valid email address when signing up', () => {
+    const invoke = jest.fn();
+    (window as any).electron = {
+      ipcRenderer: {
+        invoke,
+        sendMessage: jest.fn(),
+        on: jest.fn(() => jest.fn()),
+      },
+    };
+
+    render(<AuthView />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sign up' }));
+    expect(
+      screen.getByText(
+        /only use your email to track your bootcamp progress and contact you if you.*selected for a prize/i,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Username'), {
+      target: { value: 'participant-001' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'not-an-email' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'password-123' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'password-123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Enter a valid email address.',
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('keeps users signed in by default and submits signup credentials', async () => {
     const invoke = jest.fn(async () => ({ success: true }));
     const sendMessage = jest.fn();
@@ -68,6 +105,9 @@ describe('participant authentication', () => {
     fireEvent.change(screen.getByLabelText('Username'), {
       target: { value: 'participant-001' },
     });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'participant@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'password-123' },
     });
@@ -79,6 +119,7 @@ describe('participant authentication', () => {
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith('auth-signup', {
         participantId: 'participant-001',
+        email: 'participant@example.com',
         password: 'password-123',
         keepSignedIn: true,
       }),

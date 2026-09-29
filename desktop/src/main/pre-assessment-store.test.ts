@@ -11,11 +11,37 @@ describe('pre-assessment store', () => {
   let userId: string | null;
   let invoke: (name: string, ...args: unknown[]) => Promise<unknown>;
   let completed: jest.Mock;
+  let requestJson: jest.Mock;
+  let remoteUsers: Record<
+    string,
+    { sets: Record<'A' | 'E', Record<string, unknown> | null> }
+  >;
 
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-pre-assessment-'));
     userId = 'alice';
     completed = jest.fn();
+    remoteUsers = {};
+    requestJson = jest.fn(async (route, method, body) => {
+      const remote = (remoteUsers[userId!] ??= {
+        sets: { A: null, E: null },
+      });
+      if (method === 'GET')
+        return {
+          complete: Boolean(remote.sets.A && remote.sets.E),
+          sets: remote.sets,
+        };
+      const set = route.endsWith('/A') ? 'A' : 'E';
+      if (!remote.sets[set])
+        remote.sets[set] = {
+          set,
+          responses: body.responses,
+          score: body.score,
+          max_score: body.max_score,
+          completed_at: '2026-09-23T00:00:00Z',
+        };
+      return remote.sets[set];
+    });
     const handlers = new Map<string, (...args: any[]) => unknown>();
     registerPreAssessmentIpc(
       {
@@ -25,6 +51,7 @@ describe('pre-assessment store', () => {
       },
       () => directory,
       () => userId,
+      () => ({ requestJson }),
       completed,
     );
     invoke = async (name, ...args) => handlers.get(name)!(null, ...args);
@@ -46,6 +73,11 @@ describe('pre-assessment store', () => {
       8: 'C',
     });
     expect(setA).toMatchObject({ set: 'A', score: 8, maxScore: 8 });
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/pre-assessments/A',
+      'POST',
+      expect.objectContaining({ score: 8, max_score: 8 }),
+    );
     expect(readPreAssessmentState(directory, userId).complete).toBe(false);
 
     const setE = await invoke('pre-assessment-submit', 'E', {

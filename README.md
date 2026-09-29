@@ -1,6 +1,6 @@
-# CoCo Learn
+# Coco Learn
 
-CoCo Learn is the AI upskilling / 4D framework edition of CoCo. This repository
+Coco Learn is the AI upskilling / 4D framework edition of CoCo. This repository
 contains the desktop app, its bundled sensing and tutor services, and the
 packaging workflow. The study Gateway and shared LLM Router are deployed
 separately and are not included here.
@@ -9,13 +9,13 @@ The initial import uses the application snapshot from `coco/dev/upskilling`
 (`7da34eba`), which matches the application files in `monorepo/sensing-growth`
 at `a935207f`. It does not include the `dev/nv` personalization scheduler.
 
-CoCo Learn has its own application ID and `coco-learn` local data directory,
-so it can coexist with CoCo. Install CoCo Learn and sign in once; local CoCo
+Coco Learn has its own application ID and `coco-learn` local data directory,
+so it can coexist with CoCo. Install Coco Learn and sign in once; local CoCo
 settings and history are not automatically copied. The app checks this
 repository's stable Releases 10 seconds after launch and every six hours.
 It asks before downloading and installs on restart or after you quit. You can
 also choose **Check for Updates…** from the tray menu. Existing CoCo packages
-do not automatically switch to this repository: install CoCo Learn once first.
+do not automatically switch to this repository: install Coco Learn once first.
 
 To publish an update, push your code, then run **Package & Release** in Actions
 with version `auto` (the default) and release notes. At execution time, the
@@ -38,7 +38,7 @@ macOS packaging requires this repository to have the
 
 Open the CoCo chat panel and select the heart-shaped **Social and messages**
 button in its header. Add the other
-person's exact CoCo Learn username; after they accept, select their name to
+person's exact Coco Learn username; after they accept, select their name to
 exchange messages. This is separate from the AI tutor and does not start a
 tutoring session. The inbox refreshes every five seconds while Friends is open.
 This first port supports friend requests and one-to-one text messages, not

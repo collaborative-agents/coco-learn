@@ -181,8 +181,8 @@ export class DesktopAppUpdater {
       if (!this.manualCheck) return;
       this.showMessageBox({
         type: 'info',
-        title: 'CoCo Learn is up to date',
-        message: `CoCo Learn ${this.currentVersion()} is the newest version.`,
+        title: 'Coco Learn is up to date',
+        message: `Coco Learn ${this.currentVersion()} is the newest version.`,
         buttons: ['OK'],
       }).catch((error) =>
         this.logger.error(`[Updater] Could not show update status: ${error}`),
@@ -257,11 +257,11 @@ export class DesktopAppUpdater {
     }
     const releaseNotes = formatReleaseNotes(info.releaseNotes);
     const downloadQuestion =
-      'Download it now? CoCo Learn will keep running while the update downloads.';
+      'Download it now? Coco Learn will keep running while the update downloads.';
     const { response } = await this.showMessageBox({
       type: 'info',
-      title: 'A CoCo Learn update is available',
-      message: `CoCo Learn ${info.version} is available.`,
+      title: 'A Coco Learn update is available',
+      message: `Coco Learn ${info.version} is available.`,
       detail: releaseNotes
         ? `What's new:\n\n${releaseNotes}\n\n${downloadQuestion}`
         : downloadQuestion,
@@ -279,8 +279,8 @@ export class DesktopAppUpdater {
     this.activeDownloadVersion = info.version;
     this.lastProgressBucket = -1;
     this.showNotification(
-      `Downloading CoCo Learn ${info.version}`,
-      'CoCo Learn will let you know when the update is ready to install.',
+      `Downloading Coco Learn ${info.version}`,
+      'Coco Learn will let you know when the update is ready to install.',
     );
     try {
       await this.updater.downloadUpdate();
@@ -295,15 +295,15 @@ export class DesktopAppUpdater {
     this.handledDownloads.add(info.version);
     this.activeDownloadVersion = null;
     this.showNotification(
-      `CoCo Learn ${info.version} is ready`,
-      'Restart CoCo Learn to finish installing the update.',
+      `Coco Learn ${info.version} is ready`,
+      'Restart Coco Learn to finish installing the update.',
     );
     const { response } = await this.showMessageBox({
       type: 'info',
       title: 'Update ready to install',
-      message: `CoCo Learn ${info.version} has been downloaded.`,
+      message: `Coco Learn ${info.version} has been downloaded.`,
       detail:
-        'Restart now to install it, or choose Later and it will install when CoCo Learn quits.',
+        'Restart now to install it, or choose Later and it will install when Coco Learn quits.',
       buttons: ['Restart and Install', 'Later'],
       defaultId: 0,
       cancelId: 1,
@@ -322,8 +322,8 @@ export class DesktopAppUpdater {
     await this.showMessageBox({
       type: 'error',
       title: failedDownload
-        ? 'CoCo Learn could not download the update'
-        : 'CoCo Learn could not check for updates',
+        ? 'Coco Learn could not download the update'
+        : 'Coco Learn could not check for updates',
       message: 'Please check your internet connection and try again later.',
       buttons: ['OK'],
     });

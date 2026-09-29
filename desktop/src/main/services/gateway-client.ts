@@ -68,6 +68,7 @@ export interface GatewayNotification {
 
 export interface GatewayAuthCredentials {
   participantId: string;
+  email?: string;
   password: string;
   keepSignedIn: boolean;
 }
@@ -148,6 +149,7 @@ export class CocoGatewayClient {
   ): Promise<GatewayAuthSession> {
     const session = await this.authRequest('/api/auth/signup', 'POST', {
       participant_id: credentials.participantId,
+      email: credentials.email,
       password: credentials.password,
       keep_signed_in: credentials.keepSignedIn,
     });

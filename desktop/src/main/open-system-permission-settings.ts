@@ -17,11 +17,13 @@ export async function openSystemPermissionSettings(
 ): Promise<void> {
   if (
     target === 'screen-recording' &&
-    ['not-determined', 'unknown'].includes(deps.screenStatus())
+    ['denied', 'not-determined', 'unknown'].includes(deps.screenStatus())
   ) {
-    // macOS may not list the app until it has requested capture access. Electron
-    // can leave getSources pending while consent is unanswered, so don't let
-    // that prevent the user from reaching System Settings. No images are saved.
+    // Chromium reports screen capture as denied both before the first request
+    // and after a refusal. macOS may not list the app until it has exercised a
+    // capture API, so request access for either case. Electron can leave
+    // getSources pending while consent is unanswered, so don't let that prevent
+    // the user from reaching System Settings. No images are saved.
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([

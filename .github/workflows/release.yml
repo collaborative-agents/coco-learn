@@ -258,9 +258,9 @@ jobs:
         working-directory: ./desktop
         shell: bash
         run: |
-          app_path="$(find release/build -maxdepth 2 -name 'CoCo Learn.app' -print -quit)"
+          app_path="$(find release/build -maxdepth 2 -name 'Coco Learn.app' -print -quit)"
           if [[ -z "$app_path" ]]; then
-            echo "Packaged CoCo Learn.app was not found" >&2
+            echo "Packaged Coco Learn.app was not found" >&2
             exit 1
           fi
 
@@ -359,7 +359,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: CoCo Learn v${{ needs.prepare.outputs.version }}
+          name: Coco Learn v${{ needs.prepare.outputs.version }}
           tag_name: v${{ needs.prepare.outputs.version }}
           target_commitish: ${{ github.sha }}
           body: ${{ github.event.inputs.release_notes }}

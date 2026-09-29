@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import trainingAnimation from '../../../assets/training.gif';
-import type { StudyState, TrainingDay } from '../../shared/study';
+import {
+  DAILY_REFLECTION_OPEN_QUESTIONS,
+  DAILY_REFLECTION_RATING_QUESTIONS,
+  type DailyReflection,
+  type StudyState,
+  type TrainingDay,
+} from '../../shared/study';
+import PreAssessmentPanel from './PreAssessmentPanel';
 import './TrainingView.css';
 
 const api = (
@@ -58,6 +65,151 @@ function JourneyMarker({
     );
   }
   return <span aria-hidden>{day}</span>;
+}
+
+const emptyReflection = (): DailyReflection => ({
+  q1: 0,
+  q2: 0,
+  q3: 0,
+  q4: 0,
+  q5: 0,
+  q6: '',
+  q7: '',
+  q8: '',
+});
+
+function DailyReflectionForm({
+  day,
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  day: number;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (answers: DailyReflection) => Promise<void>;
+}) {
+  const [answers, setAnswers] = useState<DailyReflection>(emptyReflection);
+  const ratingKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
+  const responseKeys = ['q6', 'q7', 'q8'] as const;
+  const ready =
+    ratingKeys.every((key) => answers[key] >= 1 && answers[key] <= 5) &&
+    responseKeys.every((key) => answers[key].trim().length > 0);
+
+  return (
+    <div className="training-reflection-page">
+      <section
+        className="training-reflection"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`day-${day}-reflection-title`}
+      >
+        <div className="training-reflection-header">
+          <div>
+            <span className="training-eyebrow">LEVEL {day} REFLECTION</span>
+            <h3 id={`day-${day}-reflection-title`}>
+              Tell us about your practice
+            </h3>
+            <p>
+              There are no right or wrong answers. Your honest feedback helps us
+              improve the camp.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="training-reflection-close"
+            aria-label="Close reflection"
+            disabled={busy}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="training-reflection-ratings">
+          {DAILY_REFLECTION_RATING_QUESTIONS.map((question, questionIndex) => {
+            const key = ratingKeys[questionIndex];
+            return (
+              <fieldset key={key}>
+                <legend>
+                  {questionIndex + 1}. {question}
+                </legend>
+                <div className="training-rating-scale">
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <label key={rating} htmlFor={`day-${day}-${key}-${rating}`}>
+                      <input
+                        id={`day-${day}-${key}-${rating}`}
+                        type="radio"
+                        name={`day-${day}-${key}`}
+                        value={rating}
+                        checked={answers[key] === rating}
+                        disabled={busy}
+                        onChange={() =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [key]: rating,
+                          }))
+                        }
+                      />
+                      <span>{rating}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="training-rating-labels" aria-hidden>
+                  <span>Strongly disagree</span>
+                  <span>Strongly agree</span>
+                </div>
+              </fieldset>
+            );
+          })}
+        </div>
+
+        <div className="training-reflection-writing">
+          {DAILY_REFLECTION_OPEN_QUESTIONS.map((question, questionIndex) => {
+            const key = responseKeys[questionIndex];
+            return (
+              <label key={key} htmlFor={`day-${day}-${key}`}>
+                <strong>
+                  {questionIndex + 6}. {question}
+                </strong>
+                <textarea
+                  id={`day-${day}-${key}`}
+                  rows={4}
+                  maxLength={5000}
+                  value={answers[key]}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setAnswers((current) => ({
+                      ...current,
+                      [key]: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="training-reflection-submit">
+          <div>
+            <strong>One last step</strong>
+            <span>
+              After submitting your reflection, choose a screenshot of your
+              favorite moment.
+            </span>
+          </div>
+          <button
+            type="button"
+            className="training-proof-action"
+            disabled={busy || !ready}
+            onClick={() => void onSubmit(answers)}
+          >
+            Submit reflection &amp; add screenshot
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function TrainingJourney({ state }: { state: StudyState }) {
@@ -178,12 +330,24 @@ export default function TrainingView() {
   const [target, setTarget] = useState('');
   const [uploadDay, setUploadDay] = useState(1);
   const [title, setTitle] = useState('');
+  const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
+  const [studentMode, setStudentMode] = useState(false);
+  const [reflectionDayNumber, setReflectionDayNumber] = useState<number | null>(
+    null,
+  );
+  const handlePreAssessmentCompletion = useCallback((complete: boolean) => {
+    setPreAssessmentComplete(complete);
+  }, []);
   const currentTrainingDay = state?.days.find((day) => !day.completed_at);
   const refresh = useCallback(async () => {
-    const data = (await api('study-me')) as StudyState;
+    const [data, mode] = (await Promise.all([
+      api('study-me'),
+      api('study-student-mode'),
+    ])) as [StudyState, { enabled?: boolean }];
     setState(data);
+    setStudentMode(mode?.enabled === true);
     setError('');
-    if (data.role === 'participant') {
+    if (data.role === 'participant' || mode?.enabled === true) {
       setTab('tasks');
       setUsers([]);
     }
@@ -217,6 +381,11 @@ export default function TrainingView() {
     const timer = setInterval(update, 30000);
     return () => clearInterval(timer);
   }, [refresh]);
+  const studentExperience = state?.role === 'participant' || studentMode;
+  const trainingUnlocked = !studentExperience || preAssessmentComplete;
+  const reflectionDay = state?.days.find(
+    (day) => day.day === reflectionDayNumber,
+  );
   return (
     <main className="training-page">
       <header className="training-header">
@@ -250,7 +419,9 @@ export default function TrainingView() {
       </aside>
       {error && (
         <div role="alert" className="training-error">
-          {/fetch failed|network|timed? ?out|abort/i.test(error) ? 'Unable to connect to the study server. Please check your connection and retry.' : error}
+          {/fetch failed|network|timed? ?out|abort/i.test(error)
+            ? 'Unable to connect to the study server. Please check your connection and retry.'
+            : error}
           <button type="button" onClick={() => void act(refresh)}>
             Retry
           </button>
@@ -262,12 +433,15 @@ export default function TrainingView() {
         </p>
       )}
       {!state ? (
-        <p>{error ? 'Training could not be loaded.' : 'Loading your training…'}</p>
+        <p>
+          {error ? 'Training could not be loaded.' : 'Loading your training…'}
+        </p>
       ) : (
         <>
           <div className="training-toolbar">
             <span>
-              {state.user_id} · {state.role.replace('_', ' ')}
+              {state.user_id} ·{' '}
+              {studentMode ? 'student mode' : state.role.replace('_', ' ')}
             </span>
             <button
               type="button"
@@ -277,6 +451,21 @@ export default function TrainingView() {
               My tasks
             </button>
             {state.role !== 'participant' && (
+              <button
+                type="button"
+                aria-pressed={studentMode}
+                disabled={busy}
+                onClick={() =>
+                  void act(async () => {
+                    await api('study-student-mode', !studentMode);
+                    setTab('tasks');
+                  })
+                }
+              >
+                {studentMode ? 'Exit student mode' : 'Student mode'}
+              </button>
+            )}
+            {state.role !== 'participant' && !studentMode && (
               <button
                 type="button"
                 aria-pressed={tab === 'admin'}
@@ -292,26 +481,23 @@ export default function TrainingView() {
           </div>
           {!state.tutoring_allowed && (
             <p className="training-info">
-              AI tutoring is disabled for your account. Training downloads and
-              messages with other participants remain available.
+              AI tutoring is disabled for your account. You can still complete
+              the pre-assessments and view your camp journey.
             </p>
           )}
           {tab === 'tasks' ? (
             <>
-              <section className="training-card" aria-labelledby="pre-evaluation-title">
-                <h2 id="pre-evaluation-title">Pre-intervention Evaluation</h2>
-                <p>Download your task files below. Task instructions are provided separately.</p>
-                <div className="training-evaluation-downloads">
-                  {[1, 2].map((task) => {
-                    const available = state.evaluation_tasks?.find((item) => item.task === task)?.available;
-                    return <button key={task} type="button" disabled={busy || !available}
-                      onClick={() => void act(() => api('study-evaluation-download', task))}>
-                      Download Task {task} files
-                    </button>;
-                  })}
-                </div>
-                {!state.evaluation_tasks?.some((item) => item.available) && <p>Evaluation materials are not available yet.</p>}
-              </section>
+              <PreAssessmentPanel
+                required={studentExperience}
+                onCompletionChange={handlePreAssessmentCompletion}
+              />
+              {!trainingUnlocked && (
+                <p className="training-locked-notice">
+                  <span aria-hidden>🔒</span>
+                  Finish both pre-assessment challenges above to unlock Coco and
+                  your camp tasks.
+                </p>
+              )}
               <TrainingJourney state={state} />
               {!state.started_at && (
                 <section className="training-card">
@@ -323,7 +509,9 @@ export default function TrainingView() {
                   </p>
                   <button
                     type="button"
-                    disabled={busy || !state.days[0].available}
+                    disabled={
+                      busy || !trainingUnlocked || !state.days[0].available
+                    }
                     onClick={() =>
                       void act(() =>
                         api(
@@ -374,7 +562,12 @@ export default function TrainingView() {
                       </p>
                       <button
                         type="button"
-                        disabled={busy || !day.unlocked || !day.available}
+                        disabled={
+                          busy ||
+                          !trainingUnlocked ||
+                          !day.unlocked ||
+                          !day.available
+                        }
                         onClick={() =>
                           void act(async () => {
                             const result = (await api(
@@ -394,35 +587,27 @@ export default function TrainingView() {
                         <div className="training-proof-copy">
                           <strong>
                             {day.completed_at
-                              ? 'Highlight submitted'
-                              : 'Share your favorite moment'}
+                              ? 'Practice submitted'
+                              : day.unlocked && day.available
+                                ? 'Reflect and share your favorite moment'
+                                : 'Reflection unlocks with this level'}
                           </strong>
                           <span>
                             {day.completed_at
-                              ? 'Your screenshot was saved in your local Coco folder.'
-                              : 'Take a screenshot of the most exciting part of your work, then add it to complete this level.'}
+                              ? 'Your reflection and screenshot were saved in your local Coco folders.'
+                              : day.unlocked && day.available
+                                ? 'Answer the short reflection, then add a screenshot to complete this level.'
+                                : 'Complete the previous level before submitting this reflection.'}
                           </span>
                         </div>
-                        {!day.completed_at && (
+                        {!day.completed_at && day.unlocked && day.available && (
                           <button
                             type="button"
                             className="training-proof-action"
-                            disabled={busy || !day.unlocked || !day.available}
-                            onClick={() =>
-                              void act(async () => {
-                                const result = (await api(
-                                  'study-complete',
-                                  day.day,
-                                  state.user_id,
-                                )) as { canceled?: boolean };
-                                if (!result.canceled)
-                                  setNotice(
-                                    `Level ${day.day} complete — screenshot saved locally and 100 XP earned.`,
-                                  );
-                              })
-                            }
+                            disabled={busy || !trainingUnlocked}
+                            onClick={() => setReflectionDayNumber(day.day)}
                           >
-                            Add screenshot &amp; complete
+                            Submit task
                           </button>
                         )}
                       </div>
@@ -430,6 +615,34 @@ export default function TrainingView() {
                   );
                 })}
               </div>
+              {reflectionDay &&
+                !reflectionDay.completed_at &&
+                reflectionDay.unlocked &&
+                reflectionDay.available && (
+                  <DailyReflectionForm
+                    day={reflectionDay.day}
+                    busy={busy}
+                    onClose={() => setReflectionDayNumber(null)}
+                    onSubmit={async (answers) => {
+                      let completed = false;
+                      await act(async () => {
+                        const result = (await api(
+                          'study-complete',
+                          reflectionDay.day,
+                          state.user_id,
+                          answers,
+                        )) as { canceled?: boolean };
+                        if (!result.canceled) {
+                          completed = true;
+                          setNotice(
+                            `Level ${reflectionDay.day} complete — reflection and screenshot saved locally, and 100 XP earned.`,
+                          );
+                        }
+                      });
+                      if (completed) setReflectionDayNumber(null);
+                    }}
+                  />
+                )}
             </>
           ) : (
             <>

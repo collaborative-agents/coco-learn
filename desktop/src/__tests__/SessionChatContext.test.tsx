@@ -12,6 +12,72 @@ import SessionChatView from '../renderer/components/SessionChatView';
 jest.mock('../renderer/useStudyAccess', () => ({ __esModule: true, default: () => true }));
 
 describe('deferred suggestion context', () => {
+  it('shows only missing macOS permissions in Coco Health', async () => {
+    const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-system-permissions') {
+        return {
+          missing: [
+            {
+              target: 'accessibility',
+              label: 'Accessibility',
+              actionLabel: 'Open Accessibility',
+              explanation: 'Accessibility is needed for activity detection.',
+            },
+          ],
+        };
+      }
+      if (channel === 'open-system-permissions') return { success: true };
+      return null;
+    });
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn(() => jest.fn()),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+
+    render(<SessionChatView />);
+    fireEvent.click(screen.getByTitle('Settings'));
+
+    expect(await screen.findByText('Coco Health')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Accessibility permission required'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Screen Recording permission required'),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Accessibility' }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        'open-system-permissions',
+        'accessibility',
+      );
+    });
+  });
+
+  it('hides permission health when no system permissions are missing', async () => {
+    const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-system-permissions') return { missing: [] };
+      return null;
+    });
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn(() => jest.fn()),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+
+    render(<SessionChatView />);
+    fireEvent.click(screen.getByTitle('Settings'));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('get-system-permissions');
+    });
+    expect(screen.queryByText(/permission required/i)).toBeNull();
+  });
+
   it('shows editable model settings when no saved configuration is available', async () => {
     (window as any).electron = {
       ipcRenderer: {
@@ -435,7 +501,7 @@ describe('deferred suggestion context', () => {
     });
 
     expect(screen.getByText('Models & providers')).toBeInTheDocument();
-    expect(screen.getByText('Health')).toBeInTheDocument();
+    expect(screen.getByText('Coco Health')).toBeInTheDocument();
   });
 
   it('opens and resumes a past conversation from the chat header', async () => {

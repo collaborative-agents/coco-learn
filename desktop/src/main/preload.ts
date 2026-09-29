@@ -15,6 +15,7 @@ export type Channels =
   | 'study-start'
   | 'study-complete'
   | 'study-download'
+  | 'study-evaluation-download'
   | 'study-upload'
   | 'study-admin-users'
   | 'study-admin-role'

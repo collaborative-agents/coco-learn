@@ -11,6 +11,24 @@ import TrainingView from '../renderer/components/TrainingView';
 import type { StudyState } from '../shared/study';
 import type { PreAssessmentState } from '../shared/pre-assessment';
 
+it('shows optional task files alongside unanswered assessments without unlocking training', async () => {
+  me.evaluation_tasks = [{ task: 3, available: true, filename: 'Pre_Assessment_Task_1_v3.zip' }];
+  render(<TrainingView />);
+  const download = await screen.findByRole('button', { name: 'Download Task 1 v3 files' });
+  expect(download).toBeEnabled();
+  expect(screen.getByText(/Finish both pre-assessment challenges above/)).toBeInTheDocument();
+  fireEvent.click(download);
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('study-evaluation-download', 3));
+  expect(invoke).not.toHaveBeenCalledWith('pre-assessment-submit', expect.anything(), expect.anything());
+});
+
+it.each([undefined, [{ task: 3, available: false, filename: null }]])('hides task files when unpublished or unsupported', async (materials) => {
+  me.evaluation_tasks = materials;
+  render(<TrainingView />);
+  await screen.findByText(/Finish both pre-assessment challenges above/);
+  expect(screen.queryByRole('button', { name: 'Download Task 1 v3 files' })).not.toBeInTheDocument();
+});
+
 let me: StudyState;
 let invoke: jest.Mock;
 let assessments: PreAssessmentState;

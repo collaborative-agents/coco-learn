@@ -163,6 +163,10 @@ export function registerStudyIpc(
   ipc.handle('study-download', async (_event, day: number) =>
     saveDownload(`/days/${dayNumber(day)}/download`, 'Save training task'),
   );
+  ipc.handle('study-evaluation-download', async (_event, task: number) => {
+    if (task !== 3) throw new Error('Invalid assessment task.');
+    return saveDownload('/evaluation/pre/3/download', 'Save Task 1 v3 files');
+  });
   ipc.handle('study-upload', async (_event, day: number, title: string) => {
     dayNumber(day);
     const me = (await request('/me')) as unknown as StudyState;

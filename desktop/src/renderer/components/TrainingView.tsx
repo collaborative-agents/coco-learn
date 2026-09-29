@@ -491,6 +491,16 @@ export default function TrainingView() {
                 required={studentExperience}
                 onCompletionChange={handlePreAssessmentCompletion}
               />
+              {state.evaluation_tasks?.some((task) => task.task === 3 && task.available) && (
+                <section className="training-card" aria-labelledby="pre-assessment-task-title">
+                  <h2 id="pre-assessment-task-title">Pre-assessment task — Task 1 v3</h2>
+                  <p>Download the task files as a ZIP. Task instructions are provided separately.</p>
+                  <button type="button" disabled={busy}
+                    onClick={() => void act(() => api('study-evaluation-download', 3))}>
+                    Download Task 1 v3 files
+                  </button>
+                </section>
+              )}
               {!trainingUnlocked && (
                 <p className="training-locked-notice">
                   <span aria-hidden>🔒</span>

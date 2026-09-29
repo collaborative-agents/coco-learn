@@ -38,6 +38,19 @@ function fixture(response: object) {
 
 beforeEach(() => jest.clearAllMocks());
 
+it('downloads only the separate v3 task slot and honors cancellation', async () => {
+  const { invoke, requestJson } = fixture({ filename: 'Pre_Assessment_Task_1_v3.zip', data: 'YWJj' });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: false, filePath: '/chosen/task.zip' });
+  await expect(invoke('study-evaluation-download', 3)).resolves.toEqual({ success: true });
+  expect(requestJson).toHaveBeenCalledWith('/api/study/evaluation/pre/3/download', 'GET', undefined);
+  expect(fs.writeFile).toHaveBeenCalledWith('/chosen/task.zip', Buffer.from('abc'));
+  await expect(invoke('study-evaluation-download', 1)).rejects.toThrow('Invalid assessment task');
+  (fs.writeFile as jest.Mock).mockClear();
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: true });
+  await expect(invoke('study-evaluation-download', 3)).resolves.toEqual({ canceled: true });
+  expect(fs.writeFile).not.toHaveBeenCalled();
+});
+
 const reflection = {
   q1: 5,
   q2: 4,

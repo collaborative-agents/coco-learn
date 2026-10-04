@@ -45,9 +45,7 @@ describe('ObservationBubble 4D suggestion pages', () => {
       screen.queryByRole('button', { name: 'Copy prompt' }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show Description suggestion' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show me how →' }));
 
     expect(
       screen.getByText(/Stage: You are updating payroll/),
@@ -60,11 +58,7 @@ describe('ObservationBubble 4D suggestion pages', () => {
       screen.queryByRole('button', { name: 'Open Claude Code' }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Back to Delegation and Description overview',
-      }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: '← Why' }));
 
     expect(screen.getByText('Delegation')).toBeInTheDocument();
   });
@@ -136,12 +130,12 @@ describe('ObservationBubble controls', () => {
     const good = screen.getByRole('button', { name: 'Good suggestion' });
     const bad = screen.getByRole('button', { name: 'Not helpful' });
     fireEvent.click(good);
-    expect(good).toBeDisabled();
-    expect(bad).toBeEnabled();
+    expect(good).toHaveAttribute('aria-pressed', 'true');
+    expect(bad).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(bad);
-    expect(good).toBeEnabled();
-    expect(bad).toBeDisabled();
+    expect(good).toHaveAttribute('aria-pressed', 'false');
+    expect(bad).toHaveAttribute('aria-pressed', 'true');
     expect(sendMessage).toHaveBeenCalledWith(
       'training-feedback',
       expect.objectContaining({
@@ -152,8 +146,7 @@ describe('ObservationBubble controls', () => {
     );
   });
 
-  it('always offers Coco Chat first for a delegation prompt', () => {
-    const onOpenCocoChat = jest.fn();
+  it('offers your own tools without an Open Coco Chat button', () => {
     render(
       <ObservationBubble
         bubble={{
@@ -171,18 +164,14 @@ describe('ObservationBubble controls', () => {
             ],
           },
         }}
-        onOpenCocoChat={onOpenCocoChat}
       />,
     );
 
     const actions = screen
       .getAllByRole('button')
       .map((button) => button.textContent);
-    expect(actions.indexOf('Open Coco Chat')).toBeLessThan(
-      actions.indexOf('Open ChatGPT'),
-    );
+    expect(actions).toContain('Open ChatGPT');
     expect(actions).not.toContain('Open Claude');
-    fireEvent.click(screen.getByRole('button', { name: 'Open Coco Chat' }));
-    expect(onOpenCocoChat).toHaveBeenCalledTimes(1);
+    expect(actions).not.toContain('Open Coco Chat');
   });
 });

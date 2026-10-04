@@ -128,6 +128,13 @@ class StatusResponse(BaseModel):
     total_actions: int
 
 
+class InteractionRequest(BaseModel):
+    """A user/tutor interaction reported by the desktop app."""
+
+    # e.g. "user_message", "tutor_reply", "suggestion_shown"; logged only.
+    source: str = "unknown"
+
+
 class ObserveUserPromptRequest(BaseModel):
     """Request model for generating an observation on a user prompt."""
 
@@ -201,8 +208,6 @@ class SessionConfigRequest(BaseModel):
     progress_detection_enabled: bool = True
     progress_check_interval_seconds: float | None = None
     progress_k_threshold: int | None = None
-    progress_post_fire_cooldown_seconds: float | None = None
-    progress_session_start_grace_seconds: float | None = None
 
 
 # FastAPI app and global streamer / screen handles
@@ -255,19 +260,16 @@ async def health_check():
     return StatusResponse(status="healthy", service="coco-sensing", total_actions=total)
 
 
-@app.post("/guidance_delivered", response_model=StatusResponse)
-async def guidance_delivered():
-    """Called by TutorAgentNode after guidance is sent to the user.
+@app.post("/interaction", response_model=StatusResponse)
+async def interaction(request: InteractionRequest):
+    """Called by the desktop app when the user or tutor interacts.
 
-    Resets both the screen idle timer (pause detection) and the progress
-    detector cooldown so neither fires a redundant intervention while
-    the student absorbs the hint.
+    The desktop app reports user chat messages, finished tutor replies, and
+    shown suggestions. Each one pushes the Judge's next check a full struggle
+    interval out, so Coco never interrupts right after a conversation turn.
     """
-    if screen is not None:
-        screen.reset_idle_timer()
-        logger.info("Screen idle timer reset (guidance delivered)")
     if progress_detector is not None:
-        progress_detector.reset_cooldown()
+        progress_detector.note_interaction(request.source)
     total = await streamer.get_total_stored_actions() if streamer else 0
     return StatusResponse(status="ok", total_actions=total)
 
@@ -329,7 +331,7 @@ async def observe_user_prompt(request: ObserveUserPromptRequest):
             status_code=503, detail="Screen or streamer not initialized"
         )
     if progress_detector is not None:
-        progress_detector.reset_timing()
+        progress_detector.note_interaction("tutor_screen_observation")
     try:
         image_path, timestamp = await screen._inspect()
 
@@ -625,14 +627,6 @@ async def _start_progress_detector(request: SessionConfigRequest) -> None:
         )
         if request.progress_k_threshold is not None:
             cfg.k_threshold = request.progress_k_threshold
-        if request.progress_post_fire_cooldown_seconds is not None:
-            cfg.post_fire_cooldown_seconds = (
-                request.progress_post_fire_cooldown_seconds
-            )
-        if request.progress_session_start_grace_seconds is not None:
-            cfg.session_start_grace_seconds = (
-                request.progress_session_start_grace_seconds
-            )
         progress_detector = ProgressDetector(
             ai_processor=ai_proc,
             screen=screen,
@@ -652,12 +646,9 @@ async def _start_progress_detector(request: SessionConfigRequest) -> None:
             or request.struggle_detection_seconds
         ),
         k_threshold=request.progress_k_threshold,
-        post_fire_cooldown_seconds=request.progress_post_fire_cooldown_seconds,
-        session_start_grace_seconds=request.progress_session_start_grace_seconds,
     )
     progress_detector.set_scenario(scenario)
-    progress_detector.reset_cooldown()
-    progress_detector.reset_timing()
+    progress_detector.note_interaction("session_reconfigured")
     logger.info("ProgressDetector reconfigured for active session")
 
 
@@ -742,6 +733,11 @@ async def record_feedback(req: FeedbackRequest):
     # re-raising a just-dismissed suggestion (injected into its next prompt).
     if ai_proc is not None and req.observation_id:
         ai_proc.record_reaction(req.observation_id, req.kind)
+    # Tell the Judge whether its nudge reached the user or was abstained.
+    if progress_detector is not None and req.observation_id:
+        outcome = {"shown": "shown", "abstain": "abstained"}.get(req.kind)
+        if outcome:
+            progress_detector.note_suggestion_outcome(req.observation_id, outcome)
     rec = getattr(ai_proc, "_recorder", None) if ai_proc is not None else None
     if rec is None:
         # No recorder (e.g. ai_tutoring disabled) — accept but no-op.

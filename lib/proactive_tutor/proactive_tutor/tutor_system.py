@@ -387,18 +387,37 @@ class TutorSystem:
         restored: list[dict[str, str]] = []
         legacy_history: list[str] = []
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        labels = {"user": "User", "tutor": "Tutor", "suggestion": "Coco suggestion"}
         for message in messages:
             role = message.get("role")
             text = message.get("text", "").strip()
-            if role not in {"user", "tutor"} or not text:
+            if role not in labels or not text:
                 continue
             provider_role = "user" if role == "user" else "assistant"
             restored.append({"role": provider_role, "content": text})
-            label = "User" if role == "user" else "Tutor"
-            legacy_history.append(f"[{ts}] [{label}]: {text}")
+            legacy_history.append(f"[{ts}] [{labels[role]}]: {text}")
 
         self._chat_messages = restored
         self.conversation_history = legacy_history
+
+    def record_proactive_suggestion(
+        self, text: str, trigger_type: str | None = None
+    ) -> None:
+        """Record a proactive suggestion the user was actually shown.
+
+        It is labelled separately from tutor replies so the Judge can count it
+        as a recent nudge, and so later replies don't repeat it. A shown
+        framework-introduction suggestion marks the framework as introduced,
+        so the Judge's one-time trigger doesn't keep firing.
+        """
+        text = text.strip()
+        if not text:
+            return
+        if trigger_type == "framework_introduction":
+            self.curriculum_state["framework_introduced"] = True
+        self._chat_messages.append({"role": "assistant", "content": text})
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.conversation_history.append(f"[{ts}] [Coco suggestion]: {text}")
 
     def generate_recap(self) -> tuple[dict, LLMCallMetrics]:
         """Generate a grounded session summary and four-choice recap question."""

@@ -90,6 +90,56 @@ def test_handle_problem_statement():
     assert ts.problem_statement == "Solve the equation: 2x + 5 = 13"
 
 
+def test_shown_suggestion_is_recorded_as_its_own_role():
+    ts = TutorSystem(model_name=MODEL, scenario="ai_upskilling")
+    ts.record_proactive_suggestion("**Draft the update with Claude**\n\nStage: ...")
+
+    assert ts.conversation_history[-1].endswith(
+        "[Coco suggestion]: **Draft the update with Claude**\n\nStage: ..."
+    )
+    assert ts._chat_messages[-1] == {
+        "role": "assistant",
+        "content": "**Draft the update with Claude**\n\nStage: ...",
+    }
+    assert "[Coco suggestion]" in ts._build_context_prompt()
+
+
+def test_shown_framework_introduction_marks_the_framework_introduced():
+    ts = TutorSystem(model_name=MODEL, scenario="ai_upskilling")
+    assert ts.curriculum_state["framework_introduced"] is False
+
+    ts.record_proactive_suggestion("**Try this**", trigger_type="struggle")
+    assert ts.curriculum_state["framework_introduced"] is False
+
+    ts.record_proactive_suggestion(
+        "**Try this**", trigger_type="framework_introduction"
+    )
+    assert ts.curriculum_state["framework_introduced"] is True
+
+
+def test_restored_conversation_keeps_suggestions_distinct():
+    ts = _make_tutor_system()
+    ts.restore_conversation(
+        [
+            {"role": "user", "text": "hi"},
+            {"role": "tutor", "text": "Hello!"},
+            {"role": "suggestion", "text": "**Try this**"},
+            {"role": "unknown", "text": "dropped"},
+        ]
+    )
+
+    assert [entry.split("] ", 1)[1] for entry in ts.conversation_history] == [
+        "[User]: hi",
+        "[Tutor]: Hello!",
+        "[Coco suggestion]: **Try this**",
+    ]
+    assert [message["role"] for message in ts._chat_messages] == [
+        "user",
+        "assistant",
+        "assistant",
+    ]
+
+
 def test_user_name_is_injected_into_tutor_context(monkeypatch):
     monkeypatch.setenv("COCO_USER_NAME", "Ada & Lin")
 

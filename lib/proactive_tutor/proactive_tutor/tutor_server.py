@@ -105,7 +105,7 @@ class InstantSuggestionRequest(BaseModel):
 
 
 class InstantSuggestionResponse(BaseModel):
-    kind: str  # "content" | "delegate"
+    kind: str  # "content" | "delegate" | "abstain"
     title: str
     body: str | None = None
     targetTool: str | None = None
@@ -113,6 +113,11 @@ class InstantSuggestionResponse(BaseModel):
     copyText: str  # unified text the UI copies (body for content, prompt for delegate)
     fourDDimension: str | None = None
     teachingDepth: str | None = None
+    # One-sentence explanation shown before the suggestion (all optional).
+    noticed: str | None = None
+    aiCan: str | None = None
+    why: str | None = None
+    check: str | None = None
     llm_metrics: dict | None = None
 
 
@@ -153,6 +158,11 @@ class ConversationMessage(BaseModel):
 
 class ConversationRequest(BaseModel):
     messages: list[ConversationMessage]
+
+
+class ShownSuggestionRequest(BaseModel):
+    text: str
+    trigger_type: str | None = None
 
 
 class MemoryResponse(BaseModel):
@@ -932,6 +942,15 @@ async def restore_conversation(req: ConversationRequest):
         raise HTTPException(status_code=503, detail="TutorSystem not initialized")
     tutor.restore_conversation([message.model_dump() for message in req.messages])
     logger.info("Restored %d saved conversation messages", len(req.messages))
+    return StatusResponse(status="ok")
+
+
+@app.post("/context/suggestion", response_model=StatusResponse)
+async def record_shown_suggestion(req: ShownSuggestionRequest):
+    """Add a proactive suggestion the user saw to the conversation history."""
+    if tutor is None:
+        raise HTTPException(status_code=503, detail="TutorSystem not initialized")
+    tutor.record_proactive_suggestion(req.text, req.trigger_type)
     return StatusResponse(status="ok")
 
 

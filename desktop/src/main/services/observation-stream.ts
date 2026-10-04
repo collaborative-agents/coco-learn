@@ -31,6 +31,8 @@ export interface ObservationEvent {
   applying_ai_output?: string;
   /** Marks an interruption explicitly approved by the sensing-side Judge. */
   intervention_source?: 'judge';
+  /** Why the Judge intervened, e.g. "framework_introduction". */
+  trigger_type?: string;
   llm_metrics?: LLMCallMetrics;
 }
 

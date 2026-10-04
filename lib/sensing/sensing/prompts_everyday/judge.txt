@@ -21,9 +21,14 @@ A time-ordered list of prior OBSERVER JSON reports, oldest first. Each entry is 
 <conversation_history>
 Recent exchanges between the assistant and the user, formatted as:
 [YYYY-MM-DD HH:MM:SS] [Role]: message content
+Entries with the role "Coco suggestion" are proactive suggestions the user was already shown; treat them as nudges.
 
 The history may be empty if this is the start of the session.
 </conversation_history>
+
+<recent_nudges>
+Your most recent nudges and what happened to each: shown to the user, or the suggestion writer ABSTAINED because no useful AI-skills suggestion fit that moment. If a recent nudge for similar activity was abstained, do not fire again for that activity. The block is absent when you have not nudged yet.
+</recent_nudges>
 
 Your responsibilities:
 

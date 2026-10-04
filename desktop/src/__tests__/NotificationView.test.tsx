@@ -278,7 +278,7 @@ describe('instant suggestion actions', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Chat about it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Coco about it' }));
     expect(onChat).toHaveBeenCalledTimes(1);
   });
 
@@ -295,17 +295,17 @@ describe('instant suggestion actions', () => {
       />,
     );
 
-    expect(
-      screen.getByRole('button', { name: 'Good suggestion' }),
-    ).toBeDisabled();
+    const good = screen.getByRole('button', { name: 'Good suggestion' });
+    expect(good).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(good);
+    expect(onRate).not.toHaveBeenCalled();
     const bad = screen.getByRole('button', { name: 'Not helpful' });
-    expect(bad).toBeEnabled();
+    expect(bad).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(bad);
     expect(onRate).toHaveBeenCalledWith('down');
   });
 
-  it('offers Coco Chat as the default delegation destination', () => {
-    const onOpenCocoChat = jest.fn();
+  it('makes copying the prompt the main delegation action', () => {
     const onChat = jest.fn();
     render(
       <NotificationBubble
@@ -322,12 +322,11 @@ describe('instant suggestion actions', () => {
             { id: 'claude-code', label: 'Claude Code', category: 'agent' },
           ],
         }}
-        onOpenCocoChat={onOpenCocoChat}
         onChatAboutSuggestion={onChat}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Chat about it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Coco about it' }));
     expect(onChat).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole('button', { name: 'Open Claude Code' }),
@@ -335,10 +334,10 @@ describe('instant suggestion actions', () => {
     expect(
       screen.queryByRole('button', { name: 'Open Claude Cowork' }),
     ).not.toBeInTheDocument();
-    const coco = screen.getByRole('button', { name: 'Open Coco Chat' });
-    expect(coco).toHaveClass('toast-coco-chat-action');
-    fireEvent.click(coco);
-    expect(onOpenCocoChat).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('button', { name: 'Open Coco Chat' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy prompt' })).toHaveFocus();
   });
 
   it('shows the 4D overview before an AI-upskilling suggestion', () => {
@@ -380,9 +379,7 @@ describe('instant suggestion actions', () => {
     expect(
       screen.queryByText(/^Stage: A GitHub Actions packaging job failed/),
     ).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show Description suggestion' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show me how →' }));
     expect(onPageChange).toHaveBeenCalledWith(1);
   });
 
@@ -413,7 +410,7 @@ describe('instant suggestion actions', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(explanation)).not.toHaveTextContent(/…$/);
     expect(
-      screen.getByRole('button', { name: 'Show coaching suggestion' }),
+      screen.getByRole('button', { name: 'Show me how →' }),
     ).toBeInTheDocument();
   });
 
@@ -437,12 +434,145 @@ describe('instant suggestion actions', () => {
     );
 
     expect(screen.getByText('Explain this error.')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Back to Delegation and Description overview',
-      }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: '← Why' }));
     expect(onPageChange).toHaveBeenCalledWith(0);
+  });
+
+  it('explains a delegation moment before showing the prompt', () => {
+    const { container } = render(
+      <NotificationBubble
+        message="Paste this prompt into Claude"
+        notifType="proactive-suggestion"
+        suggestion={{
+          kind: 'delegate',
+          title: 'Paste this prompt into Claude',
+          prompt: 'Stage: ...\nTask: ...\nRules: ...',
+          copyText: 'Stage: ...',
+          fourDDimension: 'delegation',
+          noticed: "Looks like you're entering grades one by one.",
+          aiCan: 'Claude can format your sheet for Canvas.',
+          why: 'That saves about twenty minutes.',
+          check: 'Spot-check three rows before importing.',
+        }}
+        showFrameworkIntro
+        frameworkPage={0}
+      />,
+    );
+
+    expect(screen.getByText('Delegation')).toBeInTheDocument();
+    const lines = Array.from(container.querySelectorAll('.toast-why-line'));
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "Looks like you're entering grades one by one.",
+      'Claude can format your sheet for Canvas.',
+      'That saves about twenty minutes.',
+      'Spot-check three rows before importing.',
+    ]);
+    expect(lines[0]).toHaveClass('toast-why-line--lead');
+    expect(lines[1]).not.toHaveClass('toast-why-line--lead');
+    expect(screen.queryByText(/Stage:/)).not.toBeInTheDocument();
+  });
+
+  it('makes clear the AI does the work when the model writes an instruction', () => {
+    render(
+      <NotificationBubble
+        message="Paste this prompt into ChatGPT"
+        notifType="proactive-suggestion"
+        suggestion={{
+          kind: 'delegate',
+          title: 'Paste this prompt into ChatGPT',
+          prompt: 'Stage: ...',
+          copyText: 'Stage: ...',
+          fourDDimension: 'delegation',
+          noticed: "Looks like you're building a partner interest form.",
+          aiCan: 'Draft a full set of tailored form questions.',
+        }}
+        showFrameworkIntro
+        frameworkPage={0}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'AI can help: Draft a full set of tailored form questions.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves natural "could" phrasing alone', () => {
+    render(
+      <NotificationBubble
+        message="Paste this prompt into Claude"
+        notifType="proactive-suggestion"
+        suggestion={{
+          kind: 'delegate',
+          title: 'Paste this prompt into Claude',
+          prompt: 'Stage: ...',
+          copyText: 'Stage: ...',
+          fourDDimension: 'delegation',
+          noticed: "You're drafting the form from scratch.",
+          aiCan: 'Claude could turn your notes into a first draft.',
+        }}
+        showFrameworkIntro
+        frameworkPage={0}
+      />,
+    );
+
+    expect(
+      screen.getByText('Claude could turn your notes into a first draft.'),
+    ).toBeInTheDocument();
+  });
+
+  it('explains a discernment moment as what to check and why', () => {
+    const { container } = render(
+      <NotificationBubble
+        message="Check the dates before sending"
+        notifType="proactive-suggestion"
+        suggestion={{
+          kind: 'content',
+          title: 'Check the dates before sending',
+          body: 'Compare each date with the thread.',
+          copyText: 'Compare each date with the thread.',
+          fourDDimension: 'discernment',
+          noticed: "Looks like you're pasting ChatGPT's summary.",
+          aiCan: 'not shown for checking moments',
+          why: 'AI summaries often mix up details.',
+          check: 'Check the dates against the original thread.',
+        }}
+        showFrameworkIntro
+        frameworkPage={0}
+      />,
+    );
+
+    expect(screen.getByText('Discernment')).toBeInTheDocument();
+    expect(
+      Array.from(container.querySelectorAll('.toast-why-line')).map(
+        (line) => line.textContent,
+      ),
+    ).toEqual([
+      "Looks like you're pasting ChatGPT's summary.",
+      'Check the dates against the original thread.',
+      'AI summaries often mix up details.',
+    ]);
+  });
+
+  it('labels the action page "Try this"', () => {
+    render(
+      <NotificationBubble
+        message={'**Paste this prompt into Claude**\n\nExplain this error.'}
+        notifType="instant-suggestion"
+        suggestion={{
+          kind: 'delegate',
+          title: 'Paste this prompt into Claude',
+          prompt: 'Explain this error.',
+          copyText: 'Explain this error.',
+          availableTools: [],
+        }}
+        showFrameworkIntro
+        frameworkPage={1}
+      />,
+    );
+
+    expect(screen.getByText('Try this')).toBeInTheDocument();
   });
 });
 
@@ -542,7 +672,7 @@ describe('interactive notification locking', () => {
       { open: true },
     );
     expect(
-      screen.getByRole('button', { name: 'Show coaching suggestion' }),
+      screen.getByRole('button', { name: 'Show me how →' }),
     ).toBeInTheDocument();
   });
 });

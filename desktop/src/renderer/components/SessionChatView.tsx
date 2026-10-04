@@ -25,6 +25,10 @@ import {
   normalizeSupportedModes,
 } from '../../shared/agent-modes';
 import type { AgentModeId } from '../../shared/agent-modes';
+import { chatSuggestionText } from '../../shared/chat-suggestion';
+import { buildSuggestionExplanation } from './framework-overview';
+import RatingButtons from './RatingButtons';
+import type { ChatSuggestion } from '../../shared/chat-suggestion';
 
 // Platform-appropriate label for the global screen-capture hot key
 // (registered in main.ts as CommandOrControl+Shift+Space).
@@ -157,6 +161,9 @@ interface ChatMessage {
   retryImages?: string[];
   retryRequestKind?: 'chat' | 'practice_suggestions';
   retryHotkeyImages?: string[];
+  /** Set when Coco proactively suggested this rather than replying. */
+  suggestion?: ChatSuggestion;
+  folded?: boolean;
 }
 
 function copyableMessageText(message: ChatMessage): string {
@@ -402,6 +409,15 @@ const S: Record<string, React.CSSProperties> = {
   tutorAvatar: { width: 24, height: 24, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
   userBubble: { background: ACCENT, color: '#fff', padding: '9px 13px', borderRadius: '16px 16px 4px 16px', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   tutorBubble: { background: '#f3f4f6', color: '#374151', padding: '9px 13px', borderRadius: '4px 16px 16px 16px', fontSize: 13, lineHeight: 1.5 },
+  suggestionHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 },
+  suggestionLabel: { color: ACCENT, fontSize: 11, fontWeight: 700 },
+  suggestionFoldBtn: { border: 'none', background: 'transparent', color: ACCENT, fontFamily: FONT, fontSize: 11, cursor: 'pointer', padding: '0 2px' },
+  suggestionTitle: { fontWeight: 600 },
+  suggestionWhyLead: { fontWeight: 700, color: '#111827', marginTop: 2 },
+  suggestionWhy: { color: '#111827', marginTop: 2 },
+  suggestionActionTitle: { marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` },
+  suggestionPrompt: { whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#374151' },
+  suggestionActions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   errBubble: { background: '#fef2f2', color: '#b91c1c', padding: '9px 13px', borderRadius: 12, fontSize: 13, border: '1px solid #fecaca' },
   retryBtn: { marginTop: 7, border: '1px solid #fca5a5', background: '#fff', color: '#b91c1c', borderRadius: 8, padding: '4px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: FONT },
   thumbRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 },
@@ -451,7 +467,7 @@ const S: Record<string, React.CSSProperties> = {
   sendBtnDisabled: { opacity: 0.4, cursor: 'default' },
   hotkeyHint: { marginTop: 6, fontSize: 11, color: '#9ca3af', fontFamily: FONT, textAlign: 'center' },
   hotkeyKbd: { fontFamily: FONT, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', border: `1px solid ${BORDER}`, borderRadius: 5, padding: '1px 5px', fontSize: 10.5 },
-  feedbackRow: { display: 'flex', gap: 2, marginTop: 4 },
+  feedbackRow: { display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 },
   userMessageActions: { display: 'flex', justifyContent: 'flex-end', marginTop: 3 },
   copyMessageBtn: { border: 'none', background: 'transparent', borderRadius: 6, padding: '1px 5px', color: '#9ca3af', fontFamily: FONT, fontSize: 10.5, lineHeight: '18px', cursor: 'pointer' },
   copyMessageBtnDone: { color: '#16a34a', fontWeight: 700 },
@@ -466,8 +482,6 @@ const S: Record<string, React.CSSProperties> = {
   toolArgs: { marginTop: 3, color: '#6b7280' },
   toolDetails: { marginTop: 5 },
   toolObservation: { borderTop: `1px solid ${BORDER}`, marginTop: 5, paddingTop: 5 },
-  feedbackBtn: { border: '1px solid transparent', background: 'transparent', borderRadius: 6, padding: '0 5px', fontSize: 12, lineHeight: '20px', cursor: 'pointer', opacity: 0.45 },
-  feedbackBtnRated: { opacity: 1, background: ACCENT_BG, borderColor: ACCENT_BORDER, cursor: 'default' },
   typing: { alignSelf: 'flex-start', color: '#9ca3af', fontSize: 12, fontStyle: 'italic', paddingLeft: 32 },
   empty: { margin: 'auto', textAlign: 'center', color: '#9ca3af', fontSize: 12.5, lineHeight: 1.6, padding: 24 },
   starterPanel: { margin: 'auto', width: '100%', maxWidth: 390, boxSizing: 'border-box', color: '#374151' },
@@ -555,6 +569,114 @@ function TutorMessage({ text }: { text: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function suggestionMessage(
+  suggestion: ChatSuggestion,
+  folded: boolean,
+): ChatMessage {
+  return {
+    role: 'tutor',
+    text: chatSuggestionText(suggestion),
+    id: makeMessageId(),
+    ts: Date.now(),
+    suggestion,
+    folded,
+  };
+}
+
+// A proactive suggestion shown as a Coco message. Folded, only the title shows.
+function SuggestionMessage({
+  suggestion,
+  folded,
+  onToggleFold,
+}: {
+  suggestion: ChatSuggestion;
+  folded: boolean;
+  onToggleFold: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const ipc = window.electron?.ipcRenderer;
+  const detail =
+    (suggestion.kind === 'delegate' ? suggestion.prompt : suggestion.body) ||
+    suggestion.copyText;
+  const explanation = buildSuggestionExplanation(suggestion);
+  const copyPrompt = () => {
+    ipc?.sendMessage('suggestion-action', { copyText: suggestion.copyText });
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div style={S.tutorBubble}>
+      <div style={S.suggestionHeader}>
+        <span style={S.suggestionLabel}>
+          ✦ Suggestion
+          {explanation?.competency ? ` · ${explanation.competency}` : ''}
+        </span>
+        <button
+          type="button"
+          style={S.suggestionFoldBtn}
+          aria-expanded={!folded}
+          onClick={onToggleFold}
+        >
+          {folded ? 'Show ▾' : 'Hide ▴'}
+        </button>
+      </div>
+      {/* Unfolded, the card shows the pop-up's two pages: why, then the action. */}
+      {!folded &&
+        explanation?.sentences.map((sentence, index) => (
+          <div
+            key={sentence}
+            style={index === 0 ? S.suggestionWhyLead : S.suggestionWhy}
+          >
+            {sentence}
+          </div>
+        ))}
+      <div
+        style={{
+          ...S.suggestionTitle,
+          ...(!folded && explanation ? S.suggestionActionTitle : {}),
+        }}
+      >
+        {suggestion.title}
+      </div>
+      {!folded &&
+        (suggestion.kind === 'delegate' ? (
+          <div style={S.example}>
+            <div style={S.suggestionPrompt}>{detail}</div>
+            <div style={S.suggestionActions}>
+              <button type="button" style={S.exampleBtn} onClick={copyPrompt}>
+                {copied ? 'Copied ✓' : 'Copy prompt'}
+              </button>
+              {suggestion.tool && (
+                <button
+                  type="button"
+                  style={S.exampleBtn}
+                  onClick={() =>
+                    ipc?.sendMessage('suggestion-action', {
+                      toolId: suggestion.tool?.id,
+                      copyText: suggestion.copyText,
+                    })
+                  }
+                >
+                  Open {suggestion.tool.label}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="chat-markdown">
+            <Markdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={markdownComponents}
+            >
+              {detail}
+            </Markdown>
+          </div>
+        ))}
     </div>
   );
 }
@@ -929,10 +1051,20 @@ export default function SessionChatView() {
     if (!m.id || ratings[m.id] === dir) return;
     const previousRating = ratings[m.id];
     setRatings((prev) => ({ ...prev, [m.id as string]: dir }));
+    const observationId = m.suggestion?.observationId;
+    if (observationId) {
+      // Rate the suggestion itself too, as the pop-up does, so History shows it.
+      window.electron?.ipcRenderer.sendMessage('activity-support-rated', {
+        observationId,
+        rating: dir,
+        ratedAt: Math.floor(Date.now() / 1000),
+      });
+    }
     window.electron?.ipcRenderer.sendMessage('training-feedback', {
       kind: dir === 'up' ? 'thumbs_up' : 'thumbs_down',
       previous_kind: previousRating ? `thumbs_${previousRating}` : null,
       surface: 'chat',
+      ...(observationId ? { observation_id: observationId } : {}),
       message_id: m.id,
       session_id: sessionIdRef.current,
       latency_s: m.ts ? (Date.now() - m.ts) / 1000 : null,
@@ -1275,10 +1407,24 @@ export default function SessionChatView() {
               (candidate) => candidate.sessionId === sessionId,
             );
             if (!conversation) return;
+            const savedSuggestionIds = new Set(
+              conversation.messages
+                .map((m) => m.suggestion?.observationId)
+                .filter(Boolean),
+            );
             setMessages((current) =>
               current.length === 0
                 ? conversation.messages
-                : [...conversation.messages, ...current],
+                : [
+                    ...conversation.messages,
+                    // A suggestion delivered before the restore finished may
+                    // already be in the saved copy.
+                    ...current.filter(
+                      (m) =>
+                        !m.suggestion?.observationId ||
+                        !savedSuggestionIds.has(m.suggestion.observationId),
+                    ),
+                  ],
             );
             setProblem(
               problemStatement?.trim()
@@ -1672,8 +1818,7 @@ export default function SessionChatView() {
   const memoryDirty = memoryDraft !== memoryLoaded;
 
   // Context from proactive support. Ordinary "Help me with this" requests are
-  // sent immediately; "Chat about it" stages context for the next message; and
-  // "Open Coco Chat" places a delegation prompt directly in the composer.
+  // sent immediately; "Ask Coco about it" stages context for the next message.
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on('help-request', (data: any) => {
       const {
@@ -1681,18 +1826,12 @@ export default function SessionChatView() {
         phrase,
         label,
         deferUntilUserMessage,
-        initialInput,
       } = (data ?? {}) as {
         rawObservation?: string;
         phrase?: string;
         label?: string;
         deferUntilUserMessage?: boolean;
-        initialInput?: string;
       };
-      if (typeof initialInput === 'string') {
-        setInput(initialInput);
-        return;
-      }
       const seed = (rawObservation || phrase || '').trim();
       if (seed && deferUntilUserMessage) {
         pendingContextRef.current = seed;
@@ -1703,6 +1842,68 @@ export default function SessionChatView() {
     });
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, [sendMessage]);
+
+  // Proactive suggestions from main arrive as Coco messages: unfolded when the
+  // chat was open, folded when they first appeared as a pop-up. "Chat about
+  // it" on that pop-up reveals the folded copy.
+  useEffect(() => {
+    const ipc = window.electron?.ipcRenderer;
+    const cleanupAdd = ipc?.on('chat-suggestion', (data: any) => {
+      const { suggestion, folded } = (data ?? {}) as {
+        suggestion?: ChatSuggestion;
+        folded?: boolean;
+      };
+      if (!suggestion) return;
+      setMessages((current) =>
+        suggestion.observationId &&
+        current.some(
+          (m) => m.suggestion?.observationId === suggestion.observationId,
+        )
+          ? current
+          : [...current, suggestionMessage(suggestion, folded === true)],
+      );
+      if (!folded) scrollToBottom();
+    });
+    const cleanupReveal = ipc?.on('reveal-chat-suggestion', (data: any) => {
+      const { observationId, suggestion } = (data ?? {}) as {
+        observationId?: string;
+        suggestion?: ChatSuggestion;
+      };
+      if (!observationId) return;
+      setReviewing(null);
+      setShowHistory(false);
+      setMessages((current) => {
+        if (
+          current.some((m) => m.suggestion?.observationId === observationId)
+        ) {
+          return current.map((m) =>
+            m.suggestion?.observationId === observationId
+              ? { ...m, folded: false }
+              : m,
+          );
+        }
+        // This chat window never received it (e.g. it was recreated).
+        return suggestion
+          ? [...current, suggestionMessage(suggestion, false)]
+          : current;
+      });
+      scrollToBottom();
+    });
+    return () => {
+      if (typeof cleanupAdd === 'function') cleanupAdd();
+      if (typeof cleanupReveal === 'function') cleanupReveal();
+    };
+  }, [scrollToBottom]);
+
+  const toggleSuggestionFold = (target: ChatMessage) => {
+    const flip = (list: ChatMessage[]) =>
+      list.map((m) => (m === target ? { ...m, folded: !m.folded } : m));
+    if (reviewing) {
+      setReviewing({ ...reviewing, messages: flip(reviewing.messages) });
+    } else {
+      setMessages(flip);
+    }
+  };
 
   // Hot-key screen capture (Cmd/Ctrl+Shift+Space) → preview thumbnail in the
   // input bar, reusing the same pending-image strip that paste drives.
@@ -2984,7 +3185,14 @@ export default function SessionChatView() {
                       ))}
                     </div>
                   )}
-                  {(m.text || m.isError) && (
+                  {m.suggestion && (
+                    <SuggestionMessage
+                      suggestion={m.suggestion}
+                      folded={m.folded === true}
+                      onToggleFold={() => toggleSuggestionFold(m)}
+                    />
+                  )}
+                  {!m.suggestion && (m.text || m.isError) && (
                     <div style={m.isError ? S.errBubble : S.tutorBubble}>
                       {m.isError ? (
                         <>
@@ -3030,24 +3238,13 @@ export default function SessionChatView() {
                           {copiedMessageKey === messageCopyKey(m, i) ? 'Copied ✓' : 'Copy'}
                         </button>
                       )}
-                      {!m.isError && m.id && (['up', 'down'] as const).map((dir) => (
-                          <button
-                            key={dir}
-                            type="button"
-                            aria-label={dir === 'up' ? 'Helpful' : 'Not helpful'}
-                            title={dir === 'up' ? 'Helpful' : 'Not helpful'}
-                            disabled={ratings[m.id as string] === dir}
-                            style={{
-                              ...S.feedbackBtn,
-                              ...(ratings[m.id as string] === dir
-                                ? S.feedbackBtnRated
-                                : {}),
-                            }}
-                            onClick={() => rateMessage(m, dir)}
-                          >
-                            {dir === 'up' ? '👍' : '👎'}
-                          </button>
-                        ))}
+                      {!m.isError && m.id && (
+                        <RatingButtons
+                          value={ratings[m.id]}
+                          onRate={(dir) => rateMessage(m, dir)}
+                          className="coco-rating--compact"
+                        />
+                      )}
                     </div>
                   )}
                 </div>

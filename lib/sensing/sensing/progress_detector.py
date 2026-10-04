@@ -11,11 +11,13 @@ channel keeps the MVP small; a dedicated channel can be split out later once
 we have data.
 
 Design (see conversation / plan doc for context):
-    • Runs on a configurable cadence (unified with pause detection interval).
+    • One timing rule: a check runs only after a full interval (the user's
+      struggle time) with no interaction. Interactions are the session start,
+      user chat messages, finished tutor replies, shown suggestions, and the
+      Judge's own nudges; each one pushes the next check out by the interval.
     • Each tick: observer history + problem statement + conversation → judge LLM.
     • K consecutive struggle judgments trigger a nudge (default K=1).
-    • Post-fire cooldown prevents nudge-spam (default 2 min).
-    • Session-start grace period avoids interrupting setup (default 10s).
+    • A nudge is dropped if an interaction happened while the tick was running.
     • Logs every judgment for later calibration.
 """
 
@@ -26,6 +28,7 @@ import json
 import re
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -233,19 +236,13 @@ class ProgressJudgment:
 
 @dataclass
 class ProgressDetectorConfig:
+    # The user's struggle time. The Judge checks only after this long without
+    # an interaction, and again every interval while none happens.
     check_interval_seconds: float = 120.0
-    # How long to wait before the very first judge tick after session start.
-    # Intentionally shorter than check_interval_seconds so the first coaching
-    # opportunity is spotted quickly rather than after a full interval wait.
-    first_tick_delay_seconds: float = 30.0
     # Retained for backward-compat with older /session requests. The text-only
     # judge is temporally aware across observer reports, so K-consecutive
     # counting is no longer used internally unless k_threshold > 1.
     k_threshold: int = 1
-    post_fire_cooldown_seconds: float = 120.0
-    # Grace period before any tick is allowed to fire. Set to less than
-    # first_tick_delay_seconds so the first tick always passes this check.
-    session_start_grace_seconds: float = 15.0
     enabled: bool = True
     # Number of recent observer reports to include in the judge prompt.
     max_observations_in_prompt: int = 5
@@ -293,9 +290,14 @@ class ProgressDetector:
         self._task: asyncio.Task | None = None
         self._start_ts: float = 0.0
         self._last_fire_ts: float = 0.0
+        self._last_interaction_ts: float = 0.0
+        self._next_check_ts: float = 0.0
         self._consecutive_struggle: int = 0
         self._lock = asyncio.Lock()
-        self._reset_event: asyncio.Event | None = None
+        self._wake_event: asyncio.Event | None = None
+        # The Judge's latest nudges and what became of them, so it can tell
+        # when the suggestion writer found nothing worth showing.
+        self._recent_nudges: deque[dict] = deque(maxlen=5)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -305,16 +307,18 @@ class ProgressDetector:
         if self._task is not None:
             return
         self._running = True
-        self._start_ts = time.time()
+        now = time.time()
+        self._start_ts = now
         self._last_fire_ts = 0.0
+        # The session start is the first interaction.
+        self._last_interaction_ts = now
+        self._next_check_ts = now + self._config.check_interval_seconds
         self._consecutive_struggle = 0
-        self._reset_event = asyncio.Event()
+        self._wake_event = asyncio.Event()
         self._task = asyncio.create_task(self._worker())
         logger.info(
-            f"ProgressDetector started: first_tick={self._config.first_tick_delay_seconds}s "
-            f"interval={self._config.check_interval_seconds}s "
-            f"k={self._config.k_threshold} cooldown={self._config.post_fire_cooldown_seconds}s "
-            f"grace={self._config.session_start_grace_seconds}s"
+            f"ProgressDetector started: interval={self._config.check_interval_seconds}s "
+            f"k={self._config.k_threshold}"
         )
 
     async def stop(self) -> None:
@@ -327,26 +331,36 @@ class ProgressDetector:
                 pass
         self._task = None
 
-    def reset_cooldown(self) -> None:
-        """Reset the post-fire cooldown as if a nudge was just sent.
+    def note_interaction(self, source: str) -> None:
+        """Record an interaction and push the next check a full interval out.
 
-        Called when guidance is delivered to the user (from any source —
-        pause, struggle, or user-initiated) so the progress detector doesn't
-        immediately fire a redundant nudge.
+        Called for user chat messages, finished tutor replies, shown
+        suggestions, session reconfiguration, and the Judge's own nudges, so
+        the user always gets the whole interval before Coco speaks up again.
         """
-        self._last_fire_ts = time.time()
+        now = time.time()
+        self._last_interaction_ts = now
+        self._next_check_ts = now + self._config.check_interval_seconds
         self._consecutive_struggle = 0
-        logger.info("ProgressDetector: cooldown reset (guidance delivered)")
+        if self._wake_event is not None:
+            self._wake_event.set()
+        logger.info(
+            f"ProgressDetector: interaction ({source}); next check in "
+            f"{self._config.check_interval_seconds:.0f}s"
+        )
 
-    def reset_timing(self) -> None:
-        """Restart the tick interval from now.
+    def note_suggestion_outcome(self, observation_id: str, outcome: str) -> None:
+        """Record what happened to a nudge: "shown" or "abstained"."""
+        for nudge in self._recent_nudges:
+            if nudge["observation_id"] == observation_id:
+                nudge["outcome"] = outcome
+                logger.info(
+                    f"ProgressDetector: nudge {observation_id} outcome={outcome}"
+                )
+                return
 
-        Called when the user submits a text prompt to the tutor so the
-        progress detector doesn't fire immediately after they've just engaged.
-        """
-        if self._reset_event is not None:
-            self._reset_event.set()
-        logger.info("ProgressDetector: timing reset (user sent a prompt)")
+    def _interacted_since(self, ts: float) -> bool:
+        return self._last_interaction_ts > ts
 
     def update_config(self, **kwargs) -> None:
         """Update config fields in place (e.g. from a /session request)."""
@@ -369,30 +383,25 @@ class ProgressDetector:
     # ------------------------------------------------------------------
 
     async def _worker(self) -> None:
-        reset_event = self._reset_event
-        assert reset_event is not None, (
-            "_worker started before reset_event was initialized"
+        wake_event = self._wake_event
+        assert wake_event is not None, (
+            "_worker started before wake_event was initialized"
         )
         try:
-            first_tick = True
             while self._running:
                 try:
-                    delay = (
-                        self._config.first_tick_delay_seconds
-                        if first_tick
-                        else self._config.check_interval_seconds
-                    )
-                    first_tick = False
-                    # Interruptible sleep: reset_timing() can cancel the current
-                    # interval early so the next tick restarts from a fresh delay.
+                    delay = max(0.0, self._next_check_ts - time.time())
+                    # Interruptible sleep: note_interaction() moves the next
+                    # check later, so wake up and wait for the new deadline.
                     try:
-                        await asyncio.wait_for(reset_event.wait(), timeout=delay)
-                        # Event fired — user sent a prompt; restart the interval.
-                        reset_event.clear()
-                        first_tick = True
+                        await asyncio.wait_for(wake_event.wait(), timeout=delay)
+                        wake_event.clear()
                         continue
                     except TimeoutError:
-                        pass  # Normal timeout — proceed to tick.
+                        pass  # Deadline reached with no interaction — tick.
+                    self._next_check_ts = (
+                        time.time() + self._config.check_interval_seconds
+                    )
                     if not self._config.enabled:
                         continue
                     async with self._lock:
@@ -409,39 +418,19 @@ class ProgressDetector:
         logger.info(
             f"ProgressDetector: tick fired "
             f"(elapsed={now - self._start_ts:.0f}s since start, "
-            f"since_last_fire={now - self._last_fire_ts:.0f}s)"
+            f"since_last_interaction={now - self._last_interaction_ts:.0f}s)"
         )
 
         if self._screen.is_sensing_paused():
             logger.info("ProgressDetector: skipping tick — sensing is asleep")
             return
 
-        # 1. Grace period after session start
-        elapsed = now - self._start_ts
-        if elapsed < self._config.session_start_grace_seconds:
-            logger.info(
-                f"ProgressDetector: skipping tick — grace period "
-                f"({elapsed:.0f}s elapsed < {self._config.session_start_grace_seconds}s grace)"
-            )
-            return
-
-        # 2. Post-fire cooldown
-        cooldown_remaining = self._config.post_fire_cooldown_seconds - (
-            now - self._last_fire_ts
-        )
-        if cooldown_remaining > 0:
-            logger.info(
-                f"ProgressDetector: skipping tick — post-fire cooldown "
-                f"({cooldown_remaining:.0f}s remaining)"
-            )
-            return
-
         logger.info(
             f"ProgressDetector: running tick "
-            f"(elapsed={elapsed:.0f}s, consecutive_struggle={self._consecutive_struggle})"
+            f"(consecutive_struggle={self._consecutive_struggle})"
         )
 
-        # 3. Match the monorepo flow: the Judge only runs for an active tutor
+        # 1. Match the monorepo flow: the Judge only runs for an active tutor
         # session, where a problem statement and conversation context exist.
         # Pre-session invitations are emitted by the observer instead.
         (
@@ -456,7 +445,7 @@ class ProgressDetector:
             )
             return
 
-        # 4. Pull the rolling observer-output buffer from the AI processor.
+        # 2. Pull the rolling observer-output buffer from the AI processor.
         recent_obs = self._ai_processor.recent_observations(
             self._config.max_observations_in_prompt
         )
@@ -466,7 +455,7 @@ class ProgressDetector:
             )
             return
 
-        # 5. Capture a fresh observation of the current screen state so the
+        # 3. Capture a fresh observation of the current screen state so the
         #    judge always has an up-to-date anchor rather than reasoning purely
         #    over a potentially stale history buffer.  Errors are non-fatal —
         #    we fall back to history-only if the screenshot or observer fails.
@@ -493,7 +482,7 @@ class ProgressDetector:
             e.get("observation_id") for e in recent_obs if e.get("observation_id")
         ]
 
-        # 6. Build prompt and ask the judge.
+        # 4. Build prompt and ask the judge.
         user_text = self._build_judge_user_prompt(
             problem_statement=problem_statement,
             recent_observations=recent_obs,
@@ -505,7 +494,7 @@ class ProgressDetector:
         )
         judgment = await asyncio.to_thread(self._run_judge, user_text)
 
-        # 7. Log and (maybe) fire.
+        # 5. Log and (maybe) fire.
         decision_id = uuid.uuid4().hex
         self._log_judgment(now, judgment, image_path="", user_text=user_text)
         self._record_decision(
@@ -626,6 +615,22 @@ class ProgressDetector:
         lines.append(f"<conversation_history>\n{conv_block}\n</conversation_history>")
         lines.append("")
 
+        if self._recent_nudges:
+            nudge_lines = []
+            for nudge in self._recent_nudges:
+                age = max(0.0, now - float(nudge["ts"]))
+                outcome = {
+                    "shown": "shown to the user",
+                    "abstained": "suggestion writer ABSTAINED (nothing useful to show)",
+                }.get(nudge["outcome"], "no outcome reported")
+                nudge_lines.append(
+                    f"t-{age:.0f}s  trigger_type={nudge['trigger_type']}  {outcome}"
+                )
+            lines.append(
+                "<recent_nudges>\n" + "\n".join(nudge_lines) + "\n</recent_nudges>"
+            )
+            lines.append("")
+
         lines.append("Now produce your JSON judgment.")
         return "\n".join(lines)
 
@@ -681,6 +686,15 @@ class ProgressDetector:
             self._consecutive_struggle = 0
             return
 
+        # The judge call takes seconds. If the user or tutor spoke meanwhile,
+        # the verdict is stale and a nudge would land on top of the reply.
+        if self._interacted_since(now):
+            logger.info(
+                "ProgressDetector: dropping nudge — an interaction happened "
+                "while the judge was deciding"
+            )
+            return
+
         self._consecutive_struggle += 1
         if self._consecutive_struggle < self._config.k_threshold:
             logger.info(
@@ -693,9 +707,16 @@ class ProgressDetector:
             f"ProgressDetector: firing nudge "
             f"(trigger_type={judgment.trigger_type}) — {judgment.evidence}"
         )
-        await self._fire(judgment, image_path, timestamp, decision_id=decision_id)
-        self._last_fire_ts = now
-        self._consecutive_struggle = 0
+        fired = await self._fire(
+            judgment,
+            image_path,
+            timestamp,
+            decision_id=decision_id,
+            decided_at=now,
+        )
+        if fired:
+            self._last_fire_ts = now
+            self.note_interaction("judge_nudge")
 
     async def _fire(
         self,
@@ -703,8 +724,13 @@ class ProgressDetector:
         image_path: str,
         timestamp: str | None,
         decision_id: str | None = None,
-    ) -> None:
-        """Publish a pause_detected event with the judgment's trigger_type."""
+        decided_at: float | None = None,
+    ) -> bool:
+        """Publish a pause_detected event with the judgment's trigger_type.
+
+        Returns ``False`` without publishing if an interaction happened after
+        ``decided_at`` (the observer call below also takes seconds).
+        """
         ai = self._ai_processor
         suggestion_image_paths = list(getattr(ai, "_last_observation_image_paths", []))
 
@@ -721,6 +747,13 @@ class ProgressDetector:
             text = obs
             metrics = None
 
+        if decided_at is not None and self._interacted_since(decided_at):
+            logger.info(
+                "ProgressDetector: dropping nudge — an interaction happened "
+                "while the observation was being built"
+            )
+            return False
+
         # Prepend human-readable evidence to the observation so downstream
         # prompts and logs explain *why* we spoke up (transparency).
         transparency_prefix = f"[{judgment.trigger_type} trigger — {judgment.struggle_category}] {judgment.evidence}\n\n"
@@ -733,14 +766,26 @@ class ProgressDetector:
             if judgment.trigger_type == "discernment_opportunity"
             else "struggle"
         )
+        # Reuse the observer call's id so the desktop's feedback (shown or
+        # abstained) can be joined back to this nudge.
+        observation_id = getattr(ai, "_last_observation_id", None)
         ai._broadcast_observation(
             observation_type,
             obs,
+            observation_id=observation_id,
             llm_metrics=metrics,
             image_paths=suggestion_image_paths,
             intervention_source="judge",
             trigger_type=judgment.trigger_type,
             teaching_depth=judgment.teaching_depth,
+        )
+        self._recent_nudges.append(
+            {
+                "ts": time.time(),
+                "trigger_type": judgment.trigger_type,
+                "observation_id": observation_id,
+                "outcome": "pending",
+            }
         )
 
         payload = {
@@ -770,6 +815,7 @@ class ProgressDetector:
                 observation=obs,
                 phase="nudge",
             )
+        return True
 
     # ------------------------------------------------------------------
     # Logging
@@ -798,14 +844,12 @@ class ProgressDetector:
         timing = {
             "since_start_s": round(now - self._start_ts, 1),
             "since_last_fire_s": round(now - self._last_fire_ts, 1),
+            "since_last_interaction_s": round(now - self._last_interaction_ts, 1),
             "consecutive_struggle": self._consecutive_struggle,
         }
         config = {
             "check_interval_s": self._config.check_interval_seconds,
-            "first_tick_delay_s": self._config.first_tick_delay_seconds,
             "k_threshold": self._config.k_threshold,
-            "post_fire_cooldown_s": self._config.post_fire_cooldown_seconds,
-            "session_start_grace_s": self._config.session_start_grace_seconds,
         }
         recorder.log_decision(
             decision_id=decision_id,

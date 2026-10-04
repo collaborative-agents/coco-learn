@@ -9,6 +9,8 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import log from 'electron-log';
+import { parseChatSuggestion } from '../shared/chat-suggestion';
+import type { ChatSuggestion } from '../shared/chat-suggestion';
 
 export interface StoredChatMessage {
   role: 'user' | 'tutor';
@@ -17,6 +19,9 @@ export interface StoredChatMessage {
   isError?: boolean;
   id?: string;
   ts?: number;
+  /** Set when this tutor message is a proactive suggestion. */
+  suggestion?: ChatSuggestion;
+  folded?: boolean;
 }
 
 export interface StoredConversation {
@@ -27,6 +32,17 @@ export interface StoredConversation {
   updatedAt: number;
   tutorModelId?: string;
   messages: StoredChatMessage[];
+}
+
+/** A saved message as the tutor server restores it; suggestions keep a role. */
+export function tutorRestoreMessage(message: StoredChatMessage): {
+  role: 'user' | 'tutor' | 'suggestion';
+  text: string;
+} {
+  return {
+    role: message.suggestion ? 'suggestion' : message.role,
+    text: message.text,
+  };
 }
 
 function storePath(): string {
@@ -169,16 +185,22 @@ export function saveConversation(input: {
     return;
   }
 
-  const messages = input.messages.filter(isMessage).map((message) => ({
-    role: message.role,
-    text: message.text,
-    ...(Array.isArray(message.images)
-      ? { images: message.images.filter((image) => typeof image === 'string') }
-      : {}),
-    ...(message.isError === true ? { isError: true } : {}),
-    ...(typeof message.id === 'string' ? { id: message.id } : {}),
-    ...(typeof message.ts === 'number' ? { ts: message.ts } : {}),
-  }));
+  const messages = input.messages.filter(isMessage).map((message) => {
+    const suggestion = parseChatSuggestion(message.suggestion);
+    return {
+      role: message.role,
+      text: message.text,
+      ...(Array.isArray(message.images)
+        ? {
+            images: message.images.filter((image) => typeof image === 'string'),
+          }
+        : {}),
+      ...(message.isError === true ? { isError: true } : {}),
+      ...(typeof message.id === 'string' ? { id: message.id } : {}),
+      ...(typeof message.ts === 'number' ? { ts: message.ts } : {}),
+      ...(suggestion ? { suggestion, folded: message.folded === true } : {}),
+    };
+  });
   if (messages.length === 0) return;
 
   const now = Date.now();

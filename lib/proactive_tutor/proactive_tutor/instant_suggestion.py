@@ -44,6 +44,11 @@ def _strip_xml_artifacts(text: str) -> str:
     return _any_xml_tag_re.sub("", text).strip()
 
 
+def _optional_text(value: object) -> str | None:
+    text = _strip_xml_artifacts(str(value)) if value else ""
+    return text or None
+
+
 def _ai_tools_context_block(ai_tools: list[str]) -> str:
     """Build an <ai_tools_context> block, or "" when no tools are configured.
 
@@ -121,6 +126,16 @@ def _parse_instant_suggestion(raw: str) -> dict:
     prompt = _xml_tag("prompt", raw)
     four_d_dimension = _xml_tag("four_d_dimension", raw)
     teaching_depth = _xml_tag("teaching_depth", raw)
+    # Optional one-sentence explanation shown before the suggestion itself.
+    explanation = {
+        key: _xml_tag(tag, raw)
+        for key, tag in (
+            ("noticed", "noticed"),
+            ("aiCan", "ai_can"),
+            ("why", "why"),
+            ("check", "check"),
+        )
+    }
 
     # Fallback: model returned a JSON object instead of XML tags.
     if kind is None and body is None and prompt is None:
@@ -136,8 +151,27 @@ def _parse_instant_suggestion(raw: str) -> dict:
             prompt = obj.get("prompt") or prompt
             four_d_dimension = obj.get("four_d_dimension") or four_d_dimension
             teaching_depth = obj.get("teaching_depth") or teaching_depth
+            explanation = {
+                "noticed": obj.get("noticed"),
+                "aiCan": obj.get("ai_can") or obj.get("aiCan"),
+                "why": obj.get("why"),
+                "check": obj.get("check"),
+            }
 
     kind = (kind or "").strip().lower()
+    if kind == "abstain":
+        # Nothing worth showing; the desktop drops it instead of a pop-up.
+        return {
+            "kind": "abstain",
+            "title": "",
+            "body": None,
+            "targetTool": None,
+            "prompt": None,
+            "copyText": "",
+            "fourDDimension": None,
+            "teachingDepth": None,
+            **{key: None for key in explanation},
+        }
     if kind not in _VALID_KINDS:
         # Infer from which payload field is present; default to content.
         kind = "delegate" if (prompt and not body) else "content"
@@ -179,6 +213,7 @@ def _parse_instant_suggestion(raw: str) -> dict:
         "copyText": copy_text,
         "fourDDimension": four_d_dimension,
         "teachingDepth": teaching_depth,
+        **{key: _optional_text(value) for key, value in explanation.items()},
     }
 
 

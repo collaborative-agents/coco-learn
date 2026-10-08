@@ -24,8 +24,15 @@ _IS_MACOS = sys.platform == "darwin"
 
 if _IS_MACOS:
     import Quartz
+    from mss import darwin as mss_darwin
     from shapely.geometry import box
     from shapely.ops import unary_union
+
+    # MSS requests CoreGraphics' nominal (logical-point) resolution by
+    # default.  Removing that flag makes Retina captures use their physical
+    # backing pixels, matching the native-resolution capture used by Coco's
+    # desktop screenshot flow.
+    mss_darwin.IMAGE_OPTIONS &= ~mss_darwin.kCGWindowImageNominalResolution
 
 
 class Update(BaseModel):
@@ -414,6 +421,7 @@ class Screen(Observer):
         box_width: int = 10,
         draw_box: bool = True,
         target_dir: str | None = None,
+        coordinate_size: tuple[float, float] | None = None,
     ) -> tuple[str, str]:
         # print(f"[SAVE FRAME] saving frame for tag: {tag}")
         ts = f"{time.time():.5f}"
@@ -423,24 +431,41 @@ class Screen(Observer):
 
         # Draw the cursor box at original coordinates before any resize
         if draw_box:
+            scale_x = (
+                frame.width / coordinate_size[0]
+                if coordinate_size and coordinate_size[0] > 0
+                else 1.0
+            )
+            scale_y = (
+                frame.height / coordinate_size[1]
+                if coordinate_size and coordinate_size[1] > 0
+                else 1.0
+            )
+            x *= scale_x
+            y *= scale_y
             draw = ImageDraw.Draw(image)
             # Clamp both ends of each axis. Input callbacks can briefly report a
             # cursor outside every display (for example while display geometry is
             # changing), and Pillow rejects rectangles whose second coordinate is
             # less than the first.
-            x1 = min(max(0, x - 30), frame.width - 1)
-            x2 = min(max(0, x + 30), frame.width - 1)
-            y1 = min(max(0, y - 20), frame.height - 1)
-            y2 = min(max(0, y + 20), frame.height - 1)
-            draw.rectangle([x1, y1, x2, y2], outline=box_color, width=box_width)
+            x1 = min(max(0, x - 30 * scale_x), frame.width - 1)
+            x2 = min(max(0, x + 30 * scale_x), frame.width - 1)
+            y1 = min(max(0, y - 20 * scale_y), frame.height - 1)
+            y2 = min(max(0, y + 20 * scale_y), frame.height - 1)
+            scaled_box_width = max(1, round(box_width * max(scale_x, scale_y)))
+            draw.rectangle(
+                [x1, y1, x2, y2],
+                outline=box_color,
+                width=scaled_box_width,
+            )
             del draw
 
-        # Save with lower quality to reduce memory usage
+        # Preserve fine UI text while retaining JPEG's bandwidth advantage.
         await self._run_in_thread(
             image.save,
             path,
             "JPEG",
-            quality=70,
+            quality=85,
             optimize=True,
         )
 
@@ -648,11 +673,9 @@ class Screen(Observer):
             # ----------------------------------------------------------------
 
             mouse_listener = mouse.Listener(
-                on_click=lambda x, y, btn, prs: schedule_event(
-                    x, y, f"click_{btn.name}"
-                )
-                if prs
-                else None,
+                on_click=lambda x, y, btn, prs: (
+                    schedule_event(x, y, f"click_{btn.name}") if prs else None
+                ),
                 on_scroll=lambda x, y, dx, dy: schedule_scroll_event(x, y, dx, dy),
             )
             key_listener = keyboard.Listener(
@@ -673,8 +696,9 @@ class Screen(Observer):
                 print(
                     # f"[FLUSH] [{ev['eid']}] processing event: {ev['type']} at {ev['position']} on monitor {ev['mon']}"
                 )
+                mon = mons[ev["mon"] - 1]
                 try:
-                    aft = await self._run_in_thread(sct.grab, mons[ev["mon"] - 1])
+                    aft = await self._run_in_thread(sct.grab, mon)
                 except Exception as e:
                     # print(f"[FLUSH] [{ev['eid']}] failed to capture after frame: {e}")
                     if self.debug:
@@ -691,10 +715,18 @@ class Screen(Observer):
                     step = f"{ev['type']}({ev['position'][0]:.1f}, {ev['position'][1]:.1f})"
 
                 bef_path, _ = await self._save_frame(
-                    ev["before"], ev["position"][0], ev["position"][1], f"{step}_before"
+                    ev["before"],
+                    ev["position"][0],
+                    ev["position"][1],
+                    f"{step}_before",
+                    coordinate_size=(mon["width"], mon["height"]),
                 )
                 aft_path, _ = await self._save_frame(
-                    aft, ev["position"][0], ev["position"][1], f"{step}_after"
+                    aft,
+                    ev["position"][0],
+                    ev["position"][1],
+                    f"{step}_after",
+                    coordinate_size=(mon["width"], mon["height"]),
                 )
                 await self._process_and_emit(bef_path, aft_path, ev["type"], ev)
 
@@ -741,7 +773,11 @@ class Screen(Observer):
                         self._key_activity_start = current_time
                         self._key_screenshots = []
                         screenshot_path, _ = await self._save_frame(
-                            self._frames[idx], x, y, f"{step}_first"
+                            self._frames[idx],
+                            x,
+                            y,
+                            f"{step}_first",
+                            coordinate_size=(mon["width"], mon["height"]),
                         )
                         self._key_screenshots.append(screenshot_path)
                         log.info(
@@ -750,7 +786,11 @@ class Screen(Observer):
                     else:
                         # Continue existing session - save intermediate screenshot
                         screenshot_path, _ = await self._save_frame(
-                            self._frames[idx], x, y, f"{step}_intermediate"
+                            self._frames[idx],
+                            x,
+                            y,
+                            f"{step}_intermediate",
+                            coordinate_size=(mon["width"], mon["height"]),
                         )
                         self._key_screenshots.append(screenshot_path)
                         log.info(

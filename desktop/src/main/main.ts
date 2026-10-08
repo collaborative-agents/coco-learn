@@ -254,6 +254,7 @@ let hideAvatarMode = false;
 let avatarRendererReady = false;
 let pendingOpenHistory = false;
 let cocoSleeping = false;
+let postAssessmentActive = false;
 const observationSleepGuard = new ObservationSleepGuard();
 let wakeWordService: WakeWordService | null = null;
 let wakeWordEnabled = false;
@@ -275,6 +276,22 @@ const WAKE_WORD_MODEL =
   'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
 
 const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
+const setPostAssessmentActive = (active: boolean) => {
+  if (postAssessmentActive === active) return;
+  postAssessmentActive = active;
+  log.info(
+    `[Post-assessment] Proactive suggestions ${active ? 'disabled' : 'enabled'}`,
+  );
+  if (active) {
+    latestHiddenSuggestionObservationId = undefined;
+    proactiveSuggestionOpen = false;
+    notificationWindow?.destroy();
+    sessionSetupWindow?.destroy();
+  }
+  avatarWindow?.webContents.send('post-assessment-proactive-suppression', {
+    active,
+  });
+};
 let tutoringAllowed = false;
 let studyPolicyAllowsTutoring = false;
 let serverPreAssessmentsComplete = false;
@@ -441,7 +458,12 @@ const withTutorTurn =
   (event: IpcMainInvokeEvent, payload: Payload): Promise<Result> =>
     interactions.trackTurn(() => handler(event, payload));
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
-registerStudyIpc(ipcMain, () => gatewayClient);
+registerStudyIpc(
+  ipcMain,
+  () => gatewayClient,
+  undefined,
+  setPostAssessmentActive,
+);
 registerPreAssessmentIpc(
   ipcMain,
   () => app.getPath('userData'),
@@ -1741,6 +1763,12 @@ const showNotification = (payload: {
   category?: string;
 }): boolean => {
   if (!tutoringAllowed) return false;
+  if (postAssessmentActive && payload.category !== 'system') {
+    log.info(
+      `[Post-assessment] Dropped proactive notification ${payload.notifType ?? payload.category ?? 'general'}`,
+    );
+    return false;
+  }
   if (
     payload.notifType === 'session-end-prompt' &&
     sessionRecapWindow &&
@@ -3276,7 +3304,8 @@ ipcMain.removeHandler('get-instant-suggestion');
 ipcMain.handle(
   'get-instant-suggestion',
   async (_event, { observationId }: { observationId?: string }) => {
-    if (!tutoringAllowed) return { status: 'missing' };
+    if (!tutoringAllowed || postAssessmentActive)
+      return { status: 'missing' };
     const entry = observationId
       ? suggestionCache.get(observationId)
       : undefined;
@@ -4996,7 +5025,7 @@ const startObserver = () => {
       'next-learning-review-state.json',
     ),
     onFirstUse: async ({ startTs: todayStartTs }) => {
-      if (!tutoringAllowed) return false;
+      if (!tutoringAllowed || postAssessmentActive) return false;
       // Do not replace something time-sensitive. Returning false leaves the
       // date unhandled, so the next observation retries the summary.
       if (notificationWindow && !notificationWindow.isDestroyed()) {
@@ -5084,6 +5113,20 @@ const startObserver = () => {
       }
 
       const status = event.status;
+      if (postAssessmentActive) {
+        // Preserve semantic activity for the automatic assessment report, but
+        // do not surface observations, precompute help, or open notifications.
+        if (status && event.observation) {
+          appendActivity({
+            ts: event.ts ?? Math.floor(Date.now() / 1000),
+            status: status as ObservationStatus,
+            observation: cleanObservation(event.observation),
+            observation_id: event.observation_id,
+            llm_metrics: event.llm_metrics,
+          });
+        }
+        return;
+      }
       const { scenario } = readProfile();
       const instantSuggestionEligible = shouldOfferInstantSuggestion(
         scenario,

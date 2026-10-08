@@ -382,18 +382,24 @@ export class CocoGatewayClient {
     }
   }
 
-  async requestJson(path: string, method: 'GET' | 'POST' | 'PATCH', body?: object): Promise<Record<string, unknown>> {
+  async requestJson(
+    path: string,
+    method: 'GET' | 'POST' | 'PATCH',
+    body?: object,
+    timeoutMs = 15000,
+  ): Promise<Record<string, unknown>> {
     if (!this.authToken) throw new Error('Please sign in to continue.');
-    return this.authRequest(path, method, body);
+    return this.authRequest(path, method, body, timeoutMs);
   }
 
   private async authRequest(
     path: string,
     method: 'GET' | 'POST' | 'PATCH',
     body?: object,
+    timeoutMs = 15000,
   ): Promise<Record<string, unknown>> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.gatewayUrl}${path}`, {
         method,

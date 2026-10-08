@@ -10,11 +10,17 @@ import {
 import TrainingView from '../renderer/components/TrainingView';
 import type { StudyState } from '../shared/study';
 import type { PreAssessmentState } from '../shared/pre-assessment';
+import type {
+  PostAssessmentState,
+  TaskRecorderState,
+} from '../shared/post-assessment';
 
 let me: StudyState;
 let invoke: jest.Mock;
 let assessments: PreAssessmentState;
 let studentMode: boolean;
+let postAssessment: PostAssessmentState;
+let taskRecorderState: TaskRecorderState;
 const completedAssessments = (): PreAssessmentState => ({
   complete: true,
   sets: {
@@ -54,6 +60,25 @@ beforeEach(() => {
   };
   assessments = { complete: false, sets: { A: null, E: null } };
   studentMode = false;
+  postAssessment = {
+    unlocked: false,
+    complete: false,
+    toolkit_available: true,
+    toolkit_filename: 'post-assessment-toolkit.zip',
+    sections: {
+      self_efficacy: null,
+      ai_literacy: null,
+      execution: null,
+    },
+    execution_started_at: null,
+  };
+  taskRecorderState = {
+    status: 'inactive',
+    started_at: null,
+    capture_count: 0,
+    can_generate_log: false,
+    last_error: null,
+  };
   invoke = jest.fn(async (channel, ...args) => {
     if (channel === 'study-me') return me;
     if (channel === 'pre-assessment-state') return assessments;
@@ -71,19 +96,46 @@ beforeEach(() => {
       return result;
     }
     if (channel === 'study-student-mode') {
-      if (typeof args[0] === 'boolean') studentMode = args[0];
+      const [enabled] = args;
+      if (typeof enabled === 'boolean') studentMode = enabled;
       return {
         available: me.role !== 'participant',
         enabled: studentMode,
       };
     }
+    if (channel === 'post-assessment-state') return postAssessment;
+    if (channel === 'post-assessment-start-execution') {
+      postAssessment.execution_started_at = '2026-10-07T12:00:00Z';
+      taskRecorderState = {
+        status: 'recording',
+        started_at: postAssessment.execution_started_at,
+        capture_count: 1,
+        can_generate_log: true,
+        last_error: null,
+      };
+      return postAssessment;
+    }
+    if (channel === 'post-assessment-recorder-start') {
+      taskRecorderState = {
+        status: 'recording',
+        started_at: postAssessment.execution_started_at,
+        capture_count: 1,
+        can_generate_log: true,
+        last_error: null,
+      };
+      return taskRecorderState;
+    }
+    if (channel === 'post-assessment-recorder-state') return taskRecorderState;
     if (channel === 'study-admin-users')
       return { users: [me], next_after: null };
     return { success: true };
   });
   Object.defineProperty(window, 'electron', {
     configurable: true,
-    value: { ipcRenderer: { invoke } },
+    value: {
+      ipcRenderer: { invoke },
+      webUtils: { getPathForFile: jest.fn(() => '/chosen/file') },
+    },
   });
   jest.spyOn(window, 'confirm').mockReturnValue(true);
 });
@@ -247,6 +299,110 @@ it('shows progress as a seven-level journey with Coco at the current level', asy
     'src',
     'test-file-stub',
   );
+});
+
+it('unlocks all three post-assessment sections only after day seven', async () => {
+  me.days.forEach((day) => {
+    day.completed_at = '2026-10-07T12:00:00Z';
+    day.unlocked = true;
+  });
+  postAssessment.unlocked = true;
+
+  render(<TrainingView />);
+
+  const postAssessmentPanel = (
+    await screen.findByRole('heading', {
+      name: 'Complete your post-assessment',
+    })
+  ).closest('section')!;
+  expect(
+    within(postAssessmentPanel).getByRole('tab', { name: /Self-assessment/ }),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(postAssessmentPanel).getByRole('tab', { name: /AI literacy/ }),
+  );
+  expect(within(postAssessmentPanel).getAllByRole('radio')).toHaveLength(32);
+  const executionTab = within(postAssessmentPanel).getByRole('tab', {
+    name: /Execution task/,
+  });
+  fireEvent.click(executionTab);
+  expect(
+    await screen.findByRole('heading', { name: 'Trust, But Verify' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Download all toolkit files' }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Start task' }));
+  expect(
+    screen.getByRole('dialog', {
+      name: 'Task activity will be recorded',
+    }),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Start task & recording' }),
+  );
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('post-assessment-start-execution'),
+  );
+  expect(
+    await screen.findByText('Recording task activity'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: /interaction logs/i }),
+  ).not.toBeInTheDocument();
+});
+
+it('can start activity recording after the execution task is already running', async () => {
+  me.days.forEach((day) => {
+    day.completed_at = '2026-10-07T12:00:00Z';
+    day.unlocked = true;
+  });
+  postAssessment.unlocked = true;
+  postAssessment.execution_started_at = '2026-10-07T12:00:00Z';
+
+  render(<TrainingView />);
+
+  fireEvent.click(await screen.findByRole('tab', { name: /Execution task/ }));
+  expect(
+    await screen.findByText('No task recording found'),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Start activity recording' }),
+  );
+  expect(
+    screen.getByRole('dialog', {
+      name: 'Task activity will be recorded',
+    }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Start recording now' }));
+
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('post-assessment-recorder-start'),
+  );
+  expect(
+    await screen.findByText('Recording task activity'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+});
+
+it('lets an admin inspect the post-assessment without completing training', async () => {
+  me.role = 'admin';
+  postAssessment.unlocked = true;
+
+  render(<TrainingView />);
+
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Complete your post-assessment',
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: /Self-assessment/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: /Execution task/ }),
+  ).toBeInTheDocument();
 });
 
 it('does not begin training while materials are missing', async () => {

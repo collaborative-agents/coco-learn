@@ -10,18 +10,59 @@ export interface FrameworkOverview {
   concepts: FrameworkConcept[];
 }
 
-export function frameworkNavigationLabel(
-  suggestion: InstantSuggestion,
-  page: 0 | 1,
-): string {
-  if (page === 0) {
-    return suggestion.kind === 'delegate'
-      ? 'Show Description suggestion'
-      : 'Show coaching suggestion';
-  }
-  return suggestion.kind === 'delegate'
-    ? 'Back to Delegation and Description overview'
-    : 'Back to 4D overview';
+/** The suggestion fields that explain it before showing the action. */
+export interface SuggestionExplanationFields {
+  fourDDimension?: string;
+  noticed?: string;
+  aiCan?: string;
+  why?: string;
+  check?: string;
+}
+
+export interface SuggestionExplanation {
+  /** e.g. "Delegation", or null when the model gave no competency. */
+  competency: string | null;
+  /** Short sentences; the first says what Coco noticed. */
+  sentences: string[];
+}
+
+/**
+ * Make it clear the AI does the work. The model is asked to make the tool the
+ * subject ("ChatGPT could draft…"), but a bare instruction ("Draft the form
+ * questions…") reads as if the user should do it.
+ */
+function aiCanSentence(text?: string): string | undefined {
+  const trimmed = text?.trim();
+  if (!trimmed) return undefined;
+  return /^[^.?!]{0,40}?(\b(can|could|will|would|might)\b|'ll\b)/i.test(trimmed)
+    ? trimmed
+    : `AI can help: ${trimmed}`;
+}
+
+/**
+ * The page shown before the suggestion's action. Delegation and Description
+ * moments say what AI can do and why, then what to check in its output;
+ * Discernment and Diligence moments say what to check and why it matters.
+ * Returns null when the suggestion predates these fields.
+ */
+export function buildSuggestionExplanation(
+  suggestion: SuggestionExplanationFields,
+): SuggestionExplanation | null {
+  const noticed = suggestion.noticed?.trim();
+  if (!noticed) return null;
+  const dimension = suggestion.fourDDimension?.toLowerCase();
+  const checking = dimension === 'discernment' || dimension === 'diligence';
+  const rest = checking
+    ? [suggestion.check, suggestion.why]
+    : [aiCanSentence(suggestion.aiCan), suggestion.why, suggestion.check];
+  return {
+    competency: dimension
+      ? dimension.charAt(0).toUpperCase() + dimension.slice(1)
+      : null,
+    sentences: [noticed, ...rest]
+      .map((sentence) => sentence?.trim())
+      .filter((sentence): sentence is string => Boolean(sentence)),
+  };
 }
 
 interface StageTaskRules {

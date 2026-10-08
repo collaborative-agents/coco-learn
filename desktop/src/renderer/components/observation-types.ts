@@ -116,6 +116,11 @@ export interface InstantSuggestion {
     | 'discernment'
     | 'diligence';
   teachingDepth?: 'introduce' | 'reinforce' | 'deepen';
+  /** One-sentence explanation shown before the suggestion's action. */
+  noticed?: string;
+  aiCan?: string;
+  why?: string;
+  check?: string;
   triggerType?: string;
   interventionSource?: 'judge' | 'observer';
   /**

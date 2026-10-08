@@ -54,6 +54,7 @@ export type Channels =
   | 'notification-response'
   | 'proactive-suggestion-open-state'
   | 'set-notification-expanded'
+  | 'fit-notification-height'
   | 'observation-update'
   | 'post-assessment-proactive-suppression'
   | 'system-suspend'
@@ -146,6 +147,9 @@ export type Channels =
   | 'chat-about-suggestion'
   // Forwarded to webapp renderer to signal a help-request context
   | 'help-request'
+  // A shown proactive suggestion added to the chat, and a request to unfold it
+  | 'chat-suggestion'
+  | 'reveal-chat-suggestion'
   // Explicit user reaction (bubble engage/dismiss) → sensing /feedback
   | 'training-feedback'
   | 'get-coco-sleep-mode'

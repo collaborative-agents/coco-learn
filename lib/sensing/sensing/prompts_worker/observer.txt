@@ -11,7 +11,7 @@ Periodically captured images of the user’s screen. Each image corresponds to a
 </screenshots>
 
 <screenshots type="hotkey">
-One or more screenshots the user explicitly flagged using the hot-key shortcut (Cmd+Shift+H). These represent the specific UI state the user wants guidance on, and appear after the periodic snapshots. Each is labeled [hk1], [hk2], etc. Treat these as the primary visual reference for the user’s intent.
+One or more screenshots the user explicitly flagged using the hot-key shortcut (Cmd+Shift+Space). These represent the specific UI state the user wants guidance on, and appear after the periodic snapshots. Each is labeled [hk1], [hk2], etc. Treat these as the primary visual reference for the user’s intent.
 </screenshots>
 
 <conversation_history>

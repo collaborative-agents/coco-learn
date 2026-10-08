@@ -2,7 +2,24 @@ import {
   deriveConversationTitle,
   mergeConversationMessages,
   StoredChatMessage,
+  tutorRestoreMessage,
 } from '../main/conversation-store';
+
+describe('tutor restore messages', () => {
+  it('restores suggestions under their own role', () => {
+    expect(
+      tutorRestoreMessage({
+        role: 'tutor',
+        text: '**Try this**',
+        suggestion: { kind: 'content', title: 'Try this', copyText: 'x' },
+      }),
+    ).toEqual({ role: 'suggestion', text: '**Try this**' });
+    expect(tutorRestoreMessage({ role: 'tutor', text: 'Hello' })).toEqual({
+      role: 'tutor',
+      text: 'Hello',
+    });
+  });
+});
 
 describe('conversation snapshot merging', () => {
   const earlier: StoredChatMessage[] = [

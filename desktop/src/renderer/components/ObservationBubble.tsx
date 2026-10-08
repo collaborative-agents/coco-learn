@@ -6,8 +6,9 @@ import {
 } from './observation-types';
 import {
   buildFrameworkOverview,
-  frameworkNavigationLabel,
+  buildSuggestionExplanation,
 } from './framework-overview';
+import RatingButtons from './RatingButtons';
 
 export interface BubbleState {
   status: ObservationStatus;
@@ -85,7 +86,6 @@ export default function ObservationBubble({
   onDismiss,
   onViewConversation,
   onChatAboutSuggestion,
-  onOpenCocoChat,
   onMouseEnter,
   onMouseLeave,
 }: {
@@ -94,7 +94,6 @@ export default function ObservationBubble({
   onDismiss?: () => void;
   onViewConversation?: () => void;
   onChatAboutSuggestion?: () => void;
-  onOpenCocoChat?: () => void;
   /** Hovering pauses the auto-hide so the user can read / copy the bubble. */
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -152,6 +151,9 @@ export default function ObservationBubble({
   const suggestedTool = suggestion
     ? preferredSuggestionTool(suggestion)
     : undefined;
+  const explanation = suggestion
+    ? buildSuggestionExplanation(suggestion)
+    : null;
   const frameworkOverview = suggestion
     ? buildFrameworkOverview(
         suggestion,
@@ -197,6 +199,16 @@ export default function ObservationBubble({
     showToast(previousRating ? 'Feedback updated' : 'Thanks for the feedback');
   };
 
+  const ratingButtons =
+    suggestion && !isFrameworkOverview ? (
+      <RatingButtons
+        value={rated}
+        onRate={rate}
+        labels={{ up: 'Good suggestion', down: 'Not helpful' }}
+        className="coco-rating--compact"
+      />
+    ) : null;
+
   return (
     <div
       className={`observation-bubble status-${status}${fadingOut ? ' is-leaving' : ''}${isTier3 ? ' is-tier3' : ''}${suggestion ? ' has-suggestion' : ''}${isFrameworkOverview ? ' is-framework-overview' : ''}`}
@@ -235,11 +247,27 @@ export default function ObservationBubble({
       )}
 
       <div className="observation-bubble-label">
-        {isFrameworkOverview ? '4D framework' : suggestion ? suggestion.title : label}
+        {/* eslint-disable-next-line no-nested-ternary */}
+        {isFrameworkOverview
+          ? (explanation?.competency ?? '4D framework')
+          : suggestion
+            ? suggestion.title
+            : label}
       </div>
 
       {/* eslint-disable-next-line no-nested-ternary */}
-      {isFrameworkOverview && suggestion ? (
+      {isFrameworkOverview && explanation ? (
+        <div className="bubble-framework-overview">
+          {explanation.sentences.map((sentence, index) => (
+            <div
+              key={sentence}
+              className={`bubble-why-line${index === 0 ? ' bubble-why-line--lead' : ''}`}
+            >
+              {sentence}
+            </div>
+          ))}
+        </div>
+      ) : isFrameworkOverview && suggestion ? (
         <div className="bubble-framework-overview">
           <div className="bubble-framework-heading">
             {frameworkOverview?.heading}
@@ -302,7 +330,7 @@ export default function ObservationBubble({
             className="bubble-action-btn bubble-chat-action"
             onClick={onChatAboutSuggestion}
           >
-            Chat about it
+            Ask Coco about it
           </button>
         </div>
       )}
@@ -310,16 +338,9 @@ export default function ObservationBubble({
         <div className="bubble-tool-actions">
           <button
             type="button"
-            className="bubble-action-btn bubble-coco-chat-action"
-            onClick={onOpenCocoChat}
-            autoFocus
-          >
-            Open Coco Chat
-          </button>
-          <button
-            type="button"
             className="bubble-action-btn"
             onClick={() => act(null)}
+            autoFocus
           >
             Copy prompt
           </button>
@@ -328,7 +349,7 @@ export default function ObservationBubble({
             className="bubble-action-btn bubble-chat-action"
             onClick={onChatAboutSuggestion}
           >
-            Chat about it
+            Ask Coco about it
           </button>
           {suggestedTool && (
             <button
@@ -342,34 +363,16 @@ export default function ObservationBubble({
         </div>
       )}
 
-      {/* Rate the suggested prompt/content; the opposite choice stays editable. */}
-      {suggestion && !isFrameworkOverview && (
-        <div className="bubble-feedback-row">
-          <button
-            type="button"
-            className={`bubble-feedback-btn${rated === 'up' ? ' is-rated' : ''}`}
-            aria-label="Good suggestion"
-            title="Good suggestion"
-            disabled={rated === 'up'}
-            onClick={() => rate('up')}
-          >
-            👍
-          </button>
-          <button
-            type="button"
-            className={`bubble-feedback-btn${rated === 'down' ? ' is-rated' : ''}`}
-            aria-label="Not helpful"
-            title="Not helpful"
-            disabled={rated === 'down'}
-            onClick={() => rate('down')}
-          >
-            👎
-          </button>
-        </div>
+      {/* Rate the suggestion; the opposite choice stays editable. */}
+      {ratingButtons && !isFrameworkPager && (
+        <div className="bubble-feedback-row">{ratingButtons}</div>
       )}
 
       {isFrameworkPager && (
         <div className="bubble-framework-pager" aria-label="Suggestion pages">
+          {ratingButtons && (
+            <div className="bubble-pager-rating">{ratingButtons}</div>
+          )}
           <div className="bubble-framework-page-bars" aria-hidden="true">
             <span className={`bubble-framework-page-bar${suggestionPage === 0 ? ' is-active' : ''}`} />
             <span className={`bubble-framework-page-bar${suggestionPage === 1 ? ' is-active' : ''}`} />
@@ -377,10 +380,9 @@ export default function ObservationBubble({
           <button
             type="button"
             className="bubble-framework-arrow"
-            aria-label={frameworkNavigationLabel(suggestion, suggestionPage)}
             onClick={() => setSuggestionPage(suggestionPage === 0 ? 1 : 0)}
           >
-            {suggestionPage === 0 ? '→' : '←'}
+            {suggestionPage === 0 ? 'Show me how →' : '← Why'}
           </button>
         </div>
       )}

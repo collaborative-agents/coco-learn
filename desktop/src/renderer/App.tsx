@@ -26,6 +26,7 @@ import {
   dayStartOf,
   summarizeDay,
 } from './components/activity-rollup';
+import RatingButtons from './components/RatingButtons';
 
 // How long the bubble (and the active pet mood) stay up after the latest event.
 const HOLD_MS = 20_000;
@@ -182,10 +183,7 @@ function SupportControls({
   const support = record.proactive_support;
   if (!support) return null;
   const canView = support.suggestion != null || support.available === true;
-  const ratingLabels = {
-    up: 'Good suggestion',
-    down: 'Not helpful',
-  } as const;
+  const ratingLabels = { up: 'Good suggestion', down: 'Not helpful' };
   return (
     <div className="obs-support-controls">
       {canView && (
@@ -198,25 +196,12 @@ function SupportControls({
           {isOpen ? 'Hide' : 'View support'}
         </button>
       )}
-      {(['up', 'down'] as const).map((rating) => (
-        <button
-          key={rating}
-          type="button"
-          className={`obs-support-rating${
-            support.rating === rating ? ' is-rated' : ''
-          }`}
-          aria-label={ratingLabels[rating]}
-          title={
-            support.rating && support.rating !== rating
-              ? `Change rating to ${ratingLabels[rating].toLowerCase()}`
-              : ratingLabels[rating]
-          }
-          disabled={support.rating === rating}
-          onClick={() => onRate(rating)}
-        >
-          {rating === 'up' ? '👍' : '👎'}
-        </button>
-      ))}
+      <RatingButtons
+        value={support.rating}
+        onRate={onRate}
+        labels={ratingLabels}
+        className="coco-rating--compact"
+      />
     </div>
   );
 }
@@ -989,24 +974,6 @@ function PetView() {
     setMood('idle');
   };
 
-  const handleOpenCocoChat = () => {
-    if (!bubble?.suggestion) return;
-    const current = bubble;
-    window.electron?.ipcRenderer.sendMessage('chat-about-suggestion', {
-      observationId: current.observationId,
-      status: current.status,
-      rawObservation: current.rawObservation ?? '',
-      suggestion: current.suggestion,
-      surface: 'bubble',
-      copyPromptToInput: true,
-    });
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (fadeTimer.current) clearTimeout(fadeTimer.current);
-    bubblePinnedRef.current = false;
-    setBubble(null);
-    setMood('idle');
-  };
-
   // Tier 3: user wants to read the full tutor guidance — open main window.
   const handleViewConversation = () => {
     window.electron?.ipcRenderer.sendMessage('open-main-window');
@@ -1132,7 +1099,6 @@ function PetView() {
         onDismiss={handleDismiss}
         onViewConversation={handleViewConversation}
         onChatAboutSuggestion={handleChatAboutSuggestion}
-        onOpenCocoChat={handleOpenCocoChat}
         onMouseEnter={handleBubbleEnter}
         onMouseLeave={handleBubbleLeave}
       />

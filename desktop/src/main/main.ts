@@ -30,10 +30,14 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
+import type { IpcMainInvokeEvent } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
 import { avatarRecoveryItems } from './avatar-menu';
+import { InteractionTracker } from './interaction-tracker';
+import { chatSuggestionText } from '../shared/chat-suggestion';
+import type { ChatSuggestion } from '../shared/chat-suggestion';
 import { SocialService, registerSocialIpcHandlers } from './services/social-service';
 import { registerStudyIpc } from './services/study-service';
 import type { StudyState } from '../shared/study';
@@ -92,7 +96,11 @@ import {
   readLatestUnreviewedLearningDay,
   saveLearningRecap,
 } from './learning-recap-store';
-import { readConversations, saveConversation } from './conversation-store';
+import {
+  readConversations,
+  saveConversation,
+  tutorRestoreMessage,
+} from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
@@ -422,7 +430,33 @@ let isAuthenticated = false;
 let pendingAuthLaunch: 'signin' | 'signup' | null = null;
 let currentSessionId: string | null = null;
 let pendingTaskLabel: string | null = null;
+// The struggle time chosen for the current session. Re-sent whenever sensing
+// is reconfigured mid-session so a settings change can't reset it.
+let sessionStruggleSeconds = 120;
 let gatewayClient: CocoGatewayClient | null = null;
+
+// User messages, tutor replies, and shown suggestions. Each one pushes the
+// Judge's next check a full struggle interval out.
+const interactions = new InteractionTracker((source) => {
+  const sensingPort = process.env.SENSING_PORT || '8080';
+  axios
+    .post(
+      `http://127.0.0.1:${sensingPort}/interaction`,
+      { source },
+      { timeout: 3000 },
+    )
+    .catch((err) => {
+      log.warn(`[Interaction] failed to post: ${(err as Error).message}`);
+    });
+});
+
+// Wrap a chat IPC handler so its turn is tracked as an interaction.
+const withTutorTurn =
+  <Payload, Result>(
+    handler: (event: IpcMainInvokeEvent, payload: Payload) => Promise<Result>,
+  ) =>
+  (event: IpcMainInvokeEvent, payload: Payload): Promise<Result> =>
+    interactions.trackTurn(() => handler(event, payload));
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
 registerStudyIpc(
   ipcMain,
@@ -803,6 +837,8 @@ const createAvatarWindow = () => {
 // user reopens it. All chat traffic goes straight to the local tutor server via
 // the 'send-chat-message' IPC handler — no external backend involved.
 
+// The chat renderer mounts its IPC listeners shortly after the page loads.
+const CHAT_RENDERER_READY_DELAY_MS = 300;
 const CHAT_PANEL_W = 420;
 const CHAT_EXPANDED_W = 820;
 const CHAT_CONTENT_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -829,6 +865,24 @@ const createChatWindow = () => {
 
   configureFullscreenCompanionWindow(chatWindow);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
+
+  // A recreated chat window starts blank. Give it the current conversation so
+  // it doesn't show an empty, task-less chat mid-session.
+  chatWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      if (!currentSessionId || !chatWindow || chatWindow.isDestroyed()) return;
+      chatWindow.webContents.send('session-init', {
+        sessionId: currentSessionId,
+        problemStatement: pendingTaskLabel || '',
+        tutorModelId: currentTutorModelId,
+      });
+    }, CHAT_RENDERER_READY_DELAY_MS);
+  });
+  chatWindow.webContents.on('render-process-gone', (_event, details) => {
+    log.error(
+      `[Chat] Chat renderer exited: ${details.reason} (${details.exitCode})`,
+    );
+  });
 
   const reportChatContentZoom = () => {
     if (!chatWindow || chatWindow.isDestroyed()) return;
@@ -888,6 +942,9 @@ const createChatWindow = () => {
   });
 
   chatWindow.on('closed', () => {
+    // The chat should only be destroyed on quit; log anything else so it can
+    // be traced (it otherwise loses the open conversation).
+    if (!isQuitting) log.warn('[Chat] Chat window was destroyed.');
     chatWindow = null;
   });
 
@@ -897,10 +954,119 @@ const createChatWindow = () => {
   });
 };
 
+// ── Proactive suggestions in the chat ─────────────────────────────────────────
+// Every shown suggestion becomes a Coco message in the chat: unfolded when the
+// chat was already open, folded when it first appeared as a pop-up. It is also
+// added to the tutor's history so later replies and the Judge know about it.
+const chatSuggestions = new Map<string, ChatSuggestion>();
+// The suggestion pop-up currently on screen, if any.
+let suggestionNotification: {
+  window: BrowserWindow;
+  observationId?: string;
+} | null = null;
+
+const isChatPanelVisible = (): boolean =>
+  chatWindow !== null && !chatWindow.isDestroyed() && chatWindow.isVisible();
+
+// Recreates the (hidden) chat window if it is gone, so nothing is dropped.
+const sendToChat = (channel: string, payload: unknown): void => {
+  createChatWindow();
+  if (!chatWindow || chatWindow.isDestroyed()) return;
+  if (chatWindow.webContents.isLoadingMainFrame()) {
+    chatWindow.webContents.once('did-finish-load', () => {
+      setTimeout(() => {
+        chatWindow?.webContents.send(channel, payload);
+      }, CHAT_RENDERER_READY_DELAY_MS);
+    });
+  } else {
+    chatWindow.webContents.send(channel, payload);
+  }
+};
+
+const toChatSuggestion = (
+  suggestion: InstantSuggestion,
+  observationId?: string,
+): ChatSuggestion => {
+  const tool =
+    suggestion.availableTools?.find((t) => t.id === suggestion.targetTool) ??
+    suggestion.availableTools?.[0];
+  return {
+    observationId,
+    kind: suggestion.kind,
+    title: suggestion.title,
+    body: suggestion.body,
+    prompt: suggestion.prompt,
+    copyText: suggestion.copyText,
+    fourDDimension: suggestion.fourDDimension,
+    noticed: suggestion.noticed,
+    aiCan: suggestion.aiCan,
+    why: suggestion.why,
+    check: suggestion.check,
+    ...(suggestion.kind === 'delegate' && tool
+      ? { tool: { id: tool.id, label: tool.label } }
+      : {}),
+  };
+};
+
+const deliverSuggestionToChat = (
+  suggestion: ChatSuggestion,
+  folded: boolean,
+): void => {
+  if (suggestion.observationId) {
+    chatSuggestions.set(suggestion.observationId, suggestion);
+  }
+  log.info(
+    `[Suggestion] Added to chat (${folded ? 'folded copy of a pop-up' : 'chat was open'}) id=${suggestion.observationId ?? '(none)'}`,
+  );
+  sendToChat('chat-suggestion', { suggestion, folded });
+};
+
+// Unfold a suggestion in the chat. It carries the suggestion itself so a chat
+// window recreated since delivery can still show it.
+const revealChatSuggestion = (observationId: string): void => {
+  sendToChat('reveal-chat-suggestion', {
+    observationId,
+    suggestion: chatSuggestions.get(observationId),
+  });
+};
+
+const recordSuggestionWithTutor = (
+  suggestion: ChatSuggestion,
+  triggerType?: string,
+): void => {
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  axios
+    .post(
+      `http://127.0.0.1:${tutorPort}/context/suggestion`,
+      {
+        text: chatSuggestionText(suggestion),
+        trigger_type: triggerType ?? null,
+      },
+      { timeout: 3000 },
+    )
+    .catch((err) => {
+      log.warn(
+        `[Suggestion] failed to record with tutor: ${(err as Error).message}`,
+      );
+    });
+};
+
 // Position the chat window as a right-edge side panel and show it.
 const showChatPanel = () => {
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
+
+  // The pop-up's suggestion is already in the chat; don't show both.
+  if (
+    suggestionNotification &&
+    suggestionNotification.window === notificationWindow &&
+    !suggestionNotification.window.isDestroyed()
+  ) {
+    const { window, observationId } = suggestionNotification;
+    suggestionNotification = null;
+    window.destroy();
+    if (observationId) revealChatSuggestion(observationId);
+  }
 
   const disp = screen.getDisplayMatching(chatWindow.getBounds());
   const { x: dx, y: dy, width: sw, height: sh } = disp.workArea;
@@ -1347,8 +1513,6 @@ interface ChatSeed {
   rawObservation: string;
   /** Attach context to the user's next turn instead of sending immediately. */
   deferUntilUserMessage?: boolean;
-  /** Pre-fill Coco's composer without sending the message. */
-  initialInput?: string;
 }
 
 // Open the chat panel for a session, pushing the session context (and an
@@ -1374,7 +1538,9 @@ const openChatForSession = (
   if (alreadyLoaded) {
     send();
   } else {
-    chatWindow.webContents.once('did-finish-load', () => setTimeout(send, 300));
+    chatWindow.webContents.once('did-finish-load', () =>
+      setTimeout(send, CHAT_RENDERER_READY_DELAY_MS),
+    );
   }
 };
 
@@ -1525,6 +1691,9 @@ const NOTIF_HEIGHT = 220;
 // the prompt/actions on page 2 without requiring manual window resizing.
 const NOTIF_SUGGESTION_WIDTH = 480;
 const NOTIF_SUGGESTION_HEIGHT = 420;
+// Bounds when a suggestion pop-up fits its window to the content.
+const NOTIF_SUGGESTION_MIN_HEIGHT = 180;
+const NOTIF_SUGGESTION_MAX_HEIGHT = 560;
 const NOTIF_DAILY_SUMMARY_WIDTH = 420;
 const NOTIF_DAILY_SUMMARY_HEIGHT = 300;
 const NOTIF_EXPANDED_WIDTH = 560;
@@ -1592,13 +1761,13 @@ const showNotification = (payload: {
   suggestion?: InstantSuggestion;
   scenario?: string;
   category?: string;
-}) => {
-  if (!tutoringAllowed) return;
+}): boolean => {
+  if (!tutoringAllowed) return false;
   if (postAssessmentActive && payload.category !== 'system') {
     log.info(
       `[Post-assessment] Dropped proactive notification ${payload.notifType ?? payload.category ?? 'general'}`,
     );
-    return;
+    return false;
   }
   if (
     payload.notifType === 'session-end-prompt' &&
@@ -1608,14 +1777,14 @@ const showNotification = (payload: {
     log.info(
       '[Notification] Session recap is already open; dropping wrap-up prompt.',
     );
-    return;
+    return false;
   }
   if (proactiveSuggestionOpen) {
     if (notificationWindow && !notificationWindow.isDestroyed()) {
       log.info(
         `[Notification] Interactive suggestion is open; dropping ${payload.notifType ?? 'default'} replacement.`,
       );
-      return;
+      return false;
     }
     // Recover from a stale lock if the window disappeared before its closed
     // callback ran. A missing window must never suppress notifications forever.
@@ -1632,7 +1801,7 @@ const showNotification = (payload: {
     log.info(
       '[Notification] Keeping hovered notification; dropping replacement.',
     );
-    return;
+    return false;
   }
   // Destroy any existing notification before showing a new one (dedup guard).
   notificationHovered = false;
@@ -1758,6 +1927,7 @@ const showNotification = (payload: {
     notificationHovered = false;
     proactiveSuggestionOpen = false;
   });
+  return true;
 };
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
@@ -2184,7 +2354,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
       {
         messages: conversation.messages
           .filter((message) => !message.isError)
-          .map(({ role, text }) => ({ role, text })),
+          .map(tutorRestoreMessage),
       },
       { timeout: 8000 },
     );
@@ -2193,7 +2363,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
     `${sensing}/session`,
     {
       node_uuid: currentSessionId,
-      struggle_detection_seconds: 120,
+      struggle_detection_seconds: sessionStruggleSeconds,
       scenario,
       config_source: 'model_settings_restart',
       ...(customObserverPrompt && {
@@ -2765,6 +2935,36 @@ ipcMain.on(
   },
 );
 
+// AI-upskilling suggestion pages ask for a window height that fits their card.
+// Only the top edge stays put, so the pop-up grows or shrinks downward.
+ipcMain.removeAllListeners('fit-notification-height');
+ipcMain.on(
+  'fit-notification-height',
+  (event, { height }: { height?: unknown } = {}) => {
+    if (
+      !notificationWindow ||
+      notificationWindow.isDestroyed() ||
+      event.sender !== notificationWindow.webContents ||
+      typeof height !== 'number' ||
+      !Number.isFinite(height)
+    ) {
+      return;
+    }
+    const current = notificationWindow.getBounds();
+    const { workArea } = screen.getDisplayMatching(current);
+    const maxHeight = Math.min(
+      NOTIF_SUGGESTION_MAX_HEIGHT,
+      workArea.y + workArea.height - current.y,
+    );
+    const fitted = Math.round(
+      Math.max(NOTIF_SUGGESTION_MIN_HEIGHT, Math.min(height, maxHeight)),
+    );
+    if (fitted !== current.height) {
+      notificationWindow.setBounds({ ...current, height: fitted });
+    }
+  },
+);
+
 // ── Chat-panel width toggle ────────────────────────────────────────────────────
 // The renderer sends this when the user clicks the expand / collapse button to
 // switch the chat between the narrow side panel and a wider reading width.
@@ -2919,10 +3119,17 @@ interface InstantSuggestion {
     | 'discernment'
     | 'diligence';
   teachingDepth?: 'introduce' | 'reinforce' | 'deepen';
+  /** One-sentence explanation shown before the suggestion's action. */
+  noticed?: string;
+  aiCan?: string;
+  why?: string;
+  check?: string;
   triggerType?: string;
   interventionSource?: 'judge' | 'observer';
 }
 
+// Suggestions the writer declined, so a click reports why nothing is ready.
+const abstainedSuggestionIds = new Set<string>();
 const suggestionCache = new Map<
   string,
   { ts: number; promise: Promise<InstantSuggestion | null> }
@@ -3036,6 +3243,33 @@ function precomputeSuggestion(event: {
       { timeout: SUGGESTION_REQUEST_TIMEOUT_MS },
     )
     .then((resp) => {
+      if ((resp.data as { kind?: string }).kind === 'abstain') {
+        // The suggestion writer found nothing worth showing. Show nothing, and
+        // tell sensing so the Judge and observer learn this moment didn't fit.
+        abstainedSuggestionIds.add(id);
+        log.info(
+          `[InstantSuggestion] abstained id=${id} in ${Date.now() - startedAt}ms`,
+        );
+        const sensingPort = process.env.SENSING_PORT || '8080';
+        axios
+          .post(
+            `http://127.0.0.1:${sensingPort}/feedback`,
+            {
+              kind: 'abstain',
+              surface: hideAvatarMode ? 'notification' : 'bubble',
+              observation_id: id,
+              status: event.status ?? null,
+              text: 'No useful AI-skills suggestion fit this moment.',
+            },
+            { timeout: 3000 },
+          )
+          .catch((err) => {
+            log.warn(
+              `[Feedback] failed to post abstention: ${(err as Error).message}`,
+            );
+          });
+        return null;
+      }
       const data = {
         ...(resp.data as InstantSuggestion),
         triggerType: event.trigger_type ?? event.status,
@@ -3092,7 +3326,11 @@ ipcMain.handle(
     );
     if (!value) {
       suggestionCache.delete(observationId!);
-      return { status: 'error' };
+      return {
+        status: abstainedSuggestionIds.has(observationId!)
+          ? 'abstained'
+          : 'error',
+      };
     }
     // Attach only the best matching tool so the delegate bubble has one clear
     // Open action.
@@ -3123,9 +3361,9 @@ ipcMain.on(
   },
 );
 
-// Open a revealed instant suggestion in Coco's own conversation. Delegation
-// prompts can pre-fill the composer; "Chat about it" attaches the suggestion
-// and its observation as context for the user's next message.
+// "Ask Coco about it": open a revealed suggestion in Coco's conversation. If it
+// isn't already in the chat, attach it and its observation as context for the
+// user's next message.
 ipcMain.removeAllListeners('chat-about-suggestion');
 ipcMain.on(
   'chat-about-suggestion',
@@ -3137,7 +3375,6 @@ ipcMain.on(
       rawObservation?: string;
       suggestion?: InstantSuggestion;
       surface?: 'bubble' | 'notification';
-      copyPromptToInput?: boolean;
     },
   ) => {
     if (payload?.surface === 'notification') notificationWindow?.destroy();
@@ -3147,28 +3384,19 @@ ipcMain.on(
     const rawObservation = payload.rawObservation?.trim() || '';
     const suggestionText =
       suggestion.kind === 'delegate' ? suggestion.prompt : suggestion.body;
-    const seed: ChatSeed = payload.copyPromptToInput
-      ? {
-          phrase: suggestion.title,
-          label: payload.status?.replace(/_/g, ' ') || 'suggestion',
-          rawObservation,
-          initialInput: suggestion.copyText || suggestionText || '',
-        }
-      : {
-          phrase: suggestion.title,
-          label: payload.status?.replace(/_/g, ' ') || 'suggestion',
-          rawObservation: [
-            'I’d like to chat about this suggestion:',
-            `**${suggestion.title}**`,
-            suggestionText || suggestion.copyText,
-            rawObservation
-              ? `Context that prompted it:\n${rawObservation}`
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
-          deferUntilUserMessage: true,
-        };
+    const seed: ChatSeed = {
+      phrase: suggestion.title,
+      label: payload.status?.replace(/_/g, ' ') || 'suggestion',
+      rawObservation: [
+        'I’d like to chat about this suggestion:',
+        `**${suggestion.title}**`,
+        suggestionText || suggestion.copyText,
+        rawObservation ? `Context that prompted it:\n${rawObservation}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      deferUntilUserMessage: true,
+    };
 
     if (payload.observationId) {
       recordSupportEngagement(payload.observationId, {
@@ -3194,6 +3422,18 @@ ipcMain.on(
         log.warn(`[Feedback] failed to post: ${(err as Error).message}`);
       });
 
+    // A pop-up suggestion is already in the chat and the tutor's history, so
+    // open it there rather than attaching it again as hidden context.
+    if (payload.observationId && chatSuggestions.has(payload.observationId)) {
+      // Re-send the session too, in case the chat window was recreated.
+      if (isSessionActive && currentSessionId) {
+        openChatForSession(currentSessionId, pendingTaskLabel || '');
+      } else {
+        showChatPanel();
+      }
+      revealChatSuggestion(payload.observationId);
+      return;
+    }
     if (isSessionActive && currentSessionId) {
       openChatForSession(currentSessionId, pendingTaskLabel || '', seed);
     } else {
@@ -3232,6 +3472,7 @@ async function createProactiveTutorSession(
   currentSessionId = sessionId;
   isSessionActive = true;
   pendingTaskLabel = problemStatement;
+  sessionStruggleSeconds = struggleSeconds;
   if (options.openChat !== false) {
     openChatForSession(sessionId, problemStatement, seed);
   }
@@ -3443,7 +3684,7 @@ ipcMain.handle(
         {
           messages: conversation.messages
             .filter((message) => !message.isError)
-            .map(({ role, text }) => ({ role, text })),
+            .map(tutorRestoreMessage),
         },
         { timeout: 8000 },
       );
@@ -3574,188 +3815,194 @@ function endCurrentSession() {
 ipcMain.removeHandler('send-chat-message');
 ipcMain.handle(
   'send-chat-message',
-  async (
-    ipcEvent,
-    {
-      requestId,
-      userText,
-      displayText,
-      isRetry,
-      images,
-      requestKind,
-      hotkeyImages,
-    }: {
-      requestId: string;
-      userText: string;
-      displayText?: string;
-      isRetry?: boolean;
-      images?: string[];
-      requestKind?: 'chat' | 'practice_suggestions';
-      hotkeyImages?: string[];
-    },
-  ) => {
-    const tutorPort = process.env.TUTOR_PORT || '8081';
-    const tutor = `http://127.0.0.1:${tutorPort}`;
-    const sessionStartText = (displayText ?? userText).trim();
-    if (!tutoringAllowed) return { error: 'AI tutoring is disabled for this account.' };
-    if (
-      !isSessionActive &&
-      shouldStartSessionFromUserMessage(
-        sessionStartText,
-        requestKind ?? 'chat',
-      )
-    ) {
-      // Reuse the draft id already known by the renderer. Suppressing another
-      // session-init event prevents the first optimistic message from being
-      // cleared while this request is in flight.
-      await createProactiveTutorSession(
-        sessionStartText,
-        120,
-        'user_message',
-        undefined,
-        {
-          sessionId: currentSessionId ?? undefined,
-          openChat: false,
-        },
-      );
-    }
-    const gatewaySessionId = currentSessionId;
-    if (!isRetry && gatewaySessionId) {
-      gatewayClient?.addMessage(
-        gatewaySessionId,
-        'user',
-        displayText ?? userText,
-      );
-    }
-
-    // Persist any pasted images to temp files for the tutor's vision call.
-    const imagePaths: string[] = [];
-    const hotkeyImageSet = new Set(hotkeyImages ?? []);
-    let hotkeyImageCount = 0;
-    for (const dataUrl of images ?? []) {
-      const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUrl);
-      if (!m) continue;
-      const ext = m[1].split('/')[1]?.split('+')[0] || 'png';
-      const isHotkeyCapture = hotkeyImageSet.has(dataUrl);
-      const sourceLabel = isHotkeyCapture ? 'hotkey' : 'paste';
-      const file = path.join(
-        os.tmpdir(),
-        `coco-${sourceLabel}-${randomUUID()}.${ext}`,
-      );
-      try {
-        fs.writeFileSync(file, Buffer.from(m[2], 'base64'));
-        imagePaths.push(file);
-        if (isHotkeyCapture) hotkeyImageCount += 1;
-      } catch (err) {
-        log.warn(
-          `[Chat] Failed to write pasted image: ${(err as Error).message}`,
+  withTutorTurn(
+    async (
+      ipcEvent,
+      {
+        requestId,
+        userText,
+        displayText,
+        isRetry,
+        images,
+        requestKind,
+        hotkeyImages,
+      }: {
+        requestId: string;
+        userText: string;
+        displayText?: string;
+        isRetry?: boolean;
+        images?: string[];
+        requestKind?: 'chat' | 'practice_suggestions';
+        hotkeyImages?: string[];
+      },
+    ) => {
+      const tutorPort = process.env.TUTOR_PORT || '8081';
+      const tutor = `http://127.0.0.1:${tutorPort}`;
+      const sessionStartText = (displayText ?? userText).trim();
+      if (!tutoringAllowed)
+        return { error: 'AI tutoring is disabled for this account.' };
+      if (
+        !isSessionActive &&
+        shouldStartSessionFromUserMessage(
+          sessionStartText,
+          requestKind ?? 'chat',
+        )
+      ) {
+        // Reuse the draft id already known by the renderer. Suppressing another
+        // session-init event prevents the first optimistic message from being
+        // cleared while this request is in flight.
+        await createProactiveTutorSession(
+          sessionStartText,
+          120,
+          'user_message',
+          undefined,
+          {
+            sessionId: currentSessionId ?? undefined,
+            openChat: false,
+          },
         );
       }
-    }
+      const gatewaySessionId = currentSessionId;
+      if (!isRetry && gatewaySessionId) {
+        gatewayClient?.addMessage(
+          gatewaySessionId,
+          'user',
+          displayText ?? userText,
+        );
+      }
 
-    const contextualizedUserText = hotkeyImageCount > 0
-      ? [
-          '<hotkey_screenshot_context>',
-          `${hotkeyImageCount} attached image${hotkeyImageCount === 1 ? ' was' : 's were'} deliberately captured by the user with Coco's screenshot hotkey.`,
-          'Treat the attached hotkey capture as the primary visual state the user chose for this request. Do not call observe_screen merely to capture or inspect the same screen again. Only request a new live-screen observation if the user explicitly asks for an updated view after this capture.',
-          '</hotkey_screenshot_context>',
-          userText,
-        ].filter(Boolean).join('\n')
-      : userText;
-    let streamedText = '';
-    try {
-      // A plain chat can be opened without creating a proactive session. Sync
-      // the persisted profile on every turn so the tutor never falls back to
-      // its default scenario or recommends tools the user did not select.
-      const { scenario, aiTools } = readProfile();
-      await axios.post(
-        `${tutor}/config/scenario`,
-        { scenario },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/ai_tools`,
-        { ai_tools: aiTools },
-        { timeout: 8000 },
-      );
-      const turnTiming = new TutorTurnTiming();
-      await consumeTutorStream(
-        requestKind === 'practice_suggestions'
-          ? `${tutor}/events/practice_suggestions/stream`
-          : `${tutor}/events/user_prompt/stream`,
-        requestKind === 'practice_suggestions'
-          ? {}
-          : {
-              // Current-screen context is now retrieved only when the tutor calls
-              // observe_screen; ordinary chat turns skip the observer entirely.
-              observation: '',
-              user_text: contextualizedUserText,
-              image_paths: imagePaths.length ? imagePaths : null,
-            },
-        (streamEvent: TutorStreamEvent) => {
-          if (streamEvent.type === 'text_delta') {
-            const delta = String(streamEvent.text ?? '');
-            turnTiming.recordTextDelta(delta);
-            streamedText += delta;
-          }
-          if (streamEvent.type === 'done' && gatewaySessionId) {
-            const metrics = streamEvent.llm_metrics as
-              | LLMCallMetrics
-              | undefined;
-            const model =
-              metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
-            gatewayClient?.addMessage(
-              gatewaySessionId,
-              'coco',
-              String(streamEvent.guidance ?? streamedText),
-              turnTiming.complete(model),
-              {
-                messageKind:
-                  requestKind === 'practice_suggestions'
-                    ? 'practice_suggestion'
-                    : 'user_response',
-                fourDDimension: streamEvent.four_d_dimension,
-                teachingDepth: streamEvent.teaching_depth,
-                interventionSource: 'user',
+      // Persist any pasted images to temp files for the tutor's vision call.
+      const imagePaths: string[] = [];
+      const hotkeyImageSet = new Set(hotkeyImages ?? []);
+      let hotkeyImageCount = 0;
+      for (const dataUrl of images ?? []) {
+        const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUrl);
+        if (!m) continue;
+        const ext = m[1].split('/')[1]?.split('+')[0] || 'png';
+        const isHotkeyCapture = hotkeyImageSet.has(dataUrl);
+        const sourceLabel = isHotkeyCapture ? 'hotkey' : 'paste';
+        const file = path.join(
+          os.tmpdir(),
+          `coco-${sourceLabel}-${randomUUID()}.${ext}`,
+        );
+        try {
+          fs.writeFileSync(file, Buffer.from(m[2], 'base64'));
+          imagePaths.push(file);
+          if (isHotkeyCapture) hotkeyImageCount += 1;
+        } catch (err) {
+          log.warn(
+            `[Chat] Failed to write pasted image: ${(err as Error).message}`,
+          );
+        }
+      }
+
+      const contextualizedUserText =
+        hotkeyImageCount > 0
+          ? [
+              '<hotkey_screenshot_context>',
+              `${hotkeyImageCount} attached image${hotkeyImageCount === 1 ? ' was' : 's were'} deliberately captured by the user with Coco's screenshot hotkey.`,
+              'Treat the attached hotkey capture as the primary visual state the user chose for this request. Do not call observe_screen merely to capture or inspect the same screen again. Only request a new live-screen observation if the user explicitly asks for an updated view after this capture.',
+              '</hotkey_screenshot_context>',
+              userText,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          : userText;
+      let streamedText = '';
+      try {
+        // A plain chat can be opened without creating a proactive session. Sync
+        // the persisted profile on every turn so the tutor never falls back to
+        // its default scenario or recommends tools the user did not select.
+        const { scenario, aiTools } = readProfile();
+        await axios.post(
+          `${tutor}/config/scenario`,
+          { scenario },
+          { timeout: 8000 },
+        );
+        await axios.post(
+          `${tutor}/context/ai_tools`,
+          { ai_tools: aiTools },
+          { timeout: 8000 },
+        );
+        const turnTiming = new TutorTurnTiming();
+        await consumeTutorStream(
+          requestKind === 'practice_suggestions'
+            ? `${tutor}/events/practice_suggestions/stream`
+            : `${tutor}/events/user_prompt/stream`,
+          requestKind === 'practice_suggestions'
+            ? {}
+            : {
+                // Current-screen context is now retrieved only when the tutor calls
+                // observe_screen; ordinary chat turns skip the observer entirely.
+                observation: '',
+                user_text: contextualizedUserText,
+                image_paths: imagePaths.length ? imagePaths : null,
               },
-            );
-          }
-          ipcEvent.sender.send('chat-stream-event', {
-            requestId,
-            ...streamEvent,
-            ...(streamEvent.type === 'done'
-              ? { observerMetrics: streamEvent.observer_metrics ?? null }
-              : {}),
-          });
-        },
-        undefined,
-        {
-          // This is an activity timeout, refreshed by every SSE chunk (including
-          // server keep-alives), plus a separate ceiling for genuinely runaway
-          // tool/model loops.
-          idleMs: 60_000,
-          hardMs: 5 * 60_000,
-        },
-      );
-      return { streamed: true };
-    } catch (err) {
-      const ax = err as { response?: { data?: unknown }; message?: string };
-      log.error(
-        '[Chat] streaming user prompt failed:',
-        JSON.stringify(ax?.response?.data ?? ax?.message),
-      );
-      const error =
-        err instanceof TutorStreamTimeoutError
-          ? 'The tutor took too long to respond. Please retry.'
-          : 'The tutor could not generate a response. Please try again.';
-      ipcEvent.sender.send('chat-stream-event', {
-        requestId,
-        type: 'error',
-        error,
-      });
-      return { error };
-    }
-  },
+          (streamEvent: TutorStreamEvent) => {
+            if (streamEvent.type === 'text_delta') {
+              const delta = String(streamEvent.text ?? '');
+              turnTiming.recordTextDelta(delta);
+              streamedText += delta;
+            }
+            if (streamEvent.type === 'done' && gatewaySessionId) {
+              const metrics = streamEvent.llm_metrics as
+                | LLMCallMetrics
+                | undefined;
+              const model =
+                metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
+              gatewayClient?.addMessage(
+                gatewaySessionId,
+                'coco',
+                String(streamEvent.guidance ?? streamedText),
+                turnTiming.complete(model),
+                {
+                  messageKind:
+                    requestKind === 'practice_suggestions'
+                      ? 'practice_suggestion'
+                      : 'user_response',
+                  fourDDimension: streamEvent.four_d_dimension,
+                  teachingDepth: streamEvent.teaching_depth,
+                  interventionSource: 'user',
+                },
+              );
+            }
+            ipcEvent.sender.send('chat-stream-event', {
+              requestId,
+              ...streamEvent,
+              ...(streamEvent.type === 'done'
+                ? { observerMetrics: streamEvent.observer_metrics ?? null }
+                : {}),
+            });
+          },
+          undefined,
+          {
+            // This is an activity timeout, refreshed by every SSE chunk (including
+            // server keep-alives), plus a separate ceiling for genuinely runaway
+            // tool/model loops.
+            idleMs: 60_000,
+            hardMs: 5 * 60_000,
+          },
+        );
+        return { streamed: true };
+      } catch (err) {
+        const ax = err as { response?: { data?: unknown }; message?: string };
+        log.error(
+          '[Chat] streaming user prompt failed:',
+          JSON.stringify(ax?.response?.data ?? ax?.message),
+        );
+        const error =
+          err instanceof TutorStreamTimeoutError
+            ? 'The tutor took too long to respond. Please retry.'
+            : 'The tutor could not generate a response. Please try again.';
+        ipcEvent.sender.send('chat-stream-event', {
+          requestId,
+          type: 'error',
+          error,
+        });
+        return { error };
+      }
+    },
+  ),
 );
 
 ipcMain.removeAllListeners('open-image-preview');
@@ -3806,121 +4053,124 @@ ipcMain.on('close-image-preview', (event) => {
 ipcMain.removeHandler('send-audio-message');
 ipcMain.handle(
   'send-audio-message',
-  async (
-    ipcEvent,
-    {
-      requestId,
-      audioData,
-    }: {
-      requestId: string;
-      audioData: string;
-    },
-  ) => {
-    if (!audioData || audioData.length > 16_000_000) {
-      return { error: 'The voice recording is empty or too large.' };
-    }
-    if (!tutoringAllowed) return { error: 'AI tutoring is disabled for this account.' };
-    if (!isSessionActive) {
-      // A pre-session invite may already be visible from the last sensing tick.
-      // Voice input is itself an explicit session start, so remove that stale UI.
-      notificationWindow?.destroy();
-      await createProactiveTutorSession(
-        '[Voice message]',
-        120,
-        'user_message',
-        undefined,
-        {
-          // Reuse the draft already displayed by the wake-word/chat flow so
-          // activating the session does not clear the visible conversation.
-          sessionId: currentSessionId ?? undefined,
-          openChat: false,
-        },
-      );
-    }
-    const gatewaySessionId = currentSessionId;
-    let storedTranscription = false;
-    const tutorPort = process.env.TUTOR_PORT || '8081';
-    const turnTiming = new TutorTurnTiming();
-    let streamedText = '';
-    try {
-      await consumeTutorStream(
-        `http://127.0.0.1:${tutorPort}/events/audio_prompt/stream`,
-        {
-          audio_data: audioData,
-          audio_format: 'wav',
-          session_id: currentSessionId,
-        },
-        (streamEvent: TutorStreamEvent) => {
-          if (
-            streamEvent.type === 'transcription' &&
-            gatewaySessionId &&
-            !storedTranscription
-          ) {
-            const transcription = String(streamEvent.text ?? '').trim();
-            if (transcription) {
-              storedTranscription = true;
+  withTutorTurn(
+    async (
+      ipcEvent,
+      {
+        requestId,
+        audioData,
+      }: {
+        requestId: string;
+        audioData: string;
+      },
+    ) => {
+      if (!audioData || audioData.length > 16_000_000) {
+        return { error: 'The voice recording is empty or too large.' };
+      }
+      if (!tutoringAllowed)
+        return { error: 'AI tutoring is disabled for this account.' };
+      if (!isSessionActive) {
+        // A pre-session invite may already be visible from the last sensing tick.
+        // Voice input is itself an explicit session start, so remove that stale UI.
+        notificationWindow?.destroy();
+        await createProactiveTutorSession(
+          '[Voice message]',
+          120,
+          'user_message',
+          undefined,
+          {
+            // Reuse the draft already displayed by the wake-word/chat flow so
+            // activating the session does not clear the visible conversation.
+            sessionId: currentSessionId ?? undefined,
+            openChat: false,
+          },
+        );
+      }
+      const gatewaySessionId = currentSessionId;
+      let storedTranscription = false;
+      const tutorPort = process.env.TUTOR_PORT || '8081';
+      const turnTiming = new TutorTurnTiming();
+      let streamedText = '';
+      try {
+        await consumeTutorStream(
+          `http://127.0.0.1:${tutorPort}/events/audio_prompt/stream`,
+          {
+            audio_data: audioData,
+            audio_format: 'wav',
+            session_id: currentSessionId,
+          },
+          (streamEvent: TutorStreamEvent) => {
+            if (
+              streamEvent.type === 'transcription' &&
+              gatewaySessionId &&
+              !storedTranscription
+            ) {
+              const transcription = String(streamEvent.text ?? '').trim();
+              if (transcription) {
+                storedTranscription = true;
+                gatewayClient?.addMessage(
+                  gatewaySessionId,
+                  'user',
+                  transcription,
+                  undefined,
+                  { messageKind: 'voice_input' },
+                );
+              }
+            }
+            if (streamEvent.type === 'text_delta') {
+              const delta = String(streamEvent.text ?? '');
+              turnTiming.recordTextDelta(delta);
+              streamedText += delta;
+            }
+            if (streamEvent.type === 'done' && gatewaySessionId) {
+              const metrics = streamEvent.llm_metrics as
+                | LLMCallMetrics
+                | undefined;
+              const model =
+                metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
               gatewayClient?.addMessage(
                 gatewaySessionId,
-                'user',
-                transcription,
-                undefined,
-                { messageKind: 'voice_input' },
+                'coco',
+                String(streamEvent.guidance ?? streamedText),
+                turnTiming.complete(model),
+                {
+                  messageKind: 'voice_response',
+                  fourDDimension: streamEvent.four_d_dimension,
+                  teachingDepth: streamEvent.teaching_depth,
+                  interventionSource: 'user',
+                },
               );
             }
-          }
-          if (streamEvent.type === 'text_delta') {
-            const delta = String(streamEvent.text ?? '');
-            turnTiming.recordTextDelta(delta);
-            streamedText += delta;
-          }
-          if (streamEvent.type === 'done' && gatewaySessionId) {
-            const metrics = streamEvent.llm_metrics as
-              | LLMCallMetrics
-              | undefined;
-            const model =
-              metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
-            gatewayClient?.addMessage(
-              gatewaySessionId,
-              'coco',
-              String(streamEvent.guidance ?? streamedText),
-              turnTiming.complete(model),
-              {
-                messageKind: 'voice_response',
-                fourDDimension: streamEvent.four_d_dimension,
-                teachingDepth: streamEvent.teaching_depth,
-                interventionSource: 'user',
-              },
-            );
-          }
-          ipcEvent.sender.send('chat-stream-event', {
-            requestId,
-            ...streamEvent,
-          });
-        },
-        undefined,
-        {
-          idleMs: 60_000,
-          hardMs: 5 * 60_000,
-        },
-      );
-      return { streamed: true };
-    } catch (err) {
-      log.error(
-        '[Chat] streaming audio prompt failed:',
-        err instanceof Error ? err.message : String(err),
-      );
-      const error =
-        err instanceof TutorStreamTimeoutError
-          ? 'The tutor took too long to respond to the voice message. Please retry.'
-          : 'The tutor could not process the voice message. Please try again.';
-      ipcEvent.sender.send('chat-stream-event', {
-        requestId,
-        type: 'error',
-        error,
-      });
-      return { error };
-    }
-  },
+            ipcEvent.sender.send('chat-stream-event', {
+              requestId,
+              ...streamEvent,
+            });
+          },
+          undefined,
+          {
+            idleMs: 60_000,
+            hardMs: 5 * 60_000,
+          },
+        );
+        return { streamed: true };
+      } catch (err) {
+        log.error(
+          '[Chat] streaming audio prompt failed:',
+          err instanceof Error ? err.message : String(err),
+        );
+        const error =
+          err instanceof TutorStreamTimeoutError
+            ? 'The tutor took too long to respond to the voice message. Please retry.'
+            : 'The tutor could not process the voice message. Please try again.';
+        ipcEvent.sender.send('chat-stream-event', {
+          requestId,
+          type: 'error',
+          error,
+        });
+        return { error };
+      }
+    },
+  ),
 );
 
 if (process.env.NODE_ENV === 'production') {
@@ -4197,7 +4447,7 @@ ipcMain.handle(
           `${sensing}/session`,
           {
             node_uuid: currentSessionId,
-            struggle_detection_seconds: 120,
+            struggle_detection_seconds: sessionStruggleSeconds,
             scenario: nextScenario,
             config_source: 'settings',
             ...(customObserverPrompt && {
@@ -4851,6 +5101,7 @@ const startObserver = () => {
   startObservationStream({
     url: `http://127.0.0.1:${sensingPort}/observations/stream`,
     onEvent: (event) => {
+      const receivedAt = Date.now();
       if (!tutoringAllowed) return;
       if (observationSleepGuard.shouldSuppress(event.ts)) {
         if (event.observation) {
@@ -4882,6 +5133,16 @@ const startObserver = () => {
         isSessionActive,
         event,
       );
+      // A suggestion arriving while a tutor reply is on its way would land on
+      // top of that reply, so it is dropped rather than shown.
+      const suggestionDropped =
+        instantSuggestionEligible && interactions.movedOnSince(receivedAt);
+      if (suggestionDropped) {
+        log.info(
+          '[Interaction] Dropped proactive suggestion: a tutor reply is in progress.',
+        );
+      }
+      const offerSuggestion = instantSuggestionEligible && !suggestionDropped;
       const surfaceObservation = shouldSurfaceObservation();
 
       // Tier-2 friction events from the struggle/pause path arrive without an
@@ -4899,6 +5160,7 @@ const startObserver = () => {
       // generate a detailed proactive suggestion in AI Upskilling.
       if (
         surfaceObservation &&
+        !suggestionDropped &&
         !hideAvatarMode &&
         avatarWindow &&
         !avatarWindow.isDestroyed()
@@ -4915,9 +5177,7 @@ const startObserver = () => {
           status: status as ObservationStatus,
           observation: cleanObservation(event.observation),
           observation_id: event.observation_id,
-          proactive_support: instantSuggestionEligible
-            ? { engaged: false }
-            : undefined,
+          proactive_support: offerSuggestion ? { engaged: false } : undefined,
           llm_metrics: event.llm_metrics,
         });
       }
@@ -4928,7 +5188,7 @@ const startObserver = () => {
       // AI Upskilling suggestions are generated only for Judge-approved
       // interventions inside an active session. Other modes retain their
       // existing pull-based observer suggestions.
-      if (instantSuggestionEligible) {
+      if (offerSuggestion) {
         const suggestionPromise = precomputeSuggestion(event);
         if (hideAvatarMode && event.observation) {
           const rawObservation = cleanObservation(event.observation);
@@ -4948,6 +5208,14 @@ const startObserver = () => {
             ) {
               return;
             }
+            // Generation takes seconds; if the user messaged the tutor or a
+            // reply finished meanwhile, the tutor has the floor.
+            if (interactions.movedOnSince(receivedAt)) {
+              log.info(
+                '[Interaction] Dropped proactive suggestion: the conversation moved on while it was generated.',
+              );
+              return;
+            }
             const suggestion: InstantSuggestion =
               value.kind === 'delegate'
                 ? {
@@ -4955,23 +5223,44 @@ const startObserver = () => {
                     availableTools: buildAvailableTools(value.targetTool),
                   }
                 : value;
-            showNotification({
-              message: suggestion.title,
-              actionLabel: 'Reveal full suggestion',
-              notifType: 'proactive-suggestion',
-              observationId: event.observation_id,
-              status,
-              rawObservation,
+            const chatSuggestion = toChatSuggestion(
               suggestion,
-              scenario: readProfile().scenario,
-            });
+              event.observation_id,
+            );
+            let surface: 'chat' | 'notification';
+            if (isChatPanelVisible()) {
+              // The user is already in the chat, so Coco says it there.
+              deliverSuggestionToChat(chatSuggestion, false);
+              surface = 'chat';
+            } else {
+              const shown = showNotification({
+                message: suggestion.title,
+                actionLabel: 'Reveal full suggestion',
+                notifType: 'proactive-suggestion',
+                observationId: event.observation_id,
+                status,
+                rawObservation,
+                suggestion,
+                scenario: readProfile().scenario,
+              });
+              if (!shown || !notificationWindow) return;
+              suggestionNotification = {
+                window: notificationWindow,
+                observationId: event.observation_id,
+              };
+              // A folded copy keeps it findable after the pop-up closes.
+              deliverSuggestionToChat(chatSuggestion, true);
+              surface = 'notification';
+            }
+            interactions.note('suggestion_shown');
+            recordSuggestionWithTutor(chatSuggestion, event.trigger_type);
             const sensingPort = process.env.SENSING_PORT || '8080';
             axios
               .post(
                 `http://127.0.0.1:${sensingPort}/feedback`,
                 {
                   kind: 'shown',
-                  surface: 'notification',
+                  surface,
                   observation_id: event.observation_id ?? null,
                   status,
                 },

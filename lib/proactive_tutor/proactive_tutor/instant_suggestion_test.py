@@ -39,6 +39,52 @@ def test_worker_prompt_allows_launchable_delegate_suggestions() -> None:
     assert "<targetTool>chatgpt</targetTool>" in prompt
     assert "ready-to-paste Stage, Task, and Rules prompt" in prompt
     assert "If no tools are provided, always return `content`" in prompt
+    assert "<noticed>" in prompt and "<check>" in prompt
+
+
+def test_parser_reads_the_explanation_fields() -> None:
+    parsed = instant_suggestion._parse_instant_suggestion(
+        "<suggestion><kind>delegate</kind><title>Paste this prompt into Claude</title>"
+        "<four_d_dimension>delegation</four_d_dimension>"
+        "<noticed>Looks like you're entering grades one by one.</noticed>"
+        "<ai_can>Claude can format your sheet for Canvas.</ai_can>"
+        "<why>It saves twenty minutes.</why>"
+        "<check>Spot-check three rows.</check>"
+        "<prompt>Stage: ...\nTask: ...\nRules: ...</prompt></suggestion>"
+    )
+
+    assert parsed["noticed"] == "Looks like you're entering grades one by one."
+    assert parsed["aiCan"] == "Claude can format your sheet for Canvas."
+    assert parsed["why"] == "It saves twenty minutes."
+    assert parsed["check"] == "Spot-check three rows."
+
+
+def test_parser_accepts_an_abstention() -> None:
+    parsed = instant_suggestion._parse_instant_suggestion(
+        "<suggestion><kind>abstain</kind></suggestion>"
+    )
+
+    assert parsed["kind"] == "abstain"
+    assert parsed["copyText"] == ""
+    assert parsed["prompt"] is None and parsed["body"] is None
+
+
+def test_worker_prompt_offers_abstain() -> None:
+    prompt = instant_suggestion._load_instant_system_prompt("ai_upskilling")
+
+    assert "<kind>abstain</kind>" in prompt
+    assert "Looks like you're ...</noticed>" not in prompt
+
+
+def test_parser_leaves_missing_explanation_fields_empty() -> None:
+    parsed = instant_suggestion._parse_instant_suggestion(
+        "<kind>content</kind><title>Check the dates</title>"
+        "<ai_can></ai_can><body>Verify the dates.</body>"
+    )
+
+    assert parsed["noticed"] is None
+    assert parsed["aiCan"] is None
+    assert parsed["check"] is None
 
 
 def test_instant_suggestion_can_retrieve_memory_before_generating(

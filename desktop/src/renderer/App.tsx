@@ -674,6 +674,21 @@ function PetView() {
   }, [showHistory]);
 
   useEffect(() => {
+    const cleanupPostAssessmentSuppression = window.electron?.ipcRenderer.on(
+      'post-assessment-proactive-suppression',
+      (value) => {
+        const state = value as { active?: boolean } | undefined;
+        if (state?.active !== true) return;
+        if (hideTimer.current) clearTimeout(hideTimer.current);
+        if (fadeTimer.current) clearTimeout(fadeTimer.current);
+        if (pulseTimer.current) clearTimeout(pulseTimer.current);
+        bubbleHoverRef.current = false;
+        bubblePinnedRef.current = false;
+        setBubble(null);
+        setPulse(null);
+        setMood('idle');
+      },
+    );
     const cleanupSuspend = window.electron?.ipcRenderer.on(
       'system-suspend',
       () => {
@@ -785,6 +800,8 @@ function PetView() {
     );
 
     return () => {
+      if (typeof cleanupPostAssessmentSuppression === 'function')
+        cleanupPostAssessmentSuppression();
       if (typeof cleanupSuspend === 'function') cleanupSuspend();
       if (typeof cleanup === 'function') cleanup();
       if (hideTimer.current) clearTimeout(hideTimer.current);

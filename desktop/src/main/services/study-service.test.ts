@@ -18,7 +18,11 @@ jest.mock('fs/promises', () => ({
   },
 }));
 
-function fixture(response: object) {
+function fixture(
+  response: object,
+  activityRecorder?: Parameters<typeof registerStudyIpc>[2],
+  onPostAssessmentActiveChange?: Parameters<typeof registerStudyIpc>[3],
+) {
   const requestJson = jest.fn().mockResolvedValue(response);
   const handlers = new Map<string, (...args: any[]) => any>();
   registerStudyIpc(
@@ -28,6 +32,8 @@ function fixture(response: object) {
       },
     },
     () => ({ requestJson }) as unknown as CocoGatewayClient,
+    activityRecorder,
+    onPostAssessmentActiveChange,
   );
   return {
     requestJson,
@@ -48,6 +54,43 @@ const reflection = {
   q7: 'I was briefly unsure about the prompt.',
   q8: 'I would like more examples.',
 };
+
+const questionnaire = {
+  decision: 'I chose Plan B.',
+  reasoning: 'It best balanced savings and risk.',
+  aiUse: 'AI compared options; I checked the evidence.',
+  alternatives: 'Plan A relied on an avoidable penalty.',
+  challenge: 'Reconciling the contract dates.',
+  ownership: 9,
+};
+
+const recorderState = {
+  status: 'recording' as const,
+  started_at: '2026-10-07T12:00:00Z',
+  capture_count: 1,
+  can_generate_log: true,
+  last_error: null,
+};
+
+function fakeRecorder(automaticLog: Buffer | null = null) {
+  return {
+    begin: jest.fn().mockResolvedValue(recorderState),
+    restore: jest.fn().mockResolvedValue(recorderState),
+    pause: jest.fn().mockResolvedValue({ ...recorderState, status: 'paused' }),
+    resume: jest.fn().mockResolvedValue(recorderState),
+    captures: jest.fn().mockResolvedValue([]),
+    removeCapture: jest.fn().mockResolvedValue(recorderState),
+    buildAutomaticLog: jest.fn().mockResolvedValue(
+      automaticLog
+        ? {
+            filename: 'post-assessment-activity-log.html',
+            data: automaticLog,
+          }
+        : null,
+    ),
+    completeAndDelete: jest.fn().mockResolvedValue(undefined),
+  };
+}
 
 it('requires and saves a screenshot locally when completing a training day', async () => {
   const screenshot = Buffer.from('image');
@@ -136,6 +179,59 @@ it('does not save when the chooser is cancelled', async () => {
   await invoke('study-download', 1);
   expect(fs.writeFile).not.toHaveBeenCalled();
 });
+
+it('starts recording for an existing execution without resetting its timer', async () => {
+  const recorder = fakeRecorder();
+  const { invoke, requestJson } = fixture(
+    {
+      execution_started_at: '2026-10-07T12:00:00Z',
+      sections: { execution: null },
+    },
+    recorder,
+  );
+
+  await expect(invoke('post-assessment-recorder-start')).resolves.toEqual(
+    recorderState,
+  );
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/post-assessment',
+    'GET',
+    undefined,
+  );
+  expect(recorder.begin).toHaveBeenCalledWith('2026-10-07T12:00:00Z');
+});
+
+it('restores proactive-suggestion suppression from active post-assessment state', async () => {
+  const onPostAssessmentActiveChange = jest.fn();
+  const { invoke } = fixture(
+    {
+      unlocked: true,
+      complete: false,
+      execution_started_at: '2026-10-07T12:00:00Z',
+      sections: { execution: null },
+    },
+    undefined,
+    onPostAssessmentActiveChange,
+  );
+
+  await invoke('post-assessment-state');
+
+  expect(onPostAssessmentActiveChange).toHaveBeenCalledWith(true);
+});
+
+it('restores proactive suggestions after the post-assessment is complete', async () => {
+  const onPostAssessmentActiveChange = jest.fn();
+  const { invoke } = fixture(
+    { unlocked: true, complete: true, sections: { execution: {} } },
+    undefined,
+    onPostAssessmentActiveChange,
+  );
+
+  await invoke('post-assessment-state');
+
+  expect(onPostAssessmentActiveChange).toHaveBeenCalledWith(false);
+});
+
 it('rejects out-of-range days and unsafe download names', async () => {
   const { invoke, requestJson } = fixture({
     filename: '../bad.pdf',
@@ -156,4 +252,181 @@ it('does not open an upload chooser for a participant', async () => {
     'Administrator access required',
   );
   expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+});
+
+it('downloads the complete post-assessment toolkit from the server', async () => {
+  const archive = Buffer.from('zip-data');
+  const { invoke, requestJson } = fixture({
+    filename: 'post-assessment-toolkit.zip',
+    data: archive.toString('base64'),
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePath: '/chosen/post-assessment-toolkit.zip',
+  });
+
+  await expect(invoke('post-assessment-download-toolkit')).resolves.toEqual({
+    success: true,
+  });
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/post-assessment/toolkit/download',
+    'GET',
+    undefined,
+  );
+  expect(fs.writeFile).toHaveBeenCalledWith(
+    '/chosen/post-assessment-toolkit.zip',
+    archive,
+  );
+});
+
+it('lets an administrator upload the post-assessment toolkit ZIP', async () => {
+  const archive = Buffer.from('zip-data');
+  const { invoke, requestJson } = fixture({ role: 'admin', success: true });
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePaths: ['/chosen/toolkit.zip'],
+  });
+  (fs.stat as jest.Mock).mockResolvedValue({ size: archive.length });
+  (fs.readFile as jest.Mock).mockResolvedValue(archive);
+
+  await invoke('study-upload-post-assessment-toolkit');
+
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/admin/post-assessment/toolkit',
+    'POST',
+    {
+      filename: 'toolkit.zip',
+      data: archive.toString('base64'),
+    },
+    60000,
+  );
+});
+
+it('starts the task, required recorder, and suggestion suppression together', async () => {
+  const recorder = fakeRecorder();
+  const onPostAssessmentActiveChange = jest.fn();
+  const { invoke, requestJson } = fixture(
+    { execution_started_at: '2026-10-07T12:00:00Z' },
+    recorder,
+    onPostAssessmentActiveChange,
+  );
+
+  await invoke('post-assessment-start-execution');
+
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/post-assessment/execution/start',
+    'POST',
+    undefined,
+  );
+  expect(recorder.begin).toHaveBeenCalledWith('2026-10-07T12:00:00Z');
+  expect(onPostAssessmentActiveChange).toHaveBeenCalledWith(true);
+});
+
+it('automatically attaches the recorded activity report', async () => {
+  const automaticLog = Buffer.from('<html>activity</html>');
+  const recorder = fakeRecorder(automaticLog);
+  const { invoke, requestJson } = fixture(
+    { completed_at: '2026-10-07T12:30:00Z' },
+    recorder,
+  );
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePaths: ['/chosen/answer.pdf'],
+  });
+  (fs.stat as jest.Mock).mockResolvedValue({ size: 12 });
+  (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('%PDF-answer'));
+
+  await invoke('post-assessment-select-execution-files', 'outcome');
+  await invoke('post-assessment-submit-execution', questionnaire);
+
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/post-assessment/execution',
+    'POST',
+    expect.objectContaining({
+      interaction_logs: [
+        {
+          filename: 'post-assessment-activity-log.html',
+          data: automaticLog.toString('base64'),
+        },
+      ],
+    }),
+    300000,
+  );
+  expect(recorder.completeAndDelete).toHaveBeenCalled();
+});
+
+it('requires the generated recording report and rejects manual log files', async () => {
+  const { invoke, requestJson } = fixture({ success: true }, fakeRecorder());
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePaths: ['/chosen/answer.pdf'],
+  });
+
+  await invoke('post-assessment-select-execution-files', 'outcome');
+  await expect(
+    invoke('post-assessment-select-execution-files', 'interaction_logs'),
+  ).rejects.toThrow('Unknown post-assessment file type.');
+  await expect(
+    invoke('post-assessment-submit-execution', questionnaire),
+  ).rejects.toThrow('Task activity recording is required before submitting.');
+
+  expect(dialog.showOpenDialog).toHaveBeenCalledTimes(1);
+  expect(requestJson).not.toHaveBeenCalled();
+});
+
+it('validates and uploads the execution task files and questionnaire', async () => {
+  const automaticLog = Buffer.from('<html>recorded activity</html>');
+  const { invoke, requestJson } = fixture(
+    { completed_at: '2026-10-07T12:00:00Z' },
+    fakeRecorder(automaticLog),
+  );
+  (fs.stat as jest.Mock).mockResolvedValue({ size: 12 });
+  (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('%PDF-answer'));
+  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePaths: ['/chosen/answer.pdf'],
+  });
+
+  await invoke('post-assessment-select-execution-files', 'outcome');
+
+  await invoke('post-assessment-submit-execution', questionnaire);
+
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/post-assessment/execution',
+    'POST',
+    {
+      questionnaire: {
+        decision: questionnaire.decision,
+        reasoning: questionnaire.reasoning,
+        ai_use: questionnaire.aiUse,
+        alternatives: questionnaire.alternatives,
+        challenge: questionnaire.challenge,
+        ownership: 9,
+      },
+      outcome: {
+        filename: 'answer.pdf',
+        data: Buffer.from('%PDF-answer').toString('base64'),
+      },
+      interaction_logs: [
+        {
+          filename: 'post-assessment-activity-log.html',
+          data: automaticLog.toString('base64'),
+        },
+      ],
+    },
+    300000,
+  );
+});
+
+it('rejects an incomplete post-assessment submission before reading files', async () => {
+  const { invoke, requestJson } = fixture({ success: true });
+
+  await expect(
+    invoke('post-assessment-submit-execution', {
+      ...questionnaire,
+      challenge: ' ',
+    }),
+  ).rejects.toThrow('Please answer every questionnaire question.');
+  expect(fs.stat).not.toHaveBeenCalled();
+  expect(requestJson).not.toHaveBeenCalled();
 });

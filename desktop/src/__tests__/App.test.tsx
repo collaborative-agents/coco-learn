@@ -68,6 +68,38 @@ describe('App', () => {
     expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
   });
 
+  it('clears proactive UI when the post-assessment starts', async () => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage: jest.fn(),
+        invoke: jest.fn().mockResolvedValue([]),
+      },
+    };
+
+    render(<App />);
+    act(() => {
+      listeners.get('observation-update')?.({
+        type: 'snapshot',
+        observation: 'The user may have made an error.',
+        status: 'mistake',
+        ts: Date.now() / 1000,
+      });
+    });
+    expect(screen.getByText('Heads up')).toBeInTheDocument();
+
+    act(() =>
+      listeners.get('post-assessment-proactive-suppression')?.({
+        active: true,
+      }),
+    );
+    expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
+  });
+
   it('keeps Coco asleep on avatar click and wakes it from the menu', async () => {
     const sendMessage = jest.fn();
     const invoke = jest.fn(

@@ -8,6 +8,7 @@ import {
   type TrainingDay,
 } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
+import PostAssessmentPanel from './PostAssessmentPanel';
 import './TrainingView.css';
 
 const api = (
@@ -383,6 +384,10 @@ export default function TrainingView() {
   }, [refresh]);
   const studentExperience = state?.role === 'participant' || studentMode;
   const trainingUnlocked = !studentExperience || preAssessmentComplete;
+  const trainingComplete = Boolean(
+    state?.days.length === 7 && state.days.every((day) => day.completed_at),
+  );
+  const postAssessmentUnlocked = !studentExperience || trainingComplete;
   const reflectionDay = state?.days.find(
     (day) => day.day === reflectionDayNumber,
   );
@@ -643,6 +648,7 @@ export default function TrainingView() {
                     }}
                   />
                 )}
+              <PostAssessmentPanel unlocked={postAssessmentUnlocked} />
             </>
           ) : (
             <>
@@ -753,6 +759,37 @@ export default function TrainingView() {
                 </button>
               </section>
               <section className="training-card">
+                <h2>Post-assessment toolkit</h2>
+                <p>
+                  Upload one ZIP containing all execution-task reference files,
+                  up to 20 MiB. Uploading replaces the current toolkit without
+                  changing participant progress.
+                </p>
+                <p>
+                  Status:{' '}
+                  <strong>
+                    {state.post_assessment_toolkit_available
+                      ? 'Uploaded'
+                      : 'Missing'}
+                  </strong>
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(async () => {
+                      const result = (await api(
+                        'study-upload-post-assessment-toolkit',
+                      )) as { success?: boolean };
+                      if (result.success)
+                        setNotice('Post-assessment toolkit uploaded.');
+                    })
+                  }
+                >
+                  Choose toolkit ZIP and upload
+                </button>
+              </section>
+              <section className="training-card">
                 <h2>Participant progress</h2>
                 <button
                   type="button"
@@ -771,6 +808,7 @@ export default function TrainingView() {
                         {state.days.map((d) => (
                           <th key={d.day}>Day {d.day}</th>
                         ))}
+                        <th>Post-assessment</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -798,6 +836,11 @@ export default function TrainingView() {
                                     : 'Locked'}
                             </td>
                           ))}
+                          <td>
+                            {u.post_assessment_complete
+                              ? 'Complete'
+                              : 'Not complete'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

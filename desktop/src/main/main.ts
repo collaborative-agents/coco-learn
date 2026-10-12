@@ -34,7 +34,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
-import { avatarRecoveryItems } from './avatar-menu';
+import { avatarRecoveryItems, cocoNavigationItems } from './avatar-menu';
 import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
@@ -47,6 +47,7 @@ import {
   syncPreAssessmentState,
 } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
+import configureMainWindow from './main-window-behavior';
 import log from 'electron-log';
 import axios from 'axios';
 import { resolveHtmlPath } from './util';
@@ -647,6 +648,10 @@ ipcMain.on('quit-from-auth', (event) => {
   if (event.sender === authWindow?.webContents) app.quit();
 });
 
+ipcMain.on('quit-from-avatar', (event) => {
+  if (event.sender === avatarWindow?.webContents) app.quit();
+});
+
 const readSystemPermissionWarning = () =>
   getSystemPermissionWarning(process.platform, {
     accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false),
@@ -825,11 +830,11 @@ const createChatWindow = () => {
     transparent: true,
     resizable: true,
     skipTaskbar: process.platform !== 'darwin',
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     webPreferences: { preload: preloadPath(), backgroundThrottling: false },
   });
 
-  configureFullscreenCompanionWindow(chatWindow);
+  configureMainWindow(chatWindow);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
 
   const reportLayout = () => {
@@ -1051,7 +1056,7 @@ const showChatPanel = () => {
 
   chatWindow.setSize(w, h);
   chatWindow.setPosition(dx + sw - w - 16, dy + Math.floor((sh - h) / 2));
-  chatWindow.setAlwaysOnTop(true, 'floating');
+  configureMainWindow(chatWindow);
   chatWindow.show();
   chatWindow.focus();
   // The avatar stays visible alongside the chat panel — never hide it, so the
@@ -1382,7 +1387,6 @@ function createTray(): void {
           click: () => { void desktopAppUpdater.checkForUpdates(true); },
         }]
       : [];
-  if (isAuthenticated) updateMenuItems.unshift({ label: 'Training & Administration…', click: openTraining });
   tray.setToolTip(
     pendingSetup ? 'Coco' : `Coco — ${sleeping ? 'Sleeping' : 'Awake'}`,
   );
@@ -1410,6 +1414,7 @@ function createTray(): void {
               label: setupLabel,
               click: openPrimaryTrayAction,
             },
+            ...(isAuthenticated ? [{ label: 'Training', click: openTraining }] : []),
             ...updateMenuItems,
             { type: 'separator' },
             { label: 'Quit', click: () => app.quit() },
@@ -1420,29 +1425,19 @@ function createTray(): void {
               label: sleeping ? 'Status: Sleeping' : 'Status: Awake',
               enabled: false,
             },
+            { type: 'separator' },
+            ...cocoNavigationItems({
+              'open-main-window': openPrimaryTrayAction,
+              'open-training': openTraining,
+              'open-chat-settings': openChatSettings,
+            }),
+            { type: 'separator' },
             {
-              label: sleeping ? 'Wake Coco' : 'Put Coco to Sleep',
+              label: sleeping ? 'Wake Coco' : 'Sleep',
               click: () => {
                 setCocoSleepMode(!sleeping).catch((err) =>
                   log.warn(`[Tray] Could not change sleep mode: ${err}`),
                 );
-              },
-            },
-            { type: 'separator' },
-            {
-              label: 'Open Chat',
-              click: openPrimaryTrayAction,
-            },
-            {
-              label: 'Open History',
-              click: () => {
-                openHistory();
-              },
-            },
-            {
-              label: 'Settings…',
-              click: () => {
-                openChatSettings();
               },
             },
             ...updateMenuItems,

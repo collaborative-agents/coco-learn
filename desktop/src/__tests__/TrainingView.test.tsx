@@ -159,6 +159,43 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+it('preserves reflection drafts when Training becomes inactive and is reopened', async () => {
+  assessments = completedAssessments();
+  const { rerender } = render(<TrainingView />);
+  const task = await screen.findByRole('button', {
+    name: /Day 1 Practice task/,
+  });
+  await waitFor(() => expect(task).toBeEnabled());
+  fireEvent.click(task);
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
+  const dialog = screen.getByRole('dialog', {
+    name: 'Tell us about your practice',
+  });
+  within(dialog)
+    .getAllByRole('radiogroup')
+    .forEach((group) => {
+      fireEvent.click(within(group).getByRole('radio', { name: '4 — Agree' }));
+    });
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Next: written reflection' }),
+  );
+  const draft = within(dialog).getAllByRole('textbox')[0];
+  fireEvent.change(draft, {
+    target: { value: 'Keep my unfinished reflection.' },
+  });
+  rerender(<TrainingView visible={false} />);
+  rerender(<TrainingView visible />);
+  await waitFor(() =>
+    expect(
+      invoke.mock.calls.filter(([channel]) => channel === 'study-me'),
+    ).toHaveLength(2),
+  );
+  expect(draft).toHaveValue('Keep my unfinished reflection.');
+  expect(
+    screen.getByRole('dialog', { name: 'Tell us about your practice' }),
+  ).toBe(dialog);
+});
+
 it('retries instruction loading and closes the task with Escape', async () => {
   assessments = completedAssessments();
   const original = invoke.getMockImplementation()!;
@@ -208,7 +245,10 @@ it.each(['cancel', 'error'])(
     });
     await waitFor(() => expect(task).toBeEnabled());
     fireEvent.click(task);
-    fireEvent.click(screen.getByRole('button', { name: 'Submit task' }));
+    expect(
+      screen.queryByText(/When you’re ready, reflect on your practice/),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
     const dialog = screen.getByRole('dialog', {
       name: 'Tell us about your practice',
     });
@@ -328,7 +368,7 @@ it('opens completed practice tasks with saved reflections and a screenshot', asy
   ).toBeInTheDocument();
   expect(invoke).toHaveBeenCalledWith('study-task-submission', 1);
   expect(
-    screen.queryByRole('button', { name: 'Submit task' }),
+    screen.queryByRole('button', { name: 'Mark as finish' }),
   ).not.toBeInTheDocument();
 });
 
@@ -376,7 +416,7 @@ it('opens instructions and individual references without tutoring while locking 
     expect(invoke).toHaveBeenCalledWith('study-save-references', 1),
   );
   expect(invoke).not.toHaveBeenCalledWith('study-download', 1);
-  const submitTask = screen.getByRole('button', { name: 'Submit task' });
+  const submitTask = screen.getByRole('button', { name: 'Mark as finish' });
   await waitFor(() => expect(submitTask).toBeEnabled());
   fireEvent.click(submitTask);
   const reflection = await screen.findByRole('dialog', {
@@ -482,6 +522,13 @@ it('shows learning progress and the original animation beneath awards, independe
   );
   expect(within(progress).getByText('1/7')).toBeInTheDocument();
   expect(within(progress).getByText('Learning progress')).toBeInTheDocument();
+  const progressHeader = container.querySelector('.training-progress-header');
+  expect(progressHeader).toContainElement(
+    within(progress).getByText('Learning progress'),
+  );
+  expect(progressHeader).toContainElement(
+    container.querySelector('.training-progress-avatar'),
+  );
   expect(toggle.closest('.training-group-header')).not.toContainElement(
     screen.getByRole('progressbar'),
   );

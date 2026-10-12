@@ -15,7 +15,17 @@ jest.mock('../renderer/useStudyAccess', () => ({
 }));
 jest.mock('../renderer/components/TrainingView', () => ({
   __esModule: true,
-  default: () => <div>Training task content</div>,
+  default: ({
+    visible,
+    refreshKey,
+  }: {
+    visible: boolean;
+    refreshKey: number;
+  }) => (
+    <div data-active={visible} data-refresh={refreshKey}>
+      Training task content
+    </div>
+  ),
 }));
 
 const listeners = new Map<string, (payload?: unknown) => void>();
@@ -38,6 +48,30 @@ beforeEach(() => {
       }),
     },
   };
+});
+
+it('activates Training only when opened and refreshes repeated menu requests', async () => {
+  render(<SessionChatView />);
+  const training = screen.getByText('Training task content');
+  expect(training).toHaveAttribute('data-active', 'false');
+  expect(training).toHaveAttribute('data-refresh', '0');
+  await act(async () => {
+    listeners.get('open-training-panel')?.();
+  });
+  expect(training).toHaveAttribute('data-active', 'true');
+  expect(training).toHaveAttribute('data-refresh', '1');
+  await act(async () => {
+    listeners.get('open-training-panel')?.();
+  });
+  expect(training).toHaveAttribute('data-refresh', '2');
+  fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+  expect(training).toHaveAttribute('data-active', 'false');
+  fireEvent.click(screen.getByRole('button', { name: 'Training tasks' }));
+  expect(training).toHaveAttribute('data-active', 'true');
+  expect(training).toHaveAttribute('data-refresh', '3');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(training).toHaveAttribute('data-active', 'false');
+  await act(async () => {});
 });
 
 it('keeps training accessible while tutoring remains locked', async () => {

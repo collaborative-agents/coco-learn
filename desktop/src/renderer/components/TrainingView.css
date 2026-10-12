@@ -6,7 +6,7 @@
   height: 100%;
   overflow: auto;
   box-sizing: border-box;
-  padding: var(--coco-space-8);
+  padding: 20px 24px;
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
   font: var(--coco-text-body) / var(--coco-leading-body) var(--coco-font-family);
@@ -25,14 +25,14 @@
 .training-header p,
 .training-detail-meta {
   color: var(--coco-color-text-muted);
-  margin: 0 0 20px;
+  margin: 0 0 10px;
 }
 .training-header p:not(:last-child) {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .training-announcement {
-  margin: 16px 0 24px;
-  padding: 10px 14px;
+  margin: 8px 0;
+  padding: 8px 10px;
   border-radius: var(--coco-radius-control);
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-primary);
@@ -85,16 +85,13 @@
   margin: 0;
   padding: 0;
 }
-.training-todos > li + li {
-  border-top: 1px solid var(--coco-color-border);
-}
 .training-page .training-todo {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 16px 10px;
+  padding: 9px 10px;
   border: none;
   background: transparent;
 }
@@ -140,7 +137,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 16px 0;
+  margin: 8px 0;
 }
 .training-toolbar button[aria-pressed='true'] {
   background: var(--coco-color-accent-soft);
@@ -197,6 +194,6 @@
   }
   .training-page .training-todo {
     gap: 10px;
-    padding: 14px 4px;
+    padding: 9px 4px;
   }
 }

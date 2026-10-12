@@ -17,13 +17,18 @@ export default function MemorySettings({
   memoryFlash,
 }: Props) {
   return (
-    <section className="workspace-settings-section">
-      <div style={S.groupLabel}>Memory</div>
+    <section
+      className="workspace-settings-section"
+      aria-labelledby="memory-heading"
+    >
+      <h2 id="memory-heading" className="settings-heading">
+        Memory
+      </h2>
       <div style={S.helpText}>
-        Long-term notes Coco keeps about you — preferences, recurring tasks, and
-        what has worked before. Coco reads this every session; edit it freely.
+        Preferences and notes Coco uses in each conversation. Edit them anytime.
       </div>
       <textarea
+        aria-label="Memory"
         style={S.memoryArea}
         placeholder="e.g. Prefers concise answers. Works mostly in Google Docs and Slides. Comfortable with Claude; new to agents."
         value={memoryDraft}

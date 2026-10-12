@@ -108,16 +108,13 @@ export default function TrainingTaskDetail({
         <TrainingSubmissionView day={day.day} />
       ) : (
         <footer className="training-detail-footer">
-          <p>
-            When you’re ready, reflect on your practice and share a screenshot.
-          </p>
           <button
             className="training-primary"
             type="button"
             disabled={busy || saving}
             onClick={onReflect}
           >
-            Submit task
+            Mark as finish
           </button>
         </footer>
       )}

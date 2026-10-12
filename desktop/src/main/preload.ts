@@ -42,6 +42,7 @@ export type Channels =
   | 'post-assessment-submit-execution'
   | 'auth-quit-requested'
   | 'quit-from-auth'
+  | 'quit-from-avatar'
   | 'get-system-permissions'
   | 'open-system-permissions'
   | 'social-list-friendships'

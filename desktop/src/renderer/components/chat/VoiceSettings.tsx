@@ -1,5 +1,6 @@
 import type React from 'react';
 import { S } from './styles';
+import SettingsToggle from './SettingsToggle';
 
 interface Props {
   wakeWordSaving: boolean;
@@ -21,35 +22,19 @@ export default function VoiceSettings({
   cocoSleeping,
 }: Props) {
   return (
-    <section className="workspace-settings-section">
-      <div style={S.groupLabel}>Voice activation</div>
-      <label
-        htmlFor="workspace-voice-activation"
-        style={{
-          ...S.healthRow,
-          alignItems: 'center',
-          cursor: wakeWordSaving ? 'default' : 'pointer',
-          marginBottom: 7,
-        }}
-      >
-        <input
-          id="workspace-voice-activation"
-          type="checkbox"
-          checked={wakeWordEnabled}
-          disabled={wakeWordSaving}
-          onChange={(event) => updateWakeWordEnabled(event.target.checked)}
-        />
-        <span>
-          <span style={S.healthName}>Listen for Coco</span>
-          <span style={{ ...S.healthDetail, display: 'block' }}>
-            Detects “Coco”, “Hi Coco”, and “Hey Coco”.
-          </span>
-        </span>
-      </label>
-      <div style={S.helpText}>
-        Audio is analyzed continuously by a small local model and discarded.
-        Coco pauses listening while asleep and while recording a voice message.
-      </div>
+    <div>
+      <SettingsToggle
+        id="workspace-voice-activation"
+        title="Voice activation"
+        description="Say “Coco”, “Hi Coco”, or “Hey Coco” to start talking."
+        checked={wakeWordEnabled}
+        disabled={wakeWordSaving}
+        onChange={updateWakeWordEnabled}
+      />
+      <p className="settings-note">
+        Wake-word audio is processed locally and discarded. Listening pauses
+        while Coco sleeps or records a voice message.
+      </p>
       {wakeWordEnabled && (
         <div
           role="status"
@@ -73,6 +58,6 @@ export default function VoiceSettings({
                   : 'Listening locally.'}
         </div>
       )}
-    </section>
+    </div>
   );
 }

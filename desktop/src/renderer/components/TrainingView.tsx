@@ -1,3 +1,4 @@
+/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import { useCallback, useEffect, useState } from 'react';
 import type { StudyState } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
@@ -10,30 +11,29 @@ import TrainingTodo from './training/TrainingTodo';
 import TrainingTaskGroup from './training/TrainingTaskGroup';
 import TrainingProgress from './training/TrainingProgress';
 import { api } from './training/training-api';
+import useTrainingState from './training/useTrainingState';
 import './TrainingView.css';
 
-export default function TrainingView() {
-  const [state, setState] = useState<StudyState | null>(null);
-  const [error, setError] = useState('');
+export default function TrainingView({
+  visible = true,
+  refreshKey = 0,
+}: {
+  visible?: boolean;
+  refreshKey?: number;
+}) {
+  const { state, studentMode, error, setError, refresh } = useTrainingState(
+    visible,
+    refreshKey,
+  );
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
-  const [studentMode, setStudentMode] = useState(false);
   const [active, setActive] = useState<'pre' | 'post' | number | null>(null);
   const [reflectionDayNumber, setReflectionDayNumber] = useState<number | null>(
     null,
   );
   const handlePreAssessmentCompletion = useCallback((complete: boolean) => {
     setPreAssessmentComplete(complete);
-  }, []);
-  const refresh = useCallback(async () => {
-    const [data, mode] = (await Promise.all([
-      api('study-me'),
-      api('study-student-mode'),
-    ])) as [StudyState, { enabled?: boolean }];
-    setState(data);
-    setStudentMode(mode?.enabled === true);
-    setError('');
   }, []);
   const act = useCallback(
     async (action: () => Promise<unknown>) => {
@@ -49,16 +49,8 @@ export default function TrainingView() {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, setError],
   );
-  useEffect(() => {
-    const update = () => {
-      refresh().catch((reason) => setError(String(reason)));
-    };
-    update();
-    const timer = setInterval(update, 30000);
-    return () => clearInterval(timer);
-  }, [refresh]);
   const studentExperience = state?.role === 'participant' || studentMode;
   const adminMode =
     (state?.role === 'admin' || state?.role === 'super_admin') && !studentMode;

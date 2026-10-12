@@ -30,12 +30,17 @@ export default function HealthSettings({
   healthError,
 }: Props) {
   return (
-    <section className="workspace-settings-section">
-      <div style={S.groupLabel}>Coco Health</div>
+    <section
+      className="workspace-settings-section"
+      aria-labelledby="health-heading"
+    >
+      <h2 id="health-heading" className="settings-heading">
+        Coco Health
+      </h2>
       <div style={S.helpText}>
         {cocoSleeping
           ? 'Coco is asleep. Service health checks are paused until Coco wakes.'
-          : "Checks Coco's local services and sends short real requests to the configured models. The sensing test includes a small test image."}
+          : 'Checks services and models with short test requests, including a test image.'}
       </div>
       {systemPermissionHealth.missing.length > 0 && (
         <div role="alert" style={S.healthList}>

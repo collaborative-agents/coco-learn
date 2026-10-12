@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import FriendsView, { FriendsButton } from './FriendsView';
 import TrainingView from './TrainingView';
 import useStudyAccess from '../useStudyAccess';
 import 'katex/dist/katex.min.css';
@@ -8,35 +7,20 @@ import {
   type ActiveVoiceRecorder,
   type VoiceRecorderStatus,
 } from '../voice-recorder';
-import {
-  parseAiTool,
-  encodeCustomChatbot,
-  encodeCustomAgent,
-} from './observation-types';
 import type { LLMCallMetrics, TutorToolCall } from './observation-types';
-import {
-  DEFAULT_SUPPORTED_MODES,
-  defaultMode,
-  normalizeSupportedModes,
-} from '../../shared/agent-modes';
+import { defaultMode, normalizeSupportedModes } from '../../shared/agent-modes';
 import type { AgentModeId } from '../../shared/agent-modes';
 import type { ChatSuggestion } from '../../shared/chat-suggestion';
 import { suggestionMessage } from './chat/MessageContent';
 import { copyableMessageText, makeMessageId } from './chat/message-format';
-import {
-  blankSensingModel,
-  blankTutorModel,
-} from './chat/constants';
 import type {
   ChatMessage,
   SavedConversation,
-  TutorModelOption,
   ServiceHealthView,
   SleepingServiceHealthView,
   SystemPermissionTarget,
   SystemPermissionHealth,
   WakeWordSettingsInfo,
-  ConnectionTestStatus,
 } from './chat/types';
 import { S } from './chat/styles';
 import ChatHeader from './chat/ChatHeader';
@@ -45,10 +29,10 @@ import ChatComposer from './chat/ChatComposer';
 import DesktopWorkspace from './chat/DesktopWorkspace';
 import ConversationSidebar from './chat/ConversationSidebar';
 import HealthSettings from './chat/HealthSettings';
-import VoiceSettings from './chat/VoiceSettings';
-import ModelSettings from './chat/ModelSettings';
-import ProfileSettings from './chat/ProfileSettings';
+import PreferencesSettings from './chat/PreferencesSettings';
+import AccountSettings from './chat/AccountSettings';
 import MemorySettings from './chat/MemorySettings';
+
 export { ToolCallCard } from './chat/ToolCallCard';
 
 export default function SessionChatView() {
@@ -71,6 +55,7 @@ export default function SessionChatView() {
   const [activePage, setActivePage] = useState<'chat' | 'tasks' | 'settings'>(
     'chat',
   );
+  const [trainingRefreshKey, setTrainingRefreshKey] = useState(0);
   const changeExpanded = (value: boolean) => {
     setExpanded(value);
     window.electron?.ipcRenderer.sendMessage('toggle-float-window', {
@@ -91,7 +76,6 @@ export default function SessionChatView() {
   const [contentZoomFactor, setContentZoomFactor] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showFriends, setShowFriends] = useState(false);
   const studyAccess = useStudyAccess();
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(false);
@@ -106,19 +90,7 @@ export default function SessionChatView() {
     aiTools: [],
     hideAvatar: false,
   });
-  const [tutorModels, setTutorModels] = useState<TutorModelOption[]>([]);
   const [currentTutorModelId, setCurrentTutorModelId] = useState('');
-  const [sensingModel, setSensingModel] =
-    useState<TutorModelOption>(blankSensingModel);
-  const [defaultTutorModelId, setDefaultTutorModelId] = useState('');
-  const [modelCredentials, setModelCredentials] = useState<
-    Record<string, string>
-  >({});
-  const [modelConfigLoading, setModelConfigLoading] = useState(true);
-  const [modelLoadError, setModelLoadError] = useState('');
-  const [modelSaveError, setModelSaveError] = useState('');
-  const [modelSavedFlash, setModelSavedFlash] = useState(false);
-  const [routerManaged, setRouterManaged] = useState(false);
   const [serviceHealth, setServiceHealth] = useState<ServiceHealthView | null>(
     null,
   );
@@ -137,15 +109,6 @@ export default function SessionChatView() {
   const [wakeWordDetail, setWakeWordDetail] = useState('');
   const [wakeWordCaptureError, setWakeWordCaptureError] = useState('');
   const [wakeWordSaving, setWakeWordSaving] = useState(false);
-  const [connectionTests, setConnectionTests] = useState<
-    Record<string, ConnectionTestStatus>
-  >({});
-  // Editable draft of the settings, synced from the loaded profile.
-  const [editScenario, setEditScenario] = useState('everyday_support');
-  const [supportedModes, setSupportedModes] = useState<AgentModeId[]>(
-    DEFAULT_SUPPORTED_MODES,
-  );
-  const [editTools, setEditTools] = useState<string[]>([]);
   const [editHideAvatar, setEditHideAvatar] = useState(false);
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on(
@@ -162,15 +125,6 @@ export default function SessionChatView() {
   }, []);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [avatarSaveError, setAvatarSaveError] = useState('');
-  const [savedFlash, setSavedFlash] = useState(false);
-  // "+ Custom" tool forms (mirrors the onboarding toolkit step).
-  const [showAddChatbot, setShowAddChatbot] = useState(false);
-  const [showAddAgent, setShowAddAgent] = useState(false);
-  const [cbName, setCbName] = useState('');
-  const [cbUrl, setCbUrl] = useState('');
-  const [cbDesc, setCbDesc] = useState('');
-  const [agName, setAgName] = useState('');
-  const [agDesc, setAgDesc] = useState('');
   // Long-term agent memory (loaded from / saved to the tutor server).
   const [memoryDraft, setMemoryDraft] = useState('');
   const [memoryLoaded, setMemoryLoaded] = useState('');
@@ -744,64 +698,23 @@ export default function SessionChatView() {
     };
   }, []);
 
-  // Load the user's onboarding profile (mode + AI tools) for the Settings panel.
+  // Keep chat context and the selected model in sync with the saved profile.
   useEffect(() => {
     const ipc = window.electron?.ipcRenderer;
-    if (!ipc) return;
-    ipc
-      .invoke('get-llm-router-status')
-      .then((status: any) => setRouterManaged(status?.configured === true))
-      .catch(() => {});
+    if (!ipc) return undefined;
     ipc
       .invoke('get-model-configuration')
       .then((config: any) => {
-        if (
-          !config?.sensing ||
-          !Array.isArray(config.tutors) ||
-          config.tutors.length === 0
-        ) {
-          const tutor = blankTutorModel();
-          setTutorModels([tutor]);
-          setDefaultTutorModelId(tutor.id);
-          setModelLoadError(
-            'No saved model configuration was found. Configure the sensing and tutor models below.',
-          );
-          return;
-        }
-        setTutorModels(
-          config.tutors.map((model: TutorModelOption) => ({
-            ...model,
-            model: model.model.replace(/^(?:hosted_vllm|tinker)\//, ''),
-          })),
-        );
-        setSensingModel({
-          ...config.sensing,
-          model: String(config.sensing.model).replace(
-            /^(?:hosted_vllm|tinker)\//,
-            '',
-          ),
-        });
-        setDefaultTutorModelId(config.defaultTutorId || '');
         setCurrentTutorModelId(
-          (current) => current || config.defaultTutorId || '',
+          (current) => current || config?.defaultTutorId || '',
         );
+        return undefined;
       })
-      .catch((error: unknown) => {
-        const tutor = blankTutorModel();
-        setTutorModels([tutor]);
-        setDefaultTutorModelId(tutor.id);
-        setModelLoadError(
-          `Could not load saved model settings: ${
-            error instanceof Error ? error.message : String(error)
-          }. You can configure them below.`,
-        );
-      })
-      .finally(() => setModelConfigLoading(false));
+      .catch(() => {});
 
     Promise.all([ipc.invoke('get-profile'), ipc.invoke('get-supported-modes')])
       .then(([p, configuredModes]: any[]) => {
         const nextModes = normalizeSupportedModes(configuredModes);
-        setSupportedModes(nextModes);
         const savedScenario =
           typeof p?.tutorScenario === 'string' ? p.tutorScenario : '';
         const nextScenario = nextModes.includes(savedScenario as AgentModeId)
@@ -813,147 +726,12 @@ export default function SessionChatView() {
           hideAvatar: p?.hideAvatar === true,
         };
         setProfile(next);
-        setEditScenario(next.scenario);
-        setEditTools(next.aiTools);
         setEditHideAvatar(next.hideAvatar);
         return undefined;
       })
       .catch(() => {});
     return undefined;
   }, []);
-
-  const testSettingsModelConnection = async (
-    role: 'sensing' | 'tutor',
-    model: TutorModelOption,
-  ) => {
-    const key = role === 'sensing' ? 'sensing' : model.id;
-    if (!model.model.trim()) {
-      setConnectionTests((current) => ({
-        ...current,
-        [key]: { state: 'error', message: 'Enter a model ID first.' },
-      }));
-      return;
-    }
-    setConnectionTests((current) => ({
-      ...current,
-      [key]: { state: 'testing', message: '' },
-    }));
-    try {
-      const result = (await window.electron?.ipcRenderer.invoke(
-        'test-model-connection',
-        {
-          role,
-          connection: {
-            id: model.id,
-            label: model.label || (role === 'sensing' ? 'Sensing' : 'Tutor'),
-            provider: model.provider,
-            model: model.model,
-            baseUrl: model.baseUrl,
-          },
-          apiKey: modelCredentials[`${role}:${model.provider}`] ?? '',
-        },
-      )) as { success?: boolean; message?: string; error?: string } | undefined;
-      setConnectionTests((current) => ({
-        ...current,
-        [key]: result?.success
-          ? { state: 'success', message: result.message || 'Connected.' }
-          : { state: 'error', message: result?.error || 'Connection failed.' },
-      }));
-    } catch (error) {
-      setConnectionTests((current) => ({
-        ...current,
-        [key]: {
-          state: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        },
-      }));
-    }
-  };
-
-  const saveModelSettings = async () => {
-    if (modelConfigLoading) return;
-    setModelSaveError('');
-    if (!sensingModel.model.trim()) {
-      setModelSaveError('Enter a vision-capable sensing model.');
-      return;
-    }
-    if (
-      tutorModels.length === 0 ||
-      tutorModels.some((model) => !model.label.trim() || !model.model.trim())
-    ) {
-      setModelSaveError(
-        'Add at least one tutor with a display name and model ID.',
-      );
-      return;
-    }
-    const result = await window.electron?.ipcRenderer.invoke(
-      'save-model-configuration',
-      {
-        sensing: sensingModel,
-        tutors: tutorModels,
-        defaultTutorId: defaultTutorModelId,
-        credentials: modelCredentials,
-      },
-    );
-    if (!(result as { success?: boolean })?.success) {
-      setModelSaveError(
-        (result as { error?: string })?.error ||
-          'Could not save model settings.',
-      );
-      return;
-    }
-    setModelCredentials({});
-    setModelLoadError('');
-    setModelSavedFlash(true);
-    setTimeout(() => setModelSavedFlash(false), 1500);
-  };
-
-  const toggleEditTool = (id: string) =>
-    setEditTools((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
-    );
-
-  const addCustomChatbot = () => {
-    if (!cbName.trim() || !cbUrl.trim()) return;
-    setEditTools((prev) => [
-      ...prev,
-      encodeCustomChatbot(cbName, cbUrl, cbDesc),
-    ]);
-    setCbName('');
-    setCbUrl('');
-    setCbDesc('');
-    setShowAddChatbot(false);
-  };
-  const addCustomAgent = () => {
-    if (!agName.trim()) return;
-    setEditTools((prev) => [...prev, encodeCustomAgent(agName, agDesc)]);
-    setAgName('');
-    setAgDesc('');
-    setShowAddAgent(false);
-  };
-  // Display label for a custom-tool id (parseAiTool resolves custom chatbots;
-  // custom agents carry no launch target, so decode the name from the id).
-  const customLabel = (id: string) =>
-    parseAiTool(id)?.label ??
-    id.replace(/^custom_(chatbot|agent):/, '').split('|')[0] ??
-    id;
-
-  const saveSettings = async () => {
-    const res = await window.electron?.ipcRenderer.invoke('update-settings', {
-      scenario: editScenario,
-      aiTools: editTools,
-      hideAvatar: editHideAvatar,
-    });
-    if ((res as { success?: boolean })?.success) {
-      setProfile({
-        scenario: editScenario,
-        aiTools: editTools,
-        hideAvatar: editHideAvatar,
-      });
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1500);
-    }
-  };
 
   const updateAvatarVisibility = async (hideAvatar: boolean) => {
     if (avatarSaving) return;
@@ -982,11 +760,6 @@ export default function SessionChatView() {
       setAvatarSaving(false);
     }
   };
-
-  const dirty =
-    editScenario !== profile.scenario ||
-    editTools.length !== profile.aiTools.length ||
-    editTools.some((t) => !profile.aiTools.includes(t));
 
   // Load the agent memory whenever the Settings panel is opened.
   useEffect(() => {
@@ -1130,6 +903,7 @@ export default function SessionChatView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'open-training-panel',
       () => {
+        setTrainingRefreshKey((value) => value + 1);
         setShowSettings(false);
         setShowHistory(false);
         setActivePage('tasks');
@@ -1538,7 +1312,7 @@ export default function SessionChatView() {
         : modelUnavailable
           ? 'Model issue'
           : modelConfigurationIssue
-            ? 'Configure models'
+            ? 'Needs attention'
             : serviceHealth
               ? modelsVerified
                 ? 'Connected'
@@ -1582,7 +1356,7 @@ export default function SessionChatView() {
               .filter(Boolean)
               .join(' ')
           : modelConfigurationIssue
-            ? 'A saved model configuration is required. Click to open Settings.'
+            ? 'Model configuration is missing. Open Coco Health for details.'
             : serviceHealth
               ? 'Local services and configured models passed their connection tests.'
               : 'Checking local service health.';
@@ -1606,9 +1380,9 @@ export default function SessionChatView() {
       onHistoryOpen={() => void openHistory()}
       onHistoryClose={() => setShowHistory(false)}
       onNavigate={(page) => {
+        if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
         setActivePage(page);
         setShowSettings(page === 'settings');
-        if (page !== 'settings') setShowFriends(false);
         if (page !== 'chat') {
           setShowHistory(false);
           changeExpanded(true);
@@ -1641,11 +1415,15 @@ export default function SessionChatView() {
       details={
         <>
           <div className="workspace-training" hidden={showSettings}>
-            <TrainingView />
+            <TrainingView
+              visible={activePage === 'tasks' && !showSettings}
+              refreshKey={trainingRefreshKey}
+            />
           </div>
           {showSettings && (
             <div className="workspace-settings">
               <h1>Settings</h1>
+              <AccountSettings />
               <HealthSettings
                 {...{
                   cocoSleeping,
@@ -1659,8 +1437,12 @@ export default function SessionChatView() {
                   healthError,
                 }}
               />
-              <VoiceSettings
+              <PreferencesSettings
                 {...{
+                  editHideAvatar,
+                  avatarSaving,
+                  updateAvatarVisibility,
+                  avatarSaveError,
                   wakeWordSaving,
                   wakeWordEnabled,
                   updateWakeWordEnabled,
@@ -1668,59 +1450,6 @@ export default function SessionChatView() {
                   wakeWordStatus,
                   wakeWordDetail,
                   cocoSleeping,
-                }}
-              />
-              <ModelSettings
-                {...{
-                  routerManaged,
-                  modelConfigLoading,
-                  modelLoadError,
-                  sensingModel,
-                  setSensingModel,
-                  modelCredentials,
-                  setModelCredentials,
-                  connectionTests,
-                  testSettingsModelConnection,
-                  tutorModels,
-                  setTutorModels,
-                  defaultTutorModelId,
-                  setDefaultTutorModelId,
-                  saveModelSettings,
-                  modelSavedFlash,
-                  modelSaveError,
-                }}
-              />
-              <ProfileSettings
-                {...{
-                  editHideAvatar,
-                  avatarSaving,
-                  updateAvatarVisibility,
-                  avatarSaveError,
-                  supportedModes,
-                  editScenario,
-                  setEditScenario,
-                  editTools,
-                  toggleEditTool,
-                  customLabel,
-                  setShowAddChatbot,
-                  showAddChatbot,
-                  cbName,
-                  setCbName,
-                  cbUrl,
-                  setCbUrl,
-                  cbDesc,
-                  setCbDesc,
-                  addCustomChatbot,
-                  setShowAddAgent,
-                  showAddAgent,
-                  agName,
-                  setAgName,
-                  agDesc,
-                  setAgDesc,
-                  addCustomAgent,
-                  dirty,
-                  saveSettings,
-                  savedFlash,
                 }}
               />
               <MemorySettings
@@ -1732,18 +1461,6 @@ export default function SessionChatView() {
                   memoryFlash,
                 }}
               />
-              <section className="workspace-settings-section">
-                <FriendsButton
-                  active={showFriends}
-                  style={S.iconBtn}
-                  activeStyle={S.iconBtnActive}
-                  onClick={() => setShowFriends(true)}
-                />{' '}
-                <span>Messages with participants</span>
-              </section>
-              {showFriends && (
-                <FriendsView onClose={() => setShowFriends(false)} />
-              )}
             </div>
           )}
         </>

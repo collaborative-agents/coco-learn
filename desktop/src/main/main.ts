@@ -35,6 +35,7 @@ import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
 import { avatarRecoveryItems } from './avatar-menu';
+import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
 import type { ChatSuggestion } from '../shared/chat-suggestion';
@@ -629,29 +630,8 @@ const createAuthWindow = () => {
     authWindow.focus();
     return;
   }
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const w = 476;
-  // Tall enough for sign-up with a validation error, plus the card shadow.
-  const h = 760;
   authWindow = new BrowserWindow({
-    show: false,
-    x: Math.round((sw - w) / 2),
-    y: Math.round((sh - h) / 2),
-    width: w,
-    height: h,
-    transparent: true,
-    frame: false,
-    // The card draws its own CSS shadow; the native one would outline the
-    // full transparent window bounds.
-    hasShadow: false,
-    // Setup must never cover macOS consent dialogs or System Settings.
-    alwaysOnTop: false,
-    resizable: false,
-    // On macOS skipTaskbar changes the activation policy for the entire app,
-    // which makes Coco disappear from the Dock even while it is still running.
-    // macOS already groups every window under a single Dock icon, so only use
-    // this option on platforms with per-window taskbar entries.
-    skipTaskbar: process.platform !== 'darwin',
+    ...setupWindowOptions(screen.getPrimaryDisplay().workArea),
     webPreferences: { preload: preloadPath() },
   });
   authWindow.loadURL(`${resolveHtmlPath('index.html')}?view=auth`);
@@ -689,11 +669,17 @@ const readSystemPermissionHealth = () => {
 };
 
 ipcMain.handle('get-system-permissions', (event) => {
-  if (event.sender !== chatWindow?.webContents) return { missing: [] };
+  if (
+    event.sender !== chatWindow?.webContents &&
+    event.sender !== onboardingWindow?.webContents
+  ) return { missing: [] };
   return readSystemPermissionHealth();
 });
 ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
-  if (event.sender !== chatWindow?.webContents) return { success: false };
+  if (
+    event.sender !== chatWindow?.webContents &&
+    event.sender !== onboardingWindow?.webContents
+  ) return { success: false };
   const requestedTarget =
     target === 'accessibility' ||
     target === 'input-monitoring' ||
@@ -714,27 +700,8 @@ ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
 // and the normal avatar + webapp windows are created.
 
 const createOnboardingWindow = (modelsOnly = false) => {
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  // Leave room around the 420px card for its CSS shadow.
-  const w = 476;
-  const h = 740;
-  const x = Math.round((sw - w) / 2);
-  const y = Math.round((sh - h) / 2);
-
   onboardingWindow = new BrowserWindow({
-    show: false,
-    x,
-    y,
-    width: w,
-    height: h,
-    transparent: true,
-    frame: false,
-    // The card draws its own CSS shadow; the native one would outline the
-    // full transparent window bounds.
-    hasShadow: false,
-    alwaysOnTop: false,
-    resizable: false,
-    skipTaskbar: process.platform !== 'darwin',
+    ...setupWindowOptions(screen.getPrimaryDisplay().workArea),
     webPreferences: { preload: preloadPath() },
   });
 
@@ -1496,13 +1463,11 @@ function openHistory(): void {
 
 function applyAvatarVisibility(hidden: boolean): void {
   hideAvatarMode = hidden;
+  createTray();
   if (hidden) {
     avatarWindow?.hide();
-    createTray();
     return;
   }
-  tray?.destroy();
-  tray = null;
   createAvatarWindow();
   avatarWindow?.show();
 }

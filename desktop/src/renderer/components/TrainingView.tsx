@@ -393,7 +393,7 @@ export default function TrainingView() {
   );
   return (
     <main className="training-page">
-      <header className="training-header">
+      <header className="training-header" role="presentation">
         <span className="training-eyebrow">COCO LEARN</span>
         <h1>Your seven-day practice</h1>
         <p>

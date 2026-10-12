@@ -1,7 +1,7 @@
 .training-evaluation-downloads {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--coco-space-3);
 }
 
 .training-card.post-assessment {
@@ -12,7 +12,7 @@
 .training-card.post-assessment--locked {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--coco-space-4);
   padding: 22px;
   border-style: dashed;
   background: var(--coco-color-surface-subtle);
@@ -39,8 +39,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 24px;
+  gap: var(--coco-space-6);
+  padding: var(--coco-space-6);
   background:
     radial-gradient(
       circle at 90% 10%,
@@ -66,16 +66,16 @@
 }
 
 .post-assessment-section {
-  padding: 24px;
+  padding: var(--coco-space-6);
 }
 
 .post-assessment-submitted {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 16px;
+  padding: var(--coco-space-4);
   border: 1px solid rgba(var(--coco-color-success-rgb), 0.3);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: rgba(var(--coco-color-success-rgb), 0.07);
   color: var(--coco-color-success);
   font-weight: 700;
@@ -83,36 +83,36 @@
 
 .post-assessment-submitted span {
   color: var(--coco-color-text-muted);
-  font-size: 12px;
+  font-size: var(--coco-text-caption);
   font-weight: 500;
 }
 
 .post-assessment-scale-questions {
   display: grid;
-  gap: 16px;
+  gap: var(--coco-space-4);
 }
 
 .post-assessment-scale-question {
   min-width: 0;
   padding: 17px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
 }
 
 .post-assessment-scale-question legend {
   max-width: calc(100% - 14px);
   padding: 0 7px;
   color: var(--coco-color-text);
-  font-size: 14px;
+  font-size: var(--coco-text-control);
   font-weight: 750;
-  line-height: 1.45;
+  line-height: var(--coco-leading-body);
 }
 
 .post-assessment-rating-scale {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
-  margin-top: 8px;
+  margin-top: var(--coco-space-2);
 }
 
 .post-assessment-rating-scale label {
@@ -123,7 +123,7 @@
   gap: 7px;
   padding: 9px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--coco-radius-control);
   color: var(--coco-color-text-secondary);
   cursor: pointer;
 }
@@ -143,14 +143,14 @@
   grid-column: 1 / 3;
   overflow-wrap: anywhere;
   color: var(--coco-color-text-muted);
-  font-size: 10px;
+  font-size: var(--coco-text-caption);
   line-height: 1.25;
 }
 
 .post-assessment-mission {
   padding: 20px;
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 14px;
+  border-radius: var(--coco-radius-card);
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-text-secondary);
 }
@@ -162,13 +162,13 @@
 }
 
 .post-assessment-mission-title > span {
-  font-size: 26px;
+  font-size: var(--coco-text-title);
 }
 
 .post-assessment-mission p,
 .post-assessment-mission ol,
 .post-assessment-mission ul {
-  margin: 12px 0 0;
+  margin: var(--coco-space-3) 0 0;
 }
 
 .post-assessment-mission ol,
@@ -181,9 +181,9 @@
 }
 
 .post-assessment-win-conditions {
-  margin-top: 16px;
+  margin-top: var(--coco-space-4);
   padding: 15px;
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
 }
 
@@ -191,7 +191,7 @@
   margin-top: 18px;
   padding: 18px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 14px;
+  border-radius: var(--coco-radius-card);
 }
 
 .post-assessment-toolkit > div:first-child p {
@@ -200,7 +200,7 @@
 
 .post-assessment-toolkit-grid {
   display: grid;
-  gap: 8px;
+  gap: var(--coco-space-2);
 }
 
 .post-assessment-toolkit-file {
@@ -208,15 +208,15 @@
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
-  padding: 10px 12px;
+  padding: 10px var(--coco-space-3);
   border: 1px solid var(--coco-color-border);
-  border-radius: 9px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface-subtle);
 }
 
 .post-assessment-toolkit-file > span {
   color: var(--coco-color-primary);
-  font-size: 21px;
+  font-size: var(--coco-text-section);
   text-align: center;
 }
 
@@ -233,11 +233,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--coco-space-4);
   margin-top: 18px;
-  padding: 16px;
+  padding: var(--coco-space-4);
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-accent-soft);
 }
 
@@ -250,7 +250,7 @@
 .post-assessment-start span,
 .post-assessment-final-submit span {
   color: var(--coco-color-text-muted);
-  font-size: 12px;
+  font-size: var(--coco-text-control);
 }
 
 .post-assessment-submission {
@@ -262,10 +262,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 12px;
+  margin-top: var(--coco-space-3);
   padding: 13px 15px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 11px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
 }
 
@@ -284,7 +284,7 @@
 .post-assessment-recorder span,
 .post-assessment-recorder small {
   color: var(--coco-color-text-muted);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
 }
 
 .post-assessment-recorder-indicator {
@@ -316,7 +316,7 @@
 .post-assessment-consent-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--coco-space-2);
 }
 
 .post-assessment-modal-backdrop {
@@ -326,7 +326,7 @@
   display: grid;
   overflow: auto;
   place-items: center;
-  padding: 24px;
+  padding: var(--coco-space-6);
   background: rgba(10, 20, 16, 0.58);
 }
 
@@ -336,17 +336,17 @@
   max-height: calc(100vh - 48px);
   overflow: auto;
   box-sizing: border-box;
-  padding: 24px;
+  padding: var(--coco-space-6);
   border: 1px solid var(--coco-color-border);
-  border-radius: 16px;
+  border-radius: var(--coco-radius-card);
   background: var(--coco-color-surface);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
 }
 
 .post-assessment-consent h4,
 .post-assessment-capture-review h4 {
-  margin: 4px 0 8px;
-  font-size: 20px;
+  margin: var(--coco-space-1) 0 var(--coco-space-2);
+  font-size: var(--coco-text-section);
 }
 
 .post-assessment-consent ul {
@@ -375,14 +375,14 @@
 .post-assessment-capture-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--coco-space-3);
   margin-top: 18px;
 }
 
 .post-assessment-capture-grid article {
   overflow: hidden;
   border: 1px solid var(--coco-color-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface-subtle);
 }
 
@@ -391,7 +391,7 @@
   width: 100%;
   aspect-ratio: 16 / 10;
   object-fit: contain;
-  background: #111827;
+  background: var(--coco-color-text);
 }
 
 .post-assessment-capture-grid article > div {
@@ -402,7 +402,7 @@
 
 .post-assessment-capture-grid span {
   color: var(--coco-color-text-muted);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
 }
 
 .post-assessment-capture-grid button {
@@ -413,8 +413,8 @@
 .post-assessment-upload-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--coco-space-3);
+  margin-top: var(--coco-space-4);
 }
 
 .post-assessment-upload-grid > div {
@@ -424,18 +424,18 @@
   min-width: 0;
   padding: 15px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 11px;
+  border-radius: var(--coco-radius-control);
 }
 
 .post-assessment-upload-grid span,
 .post-assessment-upload-grid small {
   color: var(--coco-color-text-muted);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
 }
 
 .post-assessment-upload-grid button {
   justify-self: start;
-  margin: 4px 0;
+  margin: var(--coco-space-1) 0;
 }
 
 .post-assessment-questionnaire {
@@ -448,8 +448,8 @@
   display: grid;
   gap: 7px;
   color: var(--coco-color-text);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 
 .post-assessment-questionnaire textarea {
@@ -458,7 +458,7 @@
   resize: vertical;
   padding: 11px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 9px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
   font: inherit;
@@ -473,12 +473,12 @@
 .post-assessment-questionnaire fieldset {
   padding: 15px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
 }
 
 .post-assessment-questionnaire legend {
   padding: 0 6px;
-  font-size: 13px;
+  font-size: var(--coco-text-secondary);
   font-weight: 700;
 }
 
@@ -491,10 +491,10 @@
 .post-assessment-ownership-scale label {
   display: grid;
   justify-items: center;
-  gap: 4px;
+  gap: var(--coco-space-1);
   padding: 7px 2px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 7px;
+  border-radius: var(--coco-radius-control);
   cursor: pointer;
 }
 
@@ -509,7 +509,7 @@
   justify-content: space-between;
   margin-top: 6px;
   color: var(--coco-color-text-muted);
-  font-size: 10px;
+  font-size: var(--coco-text-caption);
 }
 
 .training-page .post-assessment-final-submit button {
@@ -548,10 +548,10 @@
 .training-page {
   height: 100vh;
   overflow: auto;
-  padding: 32px;
+  padding: var(--coco-space-8);
   background: var(--coco-color-surface-subtle);
   color: var(--coco-color-text);
-  font: 15px/1.5 var(--coco-font-family);
+  font: var(--coco-text-body) / var(--coco-leading-body) var(--coco-font-family);
 }
 
 .training-header {
@@ -568,7 +568,7 @@
   grid-template-columns: 52px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  margin: 20px 0 16px;
+  margin: 20px 0 var(--coco-space-4);
   padding: 15px 17px;
   overflow: hidden;
   border: 1px solid rgba(var(--coco-color-primary-rgb), 0.24);
@@ -590,7 +590,7 @@
   height: 48px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 14px;
+  border-radius: var(--coco-radius-card);
   background: rgba(255, 255, 255, 0.13);
   color: #fbbf24;
 }
@@ -606,32 +606,32 @@
 }
 
 .training-awards-banner h2 {
-  margin: 0 0 4px;
+  margin: 0 0 var(--coco-space-1);
   color: var(--coco-color-surface);
-  font-size: 15px;
+  font-size: var(--coco-text-body);
 }
 
 .training-awards-banner p {
   color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--coco-text-body);
+  line-height: var(--coco-leading-body);
 }
 
 .training-page h1 {
-  font-size: 28px;
+  font-size: var(--coco-text-title);
   line-height: 1.2;
-  margin: 6px 0 8px;
+  margin: 6px 0 var(--coco-space-2);
 }
 
 .training-page h2 {
-  font-size: 19px;
+  font-size: var(--coco-text-section);
   line-height: 1.3;
-  margin: 8px 0 6px;
+  margin: var(--coco-space-2) 0 6px;
 }
 
 .training-eyebrow {
   color: var(--coco-color-primary);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -642,13 +642,13 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin: 16px 0;
+  margin: var(--coco-space-4) 0;
 }
 
 .training-toolbar {
-  padding: 8px;
+  padding: var(--coco-space-2);
   border: 1px solid var(--coco-color-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
 }
 
@@ -656,13 +656,13 @@
   margin-right: auto;
   padding: 0 6px;
   color: var(--coco-color-text-muted);
-  font-size: 13px;
+  font-size: var(--coco-text-secondary);
 }
 
 .training-journey {
   position: relative;
   margin: 18px 0 22px;
-  padding: 22px 24px 20px;
+  padding: 22px var(--coco-space-6) 20px;
   overflow: hidden;
   border: 1px solid var(--coco-color-accent-border);
   border-radius: var(--coco-radius-card);
@@ -684,14 +684,14 @@
 }
 
 .training-journey-header h2 {
-  margin: 4px 0 3px;
+  margin: var(--coco-space-1) 0 3px;
   color: var(--coco-color-text);
-  font-size: 21px;
+  font-size: var(--coco-text-section);
 }
 
 .training-journey-header p {
   color: var(--coco-color-text-muted);
-  font-size: 13px;
+  font-size: var(--coco-text-body);
 }
 
 .training-rewards {
@@ -701,7 +701,7 @@
   align-items: center;
   padding: 9px 11px;
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 11px;
+  border-radius: var(--coco-radius-control);
   background: rgba(255, 255, 255, 0.78);
   color: var(--coco-color-primary);
   box-shadow: 0 3px 10px rgba(var(--coco-color-primary-rgb), 0.07);
@@ -714,13 +714,13 @@
 }
 
 .training-rewards strong {
-  font-size: 15px;
+  font-size: var(--coco-text-body);
   line-height: 1.15;
 }
 
 .training-rewards small {
   color: var(--coco-color-text-muted);
-  font-size: 10.5px;
+  font-size: var(--coco-text-caption);
   line-height: 1.2;
 }
 
@@ -837,7 +837,7 @@
   margin-top: 7px;
   overflow: hidden;
   color: inherit;
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -845,7 +845,7 @@
 
 .training-level small {
   margin-top: 2px;
-  font-size: 9.5px;
+  font-size: var(--coco-text-caption);
 }
 
 .training-level--done {
@@ -889,7 +889,7 @@
 .training-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  gap: var(--coco-space-4);
 }
 
 .training-card {
@@ -898,7 +898,7 @@
   border-radius: var(--coco-radius-card);
   background: var(--coco-color-surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
-  margin: 16px 0;
+  margin: var(--coco-space-4) 0;
 }
 
 .training-grid .training-card {
@@ -914,8 +914,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 24px;
+  gap: var(--coco-space-6);
+  padding: var(--coco-space-6);
   background: linear-gradient(
     135deg,
     var(--coco-color-accent-soft),
@@ -934,7 +934,7 @@
 .pre-assessment-score p {
   margin: 0;
   color: var(--coco-color-text-muted);
-  line-height: 1.5;
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-progress {
@@ -942,33 +942,33 @@
   min-width: 88px;
   padding: 14px;
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 14px;
+  border-radius: var(--coco-radius-card);
   background: var(--coco-color-surface);
   text-align: center;
 }
 
 .pre-assessment-progress strong {
   color: var(--coco-color-primary);
-  font-size: 24px;
+  font-size: var(--coco-text-title);
 }
 
 .pre-assessment-progress span {
   color: var(--coco-color-text-muted);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
 }
 
 .pre-assessment-tabs {
   display: flex;
-  gap: 8px;
-  padding: 16px 24px 0;
+  gap: var(--coco-space-2);
+  padding: var(--coco-space-4) var(--coco-space-6) 0;
   border-top: 1px solid var(--coco-color-border);
 }
 
 .training-page .pre-assessment-tabs button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--coco-space-2);
   border-color: transparent;
   background: var(--coco-color-surface-muted);
   color: var(--coco-color-text-secondary);
@@ -982,7 +982,7 @@
   border-radius: 50%;
   background: var(--coco-color-surface);
   color: var(--coco-color-text-secondary);
-  font-size: 11px;
+  font-size: var(--coco-text-control);
 }
 
 .training-page .pre-assessment-tabs button[aria-selected='true'] > span {
@@ -996,14 +996,14 @@
 }
 
 .pre-assessment-challenge {
-  padding: 24px;
+  padding: var(--coco-space-6);
 }
 
 .pre-assessment-challenge-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--coco-space-4);
   padding-bottom: 18px;
 }
 
@@ -1011,7 +1011,7 @@
   flex: none;
   padding: 5px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
   font-weight: 800;
 }
 
@@ -1027,13 +1027,13 @@
 
 .pre-assessment-questions {
   display: grid;
-  gap: 16px;
+  gap: var(--coco-space-4);
 }
 
 .pre-assessment-question {
   padding: 18px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
 }
 
 .pre-assessment-question legend {
@@ -1043,9 +1043,9 @@
   gap: 9px;
   padding: 0 6px;
   color: var(--coco-color-text);
-  font-size: 14px;
+  font-size: var(--coco-text-control);
   font-weight: 750;
-  line-height: 1.45;
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-question legend > span {
@@ -1057,26 +1057,26 @@
   border-radius: 50%;
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-primary);
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
 }
 
 .pre-assessment-options {
   display: grid;
   gap: 7px;
-  margin-top: 8px;
+  margin-top: var(--coco-space-2);
 }
 
 .pre-assessment-options label {
   display: grid;
   grid-template-columns: auto 20px 1fr;
   align-items: center;
-  gap: 8px;
+  gap: var(--coco-space-2);
   padding: 9px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--coco-radius-control);
   color: var(--coco-color-text-secondary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--coco-text-secondary);
   line-height: 1.4;
 }
 
@@ -1108,13 +1108,13 @@
 
 .pre-assessment-answer-note {
   margin: 10px 0 0;
-  padding: 10px 12px;
+  padding: 10px var(--coco-space-3);
   border-left: 3px solid var(--coco-color-success);
   border-radius: 0 8px 8px 0;
   background: rgba(var(--coco-color-success-rgb), 0.06);
   color: var(--coco-color-text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--coco-text-caption);
+  line-height: var(--coco-leading-body);
 }
 
 .training-page .pre-assessment-submit {
@@ -1135,9 +1135,9 @@
   align-items: center;
   gap: 14px;
   margin: 0 0 20px;
-  padding: 16px;
+  padding: var(--coco-space-4);
   border: 1px solid;
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
 }
 
 .pre-assessment-score--strong {
@@ -1157,17 +1157,17 @@
 
 .pre-assessment-prompt {
   margin-bottom: 20px;
-  padding: 16px;
+  padding: var(--coco-space-4);
   border: 1px solid var(--coco-color-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface-muted);
   color: var(--coco-color-text-secondary);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-prompt > p {
-  margin: 6px 0 12px;
+  margin: 6px 0 var(--coco-space-3);
 }
 
 .pre-assessment-prompt blockquote {
@@ -1178,23 +1178,23 @@
 
 .pre-assessment-writing-question {
   display: grid;
-  gap: 8px;
+  gap: var(--coco-space-2);
   color: var(--coco-color-text);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-writing-question textarea {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
-  padding: 12px;
+  padding: var(--coco-space-3);
   border: 1px solid var(--coco-color-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
   font: inherit;
-  line-height: 1.5;
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-writing-question textarea:focus {
@@ -1210,9 +1210,9 @@
 
 .pre-assessment-model-answer {
   margin-top: 20px;
-  padding: 16px;
+  padding: var(--coco-space-4);
   border: 1px solid rgba(var(--coco-color-success-rgb), 0.28);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: rgba(var(--coco-color-success-rgb), 0.06);
 }
 
@@ -1220,15 +1220,15 @@
   margin: 10px 0 0;
   padding-left: 20px;
   color: var(--coco-color-text-secondary);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 
 .pre-assessment-complete-summary {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 24px;
+  padding: 18px var(--coco-space-6);
   list-style: none;
   cursor: pointer;
   transition: background 150ms ease;
@@ -1268,7 +1268,7 @@
 .pre-assessment-complete-title h2 {
   margin: 2px 0 0;
   color: var(--coco-color-text-muted);
-  font-size: 17px;
+  font-size: var(--coco-text-lead);
 }
 
 .pre-assessment-complete-title s {
@@ -1277,7 +1277,7 @@
 
 .pre-assessment-complete-label {
   color: var(--coco-color-text-muted);
-  font-size: 12px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
 }
 
@@ -1293,9 +1293,9 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 14px 16px;
+  padding: 14px var(--coco-space-4);
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-primary);
   font-weight: 700;
@@ -1346,7 +1346,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--coco-space-2);
 }
 
 .training-task-status {
@@ -1354,7 +1354,7 @@
   border-radius: 999px;
   background: var(--coco-color-surface-muted);
   color: var(--coco-color-text-muted);
-  font-size: 10px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
 }
 
@@ -1376,7 +1376,8 @@
   background: var(--coco-color-surface);
   color: var(--coco-color-primary);
   cursor: pointer;
-  font: inherit;
+  font: var(--coco-text-control) / var(--coco-leading-control)
+    var(--coco-font-family);
   font-weight: 700;
   transition:
     background 150ms ease,
@@ -1421,7 +1422,8 @@
   border: 1px solid var(--coco-color-border);
   border-radius: var(--coco-radius-control);
   margin: 6px;
-  font: inherit;
+  font: var(--coco-text-control) / var(--coco-leading-control)
+    var(--coco-font-family);
   max-width: 100%;
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
@@ -1433,7 +1435,7 @@
   align-items: flex-start;
   gap: 11px;
   margin-top: 18px;
-  padding: 12px;
+  padding: var(--coco-space-3);
   border: 1px solid var(--coco-color-accent-border);
   border-radius: var(--coco-radius-control);
   background: var(--coco-color-accent-soft);
@@ -1447,21 +1449,21 @@
 
 .training-proof-copy strong {
   color: var(--coco-color-text);
-  font-size: 13px;
+  font-size: var(--coco-text-secondary);
   font-weight: 700;
 }
 
 .training-proof-copy span {
   color: var(--coco-color-text-muted);
-  font-size: 11.5px;
-  line-height: 1.45;
+  font-size: var(--coco-text-caption);
+  line-height: var(--coco-leading-body);
 }
 
 .training-page .training-proof-action {
   border-color: var(--coco-color-primary);
   background: var(--coco-color-primary);
   color: var(--coco-color-surface);
-  font-size: 12px;
+  font-size: var(--coco-text-control);
 }
 
 .training-page .training-proof-action:hover:not(:disabled) {
@@ -1483,7 +1485,7 @@
   z-index: 1000;
   inset: 0;
   display: grid;
-  padding: 24px;
+  padding: var(--coco-space-6);
   overflow: hidden;
   background: rgba(15, 23, 42, 0.55);
   place-items: center;
@@ -1495,7 +1497,7 @@
   max-height: calc(100vh - 48px);
   box-sizing: border-box;
   gap: 18px;
-  padding: 24px;
+  padding: var(--coco-space-6);
   overflow: auto;
   border: 1px solid var(--coco-color-border);
   border-radius: var(--coco-radius-card);
@@ -1513,12 +1515,12 @@
 .training-reflection-header h3 {
   margin: 3px 0 2px;
   color: var(--coco-color-text);
-  font-size: 17px;
+  font-size: var(--coco-text-lead);
 }
 
 .training-reflection-header p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--coco-text-body);
 }
 
 .training-page .training-reflection-close {
@@ -1539,7 +1541,7 @@
 .training-reflection-ratings {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--coco-space-3);
 }
 
 .training-reflection-ratings fieldset {
@@ -1547,7 +1549,7 @@
   margin: 0;
   padding: 13px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
 }
 
@@ -1555,9 +1557,9 @@
   width: 100%;
   padding: 0;
   color: var(--coco-color-text-secondary);
-  font-size: 12px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
-  line-height: 1.45;
+  line-height: var(--coco-leading-body);
 }
 
 .training-rating-scale {
@@ -1569,11 +1571,11 @@
 
 .training-rating-scale label {
   display: grid;
-  gap: 4px;
+  gap: var(--coco-space-1);
   place-items: center;
   color: var(--coco-color-text-secondary);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--coco-text-caption);
   font-weight: 700;
 }
 
@@ -1589,7 +1591,7 @@
   justify-content: space-between;
   margin-top: 5px;
   color: var(--coco-color-text-muted);
-  font-size: 9.5px;
+  font-size: var(--coco-text-caption);
 }
 
 .training-reflection-writing {
@@ -1601,8 +1603,8 @@
   display: grid;
   gap: 7px;
   color: var(--coco-color-text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--coco-text-caption);
+  line-height: var(--coco-leading-body);
 }
 
 .training-reflection-writing textarea {
@@ -1611,11 +1613,11 @@
   resize: vertical;
   padding: 10px;
   border: 1px solid var(--coco-color-border);
-  border-radius: 9px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
   font: inherit;
-  line-height: 1.5;
+  line-height: var(--coco-leading-body);
 }
 
 .training-reflection-writing textarea:focus {
@@ -1640,18 +1642,18 @@
 
 .training-reflection-submit strong {
   color: var(--coco-color-text);
-  font-size: 13px;
+  font-size: var(--coco-text-control);
 }
 
 .training-reflection-submit span {
   color: var(--coco-color-text-muted);
-  font-size: 11.5px;
+  font-size: var(--coco-text-control);
 }
 
 .training-info {
   padding: 15px;
   border: 1px solid var(--coco-color-accent-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-primary);
 }
@@ -1659,10 +1661,10 @@
 .training-error {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--coco-space-3);
   padding: 15px;
   border: 1px solid var(--coco-color-danger-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: var(--coco-color-danger-soft);
   color: var(--coco-color-danger);
 }
@@ -1674,10 +1676,10 @@
 }
 
 .training-notice {
-  margin-top: 16px;
-  padding: 10px 12px;
+  margin-top: var(--coco-space-4);
+  padding: 10px var(--coco-space-3);
   border: 1px solid rgba(var(--coco-color-success-rgb), 0.22);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
   background: rgba(var(--coco-color-success-rgb), 0.08);
   color: var(--coco-color-success);
   font-weight: 700;
@@ -1685,20 +1687,20 @@
 
 .training-table {
   overflow: auto;
-  margin-top: 16px;
+  margin-top: var(--coco-space-4);
   border: 1px solid var(--coco-color-border);
-  border-radius: 10px;
+  border-radius: var(--coco-radius-control);
 }
 
 .training-page table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--coco-text-secondary);
 }
 
 .training-page th,
 .training-page td {
-  padding: 12px;
+  padding: var(--coco-space-3);
   border-bottom: 1px solid var(--coco-color-border);
   text-align: left;
   min-width: 100px;
@@ -1757,7 +1759,7 @@
   }
 
   .training-journey {
-    padding: 18px 14px 16px;
+    padding: 18px 14px var(--coco-space-4);
   }
 
   .training-journey-header {
@@ -1780,7 +1782,7 @@
   }
 
   .training-level strong {
-    font-size: 9.5px;
+    font-size: var(--coco-text-caption);
   }
 
   .training-level small {

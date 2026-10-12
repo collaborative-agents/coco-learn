@@ -388,7 +388,7 @@ const flushHotkeyCaptures = () => {
 // and lets us defer startup until the user has chosen their models.
 let observerStarted = false;
 // isFloatMode: chat panel is in narrow side-panel mode (vs. expanded width).
-let isFloatMode = true;
+let isFloatMode = false;
 // Set true once the app is genuinely quitting so window 'close' handlers stop
 // intercepting (they otherwise hide-instead-of-close, which would block quit).
 let isQuitting = false;
@@ -509,14 +509,11 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   }
   return { available, enabled: available && adminStudentMode };
 });
-let trainingWindow: BrowserWindow | null = null;
 const openTraining = () => {
   if (!isAuthenticated) return;
-  if (trainingWindow && !trainingWindow.isDestroyed()) { trainingWindow.show(); trainingWindow.focus(); return; }
-  trainingWindow = new BrowserWindow({ width: 1000, height: 780, minWidth: 380, minHeight: 500,
-    title: 'Coco Learn — Training', webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false } });
-  trainingWindow.loadURL(`${resolveHtmlPath('index.html')}?view=training`);
-  trainingWindow.on('closed', () => { trainingWindow = null; });
+  isFloatMode = false;
+  showChatPanel();
+  sendToChat('open-training-panel', null);
 };
 ipcMain.on('open-training', openTraining);
 
@@ -806,8 +803,8 @@ const createAvatarWindow = () => {
 
 // The chat renderer mounts its IPC listeners shortly after the page loads.
 const CHAT_RENDERER_READY_DELAY_MS = 300;
-const CHAT_PANEL_W = 420;
-const CHAT_EXPANDED_W = 820;
+const CHAT_PANEL_W = 520;
+const CHAT_EXPANDED_W = 1160;
 const CHAT_CONTENT_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 let chatContentZoomFactor = 1;
 
@@ -820,11 +817,13 @@ const createChatWindow = () => {
 
   chatWindow = new BrowserWindow({
     show: false,
-    width: CHAT_PANEL_W,
-    height: 700,
+    width: isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W,
+    height: 780,
+    minWidth: 420,
+    minHeight: 500,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: true,
     skipTaskbar: process.platform !== 'darwin',
     alwaysOnTop: true,
     webPreferences: { preload: preloadPath(), backgroundThrottling: false },
@@ -832,6 +831,16 @@ const createChatWindow = () => {
 
   configureFullscreenCompanionWindow(chatWindow);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
+
+  const reportLayout = () => {
+    if (!chatWindow || chatWindow.isDestroyed()) return;
+    isFloatMode = chatWindow.getBounds().width < 780;
+    chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
+  };
+  chatWindow.on('resize', reportLayout);
+  chatWindow.webContents.on('did-finish-load', () => {
+    setTimeout(reportLayout, CHAT_RENDERER_READY_DELAY_MS);
+  });
 
   // A recreated chat window starts blank. Give it the current conversation so
   // it doesn't show an empty, task-less chat mid-session.
@@ -1037,8 +1046,8 @@ const showChatPanel = () => {
 
   const disp = screen.getDisplayMatching(chatWindow.getBounds());
   const { x: dx, y: dy, width: sw, height: sh } = disp.workArea;
-  const w = isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W;
-  const h = Math.min(760, sh - 32);
+  const w = Math.min(isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W, sw - 32);
+  const h = Math.min(780, sh - 32);
 
   chatWindow.setSize(w, h);
   chatWindow.setPosition(dx + sw - w - 16, dy + Math.floor((sh - h) / 2));
@@ -1239,16 +1248,9 @@ const openChatSettings = () => {
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
+  isFloatMode = false;
   showChatPanel();
-  const revealSettings = () => {
-    if (!chatWindow || chatWindow.isDestroyed()) return;
-    chatWindow.webContents.send('open-chat-settings');
-  };
-  if (chatWindow.webContents.isLoadingMainFrame()) {
-    chatWindow.webContents.once('did-finish-load', revealSettings);
-  } else {
-    revealSettings();
-  }
+  sendToChat('open-chat-settings', null);
 };
 
 // The compact menu lives in the avatar renderer, while Settings lives in the
@@ -1488,7 +1490,6 @@ const openChatForSession = (
   seed?: ChatSeed,
 ) => {
   const alreadyLoaded = chatWindow && !chatWindow.isDestroyed();
-  isFloatMode = true;
   showChatPanel();
   if (!chatWindow) return;
 
@@ -2934,9 +2935,11 @@ ipcMain.on(
 // The renderer sends this when the user clicks the expand / collapse button to
 // switch the chat between the narrow side panel and a wider reading width.
 ipcMain.removeAllListeners('toggle-float-window');
-ipcMain.on('toggle-float-window', () => {
+ipcMain.on('toggle-float-window', (_event, options?: { expanded?: boolean }) => {
   if (!chatWindow || chatWindow.isDestroyed()) return;
-  isFloatMode = !isFloatMode; // isFloatMode === narrow side-panel
+  isFloatMode = typeof options?.expanded === 'boolean'
+    ? !options.expanded
+    : !isFloatMode;
   showChatPanel();
   chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
 });

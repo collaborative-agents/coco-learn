@@ -1,9 +1,9 @@
 /* Shared onboarding controls. Individual model/tool styles live alongside their steps. */
 .ob-btn {
   border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 11px 24px;
-  font-size: 15px;
+  border-radius: var(--coco-radius-control);
+  padding: 11px var(--coco-space-6);
+  font-size: var(--coco-text-control);
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
@@ -19,17 +19,17 @@
 }
 .ob-btn-ghost {
   background: transparent;
-  color: #667389;
+  color: var(--coco-color-text-muted);
 }
 .ob-btn-ghost:hover {
   background: #e9edf3;
 }
 .ob-btn-secondary {
-  background: #f8f9fb;
-  border-color: #dce1e9;
-  color: #36445a;
-  padding: 8px 12px;
-  font-size: 13px;
+  background: var(--coco-color-surface-subtle);
+  border-color: var(--coco-color-border);
+  color: var(--coco-color-text-secondary);
+  padding: var(--coco-space-2) var(--coco-space-3);
+  font-size: var(--coco-text-control);
 }
 .ob-btn:disabled {
   opacity: 0.45;
@@ -50,7 +50,7 @@
   background: var(--coco-color-primary);
 }
 .ob-welcome {
-  padding: 32px;
+  padding: var(--coco-space-8);
   text-align: center;
 }
 .ob-welcome > img {
@@ -60,38 +60,38 @@
   margin-bottom: 20px;
 }
 .ob-welcome h2 {
-  font-size: 23px;
-  margin-bottom: 12px;
+  font-size: var(--coco-text-section);
+  margin-bottom: var(--coco-space-3);
 }
 .ob-welcome p {
-  color: #647084;
-  font-size: 15px;
-  line-height: 1.55;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-body);
+  line-height: var(--coco-leading-body);
 }
 .ob-welcome-features {
   margin-top: 26px;
   display: grid;
   gap: 20px;
   text-align: left;
-  border-top: 1px solid #edf0f4;
-  padding-top: 24px;
+  border-top: 1px solid var(--coco-color-border);
+  padding-top: var(--coco-space-6);
 }
 .ob-welcome-features strong,
 .ob-welcome-features span {
   display: block;
 }
 .ob-welcome-features strong {
-  font-size: 15px;
-  margin-bottom: 4px;
+  font-size: var(--coco-text-body);
+  margin-bottom: var(--coco-space-1);
 }
 .ob-welcome-features span {
-  color: #788496;
-  font-size: 14px;
-  line-height: 1.5;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-body);
+  line-height: var(--coco-leading-body);
 }
 .ob-name label {
   display: block;
-  font-size: 16px;
+  font-size: var(--coco-text-body);
   font-weight: 700;
   margin-bottom: 14px;
 }
@@ -99,26 +99,26 @@
   display: block;
   margin-top: 14px;
   width: 100%;
-  border: 1px solid #cfd7e3;
-  border-radius: 10px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: var(--coco-radius-control);
   padding: 13px 15px;
-  font-size: 18px;
-  color: #172033;
+  font-size: var(--coco-text-body);
+  color: var(--coco-color-text);
 }
 .ob-name p {
-  font-size: 14px;
-  line-height: 1.5;
-  color: #788496;
+  font-size: var(--coco-text-body);
+  line-height: var(--coco-leading-body);
+  color: var(--coco-color-text-muted);
   margin-top: 14px;
 }
 .ob-setting-row {
   display: flex;
-  gap: 16px;
+  gap: var(--coco-space-4);
   align-items: flex-start;
-  padding: 26px 24px;
+  padding: 26px var(--coco-space-6);
 }
 .ob-setting-row + .ob-setting-row {
-  border-top: 1px solid #e4e8ee;
+  border-top: 1px solid var(--coco-color-border);
 }
 .ob-setting-icon {
   width: 26px;
@@ -135,7 +135,7 @@
 .ob-setting-copy h2,
 .ob-setting-copy strong {
   display: block;
-  font-size: 18px;
+  font-size: var(--coco-text-control);
   line-height: 1.3;
   font-weight: 700;
   margin: 0 0 7px;
@@ -143,9 +143,9 @@
 .ob-setting-copy p,
 .ob-setting-copy > span {
   display: block;
-  font-size: 15px;
-  color: #758093;
-  line-height: 1.45;
+  font-size: var(--coco-text-body);
+  color: var(--coco-color-text-muted);
+  line-height: var(--coco-leading-body);
 }
 .ob-permission-action {
   flex-shrink: 0;
@@ -155,24 +155,24 @@
 .ob-permission-status {
   display: block;
   color: #8d6231;
-  font-size: 11px;
+  font-size: var(--coco-text-caption);
   margin-top: 7px;
 }
 .ob-granted {
-  color: #21824c;
+  color: var(--coco-color-success);
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--coco-text-control);
   white-space: nowrap;
 }
 .ob-privacy {
-  margin: 24px 8px 0;
-  color: #718095;
-  font-size: 13px;
-  line-height: 1.5;
+  margin: var(--coco-space-6) var(--coco-space-2) 0;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 .ob-privacy summary {
-  color: #36445a;
-  font-size: 15px;
+  color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-body);
   font-weight: 700;
   cursor: pointer;
 }
@@ -193,7 +193,7 @@
   height: 29px;
   padding: 3px;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--coco-radius-card);
   background: #dce1e8;
   cursor: pointer;
 }
@@ -217,22 +217,22 @@
   cursor: default;
 }
 .ob-voice-detail {
-  padding: 24px;
-  background: #fafbfd;
-  border-top: 1px solid #e4e8ee;
+  padding: var(--coco-space-6);
+  background: var(--coco-color-surface-subtle);
+  border-top: 1px solid var(--coco-color-border);
 }
 .ob-voice-detail h3 {
-  font-size: 15px;
-  margin-bottom: 8px;
+  font-size: var(--coco-text-body);
+  margin-bottom: var(--coco-space-2);
 }
 .ob-voice-detail p {
-  font-size: 14px;
-  color: #788496;
-  line-height: 1.55;
-  margin-top: 8px;
+  font-size: var(--coco-text-body);
+  color: var(--coco-color-text-muted);
+  line-height: var(--coco-leading-body);
+  margin-top: var(--coco-space-2);
 }
 .ob-avatar-options {
-  padding: 8px;
+  padding: var(--coco-space-2);
 }
 .ob-avatar-option {
   display: flex;
@@ -240,12 +240,12 @@
   align-items: flex-start;
   padding: 26px 20px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--coco-radius-control);
   cursor: pointer;
 }
 .ob-avatar-option.selected {
-  background: #edf3fc;
-  border-color: #dbe6f7;
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
 }
 .ob-avatar-option input {
   width: 19px;
@@ -259,11 +259,11 @@
   width: 124px;
   height: 100px;
   background: #e5ecf7;
-  border-radius: 7px;
+  border-radius: var(--coco-radius-control);
   position: relative;
   overflow: hidden;
   flex-shrink: 0;
-  margin-top: 4px;
+  margin-top: var(--coco-space-1);
 }
 .ob-preview-menubar {
   height: 16px;
@@ -291,7 +291,7 @@
   width: 73px;
   height: 48px;
   border-radius: 4px;
-  background: #fff;
+  background: var(--coco-color-surface);
   padding: 5px;
   display: flex;
   gap: 3px;
@@ -315,7 +315,7 @@
   .ob-setting-row {
     flex-wrap: wrap;
     padding: 22px 18px;
-    gap: 12px;
+    gap: var(--coco-space-3);
   }
   .ob-permission-action {
     margin-left: 38px;
@@ -330,7 +330,7 @@
     width: 88px;
   }
   .ob-avatar-option {
-    padding: 22px 12px;
+    padding: 22px var(--coco-space-3);
     gap: 10px;
   }
 }

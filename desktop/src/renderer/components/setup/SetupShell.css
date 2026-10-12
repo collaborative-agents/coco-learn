@@ -2,7 +2,7 @@
   height: 100%;
   overflow-y: auto;
   color: var(--coco-color-text);
-  background-color: #f8f9fb;
+  background-color: var(--coco-color-surface-subtle);
   background-image:
     linear-gradient(#e9edf240 1px, transparent 1px),
     linear-gradient(90deg, #e9edf240 1px, transparent 1px);
@@ -23,9 +23,9 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 15px;
+  font-size: var(--coco-text-body);
   font-weight: 700;
-  color: #52647a;
+  color: var(--coco-color-text-muted);
 }
 .coco-setup-brand > span {
   width: 9px;
@@ -37,16 +37,16 @@
   width: 32px;
   height: 32px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--coco-radius-control);
   background: transparent;
-  color: #758195;
+  color: var(--coco-color-text-muted);
   font-size: 24px;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 .coco-setup-close:hover {
   background: #e7ebf1;
-  color: #172033;
+  color: var(--coco-color-text);
 }
 
 .coco-setup-layout {
@@ -54,7 +54,7 @@
   width: 100%;
   max-width: 1240px;
   margin: auto;
-  padding: 32px 48px;
+  padding: var(--coco-space-8) 48px;
   display: grid;
   grid-template-columns: minmax(250px, 0.8fr) minmax(360px, 1.2fr);
   gap: 56px;
@@ -66,8 +66,8 @@
 }
 .coco-setup-eyebrow {
   margin-bottom: 18px;
-  color: #64748b;
-  font-size: 13px;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-secondary);
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -80,7 +80,7 @@
 
 .coco-setup-intro h1 {
   min-width: 0;
-  font-size: clamp(28px, 3.1vw, 38px);
+  font-size: clamp(var(--coco-text-title), 3.1vw, var(--coco-text-display));
   line-height: 1.16;
   letter-spacing: -0.025em;
   font-weight: 700;
@@ -88,13 +88,13 @@
 }
 .coco-setup-description {
   margin-top: 18px;
-  color: #647084;
-  font-size: 17px;
-  line-height: 1.55;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-lead);
+  line-height: var(--coco-leading-body);
 }
 .coco-setup-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--coco-space-3);
   flex-wrap: wrap;
   margin-top: 30px;
 }
@@ -102,9 +102,9 @@
   min-width: 0;
 }
 .coco-setup-panel {
-  background: #fff;
-  border: 1px solid #dfe4eb;
-  border-radius: 18px;
+  background: var(--coco-color-surface);
+  border: 1px solid var(--coco-color-border);
+  border-radius: var(--coco-radius-card);
   box-shadow: 0 12px 40px #1720330a;
   overflow: hidden;
 }
@@ -116,24 +116,24 @@
   align-items: center;
   justify-content: center;
   gap: 18px;
-  padding: 0 24px 28px;
-  color: #8490a1;
-  font-size: 12px;
+  padding: 0 var(--coco-space-6) 28px;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-caption);
 }
 .coco-setup-note {
-  margin: 16px 12px 0;
-  color: #788496;
-  font-size: 13px;
-  line-height: 1.5;
+  margin: var(--coco-space-4) var(--coco-space-3) 0;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-secondary);
+  line-height: var(--coco-leading-body);
 }
 .coco-setup-error {
   margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 9px;
-  color: #a83232;
-  background: #fff1f1;
-  font-size: 14px;
-  line-height: 1.45;
+  padding: var(--coco-space-3) 14px;
+  border-radius: var(--coco-radius-control);
+  color: var(--coco-color-danger);
+  background: var(--coco-color-danger-soft);
+  font-size: var(--coco-text-control);
+  line-height: var(--coco-leading-body);
 }
 .coco-setup-shell button:focus-visible,
 .coco-setup-shell input:focus-visible,
@@ -146,7 +146,7 @@
 @media (max-width: 850px) {
   .coco-setup-layout {
     gap: 28px;
-    padding: 24px 28px;
+    padding: var(--coco-space-6) 28px;
     grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
   }
 }

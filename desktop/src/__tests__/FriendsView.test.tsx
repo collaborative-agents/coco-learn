@@ -79,7 +79,7 @@ describe('Human chat', () => {
   it('uses the upstream cards and composer, with no unsupported controls', async () => {
     render(<FriendsView onClose={() => {}} />);
     const friend = await screen.findByRole('button', { name: /bob/ });
-    expect(friend).toHaveStyle({ borderRadius: '10px' });
+    expect(friend.style.borderRadius).toBe('var(--coco-radius-control)');
     fireEvent.click(friend);
     await screen.findByText('Hi Alice');
     expect(screen.queryByText('Ask their Coco')).not.toBeInTheDocument();

@@ -1179,7 +1179,7 @@ function PetView() {
               <PetMenuIcon name="hide" />
               <span>{hidingAvatar ? 'Hiding…' : 'Hide'}</span>
             </button>
-            {hideError && <div role="alert" style={{ padding: '4px 10px', fontSize: 11 }}>{hideError}</div>}
+            {hideError && <div role="alert" style={{ padding: '4px 10px', fontSize: 'var(--coco-text-secondary)' }}>{hideError}</div>}
             <button
               type="button"
               role="menuitem"

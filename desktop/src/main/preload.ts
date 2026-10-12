@@ -69,6 +69,7 @@ export type Channels =
   | 'authentication-ui-complete'
   | 'toggle-float-window'
   | 'float-window-state'
+  | 'open-training-panel'
   | 'get-chat-content-zoom-factor'
   | 'chat-content-zoom-factor'
   | 'open-chat-settings'

@@ -1,3 +1,4 @@
+/* eslint-disable react/require-default-props -- React 19 uses default function parameters. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SET_A_QUESTIONS,
@@ -28,7 +29,6 @@ function ScoreCard({ result }: { result: PreAssessmentResult }) {
         {strong ? '★' : '✦'}
       </span>
       <div>
-        <span className="training-eyebrow">CHALLENGE COMPLETE</span>
         <h3>
           {result.score} / {result.maxScore}
         </h3>
@@ -65,15 +65,14 @@ function SetAChallenge({
     >
       <div className="pre-assessment-challenge-header">
         <div>
-          <span className="training-eyebrow">CHALLENGE 1</span>
           <h3>Conceptual Understanding</h3>
           <p>Choose the one best answer for each question.</p>
         </div>
-        <span
-          className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-        >
-          {complete ? '✓ Complete' : 'Ready'}
-        </span>
+        {complete && (
+          <span className="pre-assessment-status pre-assessment-status--done">
+            ✓ Complete
+          </span>
+        )}
       </div>
 
       {complete && result && <ScoreCard result={result} />}
@@ -91,7 +90,10 @@ function SetAChallenge({
               </legend>
               <div className="pre-assessment-options">
                 {question.options.map((option) => {
-                  const selected = answers[String(question.id)] === option.id;
+                  const selected =
+                    (result
+                      ? (result.answers as SetAAnswers)[String(question.id)]
+                      : answers[String(question.id)]) === option.id;
                   const correct =
                     complete && option.id === question.correctAnswer;
                   const incorrect = complete && selected && !correct;
@@ -172,18 +174,17 @@ function SetEChallenge({
     >
       <div className="pre-assessment-challenge-header">
         <div>
-          <span className="training-eyebrow">CHALLENGE 2</span>
           <h3>Anti-Blind-Acceptance</h3>
           <p>
             Review the AI output and explain what you would verify before using
             it.
           </p>
         </div>
-        <span
-          className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-        >
-          {complete ? '✓ Complete' : 'Ready'}
-        </span>
+        {complete && (
+          <span className="pre-assessment-status pre-assessment-status--done">
+            ✓ Complete
+          </span>
+        )}
       </div>
 
       <div className="pre-assessment-prompt">
@@ -209,7 +210,11 @@ function SetEChallenge({
             </strong>
             <textarea
               id={`set-e-${question.id}`}
-              value={answers[question.id]}
+              value={
+                result
+                  ? (result.answers as SetEAnswers)[question.id]
+                  : answers[question.id]
+              }
               disabled={complete || busy}
               rows={question.id === 'e1' ? 7 : 5}
               onChange={(event) =>
@@ -225,9 +230,7 @@ function SetEChallenge({
 
       {complete && (
         <div className="pre-assessment-model-answer">
-          <span className="training-eyebrow">
-            WHAT A STRONG ANSWER INCLUDES
-          </span>
+          <h4>What a strong answer includes</h4>
           <ul>
             {SET_E_MODEL_ANSWER.map((item) => (
               <li key={item}>{item}</li>
@@ -331,65 +334,39 @@ export default function PreAssessmentPanel({
   return (
     <section
       className={`training-card pre-assessment${state?.complete ? ' pre-assessment--complete' : ''}`}
-      aria-labelledby="pre-assessment-title"
+      aria-label="Starting assessment"
     >
-      {state?.complete ? (
-        <details className="pre-assessment-complete-details">
-          <summary className="pre-assessment-complete-summary">
-            <span className="pre-assessment-complete-icon" aria-hidden>
-              ✓
-            </span>
-            <span className="pre-assessment-complete-title">
-              <span className="training-eyebrow">BEFORE CAMP</span>
-              <h2 id="pre-assessment-title">
-                <s>Complete both pre-assessment challenges</s>
-              </h2>
-            </span>
-            <span className="pre-assessment-complete-label">Completed</span>
-          </summary>
-          <div className="pre-assessment-complete-content">
-            {error && (
-              <p className="training-error" role="alert">
-                {error}
-              </p>
-            )}
-            {challengeContent}
-          </div>
-        </details>
-      ) : (
-        <>
-          <div className="pre-assessment-intro">
-            <div>
-              <span className="training-eyebrow">BEFORE CAMP</span>
-              <h2 id="pre-assessment-title">
-                Complete both pre-assessment challenges
-              </h2>
-              <p>
-                {required
-                  ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after both challenges are complete.'
-                  : 'This is the participant pre-assessment experience. Admin accounts can preview and complete both challenges without restricting administration tools.'}
-              </p>
-            </div>
-            <div
-              className="pre-assessment-progress"
-              role="progressbar"
-              aria-label="Pre-assessment progress"
-              aria-valuemin={0}
-              aria-valuemax={2}
-              aria-valuenow={completedCount}
-            >
-              <strong>{completedCount}/2</strong>
-              <span>complete</span>
-            </div>
-          </div>
-          {error && (
-            <p className="training-error" role="alert">
-              {error}
+      {!state?.complete && (
+        <div className="pre-assessment-intro">
+          <div>
+            <h2 id="pre-assessment-title">
+              Complete both pre-assessment challenges
+            </h2>
+            <p>
+              {required
+                ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after both challenges are complete.'
+                : 'This is the participant pre-assessment experience. Admin accounts can preview and complete both challenges.'}
             </p>
-          )}
-          {challengeContent}
-        </>
+          </div>
+          <div
+            className="pre-assessment-progress"
+            role="progressbar"
+            aria-label="Pre-assessment progress"
+            aria-valuemin={0}
+            aria-valuemax={2}
+            aria-valuenow={completedCount}
+          >
+            <strong>{completedCount}/2</strong>
+            <span>complete</span>
+          </div>
+        </div>
       )}
+      {error && (
+        <p className="training-error" role="alert">
+          {error}
+        </p>
+      )}
+      {challengeContent}
     </section>
   );
 }

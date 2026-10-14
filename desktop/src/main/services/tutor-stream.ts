@@ -1,5 +1,6 @@
 export interface TutorStreamEvent {
   type:
+    | 'agent_activity'
     | 'tool_call_started'
     | 'tool_call_completed'
     | 'transcription'
@@ -7,11 +8,7 @@ export interface TutorStreamEvent {
     | 'done'
     | 'error';
   [key: string]: unknown;
-  four_d_dimension?:
-    | 'delegation'
-    | 'description'
-    | 'discernment'
-    | 'diligence';
+  four_d_dimension?: 'delegation' | 'description' | 'discernment' | 'diligence';
   teaching_depth?: 'introduce' | 'reinforce' | 'deepen' | 'not_applicable';
 }
 

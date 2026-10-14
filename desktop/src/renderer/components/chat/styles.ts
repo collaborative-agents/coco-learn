@@ -51,7 +51,6 @@ export const S: Record<string, React.CSSProperties> = {
   historyItemTitle: { display: 'block', color: 'var(--coco-color-text-secondary)', fontSize: 'var(--coco-text-secondary)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   historyItemMeta: { display: 'block', color: 'var(--coco-color-text-subtle)', fontSize: 'var(--coco-text-caption)', marginTop: 2 },
   historyItemPreview: { display: 'block', color: 'var(--coco-color-text-muted)', fontSize: 'var(--coco-text-secondary)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  reviewBanner: { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: ACCENT_BG, borderBottom: `1px solid ${ACCENT_BORDER}`, color: ACCENT, fontSize: 'var(--coco-text-secondary)' },
   list: { flex: 1, overflowY: 'auto', padding: 'var(--coco-space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--coco-space-4)' },
   userRow: { alignSelf: 'flex-end', maxWidth: 'min(85%, 68ch)' },
   tutorRow: { alignSelf: 'flex-start', maxWidth: 'min(92%, 76ch)', display: 'flex', gap: 8 },

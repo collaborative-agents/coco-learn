@@ -1,5 +1,6 @@
 import type { LLMCallMetrics, TutorToolCall } from '../observation-types';
 import type { ChatSuggestion } from '../../../shared/chat-suggestion';
+import type { AgentActivity } from '../../../shared/agent-execution';
 
 export interface Guidance {
   text: string;
@@ -14,6 +15,8 @@ export interface WakeWordSettingsInfo {
   logPath?: string;
 }
 export interface ChatMessage {
+  activity?: AgentActivity[];
+  stopped?: boolean;
   role: 'user' | 'tutor';
   text: string;
   images?: string[];
@@ -45,6 +48,7 @@ export interface SavedConversation {
   createdAt: number;
   updatedAt: number;
   tutorModelId?: string;
+  workingDirectory?: string;
   messages: ChatMessage[];
 }
 

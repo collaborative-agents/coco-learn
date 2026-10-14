@@ -10,6 +10,7 @@ import {
 import type { LLMCallMetrics, TutorToolCall } from './observation-types';
 import { defaultMode, normalizeSupportedModes } from '../../shared/agent-modes';
 import type { AgentModeId } from '../../shared/agent-modes';
+import type { AgentActivity } from '../../shared/agent-execution';
 import type { ChatSuggestion } from '../../shared/chat-suggestion';
 import { suggestionMessage } from './chat/MessageContent';
 import { copyableMessageText, makeMessageId } from './chat/message-format';
@@ -337,6 +338,8 @@ export default function SessionChatView() {
           type?: string;
           text?: string;
           call?: TutorToolCall;
+          activity?: AgentActivity[];
+          stopped?: boolean;
           guidance?: string;
           error?: string;
           observerMetrics?: LLMCallMetrics | null;
@@ -361,6 +364,13 @@ export default function SessionChatView() {
           }
           return current.map((message) => {
             if (message.requestId !== event.requestId) return message;
+            if (event.type === 'agent_activity') {
+              return {
+                ...message,
+                activity: event.activity,
+                text: event.text ?? message.text,
+              };
+            }
             if (event.type === 'text_delta') {
               return { ...message, text: message.text + (event.text ?? '') };
             }
@@ -393,6 +403,8 @@ export default function SessionChatView() {
               return {
                 ...message,
                 text: event.guidance ?? message.text,
+                activity: event.activity ?? message.activity,
+                stopped: event.stopped,
                 id: message.id ?? makeMessageId(),
                 ts: Date.now(),
                 observerMetrics: event.observerMetrics ?? null,
@@ -433,9 +445,8 @@ export default function SessionChatView() {
     ) => {
       setSending(true);
       scrollToBottom();
-      const res = await window.electron?.ipcRenderer.invoke(
-        'send-chat-message',
-        {
+      const res = await window.electron?.ipcRenderer
+        .invoke('send-chat-message', {
           requestId,
           userText,
           displayText,
@@ -443,8 +454,8 @@ export default function SessionChatView() {
           images,
           requestKind,
           hotkeyImages,
-        },
-      );
+        })
+        .catch((error: Error) => ({ error: error.message }));
       const r = res as
         | {
             streamed?: boolean;
@@ -486,13 +497,12 @@ export default function SessionChatView() {
     async (requestId: string, audioData: string) => {
       setSending(true);
       scrollToBottom();
-      const res = await window.electron?.ipcRenderer.invoke(
-        'send-audio-message',
-        {
+      const res = await window.electron?.ipcRenderer
+        .invoke('send-audio-message', {
           requestId,
           audioData,
-        },
-      );
+        })
+        .catch((error: Error) => ({ error: error.message }));
       const result = res as
         | {
             streamed?: boolean;
@@ -530,6 +540,7 @@ export default function SessionChatView() {
           text: '',
           requestId,
           isStreaming: true,
+          retryRequestKind: 'chat',
           toolCalls: [],
         },
       ]);
@@ -602,6 +613,8 @@ export default function SessionChatView() {
                 isError: false,
                 isStreaming: true,
                 toolCalls: [],
+                activity: undefined,
+                stopped: false,
               }
             : item,
         ),
@@ -945,7 +958,7 @@ export default function SessionChatView() {
           setActivePage('chat');
           setShowSettings(false);
         }
-        if (seed && deferUntilUserMessage) {
+        if (seed && (deferUntilUserMessage || sending)) {
           pendingContextRef.current = seed;
           setPendingContextLabel(
             (phrase || label || 'Tutor suggestion').trim(),
@@ -958,7 +971,7 @@ export default function SessionChatView() {
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [sendMessage]);
+  }, [sendMessage, sending]);
 
   // Proactive suggestions from main arrive as Coco messages: unfolded when the
   // chat was open, folded when they first appeared as a pop-up. "Chat about
@@ -1063,8 +1076,27 @@ export default function SessionChatView() {
     }
   };
 
+  const resumeConversation = async (conversation: SavedConversation) => {
+    const result = await window.electron?.ipcRenderer.invoke(
+      'resume-chat-conversation',
+      { sessionId: conversation.sessionId },
+    );
+    if (!result?.success) {
+      throw new Error(result?.error || 'Could not restore this conversation.');
+    }
+    sessionIdRef.current = conversation.sessionId;
+    setProblem(conversation.problem);
+    setMessages(conversation.messages);
+    setCurrentTutorModelId(
+      result.tutorModelId || conversation.tutorModelId || currentTutorModelId,
+    );
+    setRatings({});
+    setReviewing(null);
+    setShowHistory(false);
+  };
+
   const handleSend = () => {
-    if (sending || startingNewSession) return;
+    if (sending || startingNewSession || finishingTask) return;
     const imgs = pendingImages;
     const hotkeyImgs = imgs.filter((src) =>
       pendingHotkeyImagesRef.current.has(src),
@@ -1078,28 +1110,8 @@ export default function SessionChatView() {
     if (reviewing) {
       const conversation = reviewing;
       setSending(true);
-      window.electron?.ipcRenderer
-        .invoke('resume-chat-conversation', {
-          sessionId: conversation.sessionId,
-        })
-        .then((result: any) => {
-          if (!result?.success) {
-            setInput(text);
-            setPendingImages(imgs);
-            setSending(false);
-            return;
-          }
-          sessionIdRef.current = conversation.sessionId;
-          setProblem(conversation.problem);
-          setMessages(conversation.messages);
-          setCurrentTutorModelId(
-            result.tutorModelId ||
-              conversation.tutorModelId ||
-              currentTutorModelId,
-          );
-          setRatings({});
-          setReviewing(null);
-          setShowHistory(false);
+      resumeConversation(conversation)
+        .then(() => {
           setSending(false);
           sendMessage(text, imgs, hotkeyImgs);
           clearSentHotkeyImages();
@@ -1199,7 +1211,7 @@ export default function SessionChatView() {
   };
 
   const handleNewSession = async () => {
-    if (sending || startingNewSession) return;
+    if (sending || startingNewSession || finishingTask) return;
     setStartingNewSession(true);
     try {
       await window.electron?.ipcRenderer.invoke('start-new-chat-session', {
@@ -1215,6 +1227,7 @@ export default function SessionChatView() {
     setFinishingTask(true);
     setFinishTaskError('');
     try {
+      if (reviewing) await resumeConversation(reviewing);
       const result = (await window.electron?.ipcRenderer.invoke(
         'finish-task-successfully',
       )) as { success?: boolean; error?: string } | undefined;
@@ -1223,8 +1236,10 @@ export default function SessionChatView() {
           result?.error || 'Could not open the session recap.',
         );
       }
-    } catch {
-      setFinishTaskError('Could not open the session recap.');
+    } catch (error) {
+      setFinishTaskError(
+        error instanceof Error ? error.message : 'Could not open the session recap.',
+      );
     } finally {
       setFinishingTask(false);
     }
@@ -1262,6 +1277,7 @@ export default function SessionChatView() {
   const canSend =
     !sending &&
     !startingNewSession &&
+    !finishingTask &&
     voiceState === 'idle' &&
     (input.trim().length > 0 || pendingImages.length > 0);
   const voiceActive = voiceState === 'listening' || voiceState === 'speaking';
@@ -1277,7 +1293,10 @@ export default function SessionChatView() {
   const hasRunningTool = visibleMessages.some(
     (message) =>
       message.role === 'tutor' &&
-      message.toolCalls?.some((call) => call.status === 'running'),
+      (message.toolCalls?.some((call) => call.status === 'running') ||
+        message.activity?.some(
+          (item) => item.kind === 'tool' && item.call.status === 'running',
+        )),
   );
   const sensingUnavailable = serviceHealth?.sensing.connected === false;
   const tutorUnavailable = serviceHealth?.tutor.connected === false;
@@ -1399,12 +1418,15 @@ export default function SessionChatView() {
             void openHistory();
           }}
           onCurrent={() => {
+            if (finishingTask) return;
             setReviewing(null);
             setShowHistory(false);
             setShowSettings(false);
             setActivePage('chat');
           }}
           onSelect={(conversation) => {
+            if (finishingTask) return;
+            setFinishTaskError('');
             setReviewing(conversation);
             setShowHistory(false);
             setShowSettings(false);
@@ -1499,7 +1521,6 @@ export default function SessionChatView() {
               <ChatTranscript
                 {...{
                   reviewing,
-                  setReviewing,
                   listRef,
                   visibleMessages,
                   sending,
@@ -1517,6 +1538,21 @@ export default function SessionChatView() {
                 }}
               />{' '}
               <ChatComposer
+                workspaceSessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                agentRunning={
+                  sending &&
+                  messages.some(
+                    (m) => m.isStreaming && m.retryRequestKind === 'chat',
+                  )
+                }
+                stopAgent={async () => {
+                  const pending = messages.find((m) => m.isStreaming);
+                  if (pending?.requestId)
+                    await window.electron?.ipcRenderer.invoke(
+                      'stop-agent-run',
+                      pending.requestId,
+                    );
+                }}
                 {...{
                   pendingContextLabel,
                   pendingContextRef,

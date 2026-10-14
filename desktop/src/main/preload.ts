@@ -92,6 +92,9 @@ export type Channels =
   // Local chat (SessionChatView) — session context + user turns
   | 'session-init'
   | 'start-new-chat-session'
+  | 'get-agent-workspace'
+  | 'choose-agent-workspace'
+  | 'stop-agent-run'
   | 'send-chat-message'
   | 'send-audio-message'
   | 'chat-stream-event'

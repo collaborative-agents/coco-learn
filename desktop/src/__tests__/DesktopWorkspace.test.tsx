@@ -78,7 +78,7 @@ it('keeps training accessible while tutoring remains locked', async () => {
   mockStudyAccess = false;
   render(<SessionChatView />);
   expect(screen.getByText('Training task content')).not.toBeVisible();
-  expect(screen.queryByPlaceholderText(/Ask the tutor/)).toBeNull();
+  expect(screen.queryByPlaceholderText(/Ask Coco/)).toBeNull();
   expect(
     screen.getByRole('button', { name: 'Start a new session' }),
   ).toBeDisabled();
@@ -95,7 +95,7 @@ it('keeps training accessible while tutoring remains locked', async () => {
 
 it('shows only the selected tab and preserves the chat draft across navigation', async () => {
   render(<SessionChatView />);
-  const draft = screen.getByPlaceholderText(/Ask the tutor/);
+  const draft = screen.getByPlaceholderText(/Ask Coco/);
   fireEvent.change(draft, { target: { value: 'Keep my thought here' } });
   expect(screen.getByText('Training task content')).not.toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
@@ -124,10 +124,10 @@ it('opens settings and training as separate pages without the chat pane', async 
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
   expect(screen.getByRole('heading', { name: 'Settings' })).toBeVisible();
   expect(screen.getByText('Training task content')).not.toBeVisible();
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).not.toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).not.toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Training tasks' }));
   expect(screen.getByText('Training task content')).toBeVisible();
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).not.toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).not.toBeVisible();
   expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull();
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('get-profile'));
 });
@@ -142,7 +142,7 @@ it('keeps history open while moving into it and dismisses it with Escape or poin
   fireEvent.mouseLeave(chat, { relatedTarget: history });
   fireEvent.mouseEnter(history, { relatedTarget: chat });
   expect(history).toBeVisible();
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).toBeVisible();
   await screen.findByText('Your past conversations will appear here.');
   fireEvent.keyDown(chat, { key: 'Escape' });
   expect(
@@ -196,10 +196,10 @@ it('synchronizes native resizing and external training navigation', async () => 
   expect(
     screen.getByRole('button', { name: 'Training tasks' }),
   ).toHaveAttribute('aria-current', 'page');
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).not.toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).not.toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
   expect(screen.getByText('Training task content')).toBeVisible();
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).not.toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).not.toBeVisible();
 });
 
 it('switches from training to chat when opening a saved conversation', async () => {
@@ -233,6 +233,6 @@ it('reveals chat when a practice task starts a chat session', async () => {
       problemStatement: 'Practice together',
     }),
   );
-  expect(screen.getByPlaceholderText(/Ask the tutor/)).toBeVisible();
+  expect(screen.getByPlaceholderText(/Ask Coco/)).toBeVisible();
   expect(screen.getByText('Training task content')).not.toBeVisible();
 });

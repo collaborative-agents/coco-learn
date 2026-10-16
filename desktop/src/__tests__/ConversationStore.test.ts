@@ -1,9 +1,106 @@
 import {
+  applyStoredReply,
   deriveConversationTitle,
+  INTERRUPTED_REPLY_TEXT,
+  interruptStaleReplies,
   mergeConversationMessages,
+  restorableMessages,
   StoredChatMessage,
+  StoredConversation,
   tutorRestoreMessage,
 } from '../main/conversation-store';
+
+const conversationWith = (
+  messages: StoredChatMessage[],
+  overrides: Partial<StoredConversation> = {},
+): StoredConversation => ({
+  sessionId: 'session-1',
+  problem: 'General help session',
+  createdAt: 1,
+  updatedAt: 1,
+  messages,
+  ...overrides,
+});
+
+describe('replies settled after the chat window is gone', () => {
+  const asked: StoredChatMessage = { role: 'user', text: 'Draft a message' };
+  const pending: StoredChatMessage = {
+    role: 'tutor',
+    text: 'Let me grab what is on your page.',
+    requestId: 'req-1',
+    isStreaming: true,
+    retryText: 'Draft a message',
+  };
+
+  it('replaces partial streamed text with the final reply', () => {
+    const settled = applyStoredReply([asked, pending], 'req-1', {
+      text: 'Here is a draft.',
+    });
+    expect(settled?.[1]).toMatchObject({
+      role: 'tutor',
+      text: 'Here is a draft.',
+      requestId: 'req-1',
+    });
+    expect(settled?.[1].isStreaming).toBeUndefined();
+    expect(settled?.[1].retryText).toBeUndefined();
+    expect(settled?.[1].id).toEqual(expect.any(String));
+  });
+
+  it('keeps retry details when the reply failed', () => {
+    const settled = applyStoredReply([asked, pending], 'req-1', {
+      text: 'The tutor could not generate a response.',
+      isError: true,
+    });
+    expect(settled?.[1]).toMatchObject({
+      isError: true,
+      retryText: 'Draft a message',
+    });
+    expect(settled?.[1].isStreaming).toBeUndefined();
+  });
+
+  it('leaves a reply the renderer already finished untouched', () => {
+    const finished = { ...pending, isStreaming: undefined, text: 'Done.' };
+    expect(
+      applyStoredReply([asked, finished], 'req-1', { text: 'Other' }),
+    ).toBeNull();
+  });
+
+  it('appends the reply when only the user turn was saved', () => {
+    expect(
+      applyStoredReply(
+        [asked],
+        'req-1',
+        { text: 'Here is a draft.' },
+        ' Draft a message ',
+      ),
+    ).toEqual([asked, expect.objectContaining({ text: 'Here is a draft.' })]);
+    expect(
+      applyStoredReply([asked], 'req-1', { text: 'Here is a draft.' }, 'Other'),
+    ).toBeNull();
+  });
+
+  it('marks replies with no live stream as interrupted', () => {
+    const restored = interruptStaleReplies(
+      conversationWith([asked, pending]),
+      () => false,
+    );
+    expect(restored.messages[1]).toMatchObject({
+      text: INTERRUPTED_REPLY_TEXT,
+      isError: true,
+      retryText: 'Draft a message',
+    });
+    expect(restored.messages[1].isStreaming).toBeUndefined();
+
+    const live = conversationWith([asked, pending]);
+    expect(interruptStaleReplies(live, (id) => id === 'req-1')).toBe(live);
+  });
+
+  it('restores only finished turns', () => {
+    expect(restorableMessages([asked, pending])).toEqual([
+      { role: 'user', text: 'Draft a message' },
+    ]);
+  });
+});
 
 describe('tutor restore messages', () => {
   it('restores suggestions under their own role', () => {

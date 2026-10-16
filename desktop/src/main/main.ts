@@ -30,7 +30,7 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent } from 'electron';
+import type { IpcMainInvokeEvent, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
@@ -99,9 +99,11 @@ import {
   saveLearningRecap,
 } from './learning-recap-store';
 import {
+  interruptStaleReplies,
   readConversations,
+  restorableMessages,
   saveConversation,
-  tutorRestoreMessage,
+  settleStoredReply,
 } from './conversation-store';
 import {
   recordSessionEnded,
@@ -431,6 +433,9 @@ let currentUserId = process.env.COCO_GATEWAY_USER_ID?.trim() || null;
 let isAuthenticated = false;
 let pendingAuthLaunch: 'signin' | 'signup' | null = null;
 let currentSessionId: string | null = null;
+// Tutor replies still streaming, so a reopened chat can tell a reply that is
+// still coming from one that was cut off.
+const activeChatRequests = new Set<string>();
 let pendingTaskLabel: string | null = null;
 // The struggle time chosen for the current session. Re-sent whenever sensing
 // is reconfigured mid-session so a settings change can't reset it.
@@ -961,6 +966,28 @@ const sendToChat = (channel: string, payload: unknown): void => {
     });
   } else {
     chatWindow.webContents.send(channel, payload);
+  }
+};
+
+// Deliver a chat stream event to the chat that asked for it, or to its
+// replacement if that window was closed mid-reply. Never throws: a missing
+// window must not abort the stream, whose outcome main also saves to disk.
+const sendChatStreamEvent = (
+  sender: WebContents,
+  payload: Record<string, unknown>,
+): void => {
+  let target: WebContents | null = sender;
+  if (target.isDestroyed()) {
+    target =
+      chatWindow && !chatWindow.isDestroyed() ? chatWindow.webContents : null;
+  }
+  if (!target || target.isDestroyed()) return;
+  try {
+    target.send('chat-stream-event', payload);
+  } catch (err) {
+    log.warn(
+      `[Chat] Could not deliver stream event: ${(err as Error).message}`,
+    );
   }
 };
 
@@ -2312,11 +2339,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
   if (conversation) {
     await axios.post(
       `${tutor}/context/conversation`,
-      {
-        messages: conversation.messages
-          .filter((message) => !message.isError)
-          .map(tutorRestoreMessage),
-      },
+      { messages: restorableMessages(conversation.messages) },
       { timeout: 8000 },
     );
   }
@@ -3585,7 +3608,13 @@ ipcMain.handle(
 // Chat history is local-only: the renderer persists completed turns here and
 // asks main to rebuild tutor context before continuing an older conversation.
 ipcMain.removeHandler('get-chat-conversations');
-ipcMain.handle('get-chat-conversations', () => readConversations());
+ipcMain.handle('get-chat-conversations', () =>
+  readConversations().map((conversation) =>
+    interruptStaleReplies(conversation, (requestId) =>
+      activeChatRequests.has(requestId),
+    ),
+  ),
+);
 
 ipcMain.removeHandler('save-chat-conversation');
 ipcMain.handle('save-chat-conversation', (_event, payload) => {
@@ -3653,9 +3682,7 @@ ipcMain.handle(
       await axios.post(
         `${tutor}/context/conversation`,
         {
-          messages: conversation.messages
-            .filter((message) => !message.isError)
-            .map(tutorRestoreMessage),
+          messages: restorableMessages(conversation.messages),
         },
         { timeout: 8000 },
       );
@@ -3880,6 +3907,12 @@ ipcMain.handle(
               .join('\n')
           : userText;
       let streamedText = '';
+      const settleReply = (reply: { text: string; isError?: boolean }) => {
+        if (gatewaySessionId) {
+          settleStoredReply(gatewaySessionId, requestId, reply, displayText);
+        }
+      };
+      activeChatRequests.add(requestId);
       try {
         // A plain chat can be opened without creating a proactive session. Sync
         // the persisted profile on every turn so the tutor never falls back to
@@ -3915,6 +3948,20 @@ ipcMain.handle(
               turnTiming.recordTextDelta(delta);
               streamedText += delta;
             }
+            if (streamEvent.type === 'done') {
+              settleReply({
+                text: String(streamEvent.guidance ?? streamedText),
+              });
+            }
+            if (streamEvent.type === 'error') {
+              settleReply({
+                text: String(
+                  streamEvent.error ??
+                    'The tutor could not generate a response.',
+                ),
+                isError: true,
+              });
+            }
             if (streamEvent.type === 'done' && gatewaySessionId) {
               const metrics = streamEvent.llm_metrics as
                 | LLMCallMetrics
@@ -3937,7 +3984,7 @@ ipcMain.handle(
                 },
               );
             }
-            ipcEvent.sender.send('chat-stream-event', {
+            sendChatStreamEvent(ipcEvent.sender, {
               requestId,
               ...streamEvent,
               ...(streamEvent.type === 'done'
@@ -3965,12 +4012,15 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond. Please retry.'
             : 'The tutor could not generate a response. Please try again.';
-        ipcEvent.sender.send('chat-stream-event', {
+        settleReply({ text: error, isError: true });
+        sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           type: 'error',
           error,
         });
         return { error };
+      } finally {
+        activeChatRequests.delete(requestId);
       }
     },
   ),
@@ -4062,6 +4112,12 @@ ipcMain.handle(
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const turnTiming = new TutorTurnTiming();
       let streamedText = '';
+      const settleReply = (reply: { text: string; isError?: boolean }) => {
+        if (gatewaySessionId) {
+          settleStoredReply(gatewaySessionId, requestId, reply);
+        }
+      };
+      activeChatRequests.add(requestId);
       try {
         await consumeTutorStream(
           `http://127.0.0.1:${tutorPort}/events/audio_prompt/stream`,
@@ -4093,6 +4149,20 @@ ipcMain.handle(
               turnTiming.recordTextDelta(delta);
               streamedText += delta;
             }
+            if (streamEvent.type === 'done') {
+              settleReply({
+                text: String(streamEvent.guidance ?? streamedText),
+              });
+            }
+            if (streamEvent.type === 'error') {
+              settleReply({
+                text: String(
+                  streamEvent.error ??
+                    'The tutor could not process the voice message.',
+                ),
+                isError: true,
+              });
+            }
             if (streamEvent.type === 'done' && gatewaySessionId) {
               const metrics = streamEvent.llm_metrics as
                 | LLMCallMetrics
@@ -4112,7 +4182,7 @@ ipcMain.handle(
                 },
               );
             }
-            ipcEvent.sender.send('chat-stream-event', {
+            sendChatStreamEvent(ipcEvent.sender, {
               requestId,
               ...streamEvent,
             });
@@ -4133,12 +4203,15 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond to the voice message. Please retry.'
             : 'The tutor could not process the voice message. Please try again.';
-        ipcEvent.sender.send('chat-stream-event', {
+        settleReply({ text: error, isError: true });
+        sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           type: 'error',
           error,
         });
         return { error };
+      } finally {
+        activeChatRequests.delete(requestId);
       }
     },
   ),

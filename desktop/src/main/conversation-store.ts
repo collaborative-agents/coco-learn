@@ -393,8 +393,33 @@ export function interruptStaleReplies(
 }
 
 /** Messages the tutor can be given as context: finished, successful turns. */
-export function restorableMessages(messages: StoredChatMessage[]) {
-  return messages
-    .filter((message) => !message.isError && !message.isStreaming)
-    .map(tutorRestoreMessage);
+export function restorableMessages(
+  messages: StoredChatMessage[],
+  excludeTrailingUserText?: string,
+) {
+  const restorable = messages.filter(
+    (message) => !message.isError && !message.isStreaming,
+  );
+  const last = restorable[restorable.length - 1];
+  // The renderer may have saved the turn being sent before it is resumed;
+  // that turn reaches the tutor as the new prompt, not as history.
+  if (
+    excludeTrailingUserText !== undefined &&
+    last?.role === 'user' &&
+    last.text === excludeTrailingUserText.trim()
+  ) {
+    restorable.pop();
+  }
+  return restorable.map(tutorRestoreMessage);
+}
+
+/** The conversation to show when Coco opens without a current one. */
+export function latestConversation(
+  conversations: StoredConversation[],
+): StoredConversation | null {
+  return (
+    [...conversations]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .find((conversation) => conversation.messages.length > 0) ?? null
+  );
 }

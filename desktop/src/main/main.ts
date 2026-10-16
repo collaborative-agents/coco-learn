@@ -100,11 +100,13 @@ import {
 } from './learning-recap-store';
 import {
   interruptStaleReplies,
+  latestConversation,
   readConversations,
   restorableMessages,
   saveConversation,
   settleStoredReply,
 } from './conversation-store';
+import type { StoredConversation } from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
@@ -433,6 +435,9 @@ let currentUserId = process.env.COCO_GATEWAY_USER_ID?.trim() || null;
 let isAuthenticated = false;
 let pendingAuthLaunch: 'signin' | 'signup' | null = null;
 let currentSessionId: string | null = null;
+// A saved conversation reopened as the current chat. Its tutor context is
+// rebuilt on the user's first new turn rather than when the chat merely opens.
+let resumableSessionId: string | null = null;
 // Tutor replies still streaming, so a reopened chat can tell a reply that is
 // still coming from one that was cut off.
 const activeChatRequests = new Set<string>();
@@ -1308,6 +1313,20 @@ async function openCoco(): Promise<void> {
       pendingTaskLabel || 'General help session',
     );
     log.info(`[Chat] Reopened existing draft: ${currentSessionId}`);
+    return;
+  }
+  // Return to the most recent conversation rather than a blank chat. Like a
+  // draft, it becomes a live session again only once the user sends.
+  const latest = latestConversation(readConversations());
+  if (latest) {
+    currentSessionId = latest.sessionId;
+    resumableSessionId = latest.sessionId;
+    const modelConfig = readModelConfiguration();
+    currentTutorModelId =
+      modelConfig?.tutors.find((item) => item.id === latest.tutorModelId)?.id ??
+      (modelConfig ? defaultTutor(modelConfig).id : null);
+    openChatForSession(latest.sessionId, latest.problem);
+    log.info(`[Chat] Reopened latest conversation: ${latest.sessionId}`);
     return;
   }
   // Merely opening the chat feed must not count as a learning session. Give
@@ -3622,6 +3641,96 @@ ipcMain.handle('save-chat-conversation', (_event, payload) => {
   return { success: true };
 });
 
+// Rebuild tutor context for a saved conversation and make it the live one.
+// Continuing a conversation is not a new learning session, so this does not
+// record a session start.
+async function resumeSavedConversation(
+  conversation: StoredConversation,
+  excludeTrailingUserText?: string,
+): Promise<{ success: boolean; tutorModelId?: string | null; error?: string }> {
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  const tutor = `http://127.0.0.1:${tutorPort}`;
+  const { aiTools, scenario, userName } = readProfile();
+  try {
+    await axios.post(`${tutor}/context/reset`, {}, { timeout: 8000 });
+    const modelConfig = readModelConfiguration();
+    const selectedTutor =
+      modelConfig?.tutors.find(
+        (item) => item.id === conversation.tutorModelId,
+      ) ?? (modelConfig ? defaultTutor(modelConfig) : null);
+    if (selectedTutor) {
+      await axios.post(
+        `${tutor}/config/model`,
+        { model: selectedTutor.model },
+        { timeout: 8000 },
+      );
+      currentTutorModelId = selectedTutor.id;
+    }
+    await axios.post(
+      `${tutor}/config/scenario`,
+      { scenario },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/problem_statement`,
+      { problem_statement: conversation.problem },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/ai_tools`,
+      { ai_tools: aiTools },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/user_name`,
+      { user_name: userName },
+      { timeout: 8000 },
+    );
+    const savedMemory = readLocalMemory();
+    if (savedMemory) {
+      await axios.post(
+        `${tutor}/context/memory`,
+        { memory: savedMemory },
+        { timeout: 8000 },
+      );
+    }
+    await axios.post(
+      `${tutor}/context/conversation`,
+      {
+        messages: restorableMessages(
+          conversation.messages,
+          excludeTrailingUserText,
+        ),
+      },
+      { timeout: 8000 },
+    );
+    currentSessionId = conversation.sessionId;
+    isSessionActive = true;
+    pendingTaskLabel = conversation.problem;
+    resumableSessionId = null;
+    return { success: true, tutorModelId: currentTutorModelId };
+  } catch (err) {
+    log.warn(`[Chat] Could not resume conversation: ${(err as Error).message}`);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+// Resume the reopened conversation before the user's first new turn in it, so
+// the tutor sees its history. Returns false when there is nothing to resume.
+async function resumeReopenedConversation(userText?: string): Promise<boolean> {
+  if (isSessionActive || !resumableSessionId) return false;
+  if (resumableSessionId !== currentSessionId) {
+    resumableSessionId = null;
+    return false;
+  }
+  const conversation = readConversations().find(
+    (saved) => saved.sessionId === resumableSessionId,
+  );
+  resumableSessionId = null;
+  if (!conversation) return false;
+  return (await resumeSavedConversation(conversation, userText)).success;
+}
+
 ipcMain.removeHandler('resume-chat-conversation');
 ipcMain.handle(
   'resume-chat-conversation',
@@ -3632,70 +3741,7 @@ ipcMain.handle(
     if (!conversation) {
       return { success: false, error: 'Conversation not found.' };
     }
-
-    const tutorPort = process.env.TUTOR_PORT || '8081';
-    const tutor = `http://127.0.0.1:${tutorPort}`;
-    const { aiTools, scenario, userName } = readProfile();
-    try {
-      await axios.post(`${tutor}/context/reset`, {}, { timeout: 8000 });
-      const modelConfig = readModelConfiguration();
-      const selectedTutor =
-        modelConfig?.tutors.find(
-          (item) => item.id === conversation.tutorModelId,
-        ) ?? (modelConfig ? defaultTutor(modelConfig) : null);
-      if (selectedTutor) {
-        await axios.post(
-          `${tutor}/config/model`,
-          { model: selectedTutor.model },
-          { timeout: 8000 },
-        );
-        currentTutorModelId = selectedTutor.id;
-      }
-      await axios.post(
-        `${tutor}/config/scenario`,
-        { scenario },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/problem_statement`,
-        { problem_statement: conversation.problem },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/ai_tools`,
-        { ai_tools: aiTools },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/user_name`,
-        { user_name: userName },
-        { timeout: 8000 },
-      );
-      const savedMemory = readLocalMemory();
-      if (savedMemory) {
-        await axios.post(
-          `${tutor}/context/memory`,
-          { memory: savedMemory },
-          { timeout: 8000 },
-        );
-      }
-      await axios.post(
-        `${tutor}/context/conversation`,
-        {
-          messages: restorableMessages(conversation.messages),
-        },
-        { timeout: 8000 },
-      );
-      currentSessionId = conversation.sessionId;
-      isSessionActive = true;
-      pendingTaskLabel = conversation.problem;
-      return { success: true, tutorModelId: currentTutorModelId };
-    } catch (err) {
-      log.warn(
-        `[Chat] Could not resume conversation: ${(err as Error).message}`,
-      );
-      return { success: false, error: (err as Error).message };
-    }
+    return resumeSavedConversation(conversation);
   },
 );
 
@@ -3839,6 +3885,7 @@ ipcMain.handle(
       const sessionStartText = (displayText ?? userText).trim();
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
+      await resumeReopenedConversation(displayText ?? userText);
       if (
         !isSessionActive &&
         shouldStartSessionFromUserMessage(
@@ -4090,6 +4137,7 @@ ipcMain.handle(
       }
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
+      await resumeReopenedConversation();
       if (!isSessionActive) {
         // A pre-session invite may already be visible from the last sensing tick.
         // Voice input is itself an explicit session start, so remove that stale UI.

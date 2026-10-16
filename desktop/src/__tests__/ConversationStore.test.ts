@@ -3,6 +3,7 @@ import {
   deriveConversationTitle,
   INTERRUPTED_REPLY_TEXT,
   interruptStaleReplies,
+  latestConversation,
   mergeConversationMessages,
   restorableMessages,
   StoredChatMessage,
@@ -95,10 +96,36 @@ describe('replies settled after the chat window is gone', () => {
     expect(interruptStaleReplies(live, (id) => id === 'req-1')).toBe(live);
   });
 
-  it('restores only finished turns', () => {
+  it('restores only finished turns and skips the turn being sent', () => {
     expect(restorableMessages([asked, pending])).toEqual([
       { role: 'user', text: 'Draft a message' },
     ]);
+    expect(
+      restorableMessages(
+        [{ role: 'tutor', text: 'Hi' }, asked],
+        'Draft a message',
+      ),
+    ).toEqual([{ role: 'tutor', text: 'Hi' }]);
+  });
+});
+
+describe('conversation reopened by default', () => {
+  it('picks the most recently updated conversation with messages', () => {
+    const message: StoredChatMessage = { role: 'user', text: 'Hi' };
+    const older = conversationWith([message], {
+      sessionId: 'older',
+      updatedAt: 10,
+    });
+    const latest = conversationWith([message], {
+      sessionId: 'latest',
+      updatedAt: 20,
+    });
+    const empty = conversationWith([], { sessionId: 'empty', updatedAt: 40 });
+
+    expect(latestConversation([older, latest, empty])?.sessionId).toBe(
+      'latest',
+    );
+    expect(latestConversation([empty])).toBeNull();
   });
 });
 

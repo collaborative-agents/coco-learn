@@ -23,7 +23,11 @@ export default function WindowControls({ expanded, onExpandedChange }: Props) {
         style={S.iconBtn}
         title="Close"
         aria-label="Close"
-        onClick={() => window.close()}
+        // A page-initiated window.close() destroys the window without a
+        // 'close' event, discarding the chat. Main hides it instead.
+        onClick={() =>
+          window.electron?.ipcRenderer.sendMessage('close-chat-window')
+        }
       >
         <WorkspaceIcon name="close" />
       </button>

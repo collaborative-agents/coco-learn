@@ -2939,6 +2939,14 @@ ipcMain.on('toggle-float-window', (_event, options?: { expanded?: boolean }) => 
   chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
 });
 
+// The chat's close button. Closing from main emits the window's 'close' event,
+// which hides the chat (keeping its conversation and any streaming reply)
+// rather than destroying it as a renderer-side window.close() would.
+ipcMain.removeAllListeners('close-chat-window');
+ipcMain.on('close-chat-window', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close();
+});
+
 ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
   shell.showItemInFolder(fullPath);
 });

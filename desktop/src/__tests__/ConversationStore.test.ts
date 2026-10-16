@@ -127,6 +127,21 @@ describe('conversation reopened by default', () => {
     );
     expect(latestConversation([empty])).toBeNull();
   });
+
+  it('opens a new chat when the latest session has ended', () => {
+    const message: StoredChatMessage = { role: 'user', text: 'Hi' };
+    const older = conversationWith([message], {
+      sessionId: 'older',
+      updatedAt: 10,
+    });
+    const ended = conversationWith([message], {
+      sessionId: 'ended',
+      updatedAt: 20,
+      endedAt: 20,
+    });
+
+    expect(latestConversation([older, ended])).toBeNull();
+  });
 });
 
 describe('tutor restore messages', () => {

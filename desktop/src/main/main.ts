@@ -104,12 +104,14 @@ import {
   readConversations,
   restorableMessages,
   saveConversation,
+  setConversationEnded,
   settleStoredReply,
 } from './conversation-store';
 import type { StoredConversation } from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
+  recordUnderstandingChecked,
 } from './session-event-store';
 import {
   getSystemPermissionWarning,
@@ -1614,9 +1616,15 @@ const showSessionSetupWindow = async (taskLabel: string | null) => {
 
 // ── Session-recap floating window ────────────────────────────────────────────
 // Generates a local recap from TutorSystem's in-memory conversation history.
-const showSessionRecapWindow = () => {
+// 'check' is the user's own "Check my understanding" quiz, after which the
+// session continues; 'end' is the end-of-session recap, which ends it.
+type SessionRecapMode = 'check' | 'end';
+let sessionRecapMode: SessionRecapMode = 'end';
+
+const showSessionRecapWindow = (mode: SessionRecapMode) => {
   if (!tutoringAllowed) return;
   sessionRecapWindow?.destroy();
+  sessionRecapMode = mode;
 
   const {
     x: dx,
@@ -1672,7 +1680,7 @@ const showSessionRecapWindow = () => {
 
   sessionRecapWindow.on('ready-to-show', async () => {
     sessionRecapWindow?.show();
-    sessionRecapWindow?.webContents.send('session-recap-init');
+    sessionRecapWindow?.webContents.send('session-recap-init', { mode });
     const data = await recapPromise;
     if (sessionRecapWindow && !sessionRecapWindow.isDestroyed()) {
       sessionRecapWindow.webContents.send('session-recap-data', {
@@ -3708,6 +3716,8 @@ async function resumeSavedConversation(
     isSessionActive = true;
     pendingTaskLabel = conversation.problem;
     resumableSessionId = null;
+    // Continuing an ended conversation from history makes it current again.
+    setConversationEnded(conversation.sessionId, false);
     return { success: true, tutorModelId: currentTutorModelId };
   } catch (err) {
     log.warn(`[Chat] Could not resume conversation: ${(err as Error).message}`);
@@ -3774,7 +3784,7 @@ ipcMain.removeAllListeners('proactive-session-end-confirmed');
 ipcMain.on('proactive-session-end-confirmed', () => {
   notificationWindow?.destroy();
   chatWindow?.hide();
-  showSessionRecapWindow();
+  showSessionRecapWindow('end');
 });
 
 // AI Fluency Upskilling users can explicitly mark their task successful from
@@ -3792,11 +3802,13 @@ ipcMain.handle('finish-task-successfully', () => {
   }
   notificationWindow?.destroy();
   chatWindow?.hide();
-  showSessionRecapWindow();
+  showSessionRecapWindow('check');
   return { success: true };
 });
 
-// The user answered or skipped the recap; now tear down the active session.
+// The user answered or skipped the recap. An understanding check returns to
+// the same session; the end-of-session recap gives the session-level quiz
+// result and tears the session down.
 ipcMain.removeAllListeners('session-recap-done');
 ipcMain.on('session-recap-done', (_event, payload?: unknown) => {
   const result =
@@ -3821,15 +3833,25 @@ ipcMain.on('session-recap-done', (_event, payload?: unknown) => {
         ? { selectedIndex: result.selectedIndex }
         : {}),
     };
-    const endedAt = new Date();
-    recordSessionEnded(currentSessionId, currentUserId, completion, endedAt);
-    gatewayClient?.endSession(currentSessionId, {
-      endedAt,
-      recapCompletedAt: endedAt,
-      ...completion,
-    });
+    if (sessionRecapMode === 'check') {
+      recordUnderstandingChecked(currentSessionId, currentUserId, completion);
+    } else {
+      const endedAt = new Date();
+      recordSessionEnded(currentSessionId, currentUserId, completion, endedAt);
+      gatewayClient?.endSession(currentSessionId, {
+        endedAt,
+        recapCompletedAt: endedAt,
+        ...completion,
+      });
+      // Reopening Coco after an ended session starts a new conversation.
+      setConversationEnded(currentSessionId, true);
+    }
   }
   sessionRecapWindow?.destroy();
+  if (sessionRecapMode === 'check') {
+    showChatPanel();
+    return;
+  }
   endCurrentSession();
 });
 

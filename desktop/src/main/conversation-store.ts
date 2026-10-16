@@ -42,6 +42,8 @@ export interface StoredConversation {
   createdAt: number;
   updatedAt: number;
   tutorModelId?: string;
+  /** Set when the session ended through its end-of-session recap. */
+  endedAt?: number;
   messages: StoredChatMessage[];
 }
 
@@ -262,6 +264,7 @@ export function saveConversation(input: {
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     ...(tutorModelId ? { tutorModelId } : {}),
+    ...(existing?.endedAt ? { endedAt: existing.endedAt } : {}),
     messages: existing
       ? mergeConversationMessages(existing.messages, messages)
       : messages,
@@ -413,13 +416,33 @@ export function restorableMessages(
   return restorable.map(tutorRestoreMessage);
 }
 
-/** The conversation to show when Coco opens without a current one. */
+/**
+ * The conversation to show when Coco opens without a current one: the most
+ * recent one still in progress. An ended session opens a new chat instead.
+ */
 export function latestConversation(
   conversations: StoredConversation[],
 ): StoredConversation | null {
-  return (
-    [...conversations]
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .find((conversation) => conversation.messages.length > 0) ?? null
+  const latest = [...conversations]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .find((conversation) => conversation.messages.length > 0);
+  return latest && !latest.endedAt ? latest : null;
+}
+
+/** Mark a conversation's session ended, or clear that when it is resumed. */
+export function setConversationEnded(sessionId: string, ended: boolean): void {
+  const conversations = readConversations();
+  const conversation = conversations.find(
+    (candidate) => candidate.sessionId === sessionId,
+  );
+  if (!conversation || Boolean(conversation.endedAt) === ended) return;
+  writeConversations(
+    conversations.map((candidate) => {
+      if (candidate !== conversation) return candidate;
+      if (ended) return { ...candidate, endedAt: Date.now() };
+      const resumed = { ...candidate };
+      delete resumed.endedAt;
+      return resumed;
+    }),
   );
 }

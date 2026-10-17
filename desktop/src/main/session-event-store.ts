@@ -28,7 +28,39 @@ export type SessionEvent =
       quiz_correct?: boolean;
       selected_index?: number;
       user_id?: string;
+    }
+  | {
+      // A "Check my understanding" quiz taken mid-session. The session keeps
+      // going; only the end-of-session recap gives the session-level result.
+      event: 'understanding_checked';
+      session_id: string;
+      checked_at: string;
+      quiz_skipped: boolean;
+      quiz_answered: boolean;
+      quiz_correct?: boolean;
+      selected_index?: number;
+      user_id?: string;
     };
+
+export interface RecapQuizResult {
+  quizSkipped: boolean;
+  quizAnswered: boolean;
+  quizCorrect?: boolean;
+  selectedIndex?: number;
+}
+
+function quizFields(result: RecapQuizResult) {
+  return {
+    quiz_skipped: result.quizSkipped,
+    quiz_answered: result.quizAnswered,
+    ...(typeof result.quizCorrect === 'boolean'
+      ? { quiz_correct: result.quizCorrect }
+      : {}),
+    ...(typeof result.selectedIndex === 'number'
+      ? { selected_index: result.selectedIndex }
+      : {}),
+  };
+}
 
 function eventPath(): string {
   return path.join(app.getPath('userData'), 'session-events.jsonl');
@@ -62,12 +94,7 @@ export function recordSessionStarted(
 export function recordSessionEnded(
   sessionId: string,
   userId: string | null,
-  result: {
-    quizSkipped: boolean;
-    quizAnswered: boolean;
-    quizCorrect?: boolean;
-    selectedIndex?: number;
-  },
+  result: RecapQuizResult,
   now = new Date(),
 ): void {
   const endedAt = now.toISOString();
@@ -76,14 +103,22 @@ export function recordSessionEnded(
     session_id: sessionId,
     ended_at: endedAt,
     recap_completed_at: endedAt,
-    quiz_skipped: result.quizSkipped,
-    quiz_answered: result.quizAnswered,
-    ...(typeof result.quizCorrect === 'boolean'
-      ? { quiz_correct: result.quizCorrect }
-      : {}),
-    ...(typeof result.selectedIndex === 'number'
-      ? { selected_index: result.selectedIndex }
-      : {}),
+    ...quizFields(result),
+    ...(userId ? { user_id: userId } : {}),
+  });
+}
+
+export function recordUnderstandingChecked(
+  sessionId: string,
+  userId: string | null,
+  result: RecapQuizResult,
+  now = new Date(),
+): void {
+  appendSessionEvent({
+    event: 'understanding_checked',
+    session_id: sessionId,
+    checked_at: now.toISOString(),
+    ...quizFields(result),
     ...(userId ? { user_id: userId } : {}),
   });
 }

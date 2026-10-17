@@ -590,7 +590,14 @@ export default function SessionChatView() {
         return;
       const previousRequestId = message.requestId;
       const requestId = makeMessageId();
-      const images = message.retryImages ?? [];
+      // Saved conversations don't keep retry images; reuse the user turn's.
+      const messageIndex = messagesRef.current.indexOf(message);
+      const askedWith =
+        messageIndex > 0 ? messagesRef.current[messageIndex - 1] : undefined;
+      const images =
+        message.retryImages ??
+        (askedWith?.role === 'user' ? askedWith.images : undefined) ??
+        [];
       const hotkeyImages = message.retryHotkeyImages ?? [];
       setMessages((current) =>
         current.map((item) =>
@@ -678,6 +685,11 @@ export default function SessionChatView() {
                       ),
                     ],
               );
+              // A reply started before this window opened is still streaming;
+              // its remaining events update the restored message in place.
+              if (conversation.messages.some((m) => m.isStreaming)) {
+                setSending(true);
+              }
               setProblem(
                 problemStatement?.trim()
                   ? problemStatement

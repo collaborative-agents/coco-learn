@@ -15,6 +15,7 @@ jest.mock('electron-log', () => ({
 import {
   recordSessionEnded,
   recordSessionStarted,
+  recordUnderstandingChecked,
 } from '../main/session-event-store';
 
 describe('local session event storage', () => {
@@ -96,5 +97,32 @@ describe('local session event storage', () => {
       selected_index: 2,
       user_id: 'user-1',
     });
+  });
+
+  it('records a mid-session understanding check without ending the session', () => {
+    recordUnderstandingChecked(
+      'session-1',
+      'user-1',
+      {
+        quizSkipped: false,
+        quizAnswered: true,
+        quizCorrect: true,
+        selectedIndex: 0,
+      },
+      new Date('2026-08-05T10:10:00.000Z'),
+    );
+
+    expect(events()).toEqual([
+      {
+        event: 'understanding_checked',
+        session_id: 'session-1',
+        checked_at: '2026-08-05T10:10:00.000Z',
+        quiz_skipped: false,
+        quiz_answered: true,
+        quiz_correct: true,
+        selected_index: 0,
+        user_id: 'user-1',
+      },
+    ]);
   });
 });

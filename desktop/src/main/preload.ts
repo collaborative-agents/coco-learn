@@ -111,6 +111,7 @@ export type Channels =
   | 'onboarding-complete'
   | 'model-configuration-complete'
   | 'hide-onboarding'
+  | 'close-chat-window'
   | 'get-profile'
   | 'get-supported-modes'
   | 'get-model-configuration'

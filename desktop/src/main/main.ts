@@ -30,7 +30,7 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent } from 'electron';
+import type { IpcMainInvokeEvent, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
@@ -99,13 +99,19 @@ import {
   saveLearningRecap,
 } from './learning-recap-store';
 import {
+  interruptStaleReplies,
+  latestConversation,
   readConversations,
+  restorableMessages,
   saveConversation,
-  tutorRestoreMessage,
+  setConversationEnded,
+  settleStoredReply,
 } from './conversation-store';
+import type { StoredConversation } from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
+  recordUnderstandingChecked,
 } from './session-event-store';
 import {
   getSystemPermissionWarning,
@@ -431,6 +437,12 @@ let currentUserId = process.env.COCO_GATEWAY_USER_ID?.trim() || null;
 let isAuthenticated = false;
 let pendingAuthLaunch: 'signin' | 'signup' | null = null;
 let currentSessionId: string | null = null;
+// A saved conversation reopened as the current chat. Its tutor context is
+// rebuilt on the user's first new turn rather than when the chat merely opens.
+let resumableSessionId: string | null = null;
+// Tutor replies still streaming, so a reopened chat can tell a reply that is
+// still coming from one that was cut off.
+const activeChatRequests = new Set<string>();
 let pendingTaskLabel: string | null = null;
 // The struggle time chosen for the current session. Re-sent whenever sensing
 // is reconfigured mid-session so a settings change can't reset it.
@@ -964,6 +976,28 @@ const sendToChat = (channel: string, payload: unknown): void => {
   }
 };
 
+// Deliver a chat stream event to the chat that asked for it, or to its
+// replacement if that window was closed mid-reply. Never throws: a missing
+// window must not abort the stream, whose outcome main also saves to disk.
+const sendChatStreamEvent = (
+  sender: WebContents,
+  payload: Record<string, unknown>,
+): void => {
+  let target: WebContents | null = sender;
+  if (target.isDestroyed()) {
+    target =
+      chatWindow && !chatWindow.isDestroyed() ? chatWindow.webContents : null;
+  }
+  if (!target || target.isDestroyed()) return;
+  try {
+    target.send('chat-stream-event', payload);
+  } catch (err) {
+    log.warn(
+      `[Chat] Could not deliver stream event: ${(err as Error).message}`,
+    );
+  }
+};
+
 const toChatSuggestion = (
   suggestion: InstantSuggestion,
   observationId?: string,
@@ -1283,6 +1317,20 @@ async function openCoco(): Promise<void> {
     log.info(`[Chat] Reopened existing draft: ${currentSessionId}`);
     return;
   }
+  // Return to the most recent conversation rather than a blank chat. Like a
+  // draft, it becomes a live session again only once the user sends.
+  const latest = latestConversation(readConversations());
+  if (latest) {
+    currentSessionId = latest.sessionId;
+    resumableSessionId = latest.sessionId;
+    const modelConfig = readModelConfiguration();
+    currentTutorModelId =
+      modelConfig?.tutors.find((item) => item.id === latest.tutorModelId)?.id ??
+      (modelConfig ? defaultTutor(modelConfig).id : null);
+    openChatForSession(latest.sessionId, latest.problem);
+    log.info(`[Chat] Reopened latest conversation: ${latest.sessionId}`);
+    return;
+  }
   // Merely opening the chat feed must not count as a learning session. Give
   // the renderer a draft id so it can render and retain the empty chat; the id
   // is activated and persisted only after the first non-empty user message.
@@ -1568,9 +1616,15 @@ const showSessionSetupWindow = async (taskLabel: string | null) => {
 
 // ── Session-recap floating window ────────────────────────────────────────────
 // Generates a local recap from TutorSystem's in-memory conversation history.
-const showSessionRecapWindow = () => {
+// 'check' is the user's own "Check my understanding" quiz, after which the
+// session continues; 'end' is the end-of-session recap, which ends it.
+type SessionRecapMode = 'check' | 'end';
+let sessionRecapMode: SessionRecapMode = 'end';
+
+const showSessionRecapWindow = (mode: SessionRecapMode) => {
   if (!tutoringAllowed) return;
   sessionRecapWindow?.destroy();
+  sessionRecapMode = mode;
 
   const {
     x: dx,
@@ -1626,7 +1680,7 @@ const showSessionRecapWindow = () => {
 
   sessionRecapWindow.on('ready-to-show', async () => {
     sessionRecapWindow?.show();
-    sessionRecapWindow?.webContents.send('session-recap-init');
+    sessionRecapWindow?.webContents.send('session-recap-init', { mode });
     const data = await recapPromise;
     if (sessionRecapWindow && !sessionRecapWindow.isDestroyed()) {
       sessionRecapWindow.webContents.send('session-recap-data', {
@@ -2312,11 +2366,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
   if (conversation) {
     await axios.post(
       `${tutor}/context/conversation`,
-      {
-        messages: conversation.messages
-          .filter((message) => !message.isError)
-          .map(tutorRestoreMessage),
-      },
+      { messages: restorableMessages(conversation.messages) },
       { timeout: 8000 },
     );
   }
@@ -2937,6 +2987,14 @@ ipcMain.on('toggle-float-window', (_event, options?: { expanded?: boolean }) => 
     : !isFloatMode;
   showChatPanel();
   chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
+});
+
+// The chat's close button. Closing from main emits the window's 'close' event,
+// which hides the chat (keeping its conversation and any streaming reply)
+// rather than destroying it as a renderer-side window.close() would.
+ipcMain.removeAllListeners('close-chat-window');
+ipcMain.on('close-chat-window', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
 ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
@@ -3577,13 +3635,111 @@ ipcMain.handle(
 // Chat history is local-only: the renderer persists completed turns here and
 // asks main to rebuild tutor context before continuing an older conversation.
 ipcMain.removeHandler('get-chat-conversations');
-ipcMain.handle('get-chat-conversations', () => readConversations());
+ipcMain.handle('get-chat-conversations', () =>
+  readConversations().map((conversation) =>
+    interruptStaleReplies(conversation, (requestId) =>
+      activeChatRequests.has(requestId),
+    ),
+  ),
+);
 
 ipcMain.removeHandler('save-chat-conversation');
 ipcMain.handle('save-chat-conversation', (_event, payload) => {
   saveConversation({ ...(payload ?? {}), tutorModelId: currentTutorModelId });
   return { success: true };
 });
+
+// Rebuild tutor context for a saved conversation and make it the live one.
+// Continuing a conversation is not a new learning session, so this does not
+// record a session start.
+async function resumeSavedConversation(
+  conversation: StoredConversation,
+  excludeTrailingUserText?: string,
+): Promise<{ success: boolean; tutorModelId?: string | null; error?: string }> {
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  const tutor = `http://127.0.0.1:${tutorPort}`;
+  const { aiTools, scenario, userName } = readProfile();
+  try {
+    await axios.post(`${tutor}/context/reset`, {}, { timeout: 8000 });
+    const modelConfig = readModelConfiguration();
+    const selectedTutor =
+      modelConfig?.tutors.find(
+        (item) => item.id === conversation.tutorModelId,
+      ) ?? (modelConfig ? defaultTutor(modelConfig) : null);
+    if (selectedTutor) {
+      await axios.post(
+        `${tutor}/config/model`,
+        { model: selectedTutor.model },
+        { timeout: 8000 },
+      );
+      currentTutorModelId = selectedTutor.id;
+    }
+    await axios.post(
+      `${tutor}/config/scenario`,
+      { scenario },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/problem_statement`,
+      { problem_statement: conversation.problem },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/ai_tools`,
+      { ai_tools: aiTools },
+      { timeout: 8000 },
+    );
+    await axios.post(
+      `${tutor}/context/user_name`,
+      { user_name: userName },
+      { timeout: 8000 },
+    );
+    const savedMemory = readLocalMemory();
+    if (savedMemory) {
+      await axios.post(
+        `${tutor}/context/memory`,
+        { memory: savedMemory },
+        { timeout: 8000 },
+      );
+    }
+    await axios.post(
+      `${tutor}/context/conversation`,
+      {
+        messages: restorableMessages(
+          conversation.messages,
+          excludeTrailingUserText,
+        ),
+      },
+      { timeout: 8000 },
+    );
+    currentSessionId = conversation.sessionId;
+    isSessionActive = true;
+    pendingTaskLabel = conversation.problem;
+    resumableSessionId = null;
+    // Continuing an ended conversation from history makes it current again.
+    setConversationEnded(conversation.sessionId, false);
+    return { success: true, tutorModelId: currentTutorModelId };
+  } catch (err) {
+    log.warn(`[Chat] Could not resume conversation: ${(err as Error).message}`);
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+// Resume the reopened conversation before the user's first new turn in it, so
+// the tutor sees its history. Returns false when there is nothing to resume.
+async function resumeReopenedConversation(userText?: string): Promise<boolean> {
+  if (isSessionActive || !resumableSessionId) return false;
+  if (resumableSessionId !== currentSessionId) {
+    resumableSessionId = null;
+    return false;
+  }
+  const conversation = readConversations().find(
+    (saved) => saved.sessionId === resumableSessionId,
+  );
+  resumableSessionId = null;
+  if (!conversation) return false;
+  return (await resumeSavedConversation(conversation, userText)).success;
+}
 
 ipcMain.removeHandler('resume-chat-conversation');
 ipcMain.handle(
@@ -3595,72 +3751,7 @@ ipcMain.handle(
     if (!conversation) {
       return { success: false, error: 'Conversation not found.' };
     }
-
-    const tutorPort = process.env.TUTOR_PORT || '8081';
-    const tutor = `http://127.0.0.1:${tutorPort}`;
-    const { aiTools, scenario, userName } = readProfile();
-    try {
-      await axios.post(`${tutor}/context/reset`, {}, { timeout: 8000 });
-      const modelConfig = readModelConfiguration();
-      const selectedTutor =
-        modelConfig?.tutors.find(
-          (item) => item.id === conversation.tutorModelId,
-        ) ?? (modelConfig ? defaultTutor(modelConfig) : null);
-      if (selectedTutor) {
-        await axios.post(
-          `${tutor}/config/model`,
-          { model: selectedTutor.model },
-          { timeout: 8000 },
-        );
-        currentTutorModelId = selectedTutor.id;
-      }
-      await axios.post(
-        `${tutor}/config/scenario`,
-        { scenario },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/problem_statement`,
-        { problem_statement: conversation.problem },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/ai_tools`,
-        { ai_tools: aiTools },
-        { timeout: 8000 },
-      );
-      await axios.post(
-        `${tutor}/context/user_name`,
-        { user_name: userName },
-        { timeout: 8000 },
-      );
-      const savedMemory = readLocalMemory();
-      if (savedMemory) {
-        await axios.post(
-          `${tutor}/context/memory`,
-          { memory: savedMemory },
-          { timeout: 8000 },
-        );
-      }
-      await axios.post(
-        `${tutor}/context/conversation`,
-        {
-          messages: conversation.messages
-            .filter((message) => !message.isError)
-            .map(tutorRestoreMessage),
-        },
-        { timeout: 8000 },
-      );
-      currentSessionId = conversation.sessionId;
-      isSessionActive = true;
-      pendingTaskLabel = conversation.problem;
-      return { success: true, tutorModelId: currentTutorModelId };
-    } catch (err) {
-      log.warn(
-        `[Chat] Could not resume conversation: ${(err as Error).message}`,
-      );
-      return { success: false, error: (err as Error).message };
-    }
+    return resumeSavedConversation(conversation);
   },
 );
 
@@ -3693,7 +3784,7 @@ ipcMain.removeAllListeners('proactive-session-end-confirmed');
 ipcMain.on('proactive-session-end-confirmed', () => {
   notificationWindow?.destroy();
   chatWindow?.hide();
-  showSessionRecapWindow();
+  showSessionRecapWindow('end');
 });
 
 // AI Fluency Upskilling users can explicitly mark their task successful from
@@ -3711,11 +3802,13 @@ ipcMain.handle('finish-task-successfully', () => {
   }
   notificationWindow?.destroy();
   chatWindow?.hide();
-  showSessionRecapWindow();
+  showSessionRecapWindow('check');
   return { success: true };
 });
 
-// The user answered or skipped the recap; now tear down the active session.
+// The user answered or skipped the recap. An understanding check returns to
+// the same session; the end-of-session recap gives the session-level quiz
+// result and tears the session down.
 ipcMain.removeAllListeners('session-recap-done');
 ipcMain.on('session-recap-done', (_event, payload?: unknown) => {
   const result =
@@ -3740,15 +3833,25 @@ ipcMain.on('session-recap-done', (_event, payload?: unknown) => {
         ? { selectedIndex: result.selectedIndex }
         : {}),
     };
-    const endedAt = new Date();
-    recordSessionEnded(currentSessionId, currentUserId, completion, endedAt);
-    gatewayClient?.endSession(currentSessionId, {
-      endedAt,
-      recapCompletedAt: endedAt,
-      ...completion,
-    });
+    if (sessionRecapMode === 'check') {
+      recordUnderstandingChecked(currentSessionId, currentUserId, completion);
+    } else {
+      const endedAt = new Date();
+      recordSessionEnded(currentSessionId, currentUserId, completion, endedAt);
+      gatewayClient?.endSession(currentSessionId, {
+        endedAt,
+        recapCompletedAt: endedAt,
+        ...completion,
+      });
+      // Reopening Coco after an ended session starts a new conversation.
+      setConversationEnded(currentSessionId, true);
+    }
   }
   sessionRecapWindow?.destroy();
+  if (sessionRecapMode === 'check') {
+    showChatPanel();
+    return;
+  }
   endCurrentSession();
 });
 
@@ -3804,6 +3907,7 @@ ipcMain.handle(
       const sessionStartText = (displayText ?? userText).trim();
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
+      await resumeReopenedConversation(displayText ?? userText);
       if (
         !isSessionActive &&
         shouldStartSessionFromUserMessage(
@@ -3872,6 +3976,12 @@ ipcMain.handle(
               .join('\n')
           : userText;
       let streamedText = '';
+      const settleReply = (reply: { text: string; isError?: boolean }) => {
+        if (gatewaySessionId) {
+          settleStoredReply(gatewaySessionId, requestId, reply, displayText);
+        }
+      };
+      activeChatRequests.add(requestId);
       try {
         // A plain chat can be opened without creating a proactive session. Sync
         // the persisted profile on every turn so the tutor never falls back to
@@ -3907,6 +4017,20 @@ ipcMain.handle(
               turnTiming.recordTextDelta(delta);
               streamedText += delta;
             }
+            if (streamEvent.type === 'done') {
+              settleReply({
+                text: String(streamEvent.guidance ?? streamedText),
+              });
+            }
+            if (streamEvent.type === 'error') {
+              settleReply({
+                text: String(
+                  streamEvent.error ??
+                    'The tutor could not generate a response.',
+                ),
+                isError: true,
+              });
+            }
             if (streamEvent.type === 'done' && gatewaySessionId) {
               const metrics = streamEvent.llm_metrics as
                 | LLMCallMetrics
@@ -3929,7 +4053,7 @@ ipcMain.handle(
                 },
               );
             }
-            ipcEvent.sender.send('chat-stream-event', {
+            sendChatStreamEvent(ipcEvent.sender, {
               requestId,
               ...streamEvent,
               ...(streamEvent.type === 'done'
@@ -3957,12 +4081,15 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond. Please retry.'
             : 'The tutor could not generate a response. Please try again.';
-        ipcEvent.sender.send('chat-stream-event', {
+        settleReply({ text: error, isError: true });
+        sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           type: 'error',
           error,
         });
         return { error };
+      } finally {
+        activeChatRequests.delete(requestId);
       }
     },
   ),
@@ -4032,6 +4159,7 @@ ipcMain.handle(
       }
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
+      await resumeReopenedConversation();
       if (!isSessionActive) {
         // A pre-session invite may already be visible from the last sensing tick.
         // Voice input is itself an explicit session start, so remove that stale UI.
@@ -4054,6 +4182,12 @@ ipcMain.handle(
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const turnTiming = new TutorTurnTiming();
       let streamedText = '';
+      const settleReply = (reply: { text: string; isError?: boolean }) => {
+        if (gatewaySessionId) {
+          settleStoredReply(gatewaySessionId, requestId, reply);
+        }
+      };
+      activeChatRequests.add(requestId);
       try {
         await consumeTutorStream(
           `http://127.0.0.1:${tutorPort}/events/audio_prompt/stream`,
@@ -4085,6 +4219,20 @@ ipcMain.handle(
               turnTiming.recordTextDelta(delta);
               streamedText += delta;
             }
+            if (streamEvent.type === 'done') {
+              settleReply({
+                text: String(streamEvent.guidance ?? streamedText),
+              });
+            }
+            if (streamEvent.type === 'error') {
+              settleReply({
+                text: String(
+                  streamEvent.error ??
+                    'The tutor could not process the voice message.',
+                ),
+                isError: true,
+              });
+            }
             if (streamEvent.type === 'done' && gatewaySessionId) {
               const metrics = streamEvent.llm_metrics as
                 | LLMCallMetrics
@@ -4104,7 +4252,7 @@ ipcMain.handle(
                 },
               );
             }
-            ipcEvent.sender.send('chat-stream-event', {
+            sendChatStreamEvent(ipcEvent.sender, {
               requestId,
               ...streamEvent,
             });
@@ -4125,12 +4273,15 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond to the voice message. Please retry.'
             : 'The tutor could not process the voice message. Please try again.';
-        ipcEvent.sender.send('chat-stream-event', {
+        settleReply({ text: error, isError: true });
+        sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           type: 'error',
           error,
         });
         return { error };
+      } finally {
+        activeChatRequests.delete(requestId);
       }
     },
   ),

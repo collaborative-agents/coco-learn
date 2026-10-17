@@ -717,3 +717,42 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def test_understanding_check_uses_snapshot_without_changing_current_session(
+    monkeypatch,
+):
+    tutor = _make_tutor_system()
+    tutor.conversation_history = ["[User]: Current conversation stays open."]
+    before = list(tutor.conversation_history)
+    prompts = []
+    result = {
+        "summary_title": "Check the evidence",
+        "bullets": ["Compare populations.", "Check study methods."],
+        "quiz": {
+            "question": "How should you evaluate a study before teaching its result?",
+            "choices": [
+                "Compare the study population with your learners",
+                "Use the headline without reading the methods",
+                "Assume all studies apply equally",
+                "Ignore the study limitations",
+            ],
+            "correct_index": 0,
+            "explanation": "Population differences affect applicability.",
+        },
+    }
+
+    def complete(**kwargs):
+        prompts.append(kwargs["user_prompt"])
+        return json.dumps(result), {}
+
+    monkeypatch.setattr(
+        "proactive_tutor.tutor_system.prompt_to_text_with_metrics", complete
+    )
+    recap, _ = tutor.generate_recap("[User]: Archived lesson about study populations.")
+    assert recap["summary_title"] == "Check the evidence"
+    assert "Archived lesson" in prompts[0]
+    assert "Current conversation stays open" not in prompts[0]
+    assert tutor.conversation_history == before
+    with pytest.raises(ValueError, match="empty"):
+        tutor.generate_recap("")

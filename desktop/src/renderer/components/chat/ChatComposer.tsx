@@ -150,6 +150,7 @@ export default function ChatComposer({
           onKeyDown={onKeyDown}
         />
         <ChatComposerActions
+          sessionId={workspaceSessionId}
           showUnderstandingCheck={profile.scenario === 'ai_upskilling'}
           checkingUnderstanding={checkingUnderstanding}
           understandingDisabled={Boolean(

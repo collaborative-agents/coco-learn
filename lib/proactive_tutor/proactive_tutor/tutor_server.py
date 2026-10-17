@@ -160,6 +160,10 @@ class ConversationMessage(BaseModel):
     text: str
 
 
+class RecapRequest(BaseModel):
+    messages: list[ConversationMessage] | None = None
+
+
 class ConversationRequest(BaseModel):
     messages: list[ConversationMessage]
 
@@ -818,12 +822,17 @@ async def record_competency_coached(req: CompetencyCoachedRequest):
 
 
 @app.post("/recap", response_model=RecapResponse)
-async def generate_recap():
-    """Generate a summary and recap question from the active local transcript."""
+async def generate_recap(req: RecapRequest | None = None):
+    """Check a supplied conversation without resuming or ending any session."""
     if tutor is None:
         raise HTTPException(status_code=503, detail="TutorSystem not initialized")
     try:
-        recap, _metrics = await asyncio.to_thread(tutor.generate_recap)
+        transcript = (
+            "\n".join(f"[{message.role}]: {message.text}" for message in req.messages)
+            if req is not None and req.messages is not None
+            else None
+        )
+        recap, _metrics = await asyncio.to_thread(tutor.generate_recap, transcript)
         return RecapResponse(**recap)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

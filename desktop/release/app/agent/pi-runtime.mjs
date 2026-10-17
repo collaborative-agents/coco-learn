@@ -70,6 +70,7 @@ export async function createRuntime({
     eventBus,
     additionalExtensionPaths: [
       fileURLToPath(new URL('./ask-user-extension.ts', import.meta.url)),
+      fileURLToPath(new URL('./context-view-extension.ts', import.meta.url)),
     ],
     systemPrompt: `${context.instructions}\n\n${executionInstructions}`,
   });
@@ -158,6 +159,12 @@ export async function createRuntime({
   let historyLength = 0;
   return {
     subscribe: (listener) => session.subscribe(listener),
+    getContextSnapshot() {
+      const request = {};
+      eventBus.emit('coco:context:read', request);
+      if (request.error) throw new Error(request.error);
+      return request.snapshot ?? null;
+    },
     async prompt(text, images, latestContext) {
       const newHistory = latestContext.history.slice(historyLength);
       const contextText = [

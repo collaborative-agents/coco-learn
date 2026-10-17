@@ -89,3 +89,41 @@ def test_user_name_endpoint_updates_tutor_context(monkeypatch) -> None:
     )
 
     assert selected == ["Ada"]
+
+
+def test_recap_accepts_saved_transcript_and_keeps_legacy_empty_body(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    transcripts = []
+
+    class FakeTutor:
+        def generate_recap(self, transcript=None):
+            transcripts.append(transcript)
+            return {
+                "summary_title": "Check understanding",
+                "bullets": ["Review evidence."],
+                "quiz": {
+                    "question": "What should you check?",
+                    "choices": ["Evidence", "Color", "Font", "Length"],
+                    "correct_index": 0,
+                    "explanation": "Evidence supports claims.",
+                },
+            }, {}
+
+    monkeypatch.setattr(tutor_server, "tutor", FakeTutor())
+    client = TestClient(tutor_server.app)
+    response = client.post(
+        "/recap",
+        json={
+            "messages": [
+                {"role": "user", "text": "An archived lesson"},
+                {"role": "tutor", "text": "Review the evidence"},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    assert transcripts[-1] == "[user]: An archived lesson\n[tutor]: Review the evidence"
+    assert client.post("/recap", json={}).status_code == 200
+    assert transcripts[-1] is None
+    assert client.post("/recap").status_code == 200
+    assert transcripts[-1] is None

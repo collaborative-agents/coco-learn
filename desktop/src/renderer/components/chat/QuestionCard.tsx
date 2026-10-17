@@ -60,7 +60,58 @@ export default function QuestionCard({
     <section className="agent-question-card" aria-label="Questions from Coco">
       <div className="agent-question-heading">
         <strong>{heading}</strong>
-        <span>{questions.length} questions</span>
+        {waiting && (
+          <div className="agent-question-actions">
+            <button
+              type="button"
+              aria-label="Skip"
+              title="Skip questions"
+              disabled={submitting}
+              onClick={() => {
+                submit(true);
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m5 5 10 7-10 7V5ZM19 5v14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="agent-question-submit"
+              aria-label="Submit answers"
+              title={submitting ? 'Sending…' : 'Submit answers'}
+              aria-busy={submitting}
+              disabled={!ready || submitting}
+              onClick={() => {
+                submit();
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m5 12 4 4L19 6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
       {questions.map((question, index) => {
         const answer = answers[index] ?? { selected: [], text: '' };
@@ -90,17 +141,9 @@ export default function QuestionCard({
         };
         return (
           <fieldset key={question.question} disabled={!waiting || submitting}>
-            <legend>
-              <span className="agent-question-chip">{question.header}</span>
-              {question.question}
-            </legend>
+            <legend>{question.question}</legend>
             {waiting ? (
               <>
-                <p className="agent-question-hint">
-                  {question.multiSelect
-                    ? 'Choose one or more, or add your own answer.'
-                    : 'Choose one or write your own answer.'}
-                </p>
                 <div className="agent-question-options">
                   {question.options.map((option) => (
                     <label
@@ -139,8 +182,8 @@ export default function QuestionCard({
                   ))}
                 <textarea
                   aria-label={`Your own answer: ${question.question}`}
-                  placeholder="Or write your own answer…"
-                  rows={2}
+                  placeholder="Your answer…"
+                  rows={answer.text.includes('\n') ? 2 : 1}
                   maxLength={20000}
                   value={answer.text}
                   onChange={(event) =>
@@ -161,30 +204,6 @@ export default function QuestionCard({
         <p role="alert" className="agent-question-error">
           {error}
         </p>
-      )}
-      {waiting && (
-        <div className="agent-question-actions">
-          <span>Coco will continue after you respond.</span>
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => {
-              submit(true);
-            }}
-          >
-            Skip
-          </button>
-          <button
-            type="button"
-            className="agent-question-submit"
-            disabled={!ready || submitting}
-            onClick={() => {
-              submit();
-            }}
-          >
-            Submit answers
-          </button>
-        </div>
       )}
       {call.result?.error && (
         <p className="agent-question-error">{call.result.error}</p>

@@ -168,6 +168,13 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
       }
     });
     await runtime.prompt('Create the file.', [], context);
+    const requestsBeforeInspect = requestCount;
+    const inspected = runtime.getContextSnapshot();
+    assert.ok(inspected.estimatedTokens > 0);
+    assert.ok(inspected.categories.length > 0);
+    assert.equal(inspected.reported.contextWindow, 64000);
+    assert.match(JSON.stringify(inspected), /Create the file/);
+    assert.equal(requestCount, requestsBeforeInspect, 'inspection must not prompt');
     assert.equal(
       fs.readFileSync(path.join(directory, 'result.txt'), 'utf8'),
       'Made by pi',

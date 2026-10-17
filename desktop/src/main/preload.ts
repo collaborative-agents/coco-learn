@@ -95,6 +95,7 @@ export type Channels =
   | 'get-agent-workspace'
   | 'choose-agent-workspace'
   | 'stop-agent-run'
+  | 'get-agent-context'
   | 'answer-agent-question'
   | 'send-chat-message'
   | 'send-audio-message'

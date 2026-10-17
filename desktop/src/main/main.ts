@@ -634,6 +634,9 @@ ipcMain.handle(
     return { directory };
   },
 );
+ipcMain.handle('get-agent-context', (_event, sessionId: string) =>
+  typeof sessionId === 'string' ? piHarness.getContextSnapshot(sessionId) : null,
+);
 ipcMain.handle(
   'answer-agent-question',
   (_event, toolCallId: string, response: unknown) =>

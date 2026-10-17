@@ -22,7 +22,7 @@ interface Props {
   openImagePreview: (imageDataUrl: string) => void;
   pendingHotkeyImagesRef: React.RefObject<Set<string>>;
   setPendingImages: React.Dispatch<React.SetStateAction<string[]>>;
-  finishTaskError: string;
+  understandingError: string;
   sending: boolean;
   voiceState: VoiceRecorderStatus | 'idle' | 'requesting';
   input: string;
@@ -34,8 +34,8 @@ interface Props {
   reviewing: SavedConversation | null;
   handleVoiceClick: (fromWakeWord?: boolean) => Promise<void>;
   profile: { scenario: string; aiTools: string[]; hideAvatar: boolean };
-  finishingTask: boolean;
-  handleFinishTask: () => Promise<void>;
+  checkingUnderstanding: boolean;
+  handleCheckUnderstanding: () => Promise<void>;
   canSend: boolean;
   handleSend: () => void;
   voiceStatusText: string;
@@ -53,7 +53,7 @@ export default function ChatComposer({
   openImagePreview,
   pendingHotkeyImagesRef,
   setPendingImages,
-  finishTaskError,
+  understandingError,
   sending,
   voiceState,
   input,
@@ -65,8 +65,8 @@ export default function ChatComposer({
   reviewing,
   handleVoiceClick,
   profile,
-  finishingTask,
-  handleFinishTask,
+  checkingUnderstanding,
+  handleCheckUnderstanding,
   canSend,
   handleSend,
   voiceStatusText,
@@ -77,7 +77,7 @@ export default function ChatComposer({
       <AgentWorkspace
         key={workspaceSessionId}
         sessionId={workspaceSessionId}
-        disabled={sending || startingNewSession || finishingTask}
+        disabled={sending || startingNewSession || checkingUnderstanding}
         running={agentRunning}
         onStop={stopAgent}
       />
@@ -131,8 +131,8 @@ export default function ChatComposer({
             ))}
           </div>
         )}
-        {finishTaskError && (
-          <div style={S.finishTaskError}>{finishTaskError}</div>
+        {understandingError && (
+          <div style={S.understandingError}>{understandingError}</div>
         )}
         <textarea
           style={S.textarea}
@@ -151,21 +151,19 @@ export default function ChatComposer({
         />
         <ChatComposerActions
           showUnderstandingCheck={profile.scenario === 'ai_upskilling'}
-          checkingUnderstanding={finishingTask}
+          checkingUnderstanding={checkingUnderstanding}
           understandingDisabled={Boolean(
             sending ||
               startingNewSession ||
-              finishingTask ||
-              input.trim() ||
+              checkingUnderstanding ||
               voiceState !== 'idle',
           )}
-          hasDraft={Boolean(input.trim())}
-          onCheckUnderstanding={handleFinishTask}
+          onCheckUnderstanding={handleCheckUnderstanding}
           voiceActive={voiceActive}
           voiceDisabled={
             sending ||
             startingNewSession ||
-            finishingTask ||
+            checkingUnderstanding ||
             Boolean(reviewing) ||
             voiceState === 'requesting'
           }

@@ -1,3 +1,4 @@
+import subscribeCocoSleepMode from './services/coco-sleep-mode';
 import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
@@ -519,26 +520,7 @@ function PetView() {
     };
   }, []);
 
-  useEffect(() => {
-    window.electron?.ipcRenderer
-      .invoke('get-coco-sleep-mode')
-      .then((result) => {
-        const state = result as { sleeping?: boolean } | undefined;
-        setCocoSleeping(state?.sleeping === true);
-        return undefined;
-      })
-      .catch(() => undefined);
-    const cleanup = window.electron?.ipcRenderer.on(
-      'coco-sleep-mode-changed',
-      (result) => {
-        const state = result as { sleeping?: boolean } | undefined;
-        setCocoSleeping(state?.sleeping === true);
-      },
-    );
-    return () => {
-      if (typeof cleanup === 'function') cleanup();
-    };
-  }, []);
+  useEffect(() => subscribeCocoSleepMode(setCocoSleeping), []);
 
   const setCocoSleepMode = async (sleeping: boolean) => {
     const result = (await window.electron?.ipcRenderer.invoke(

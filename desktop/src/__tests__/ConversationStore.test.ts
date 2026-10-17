@@ -232,3 +232,24 @@ describe('conversation title generation', () => {
     expect(title.endsWith('…')).toBe(true);
   });
 });
+
+test('keeps usage when main settles a reply while the renderer is closed', () => {
+  const metrics = {
+    prompt_tokens: 1234,
+    completion_tokens: 321,
+    duration_ms: 2300,
+  };
+  const settled = applyStoredReply(
+    [
+      {
+        role: 'tutor',
+        text: 'Working…',
+        requestId: 'usage',
+        isStreaming: true,
+      },
+    ],
+    'usage',
+    { text: 'Done.', tutorMetrics: metrics },
+  );
+  expect(settled?.[0].tutorMetrics).toEqual(metrics);
+});

@@ -66,6 +66,7 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
         'write',
         'edit',
         'bash',
+        'ask_user_question',
         ...tools.map((t) => t.function.name),
       ]) {
         assert.ok(
@@ -76,6 +77,26 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
       emit({ content: 'I will write the file and check context.' });
       emit({
         tool_calls: [
+          {
+            index: 2,
+            id: 'question-1',
+            type: 'function',
+            function: {
+              name: 'ask_user_question',
+              arguments: JSON.stringify({
+                questions: [
+                  {
+                    header: 'Style',
+                    question: 'Which style?',
+                    options: [
+                      { label: 'Brief', description: 'Short answers' },
+                      { label: 'Detailed', description: 'Full explanations' },
+                    ],
+                  },
+                ],
+              }),
+            },
+          },
           {
             index: 0,
             id: 'write-1',
@@ -126,7 +147,26 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
   try {
     runtime = await createRuntime(options);
     const events = [];
-    runtime.subscribe((event) => events.push(event));
+    runtime.subscribe((event) => {
+      events.push(event);
+      if (
+        event.type === 'tool_execution_update' &&
+        event.toolName === 'ask_user_question' &&
+        event.partialResult?.details?.waitingForAnswer
+      ) {
+        assert.throws(
+          () => runtime.answerQuestion(event.toolCallId, { answers: [] }),
+          /Answer each/,
+        );
+        runtime.answerQuestion(event.toolCallId, {
+          answers: [{ selected: ['Brief'], text: '' }],
+        });
+        assert.throws(
+          () => runtime.answerQuestion(event.toolCallId, { cancelled: true }),
+          /no longer/,
+        );
+      }
+    });
     await runtime.prompt('Create the file.', [], context);
     assert.equal(
       fs.readFileSync(path.join(directory, 'result.txt'), 'utf8'),
@@ -140,7 +180,20 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
           !event.isError,
       ),
     );
-    assert.ok(lastRequest.messages.some((message) => message.role === 'tool'));
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === 'tool_execution_end' &&
+          event.toolName === 'ask_user_question' &&
+          event.result?.details?.answers?.[0]?.answer === 'Brief',
+      ),
+    );
+    assert.ok(
+      lastRequest.messages.some(
+        (message) =>
+          message.role === 'tool' && message.content.includes('Brief'),
+      ),
+    );
     runtime.dispose();
     runtime = await createRuntime(options);
     await runtime.prompt('What did you do?', [], context);

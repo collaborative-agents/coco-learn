@@ -190,13 +190,14 @@ describe('deferred suggestion context', () => {
         height: '50%',
       });
     });
-    expect(screen.getByRole('banner')).not.toHaveStyle({
+    expect(screen.getByRole('toolbar', { name: 'Chat actions' })).not.toHaveStyle({
       transform: 'scale(2)',
     });
   });
 
   it('shows sensing and tutor health independently and allows a refresh', async () => {
     const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-coco-sleep-mode') return { sleeping: false };
       if (channel === 'get-service-health') {
         return {
           checkedAt: 1753200000000,
@@ -232,9 +233,7 @@ describe('deferred suggestion context', () => {
 
     render(<SessionChatView />);
     fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Service issue. Open Settings',
-      }),
+      screen.getByTitle('Settings'),
     );
 
     expect(
@@ -293,12 +292,9 @@ describe('deferred suggestion context', () => {
 
     render(<SessionChatView />);
 
-    expect(
-      await screen.findByRole('status', { name: 'Sleeping' }),
-    ).toBeInTheDocument();
     fireEvent.click(screen.getByTitle('Settings'));
     expect(
-      screen.getByText(
+      await screen.findByText(
         'Sleeping intentionally stops the sensing server and tutor agent.',
       ),
     ).toBeInTheDocument();
@@ -318,8 +314,9 @@ describe('deferred suggestion context', () => {
     });
   });
 
-  it('shows missing model configuration in the chat header', async () => {
+  it('shows missing model configuration in Settings', async () => {
     const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-coco-sleep-mode') return { sleeping: false };
       if (channel === 'get-service-health') {
         const modelAssessment = {
           status: 'not_configured',
@@ -342,20 +339,16 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    const warning = await screen.findByRole('button', {
-      name: 'Needs attention. Open Settings',
-    });
-    expect(warning).toHaveStyle({ color: '#b45309' });
-
-    fireEvent.click(warning);
+    fireEvent.click(screen.getByTitle('Settings'));
     expect(screen.getByText('Coco Health')).toBeInTheDocument();
     expect(
-      screen.getAllByText(/No model configuration was found/),
+      await screen.findAllByText(/No model configuration was found/),
     ).toHaveLength(2);
   });
 
   it('shows a failed real model check in the chat header', async () => {
     const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-coco-sleep-mode') return { sleeping: false };
       if (channel === 'get-service-health') {
         return {
           checkedAt: 1753200000000,
@@ -388,14 +381,10 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    const warning = await screen.findByRole('button', {
-      name: 'Model issue. Open Settings',
-    });
-    expect(warning).toHaveStyle({ color: '#dc2626' });
-    expect(warning).toHaveAttribute(
-      'title',
-      expect.stringContaining('The API key was rejected.'),
-    );
+    fireEvent.click(screen.getByTitle('Settings'));
+    expect(
+      await screen.findByText(/The API key was rejected/),
+    ).toBeInTheDocument();
   });
 
   it('applies desktop avatar visibility immediately', async () => {
@@ -842,7 +831,7 @@ describe('deferred suggestion context', () => {
         return { tutorScenario: 'ai_upskilling', aiTools: [] };
       }
       if (channel === 'get-supported-modes') return ['ai_upskilling'];
-      if (channel === 'finish-task-successfully') return { success: true };
+      if (channel === 'check-understanding') return { success: true };
       return null;
     });
     (window as any).electron = {
@@ -859,7 +848,7 @@ describe('deferred suggestion context', () => {
     });
     expect(checkUnderstanding).toHaveAttribute(
       'title',
-      'Review what you learned with Coco and take a short quiz. Completing or skipping the recap ends this session.',
+      'Check what you learned with a short quiz. Your conversation stays open.',
     );
     expect(checkUnderstanding.querySelector('svg')).toHaveAttribute(
       'aria-hidden',
@@ -868,12 +857,14 @@ describe('deferred suggestion context', () => {
     fireEvent.click(checkUnderstanding);
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('finish-task-successfully');
+      expect(invoke).toHaveBeenCalledWith('check-understanding', {
+        sessionId: null,
+      });
     });
   });
 
   it.each([true, false])(
-    'restores the selected conversation before its quiz (restore succeeds: %s)',
+    'checks the selected conversation without resuming it (check succeeds: %s)',
     async (success) => {
       let finishRestore: (result: unknown) => void = () => {};
       const restore = new Promise((resolve) => {
@@ -897,8 +888,7 @@ describe('deferred suggestion context', () => {
               ],
             },
           ];
-        if (channel === 'resume-chat-conversation') return restore;
-        if (channel === 'finish-task-successfully') return { success: true };
+        if (channel === 'check-understanding') return restore;
         return null;
       });
       (window as any).electron = {
@@ -918,34 +908,38 @@ describe('deferred suggestion context', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Check my understanding' }),
       );
-      expect(invoke).toHaveBeenCalledWith('resume-chat-conversation', {
+      expect(invoke).toHaveBeenCalledWith('check-understanding', {
         sessionId: 'past-quiz-session',
       });
-      expect(invoke).not.toHaveBeenCalledWith('finish-task-successfully');
+      expect(
+        invoke.mock.calls.some(
+          ([channel]) => channel === 'resume-chat-conversation',
+        ),
+      ).toBe(false);
       await act(async () => {
         finishRestore({
           success,
-          error: success ? undefined : 'Could not restore lesson.',
+          error: success ? undefined : 'Could not open quiz.',
         });
       });
       expect(
         invoke.mock.calls.filter(
-          ([channel]) => channel === 'finish-task-successfully',
+          ([channel]) => channel === 'check-understanding',
         ),
-      ).toHaveLength(success ? 1 : 0);
-      expect(Boolean(screen.queryByText('Could not restore lesson.'))).toBe(
+      ).toHaveLength(1);
+      expect(Boolean(screen.queryByText('Could not open quiz.'))).toBe(
         !success,
       );
     },
   );
 
-  it('disables Check my understanding while the message input has content', async () => {
+  it('allows an understanding check without discarding an unsent draft', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile') {
         return { tutorScenario: 'ai_upskilling', aiTools: [] };
       }
       if (channel === 'get-supported-modes') return ['ai_upskilling'];
-      if (channel === 'finish-task-successfully') return { success: true };
+      if (channel === 'check-understanding') return { success: true };
       return null;
     });
     (window as any).electron = {
@@ -963,9 +957,14 @@ describe('deferred suggestion context', () => {
     const inputBox = screen.getByPlaceholderText(/Ask Coco/);
 
     fireEvent.change(inputBox, { target: { value: 'Help with this draft' } });
-    expect(finish).toBeDisabled();
+    expect(finish).toBeEnabled();
     fireEvent.click(finish);
-    expect(invoke).not.toHaveBeenCalledWith('finish-task-successfully');
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('check-understanding', {
+        sessionId: null,
+      }),
+    );
+    expect(inputBox).toHaveValue('Help with this draft');
 
     fireEvent.change(inputBox, { target: { value: '' } });
     expect(finish).toBeEnabled();

@@ -50,7 +50,7 @@ import {
   syncPreAssessmentState,
 } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
-import configureMainWindow from './main-window-behavior';
+import configureMainWindow, { resizeMainWindow } from './main-window-behavior';
 import log from 'electron-log';
 import axios from 'axios';
 import { resolveHtmlPath } from './util';
@@ -110,7 +110,7 @@ import {
   setConversationEnded,
   settleStoredReply,
 } from './conversation-store';
-import type { StoredConversation } from './conversation-store';
+import type { StoredConversation, StoredReply } from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
@@ -539,9 +539,8 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
       } catch (error) {
         if (pendingChatRequest) pendingChatRequest.stopped = true;
         void piHarness.abort();
-        tutoringAllowed = false;
         studyAccessStatus = 'unavailable';
-        process.env.COCO_TUTORING_ALLOWED = '0';
+        setTutoringAllowed(false);
         await stopTutoringForAccess();
         throw error;
       }
@@ -553,7 +552,7 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
 const openTraining = () => {
   if (!isAuthenticated) return;
   isFloatMode = false;
-  showChatPanel();
+  showChatPanel({ expanded: true });
   sendToChat('open-training-panel', null);
 };
 ipcMain.on('open-training', openTraining);
@@ -634,6 +633,11 @@ ipcMain.handle(
     saveConversationDirectory(sessionId, directory);
     return { directory };
   },
+);
+ipcMain.handle(
+  'answer-agent-question',
+  (_event, toolCallId: string, response: unknown) =>
+    piHarness.answerQuestion(toolCallId, response),
 );
 ipcMain.handle('stop-agent-run', (_event, requestId: string) => {
   if (pendingChatRequest?.requestId === requestId)
@@ -936,8 +940,14 @@ const createChatWindow = () => {
     height: 780,
     minWidth: 420,
     minHeight: 500,
-    frame: false,
-    transparent: true,
+    frame: process.platform === 'darwin',
+    transparent: process.platform !== 'darwin',
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hidden' as const,
+          trafficLightPosition: { x: 14, y: 14 },
+        }
+      : {}),
     resizable: true,
     skipTaskbar: process.platform !== 'darwin',
     alwaysOnTop: false,
@@ -1164,8 +1174,10 @@ const recordSuggestionWithTutor = (
     });
 };
 
-// Position the chat window as a right-edge side panel and show it.
-const showChatPanel = () => {
+// Position a new chat window once; showing another conversation keeps the
+// user's existing window geometry, including when reopening a hidden window.
+const showChatPanel = (options: { expanded?: boolean } = {}) => {
+  const isNewWindow = !chatWindow || chatWindow.isDestroyed();
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
@@ -1181,13 +1193,24 @@ const showChatPanel = () => {
     if (observationId) revealChatSuggestion(observationId);
   }
 
-  const disp = screen.getDisplayMatching(chatWindow.getBounds());
-  const { x: dx, y: dy, width: sw, height: sh } = disp.workArea;
-  const w = Math.min(isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W, sw - 32);
-  const h = Math.min(780, sh - 32);
-
-  chatWindow.setSize(w, h);
-  chatWindow.setPosition(dx + sw - w - 16, dy + Math.floor((sh - h) / 2));
+  if (isNewWindow) {
+    const disp = screen.getDisplayMatching(chatWindow.getBounds());
+    const { x: dx, y: dy, width: sw, height: sh } = disp.workArea;
+    const w = Math.min(isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W, sw - 32);
+    const h = Math.min(780, sh - 32);
+    chatWindow.setBounds({
+      x: dx + sw - w - 16,
+      y: dy + Math.floor((sh - h) / 2),
+      width: w,
+      height: h,
+    });
+  } else if (options.expanded && chatWindow.getBounds().width < 780) {
+    resizeMainWindow(
+      chatWindow,
+      CHAT_EXPANDED_W,
+      screen.getDisplayMatching(chatWindow.getBounds()).workArea,
+    );
+  }
   configureMainWindow(chatWindow);
   chatWindow.show();
   chatWindow.focus();
@@ -1386,7 +1409,7 @@ const openChatSettings = () => {
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
   isFloatMode = false;
-  showChatPanel();
+  showChatPanel({ expanded: true });
   sendToChat('open-chat-settings', null);
 };
 
@@ -1728,7 +1751,10 @@ const showSessionSetupWindow = async (taskLabel: string | null) => {
 type SessionRecapMode = 'check' | 'end';
 let sessionRecapMode: SessionRecapMode = 'end';
 
-const showSessionRecapWindow = (mode: SessionRecapMode) => {
+const showSessionRecapWindow = (
+  mode: SessionRecapMode,
+  conversation?: StoredConversation,
+) => {
   if (!tutoringAllowed) return;
   sessionRecapWindow?.destroy();
   sessionRecapMode = mode;
@@ -1764,12 +1790,18 @@ const showSessionRecapWindow = (mode: SessionRecapMode) => {
   );
 
   const tutorPort = process.env.TUTOR_PORT || '8081';
-  const recapSessionId = currentSessionId;
+  const recapSessionId = conversation?.sessionId ?? currentSessionId;
   const recapUserId = currentUserId;
   const recapWindow = sessionRecapWindow;
   sessionRecapContext = { sessionId: recapSessionId, userId: recapUserId };
   const recapPromise: Promise<object | null> = axios
-    .post(`http://127.0.0.1:${tutorPort}/recap`, {}, { timeout: 45_000 })
+    .post(
+      `http://127.0.0.1:${tutorPort}/recap`,
+      conversation
+        ? { messages: restorableMessages(conversation.messages) }
+        : {},
+      { timeout: 45_000 },
+    )
     .then((response) => {
       const data = response.data as object;
       if (recapSessionId && recapUserId) {
@@ -2773,6 +2805,22 @@ ipcMain.on('training-feedback', async (_event, payload) => {
   }
 });
 
+function publishCocoSleepMode() {
+  const state = { sleeping: isCocoSleeping() };
+  avatarWindow?.webContents.send('coco-sleep-mode-changed', state);
+  chatWindow?.webContents.send('coco-sleep-mode-changed', state);
+  wakeWordCaptureWindow?.webContents.send('coco-sleep-mode-changed', state);
+  if (tray && !tray.isDestroyed()) createTray();
+  return state;
+}
+
+function setTutoringAllowed(allowed: boolean) {
+  const wasSleeping = isCocoSleeping();
+  tutoringAllowed = allowed;
+  process.env.COCO_TUTORING_ALLOWED = allowed ? '1' : '0';
+  if (isCocoSleeping() !== wasSleeping) publishCocoSleepMode();
+}
+
 ipcMain.removeHandler('get-coco-sleep-mode');
 ipcMain.handle('get-coco-sleep-mode', () => ({
   sleeping: isCocoSleeping(),
@@ -2793,6 +2841,7 @@ async function setCocoSleepMode(sleeping: boolean) {
   // checks and wake-word callbacks cannot mistake an intentional pause for a
   // failure or accept another interaction while shutdown is in progress.
   cocoSleeping = sleeping;
+  publishCocoSleepMode();
   syncWakeWordService();
 
   if (sleeping) {
@@ -2809,12 +2858,7 @@ async function setCocoSleepMode(sleeping: boolean) {
     startObserver();
   }
 
-  const state = { sleeping };
-  avatarWindow?.webContents.send('coco-sleep-mode-changed', state);
-  chatWindow?.webContents.send('coco-sleep-mode-changed', state);
-  wakeWordCaptureWindow?.webContents.send('coco-sleep-mode-changed', state);
-  if (tray && !tray.isDestroyed()) createTray();
-  return { success: true, sleeping };
+  return { success: true, sleeping: isCocoSleeping() };
 }
 
 ipcMain.removeHandler('set-coco-sleep-mode');
@@ -3107,9 +3151,16 @@ ipcMain.on(
   'toggle-float-window',
   (_event, options?: { expanded?: boolean }) => {
     if (!chatWindow || chatWindow.isDestroyed()) return;
-    isFloatMode =
+    const nextFloatMode =
       typeof options?.expanded === 'boolean' ? !options.expanded : !isFloatMode;
-    showChatPanel();
+    if (nextFloatMode !== isFloatMode) {
+      isFloatMode = nextFloatMode;
+      resizeMainWindow(
+        chatWindow,
+        isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W,
+        screen.getDisplayMatching(chatWindow.getBounds()).workArea,
+      );
+    }
     chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
   },
 );
@@ -3919,30 +3970,47 @@ ipcMain.on('proactive-session-end-confirmed', () => {
   showSessionRecapWindow('end');
 });
 
-// AI Fluency Upskilling users can explicitly mark their task successful from
-// the chat composer instead of waiting for automatic task-completion sensing.
-// Keep this guarded in main as well as hidden in the renderer so a stale or
-// modified client cannot trigger a recap in another packaged mode.
-ipcMain.removeHandler('finish-task-successfully');
-ipcMain.handle('finish-task-successfully', () => {
-  if (pendingChatRequest) {
-    return {
-      success: false,
-      error: 'Wait for Coco to finish before opening the recap.',
-    };
-  }
-  const { scenario } = readProfile();
-  if (scenario !== 'ai_upskilling') {
-    return { success: false, error: 'Task recap is unavailable in this mode.' };
-  }
-  if (!isSessionActive || !currentSessionId) {
-    return { success: false, error: 'There is no active session to finish.' };
-  }
-  notificationWindow?.destroy();
-  chatWindow?.hide();
-  showSessionRecapWindow('check');
-  return { success: true };
-});
+// Understanding checks use a transcript snapshot; they never activate, resume,
+// or finish a session, including when the user is reviewing an archived chat.
+ipcMain.removeHandler('check-understanding');
+ipcMain.handle(
+  'check-understanding',
+  (_event, { sessionId }: { sessionId?: string | null } = {}) => {
+    if (pendingChatRequest)
+      return {
+        success: false,
+        error: 'Wait for Coco to finish before checking your understanding.',
+      };
+    if (!tutoringAllowed)
+      return {
+        success: false,
+        error: 'AI tutoring is not available for this account.',
+      };
+    if (readProfile().scenario !== 'ai_upskilling')
+      return {
+        success: false,
+        error: 'Understanding checks are unavailable in this mode.',
+      };
+    const targetId = sessionId ?? currentSessionId;
+    const conversation = readConversations().find(
+      (saved) => saved.sessionId === targetId,
+    );
+    if (
+      !conversation ||
+      !restorableMessages(conversation.messages).some((message) =>
+        message.text.trim(),
+      )
+    ) {
+      return {
+        success: false,
+        error:
+          'Have a conversation with Coco first, then check your understanding.',
+      };
+    }
+    showSessionRecapWindow('check', conversation);
+    return { success: true };
+  },
+);
 
 // The user answered or skipped the recap. An understanding check returns to
 // the same session; the end-of-session recap gives the session-level quiz
@@ -4100,7 +4168,7 @@ ipcMain.handle(
               .join('\n')
           : userText;
       let streamedText = '';
-      const settleReply = (reply: { text: string; isError?: boolean }) => {
+      const settleReply = (reply: StoredReply) => {
         if (gatewaySessionId) {
           settleStoredReply(gatewaySessionId, requestId, reply, displayText);
         }
@@ -4129,7 +4197,15 @@ ipcMain.handle(
             streamedText += delta;
           }
           if (streamEvent.type === 'done') {
-            settleReply({ text: String(streamEvent.guidance ?? streamedText) });
+            settleReply({
+              text: String(streamEvent.guidance ?? streamedText),
+              tutorMetrics: streamEvent.llm_metrics as
+                | LLMCallMetrics
+                | undefined,
+              observerMetrics: streamEvent.observer_metrics as
+                | LLMCallMetrics
+                | undefined,
+            });
           }
           if (streamEvent.type === 'error') {
             settleReply({
@@ -4305,7 +4381,7 @@ ipcMain.handle(
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const turnTiming = new TutorTurnTiming();
       let streamedText = '';
-      const settleReply = (reply: { text: string; isError?: boolean }) => {
+      const settleReply = (reply: StoredReply) => {
         if (gatewaySessionId) {
           settleStoredReply(gatewaySessionId, requestId, reply);
         }
@@ -4336,7 +4412,15 @@ ipcMain.handle(
             streamedText += delta;
           }
           if (streamEvent.type === 'done') {
-            settleReply({ text: String(streamEvent.guidance ?? streamedText) });
+            settleReply({
+              text: String(streamEvent.guidance ?? streamedText),
+              tutorMetrics: streamEvent.llm_metrics as
+                | LLMCallMetrics
+                | undefined,
+              observerMetrics: streamEvent.observer_metrics as
+                | LLMCallMetrics
+                | undefined,
+            });
           }
           if (streamEvent.type === 'error') {
             settleReply({
@@ -4827,8 +4911,7 @@ function applyStudyPolicy(policy: StudyState): void {
 
 function applyEffectiveStudyAccess(): void {
   const assessmentsComplete = areRequiredPreAssessmentsComplete();
-  tutoringAllowed = studyPolicyAllowsTutoring && assessmentsComplete;
-  process.env.COCO_TUTORING_ALLOWED = tutoringAllowed ? '1' : '0';
+  setTutoringAllowed(studyPolicyAllowsTutoring && assessmentsComplete);
   if (!assessmentsComplete) studyAccessStatus = 'preassessment';
   else if (!studyPolicyAllowsTutoring) studyAccessStatus = 'disabled';
   else studyAccessStatus = 'allowed';
@@ -4871,8 +4954,7 @@ async function refreshTutoringAccess() {
     studyAccessStatus = 'unavailable';
     if (pendingChatRequest) pendingChatRequest.stopped = true;
     void piHarness.abort();
-    tutoringAllowed = false; // Fail closed when authorization cannot be checked.
-    process.env.COCO_TUTORING_ALLOWED = '0';
+    setTutoringAllowed(false); // Fail closed when authorization cannot be checked.
     log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
   } finally {
     if (!tutoringAllowed) {
@@ -4944,8 +5026,7 @@ const authenticate = async (
     studyAccessStatus = 'unavailable';
     if (pendingChatRequest) pendingChatRequest.stopped = true;
     void piHarness.abort();
-    tutoringAllowed = false;
-    process.env.COCO_TUTORING_ALLOWED = '0';
+    setTutoringAllowed(false);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),

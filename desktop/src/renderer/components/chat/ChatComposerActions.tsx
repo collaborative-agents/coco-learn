@@ -4,7 +4,6 @@ interface Props {
   showUnderstandingCheck: boolean;
   checkingUnderstanding: boolean;
   understandingDisabled: boolean;
-  hasDraft: boolean;
   onCheckUnderstanding: () => Promise<void>;
   voiceActive: boolean;
   voiceDisabled: boolean;
@@ -17,7 +16,6 @@ export default function ChatComposerActions({
   showUnderstandingCheck,
   checkingUnderstanding,
   understandingDisabled,
-  hasDraft,
   onCheckUnderstanding,
   voiceActive,
   voiceDisabled,
@@ -36,11 +34,7 @@ export default function ChatComposerActions({
           }}
           disabled={understandingDisabled}
           onClick={onCheckUnderstanding}
-          title={
-            hasDraft
-              ? 'Send or clear your message before checking your understanding'
-              : 'Review what you learned with Coco and take a short quiz. Completing or skipping the recap ends this session.'
-          }
+          title="Check what you learned with a short quiz. Your conversation stays open."
         >
           <svg
             aria-hidden="true"

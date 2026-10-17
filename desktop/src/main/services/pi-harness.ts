@@ -16,6 +16,7 @@ interface Runtime {
   subscribe(listener: (event: unknown) => void): () => void;
   prompt(text: string, images: string[], context: AgentContext): Promise<void>;
   setHistoryLength(length: number): void;
+  answerQuestion(toolCallId: string, response: unknown): void;
   abort(): Promise<void>;
   dispose(): void;
 }
@@ -33,6 +34,12 @@ export default class PiHarness {
 
   get busy() {
     return Boolean(this.active);
+  }
+
+  answerQuestion(toolCallId: string, response: unknown) {
+    if (!this.active || this.active.stopped)
+      throw new Error('This run is no longer active.');
+    this.runtime?.answerQuestion(toolCallId, response);
   }
 
   async abort(requestId?: string) {

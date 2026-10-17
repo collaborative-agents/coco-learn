@@ -256,3 +256,48 @@
     padding: var(--coco-space-6) 18px;
   }
 }
+
+/* Reserve native traffic lights across every page, including compact mode. */
+.desktop-workspace.has-native-titlebar {
+  position: relative;
+  box-sizing: border-box;
+  padding-top: 40px;
+  border: 0;
+  border-radius: 0;
+}
+.workspace-native-titlebar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 40px;
+  background: var(--coco-color-surface);
+  -webkit-app-region: drag;
+}
+
+/* Share the native titlebar row; leave its left side clear for traffic lights. */
+.has-native-titlebar .workspace-chat-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 90px;
+  z-index: 20;
+  height: 40px;
+  box-sizing: border-box;
+}
+.has-native-titlebar .workspace-details {
+  position: static;
+}
+.has-native-titlebar .workspace-page-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 90px;
+  z-index: 20;
+  height: 40px;
+  padding: 4px 10px;
+  justify-content: flex-end;
+  border-bottom: 0;
+  background: transparent;
+}
+.has-native-titlebar .workspace-page-header > span {
+  display: none;
+}

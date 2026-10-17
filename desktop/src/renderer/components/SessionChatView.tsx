@@ -1,3 +1,4 @@
+import subscribeCocoSleepMode from '../services/coco-sleep-mode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import TrainingView from './TrainingView';
 import useStudyAccess from '../useStudyAccess';
@@ -49,8 +50,8 @@ export default function SessionChatView() {
   >('idle');
   const [voiceError, setVoiceError] = useState('');
   const [startingNewSession, setStartingNewSession] = useState(false);
-  const [finishingTask, setFinishingTask] = useState(false);
-  const [finishTaskError, setFinishTaskError] = useState('');
+  const [checkingUnderstanding, setCheckingUnderstanding] = useState(false);
+  const [understandingError, setUnderstandingError] = useState('');
   const [problem, setProblem] = useState('');
   const [expanded, setExpanded] = useState(true);
   const [activePage, setActivePage] = useState<'chat' | 'tasks' | 'settings'>(
@@ -141,6 +142,7 @@ export default function SessionChatView() {
   const messagesRef = useRef<ChatMessage[]>([]);
   const problemRef = useRef('');
   const cocoSleepingRef = useRef(false);
+  const sleepModeRevisionRef = useRef(0);
   const voiceRecorderRef = useRef<ActiveVoiceRecorder | null>(null);
   const handleVoiceClickRef = useRef<(fromWakeWord?: boolean) => Promise<void>>(
     async () => {},
@@ -168,6 +170,7 @@ export default function SessionChatView() {
   }, []);
 
   const applyCocoSleepMode = useCallback((sleeping: boolean) => {
+    if (cocoSleepingRef.current !== sleeping) sleepModeRevisionRef.current += 1;
     cocoSleepingRef.current = sleeping;
     setCocoSleeping(sleeping);
     setCocoSleepModeKnown(true);
@@ -181,6 +184,7 @@ export default function SessionChatView() {
   const refreshServiceHealth = useCallback(
     async (forceModelTest = false) => {
       if (cocoSleepingRef.current) return;
+      const sleepRevision = sleepModeRevisionRef.current;
       setHealthLoading(true);
       setHealthError('');
       try {
@@ -188,6 +192,7 @@ export default function SessionChatView() {
           'get-service-health',
           { forceModelTest },
         )) as ServiceHealthView | SleepingServiceHealthView | undefined;
+        if (sleepRevision !== sleepModeRevisionRef.current) return;
         if (result && 'sleeping' in result && result.sleeping) {
           applyCocoSleepMode(true);
           return;
@@ -800,24 +805,10 @@ export default function SessionChatView() {
       .catch(() => {});
   }, [refreshSystemPermissions, showSettings]);
 
-  useEffect(() => {
-    window.electron?.ipcRenderer
-      .invoke('get-coco-sleep-mode')
-      .then((result: { sleeping?: boolean } | undefined) => {
-        applyCocoSleepMode(result?.sleeping === true);
-      })
-      .catch(() => applyCocoSleepMode(false));
-    const cleanup = window.electron?.ipcRenderer.on(
-      'coco-sleep-mode-changed',
-      (...args: unknown[]) => {
-        const result = args[0] as { sleeping?: boolean } | undefined;
-        applyCocoSleepMode(result?.sleeping === true);
-      },
-    );
-    return () => {
-      if (typeof cleanup === 'function') cleanup();
-    };
-  }, [applyCocoSleepMode]);
+  useEffect(
+    () => subscribeCocoSleepMode(applyCocoSleepMode),
+    [applyCocoSleepMode],
+  );
 
   useEffect(() => {
     if (!cocoSleepModeKnown || cocoSleeping) return undefined;
@@ -1108,7 +1099,7 @@ export default function SessionChatView() {
   };
 
   const handleSend = () => {
-    if (sending || startingNewSession || finishingTask) return;
+    if (sending || startingNewSession || checkingUnderstanding) return;
     const imgs = pendingImages;
     const hotkeyImgs = imgs.filter((src) =>
       pendingHotkeyImagesRef.current.has(src),
@@ -1223,7 +1214,7 @@ export default function SessionChatView() {
   };
 
   const handleNewSession = async () => {
-    if (sending || startingNewSession || finishingTask) return;
+    if (sending || startingNewSession || checkingUnderstanding) return;
     setStartingNewSession(true);
     try {
       await window.electron?.ipcRenderer.invoke('start-new-chat-session', {
@@ -1234,26 +1225,28 @@ export default function SessionChatView() {
     }
   };
 
-  const handleFinishTask = async () => {
-    if (sending || startingNewSession || finishingTask || input.trim()) return;
-    setFinishingTask(true);
-    setFinishTaskError('');
+  const handleCheckUnderstanding = async () => {
+    if (sending || startingNewSession || checkingUnderstanding) return;
+    setCheckingUnderstanding(true);
+    setUnderstandingError('');
     try {
-      if (reviewing) await resumeConversation(reviewing);
       const result = (await window.electron?.ipcRenderer.invoke(
-        'finish-task-successfully',
+        'check-understanding',
+        { sessionId: reviewing?.sessionId ?? sessionIdRef.current },
       )) as { success?: boolean; error?: string } | undefined;
       if (!result?.success) {
-        setFinishTaskError(
-          result?.error || 'Could not open the session recap.',
+        setUnderstandingError(
+          result?.error || 'Could not open the understanding check.',
         );
       }
     } catch (error) {
-      setFinishTaskError(
-        error instanceof Error ? error.message : 'Could not open the session recap.',
+      setUnderstandingError(
+        error instanceof Error
+          ? error.message
+          : 'Could not open the understanding check.',
       );
     } finally {
-      setFinishingTask(false);
+      setCheckingUnderstanding(false);
     }
   };
 
@@ -1289,7 +1282,7 @@ export default function SessionChatView() {
   const canSend =
     !sending &&
     !startingNewSession &&
-    !finishingTask &&
+    !checkingUnderstanding &&
     voiceState === 'idle' &&
     (input.trim().length > 0 || pendingImages.length > 0);
   const voiceActive = voiceState === 'listening' || voiceState === 'speaking';
@@ -1310,91 +1303,6 @@ export default function SessionChatView() {
           (item) => item.kind === 'tool' && item.call.status === 'running',
         )),
   );
-  const sensingUnavailable = serviceHealth?.sensing.connected === false;
-  const tutorUnavailable = serviceHealth?.tutor.connected === false;
-  const serviceUnavailable = sensingUnavailable || tutorUnavailable;
-  const modelUnavailable = Boolean(
-    serviceHealth &&
-      [serviceHealth.sensing, serviceHealth.tutor].some(
-        (health) => health.modelAssessment?.status === 'failed',
-      ),
-  );
-  const modelsVerified = Boolean(
-    serviceHealth &&
-      [serviceHealth.sensing, serviceHealth.tutor].every(
-        (health) => health.modelAssessment?.status === 'verified',
-      ),
-  );
-  const modelConfigurationIssue = Boolean(
-    serviceHealth &&
-      [serviceHealth.sensing, serviceHealth.tutor].some(
-        (health) =>
-          health.modelAssessment?.status === 'legacy_unassessed' ||
-          health.modelAssessment?.status === 'not_configured',
-      ),
-  );
-  const systemPermissionIssue = systemPermissionHealth.missing.length > 0;
-  const chatHealthLabel = systemPermissionIssue
-    ? 'Permission required'
-    : cocoSleeping
-      ? 'Sleeping'
-      : serviceUnavailable
-        ? 'Service issue'
-        : modelUnavailable
-          ? 'Model issue'
-          : modelConfigurationIssue
-            ? 'Needs attention'
-            : serviceHealth
-              ? modelsVerified
-                ? 'Connected'
-                : 'Services reachable'
-              : healthLoading
-                ? 'Checking health…'
-                : 'Health unknown';
-  const chatHealthColor = systemPermissionIssue
-    ? '#dc2626'
-    : cocoSleeping
-      ? '#6b7280'
-      : serviceUnavailable || modelUnavailable
-        ? '#dc2626'
-        : modelConfigurationIssue
-          ? '#b45309'
-          : modelsVerified
-            ? '#16a34a'
-            : '#6b7280';
-  const chatHealthTitle = systemPermissionIssue
-    ? `${systemPermissionHealth.missing.map(({ label }) => label).join(' and ')} must be enabled. Click to open Settings.`
-    : cocoSleeping
-      ? 'Coco is asleep. Service health checks are paused until Coco wakes.'
-      : serviceUnavailable
-        ? [
-            sensingUnavailable ? 'Sensing server is not reachable.' : '',
-            tutorUnavailable ? 'Tutor agent is not reachable.' : '',
-            'Click to open Settings.',
-          ]
-            .filter(Boolean)
-            .join(' ')
-        : modelUnavailable
-          ? [
-              serviceHealth?.sensing.modelAssessment?.status === 'failed'
-                ? `Sensing model: ${serviceHealth.sensing.modelAssessment.detail}`
-                : '',
-              serviceHealth?.tutor.modelAssessment?.status === 'failed'
-                ? `Tutor model: ${serviceHealth.tutor.modelAssessment.detail}`
-                : '',
-              'Click to open Settings.',
-            ]
-              .filter(Boolean)
-              .join(' ')
-          : modelConfigurationIssue
-            ? 'Model configuration is missing. Open Coco Health for details.'
-            : serviceHealth
-              ? 'Local services and configured models passed their connection tests.'
-              : 'Checking local service health.';
-  const hasChatHealthIssue =
-    systemPermissionIssue ||
-    (!cocoSleeping &&
-      (serviceUnavailable || modelUnavailable || modelConfigurationIssue));
 
   return (
     <DesktopWorkspace
@@ -1430,15 +1338,15 @@ export default function SessionChatView() {
             void openHistory();
           }}
           onCurrent={() => {
-            if (finishingTask) return;
+            if (checkingUnderstanding) return;
             setReviewing(null);
             setShowHistory(false);
             setShowSettings(false);
             setActivePage('chat');
           }}
           onSelect={(conversation) => {
-            if (finishingTask) return;
-            setFinishTaskError('');
+            if (checkingUnderstanding) return;
+            setUnderstandingError('');
             setReviewing(conversation);
             setShowHistory(false);
             setShowSettings(false);
@@ -1503,13 +1411,6 @@ export default function SessionChatView() {
       <ChatHeader
         chatEnabled={studyAccess === true}
         {...{
-          chatHealthLabel,
-          chatHealthColor,
-          chatHealthTitle,
-          hasChatHealthIssue,
-          setShowHistory,
-          setReviewing,
-          setShowSettings,
           sending,
           startingNewSession,
           handleNewSession,
@@ -1550,7 +1451,9 @@ export default function SessionChatView() {
                 }}
               />{' '}
               <ChatComposer
-                workspaceSessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                workspaceSessionId={
+                  reviewing?.sessionId ?? sessionIdRef.current
+                }
                 agentRunning={
                   sending &&
                   messages.some(
@@ -1573,7 +1476,7 @@ export default function SessionChatView() {
                   openImagePreview,
                   pendingHotkeyImagesRef,
                   setPendingImages,
-                  finishTaskError,
+                  understandingError,
                   sending,
                   voiceState,
                   input,
@@ -1585,8 +1488,8 @@ export default function SessionChatView() {
                   reviewing,
                   handleVoiceClick,
                   profile,
-                  finishingTask,
-                  handleFinishTask,
+                  checkingUnderstanding,
+                  handleCheckUnderstanding,
                   canSend,
                   handleSend,
                   voiceStatusText,

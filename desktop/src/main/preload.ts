@@ -88,13 +88,14 @@ export type Channels =
   | 'session-recap-init'
   | 'session-recap-data'
   | 'session-recap-done'
-  | 'finish-task-successfully'
+  | 'check-understanding'
   // Local chat (SessionChatView) — session context + user turns
   | 'session-init'
   | 'start-new-chat-session'
   | 'get-agent-workspace'
   | 'choose-agent-workspace'
   | 'stop-agent-run'
+  | 'answer-agent-question'
   | 'send-chat-message'
   | 'send-audio-message'
   | 'chat-stream-event'
@@ -179,6 +180,7 @@ export type Channels =
   | 'wake-word-capture-window-ready';
 
 const electronHandler = {
+  platform: process.platform,
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

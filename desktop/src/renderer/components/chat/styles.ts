@@ -18,8 +18,7 @@ export const S: Record<string, React.CSSProperties> = {
   contentViewport: { flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' },
   scalableContent: { display: 'flex', flexDirection: 'column', minHeight: 0, transformOrigin: 'top left' },
   header: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px',
-    background: 'var(--coco-color-surface-subtle)', borderBottom: `1px solid ${BORDER}`,
+    display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', flexShrink: 0,
     WebkitAppRegion: 'drag', // draggable region for the frameless window
   } as React.CSSProperties,
   brand: { display: 'flex', alignItems: 'center', gap: 7, flex: '1 1 auto', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', fontWeight: 700, fontSize: 'var(--coco-text-body)', color: 'var(--coco-color-text-secondary)' },
@@ -36,7 +35,7 @@ export const S: Record<string, React.CSSProperties> = {
   },
   iconBtnActive: { background: ACCENT_BG, color: ACCENT },
   newSessionBtn: {
-    height: 'var(--coco-control-height)', display: 'inline-flex', alignItems: 'center', gap: 4,
+    height: 28, display: 'inline-flex', alignItems: 'center', gap: 4,
     boxSizing: 'border-box', border: `1px solid ${ACCENT_BORDER}`,
     background: 'var(--coco-color-surface)', cursor: 'pointer', fontSize: 'var(--coco-text-control)', color: ACCENT,
     padding: '0 8px', borderRadius: 'var(--coco-radius-control)', lineHeight: 1, fontFamily: FONT,

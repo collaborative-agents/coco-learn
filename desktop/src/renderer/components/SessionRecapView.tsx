@@ -94,7 +94,7 @@ export default function SessionRecapView() {
               className="recap-btn-continue"
               onClick={finish}
             >
-              End session
+              {mode === 'check' ? 'Back to conversation' : 'End session'}
             </button>
           </div>
         )}

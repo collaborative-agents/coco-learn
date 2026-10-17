@@ -14,8 +14,11 @@ import { parseChatSuggestion } from '../shared/chat-suggestion';
 import type { ChatSuggestion } from '../shared/chat-suggestion';
 import { parseAgentActivity } from '../shared/agent-execution';
 import type { AgentActivity } from '../shared/agent-execution';
+import type { LLMCallMetrics } from '../renderer/components/observation-types';
 
 export interface StoredChatMessage {
+  tutorMetrics?: LLMCallMetrics | null;
+  observerMetrics?: LLMCallMetrics | null;
   activity?: AgentActivity[];
   stopped?: boolean;
   role: 'user' | 'tutor';
@@ -34,6 +37,43 @@ export interface StoredChatMessage {
   /** Request text retained on unfinished or failed replies so they can retry. */
   retryText?: string;
   retryRequestKind?: 'chat' | 'practice_suggestions';
+}
+
+export type StoredReply = Pick<
+  StoredChatMessage,
+  'text' | 'isError' | 'tutorMetrics' | 'observerMetrics'
+>;
+
+/** Keep measured usage, including zero; reject malformed snapshot values. */
+function parseMetrics(value: unknown): LLMCallMetrics | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined;
+  const source = value as Record<string, unknown>;
+  const metrics: Record<string, unknown> = {};
+  for (const key of [
+    'prompt_tokens',
+    'completion_tokens',
+    'input_tokens',
+    'output_tokens',
+    'total_tokens',
+    'duration_ms',
+    'started_at',
+    'ended_at',
+  ]) {
+    if (
+      typeof source[key] === 'number' &&
+      Number.isFinite(source[key]) &&
+      source[key] >= 0
+    )
+      metrics[key] = source[key];
+  }
+  for (const key of ['call_id', 'operation', 'model', 'provider', 'error']) {
+    if (typeof source[key] === 'string') metrics[key] = source[key];
+  }
+  if (typeof source.success === 'boolean') metrics.success = source.success;
+  if (source.modality === 'llm' || source.modality === 'vlm')
+    metrics.modality = source.modality;
+  return Object.keys(metrics).length ? (metrics as LLMCallMetrics) : undefined;
 }
 
 export const INTERRUPTED_REPLY_TEXT =
@@ -249,6 +289,8 @@ export function saveConversation(input: {
     return {
       role: message.role,
       text: message.text,
+      tutorMetrics: parseMetrics(message.tutorMetrics),
+      observerMetrics: parseMetrics(message.observerMetrics),
       ...(message.activity
         ? { activity: parseAgentActivity(message.activity) }
         : {}),
@@ -325,7 +367,7 @@ export function saveConversation(input: {
 export function applyStoredReply(
   messages: StoredChatMessage[],
   requestId: string,
-  reply: { text: string; isError?: boolean },
+  reply: StoredReply,
   userText?: string,
 ): StoredChatMessage[] | null {
   const index = messages.findIndex(
@@ -345,6 +387,10 @@ export function applyStoredReply(
 
   const rest: StoredChatMessage = { ...(base ?? { role: 'tutor', text: '' }) };
   const { retryText, retryRequestKind } = rest;
+  const tutorMetrics = parseMetrics(reply.tutorMetrics);
+  const observerMetrics = parseMetrics(reply.observerMetrics);
+  if (tutorMetrics) rest.tutorMetrics = tutorMetrics;
+  if (observerMetrics) rest.observerMetrics = observerMetrics;
   delete rest.isStreaming;
   delete rest.isError;
   delete rest.retryText;
@@ -380,7 +426,7 @@ export function applyStoredReply(
 export function settleStoredReply(
   sessionId: string,
   requestId: string,
-  reply: { text: string; isError?: boolean },
+  reply: StoredReply,
   userText?: string,
 ): void {
   const conversations = readConversations();

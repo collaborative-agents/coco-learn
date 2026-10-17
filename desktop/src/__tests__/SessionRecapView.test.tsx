@@ -99,4 +99,19 @@ describe('SessionRecapView completion tracking', () => {
       expect.objectContaining({ quizAnswered: true, quizCorrect: true }),
     );
   });
+  it('returns to the conversation when an understanding check fails to load', () => {
+    render(<SessionRecapView />);
+    act(() => {
+      listeners.get('session-recap-init')?.({ mode: 'check' });
+      listeners.get('session-recap-data')?.({ error: true });
+    });
+    expect(screen.queryByRole('button', { name: 'End session' })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Back to conversation' }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith('session-recap-done', {
+      quizSkipped: true,
+      quizAnswered: false,
+    });
+  });
 });

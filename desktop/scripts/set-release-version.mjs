@@ -3,8 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function setReleaseVersion(appDirectory, version) {
-  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '')) {
-    throw new Error('Enter a stable version such as 0.1.1 (without v).');
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-nightly\.[0-9]{14})?$/.test(version ?? '')) {
+    throw new Error('Enter a stable version such as 0.1.1 or a nightly version such as 0.1.1-nightly.20261016060000 (without v).');
   }
   const packagePath = path.join(appDirectory, 'package.json');
   const lockPath = path.join(appDirectory, 'package-lock.json');

@@ -85,6 +85,22 @@ The avatar surfaces observations from the sensing service in three tiers:
 | `npm run package` | Full production build + electron-builder (DMG / NSIS / AppImage) |
 | `npm test` | Run Jest unit tests |
 
+### Nightly builds
+
+The [Nightly Package & Release workflow](../.github/workflows/nightly.yml)
+builds the `nightly` branch every day at 06:00 UTC and can also be run manually.
+It creates a GitHub prerelease with a version such as
+`0.1.1-nightly.20261016060000`. The next nightly base version follows the
+latest stable tag automatically.
+
+Nightly installers use the name **Coco Learn Nightly**, a distinct macOS bundle
+ID and Windows installer ID, and the `coco-learn-nightly` user data directory.
+They check only the `nightly` update channel. Stable installs keep their current
+identity, data directory, and `latest` channel. To begin publishing nightlies,
+create a `nightly` branch containing these changes, then run the workflow or
+wait for its scheduled run. Keep the workflow changes on the default branch too,
+because GitHub runs scheduled workflows from there.
+
 ### Signed macOS releases
 
 macOS packaging requires a valid `Developer ID Application` identity and fails

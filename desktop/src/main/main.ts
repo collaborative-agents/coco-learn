@@ -157,12 +157,16 @@ const PACKAGED_GATEWAY_URL = embeddedRouterConfig.gatewayUrl ||
 // onboarding once again. Development builds do not use this release gate.
 const PACKAGED_ONBOARDING_VERSION = 'auth-onboarding-v1';
 
-app.setName('Coco Learn');
+const isNightlyBuild = app.isPackaged && /-nightly\.\d{14}$/.test(app.getVersion());
+app.setName(isNightlyBuild ? 'Coco Learn Nightly' : 'Coco Learn');
 
 // Set before the instance lock so Coco Learn can coexist with CoCo. Existing
 // CoCo profiles stay in their original directory; users sign in here once.
 if (app.isPackaged) {
-  const packagedUserDataDir = path.join(app.getPath('appData'), 'coco-learn');
+  const packagedUserDataDir = path.join(
+    app.getPath('appData'),
+    isNightlyBuild ? 'coco-learn-nightly' : 'coco-learn',
+  );
   fs.mkdirSync(packagedUserDataDir, { recursive: true });
   app.setPath('userData', packagedUserDataDir);
 }

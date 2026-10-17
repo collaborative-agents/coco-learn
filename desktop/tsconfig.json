@@ -14,7 +14,7 @@
     "allowJs": true,
     "outDir": ".erb/dll"
   },
-  "exclude": ["test", "release/build", "release/app/dist", ".erb/dll"],
+  "exclude": ["release/app/agent", "tests", "test", "release/build", "release/app/dist", ".erb/dll"],
   "ts-node": {
     "compilerOptions": {
       "module": "node16",

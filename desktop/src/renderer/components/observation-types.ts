@@ -58,6 +58,7 @@ export interface TutorToolCall {
   id: string;
   name: string;
   arguments: {
+    [key: string]: unknown;
     query?: string;
     focus?: string;
     start_hh_mm_ago?: string | null;
@@ -67,6 +68,7 @@ export interface TutorToolCall {
   };
   status: 'running' | 'completed' | 'error';
   result?: {
+    output?: string;
     count?: number;
     results?: TutorMemoryResult[];
     observation?: string;

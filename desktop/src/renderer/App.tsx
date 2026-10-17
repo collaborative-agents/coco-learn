@@ -897,10 +897,11 @@ function PetView() {
     }, FADE_MS);
   };
 
-  const handleChatAboutSuggestion = () => {
+  const handleChatAboutSuggestion = (execute = false) => {
     if (!bubble?.suggestion) return;
     const current = bubble;
     window.electron?.ipcRenderer.sendMessage('chat-about-suggestion', {
+      execute,
       observationId: current.observationId,
       status: current.status,
       rawObservation: current.rawObservation ?? '',
@@ -1038,7 +1039,8 @@ function PetView() {
         onHelpMe={handleHelpMe}
         onDismiss={handleDismiss}
         onViewConversation={handleViewConversation}
-        onChatAboutSuggestion={handleChatAboutSuggestion}
+        onChatAboutSuggestion={() => handleChatAboutSuggestion()}
+        onRunSuggestion={() => handleChatAboutSuggestion(true)}
         onMouseEnter={handleBubbleEnter}
         onMouseLeave={handleBubbleLeave}
       />
@@ -1088,14 +1090,20 @@ function PetView() {
             aria-label="Coco actions"
           >
             {COCO_NAVIGATION.map(({ label, channel, icon }) => (
-              <button type="button" role="menuitem" key={channel}
-                className={icon === 'training' ? 'pet-training-action' : undefined}
+              <button
+                type="button"
+                role="menuitem"
+                key={channel}
+                className={
+                  icon === 'training' ? 'pet-training-action' : undefined
+                }
                 onClick={(event) => {
                   event.stopPropagation();
                   setActionsMenuOpen(false);
                   if (channel === 'open-main-window') handleOpenChat(event);
                   else window.electron?.ipcRenderer.sendMessage(channel);
-                }}>
+                }}
+              >
                 <PetMenuIcon name={icon} />
                 <span>{label}</span>
               </button>
@@ -1110,18 +1118,34 @@ function PetView() {
                 setHideError('');
                 setHidingAvatar(true);
                 try {
-                  const result = await window.electron?.ipcRenderer.invoke('update-avatar-visibility', { hideAvatar: true }) as { success?: boolean } | undefined;
-                  if (!result?.success) throw new Error('Could not hide Coco. Please try again.');
+                  const result = (await window.electron?.ipcRenderer.invoke(
+                    'update-avatar-visibility',
+                    { hideAvatar: true },
+                  )) as { success?: boolean } | undefined;
+                  if (!result?.success)
+                    throw new Error('Could not hide Coco. Please try again.');
                   setActionsMenuOpen(false);
                 } catch {
                   setHideError('Could not hide Coco. Please try again.');
-                } finally { setHidingAvatar(false); }
+                } finally {
+                  setHidingAvatar(false);
+                }
               }}
             >
               <PetMenuIcon name="hide" />
               <span>{hidingAvatar ? 'Hiding…' : 'Hide'}</span>
             </button>
-            {hideError && <div role="alert" style={{ padding: '4px 10px', fontSize: 'var(--coco-text-secondary)' }}>{hideError}</div>}
+            {hideError && (
+              <div
+                role="alert"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 'var(--coco-text-secondary)',
+                }}
+              >
+                {hideError}
+              </div>
+            )}
             <button
               type="button"
               role="menuitem"
@@ -1135,11 +1159,15 @@ function PetView() {
               <span>{cocoSleeping ? 'Wake Coco' : 'Sleep'}</span>
             </button>
             <div className="pet-actions-divider" role="separator" />
-            <button type="button" role="menuitem" onClick={(event) => {
-              event.stopPropagation();
-              setActionsMenuOpen(false);
-              window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
-            }}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(event) => {
+                event.stopPropagation();
+                setActionsMenuOpen(false);
+                window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
+              }}
+            >
               <PetMenuIcon name="quit" />
               <span>Quit</span>
             </button>

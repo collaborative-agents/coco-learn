@@ -3,6 +3,50 @@ import type { TutorToolCall } from '../observation-types';
 import { S } from './styles';
 
 export function ToolCallCard({ call }: { call: TutorToolCall }) {
+  if (
+    !['observe_screen', 'get_user_context', 'get_recent_observations'].includes(
+      call.name,
+    )
+  ) {
+    const summary =
+      call.arguments.command ?? call.arguments.path ?? call.arguments.pattern;
+    return (
+      <div style={S.toolCard}>
+        <div style={S.toolHeader}>
+          <span style={S.toolIcon}>›</span>
+          <span>{call.name}</span>
+          <span
+            style={{
+              ...S.toolStatus,
+              ...(call.status === 'error' ? S.toolStatusError : {}),
+            }}
+          >
+            {call.status === 'running'
+              ? 'Running…'
+              : call.status === 'error'
+                ? 'Failed'
+                : 'Done'}
+          </span>
+        </div>
+        {summary != null && (
+          <div style={{ ...S.toolArgs, overflowWrap: 'anywhere' }}>
+            {String(summary)}
+          </div>
+        )}
+        <details style={S.toolDetails}>
+          <summary>
+            {call.status === 'running' ? 'Live output' : 'View details'}
+          </summary>
+          <pre className="agent-tool-output">
+            {JSON.stringify(call.arguments, null, 2)}
+          </pre>
+          <pre className="agent-tool-output">
+            {call.result?.output || call.result?.error || 'Waiting for output…'}
+          </pre>
+        </details>
+      </div>
+    );
+  }
   if (call.name === 'observe_screen') {
     const observation = call.result?.observation?.trim();
     return (

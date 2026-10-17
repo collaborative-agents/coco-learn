@@ -88,10 +88,14 @@ export function SuggestionMessage({
   suggestion,
   folded,
   onToggleFold,
+  onRun,
+  runDisabled,
 }: {
   suggestion: ChatSuggestion;
   folded: boolean;
   onToggleFold: () => void;
+  onRun?: () => void;
+  runDisabled?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const ipc = window.electron?.ipcRenderer;
@@ -120,6 +124,16 @@ export function SuggestionMessage({
           {folded ? 'Show ▾' : 'Hide ▴'}
         </button>
       </div>
+      {onRun && (
+        <button
+          type="button"
+          style={S.exampleBtn}
+          disabled={runDisabled}
+          onClick={onRun}
+        >
+          Run with Coco
+        </button>
+      )}
       {/* Unfolded, the card shows the pop-up's two pages: why, then the action. */}
       {!folded &&
         explanation?.sentences.map((sentence, index) => (

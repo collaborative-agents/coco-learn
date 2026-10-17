@@ -2,14 +2,19 @@ import type React from 'react';
 import { S } from './styles';
 import ChatComposerActions from './ChatComposerActions';
 import './ChatComposer.css';
+import AgentWorkspace from './AgentWorkspace';
 import type { SavedConversation } from './types';
 import type { VoiceRecorderStatus } from '../../voice-recorder';
+
 const HOTKEY_LABEL =
   typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
     ? 'Cmd + Shift + Space'
     : 'Ctrl + Shift + Space';
 
 interface Props {
+  workspaceSessionId: string | null;
+  agentRunning: boolean;
+  stopAgent: () => Promise<void>;
   pendingContextLabel: string | null;
   pendingContextRef: React.RefObject<string | null>;
   setPendingContextLabel: React.Dispatch<React.SetStateAction<string | null>>;
@@ -38,6 +43,9 @@ interface Props {
 }
 
 export default function ChatComposer({
+  workspaceSessionId,
+  agentRunning,
+  stopAgent,
   pendingContextLabel,
   pendingContextRef,
   setPendingContextLabel,
@@ -65,121 +73,119 @@ export default function ChatComposer({
   voiceError,
 }: Props) {
   return (
-    <>
-      <div style={S.composer}>
-        <div className="chat-composer-surface" style={S.composerSurface}>
-          {pendingContextLabel && (
-            <div style={S.pendingContext}>
-              <span style={S.pendingContextText}>
-                Suggestion context attached: {pendingContextLabel}
-              </span>
-              <button
-                type="button"
-                style={S.pendingContextX}
-                aria-label="Remove suggestion context"
-                title="Remove suggestion context"
-                onClick={() => {
-                  pendingContextRef.current = null;
-                  setPendingContextLabel(null);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          {pendingImages.length > 0 && (
-            <div style={S.pending}>
-              {pendingImages.map((src, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <div key={i} style={S.pendingThumbWrap}>
-                  <button
-                    type="button"
-                    style={S.imagePreviewButton}
-                    aria-label={`Preview attached image ${i + 1}`}
-                    title="Preview image"
-                    onClick={() => openImagePreview(src)}
-                  >
-                    <img
-                      src={src}
-                      alt={`Attachment ${i + 1}`}
-                      style={S.thumb}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    style={S.pendingX}
-                    aria-label={`Remove attached image ${i + 1}`}
-                    title="Remove image"
-                    onClick={() => {
-                      pendingHotkeyImagesRef.current.delete(src);
-                      setPendingImages((prev) =>
-                        prev.filter((_, j) => j !== i),
-                      );
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {finishTaskError && (
-            <div style={S.finishTaskError}>{finishTaskError}</div>
-          )}
-          <textarea
-            style={S.textarea}
-            rows={2}
-            aria-label="Message Coco"
-            placeholder={
-              voiceState === 'idle'
-                ? 'Ask the tutor… (paste an image to attach)'
-                : 'Listening to your voice…'
-            }
-            value={input}
-            disabled={voiceState !== 'idle'}
-            onChange={(e) => setInput(e.target.value)}
-            onPaste={onPaste}
-            onKeyDown={onKeyDown}
-          />
-          <ChatComposerActions
-            showUnderstandingCheck={
-              profile.scenario === 'ai_upskilling' && !reviewing
-            }
-            checkingUnderstanding={finishingTask}
-            understandingDisabled={Boolean(
-              sending ||
-                startingNewSession ||
-                finishingTask ||
-                input.trim() ||
-                voiceState !== 'idle',
-            )}
-            hasDraft={Boolean(input.trim())}
-            onCheckUnderstanding={handleFinishTask}
-            voiceActive={voiceActive}
-            voiceDisabled={
-              sending ||
-              startingNewSession ||
-              Boolean(reviewing) ||
-              voiceState === 'requesting'
-            }
-            onVoiceClick={() => handleVoiceClick()}
-            canSend={canSend}
-            onSend={handleSend}
-          />
-        </div>
-        {voiceState !== 'idle' && (
-          <div style={S.voiceHint}>{voiceStatusText}</div>
-        )}
-        {voiceState === 'idle' && voiceError && (
-          <div style={S.voiceError}>{voiceError}</div>
-        )}
-        {voiceState === 'idle' && !voiceError && (
-          <div style={S.hotkeyHint}>
-            Press <span style={S.hotkeyKbd}>{HOTKEY_LABEL}</span> anytime to
-            grab a screenshot
+    <div style={S.composer}>
+      <AgentWorkspace
+        key={workspaceSessionId}
+        sessionId={workspaceSessionId}
+        disabled={sending || startingNewSession || finishingTask}
+        running={agentRunning}
+        onStop={stopAgent}
+      />
+      <div className="chat-composer-surface" style={S.composerSurface}>
+        {pendingContextLabel && (
+          <div style={S.pendingContext}>
+            <span style={S.pendingContextText}>
+              Suggestion context attached: {pendingContextLabel}
+            </span>
+            <button
+              type="button"
+              style={S.pendingContextX}
+              aria-label="Remove suggestion context"
+              title="Remove suggestion context"
+              onClick={() => {
+                pendingContextRef.current = null;
+                setPendingContextLabel(null);
+              }}
+            >
+              ×
+            </button>
           </div>
         )}
+        {pendingImages.length > 0 && (
+          <div style={S.pending}>
+            {pendingImages.map((src, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <div key={i} style={S.pendingThumbWrap}>
+                <button
+                  type="button"
+                  style={S.imagePreviewButton}
+                  aria-label={`Preview attached image ${i + 1}`}
+                  title="Preview image"
+                  onClick={() => openImagePreview(src)}
+                >
+                  <img src={src} alt={`Attachment ${i + 1}`} style={S.thumb} />
+                </button>
+                <button
+                  type="button"
+                  style={S.pendingX}
+                  aria-label={`Remove attached image ${i + 1}`}
+                  title="Remove image"
+                  onClick={() => {
+                    pendingHotkeyImagesRef.current.delete(src);
+                    setPendingImages((prev) => prev.filter((_, j) => j !== i));
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {finishTaskError && (
+          <div style={S.finishTaskError}>{finishTaskError}</div>
+        )}
+        <textarea
+          style={S.textarea}
+          rows={2}
+          aria-label="Message Coco"
+          placeholder={
+            voiceState === 'idle'
+              ? 'Ask Coco… (paste an image to attach)'
+              : 'Listening to your voice…'
+          }
+          value={input}
+          disabled={voiceState !== 'idle'}
+          onChange={(e) => setInput(e.target.value)}
+          onPaste={onPaste}
+          onKeyDown={onKeyDown}
+        />
+        <ChatComposerActions
+          showUnderstandingCheck={profile.scenario === 'ai_upskilling'}
+          checkingUnderstanding={finishingTask}
+          understandingDisabled={Boolean(
+            sending ||
+              startingNewSession ||
+              finishingTask ||
+              input.trim() ||
+              voiceState !== 'idle',
+          )}
+          hasDraft={Boolean(input.trim())}
+          onCheckUnderstanding={handleFinishTask}
+          voiceActive={voiceActive}
+          voiceDisabled={
+            sending ||
+            startingNewSession ||
+            finishingTask ||
+            Boolean(reviewing) ||
+            voiceState === 'requesting'
+          }
+          onVoiceClick={() => handleVoiceClick()}
+          canSend={canSend}
+          onSend={handleSend}
+        />
       </div>
-    </>
+      {voiceState !== 'idle' && (
+        <div style={S.voiceHint}>{voiceStatusText}</div>
+      )}
+      {voiceState === 'idle' && voiceError && (
+        <div style={S.voiceError}>{voiceError}</div>
+      )}
+      {voiceState === 'idle' && !voiceError && (
+        <div style={S.hotkeyHint}>
+          Press <span style={S.hotkeyKbd}>{HOTKEY_LABEL}</span> anytime to grab
+          a screenshot
+        </div>
+      )}
+    </div>
   );
 }

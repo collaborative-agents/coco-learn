@@ -43,7 +43,7 @@ describe('deferred suggestion context', () => {
     });
 
     expect(screen.queryByText(/^Task:/)).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Ask the tutor/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toBeInTheDocument();
   });
 
   it('shows only missing macOS permissions in Coco Health', async () => {
@@ -507,10 +507,20 @@ describe('deferred suggestion context', () => {
     expect(
       screen.getByText('Start by naming the launch owner.'),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Ask the tutor/)).toBeInTheDocument();
-    expect(screen.getByText('Viewing a past conversation')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toBeInTheDocument();
+    expect(
+      screen.queryByText('Viewing a past conversation'),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('get-agent-workspace', {
+        sessionId: 'past-session',
+      }),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Choose working folder' }),
+    ).toBeEnabled();
 
-    fireEvent.change(screen.getByPlaceholderText(/Ask the tutor/), {
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'What should I do next?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -710,13 +720,13 @@ describe('deferred suggestion context', () => {
     expect(
       screen.getByText('Suggestion context attached: Try a smaller example'),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Ask the tutor/)).toHaveValue('');
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue('');
     expect(invoke).not.toHaveBeenCalledWith(
       'send-chat-message',
       expect.anything(),
     );
 
-    fireEvent.change(screen.getByPlaceholderText(/Ask the tutor/), {
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'Why would that help?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -766,7 +776,7 @@ describe('deferred suggestion context', () => {
     };
     render(<SessionChatView />);
 
-    fireEvent.change(screen.getByPlaceholderText(/Ask the tutor/), {
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'What was I working on?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -862,6 +872,73 @@ describe('deferred suggestion context', () => {
     });
   });
 
+  it.each([true, false])(
+    'restores the selected conversation before its quiz (restore succeeds: %s)',
+    async (success) => {
+      let finishRestore: (result: unknown) => void = () => {};
+      const restore = new Promise((resolve) => {
+        finishRestore = resolve;
+      });
+      const invoke = jest.fn(async (channel: string) => {
+        if (channel === 'get-profile')
+          return { tutorScenario: 'ai_upskilling', aiTools: [] };
+        if (channel === 'get-supported-modes') return ['ai_upskilling'];
+        if (channel === 'get-chat-conversations')
+          return [
+            {
+              sessionId: 'past-quiz-session',
+              title: 'Past lesson',
+              problem: 'Practice context',
+              createdAt: 1,
+              updatedAt: 2,
+              messages: [
+                { role: 'user', text: 'Help with context' },
+                { role: 'tutor', text: 'Describe your constraints.' },
+              ],
+            },
+          ];
+        if (channel === 'resume-chat-conversation') return restore;
+        if (channel === 'finish-task-successfully') return { success: true };
+        return null;
+      });
+      (window as any).electron = {
+        ipcRenderer: {
+          on: jest.fn(() => jest.fn()),
+          sendMessage: jest.fn(),
+          invoke,
+        },
+      };
+      render(<SessionChatView />);
+      await screen.findByRole('button', { name: 'Check my understanding' });
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'Chat' }));
+      fireEvent.click(await screen.findByText('Past lesson'));
+      expect(
+        screen.getByText('Describe your constraints.'),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Check my understanding' }),
+      );
+      expect(invoke).toHaveBeenCalledWith('resume-chat-conversation', {
+        sessionId: 'past-quiz-session',
+      });
+      expect(invoke).not.toHaveBeenCalledWith('finish-task-successfully');
+      await act(async () => {
+        finishRestore({
+          success,
+          error: success ? undefined : 'Could not restore lesson.',
+        });
+      });
+      expect(
+        invoke.mock.calls.filter(
+          ([channel]) => channel === 'finish-task-successfully',
+        ),
+      ).toHaveLength(success ? 1 : 0);
+      expect(Boolean(screen.queryByText('Could not restore lesson.'))).toBe(
+        !success,
+      );
+    },
+  );
+
   it('disables Check my understanding while the message input has content', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile') {
@@ -883,7 +960,7 @@ describe('deferred suggestion context', () => {
     const finish = await screen.findByRole('button', {
       name: 'Check my understanding',
     });
-    const inputBox = screen.getByPlaceholderText(/Ask the tutor/);
+    const inputBox = screen.getByPlaceholderText(/Ask Coco/);
 
     fireEvent.change(inputBox, { target: { value: 'Help with this draft' } });
     expect(finish).toBeDisabled();

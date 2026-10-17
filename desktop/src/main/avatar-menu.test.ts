@@ -1,4 +1,22 @@
-import { avatarRecoveryItems } from './avatar-menu';
+import { avatarRecoveryItems, cocoNavigationItems } from './avatar-menu';
+
+it('shares the avatar navigation order and routes each tray shortcut', () => {
+  const actions = {
+    'open-main-window': jest.fn(),
+    'open-training': jest.fn(),
+    'open-chat-settings': jest.fn(),
+  };
+  const items = cocoNavigationItems(actions);
+  expect(items.map(({ label }) => label)).toEqual([
+    'Open Chat',
+    'Training',
+    'Settings',
+  ]);
+  items.forEach((item) => (item.click as () => void)());
+  Object.values(actions).forEach((action) =>
+    expect(action).toHaveBeenCalledTimes(1),
+  );
+});
 
 describe('Tray avatar recovery', () => {
   it('offers a direct restore action when the avatar is hidden', () => {

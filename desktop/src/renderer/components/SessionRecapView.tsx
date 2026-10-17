@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './SessionRecapView.css';
 
 interface RecapData {
   summary_title: string;

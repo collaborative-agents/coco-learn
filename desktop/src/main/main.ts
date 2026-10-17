@@ -34,7 +34,8 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
-import { avatarRecoveryItems } from './avatar-menu';
+import { avatarRecoveryItems, cocoNavigationItems } from './avatar-menu';
+import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
 import type { ChatSuggestion } from '../shared/chat-suggestion';
@@ -46,6 +47,7 @@ import {
   syncPreAssessmentState,
 } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
+import configureMainWindow from './main-window-behavior';
 import log from 'electron-log';
 import axios from 'axios';
 import { resolveHtmlPath } from './util';
@@ -391,7 +393,7 @@ const flushHotkeyCaptures = () => {
 // and lets us defer startup until the user has chosen their models.
 let observerStarted = false;
 // isFloatMode: chat panel is in narrow side-panel mode (vs. expanded width).
-let isFloatMode = true;
+let isFloatMode = false;
 // Set true once the app is genuinely quitting so window 'close' handlers stop
 // intercepting (they otherwise hide-instead-of-close, which would block quit).
 let isQuitting = false;
@@ -512,14 +514,11 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   }
   return { available, enabled: available && adminStudentMode };
 });
-let trainingWindow: BrowserWindow | null = null;
 const openTraining = () => {
   if (!isAuthenticated) return;
-  if (trainingWindow && !trainingWindow.isDestroyed()) { trainingWindow.show(); trainingWindow.focus(); return; }
-  trainingWindow = new BrowserWindow({ width: 1000, height: 780, minWidth: 380, minHeight: 500,
-    title: 'Coco Learn — Training', webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false } });
-  trainingWindow.loadURL(`${resolveHtmlPath('index.html')}?view=training`);
-  trainingWindow.on('closed', () => { trainingWindow = null; });
+  isFloatMode = false;
+  showChatPanel();
+  sendToChat('open-training-panel', null);
 };
 ipcMain.on('open-training', openTraining);
 
@@ -633,29 +632,8 @@ const createAuthWindow = () => {
     authWindow.focus();
     return;
   }
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const w = 476;
-  // Tall enough for sign-up with a validation error, plus the card shadow.
-  const h = 760;
   authWindow = new BrowserWindow({
-    show: false,
-    x: Math.round((sw - w) / 2),
-    y: Math.round((sh - h) / 2),
-    width: w,
-    height: h,
-    transparent: true,
-    frame: false,
-    // The card draws its own CSS shadow; the native one would outline the
-    // full transparent window bounds.
-    hasShadow: false,
-    // Setup must never cover macOS consent dialogs or System Settings.
-    alwaysOnTop: false,
-    resizable: false,
-    // On macOS skipTaskbar changes the activation policy for the entire app,
-    // which makes Coco disappear from the Dock even while it is still running.
-    // macOS already groups every window under a single Dock icon, so only use
-    // this option on platforms with per-window taskbar entries.
-    skipTaskbar: process.platform !== 'darwin',
+    ...setupWindowOptions(screen.getPrimaryDisplay().workArea),
     webPreferences: { preload: preloadPath() },
   });
   authWindow.loadURL(`${resolveHtmlPath('index.html')}?view=auth`);
@@ -672,6 +650,10 @@ const createAuthWindow = () => {
 
 ipcMain.on('quit-from-auth', (event) => {
   if (event.sender === authWindow?.webContents) app.quit();
+});
+
+ipcMain.on('quit-from-avatar', (event) => {
+  if (event.sender === avatarWindow?.webContents) app.quit();
 });
 
 const readSystemPermissionWarning = () =>
@@ -693,11 +675,17 @@ const readSystemPermissionHealth = () => {
 };
 
 ipcMain.handle('get-system-permissions', (event) => {
-  if (event.sender !== chatWindow?.webContents) return { missing: [] };
+  if (
+    event.sender !== chatWindow?.webContents &&
+    event.sender !== onboardingWindow?.webContents
+  ) return { missing: [] };
   return readSystemPermissionHealth();
 });
 ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
-  if (event.sender !== chatWindow?.webContents) return { success: false };
+  if (
+    event.sender !== chatWindow?.webContents &&
+    event.sender !== onboardingWindow?.webContents
+  ) return { success: false };
   const requestedTarget =
     target === 'accessibility' ||
     target === 'input-monitoring' ||
@@ -718,27 +706,8 @@ ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
 // and the normal avatar + webapp windows are created.
 
 const createOnboardingWindow = (modelsOnly = false) => {
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  // Leave room around the 420px card for its CSS shadow.
-  const w = 476;
-  const h = 740;
-  const x = Math.round((sw - w) / 2);
-  const y = Math.round((sh - h) / 2);
-
   onboardingWindow = new BrowserWindow({
-    show: false,
-    x,
-    y,
-    width: w,
-    height: h,
-    transparent: true,
-    frame: false,
-    // The card draws its own CSS shadow; the native one would outline the
-    // full transparent window bounds.
-    hasShadow: false,
-    alwaysOnTop: false,
-    resizable: false,
-    skipTaskbar: process.platform !== 'darwin',
+    ...setupWindowOptions(screen.getPrimaryDisplay().workArea),
     webPreferences: { preload: preloadPath() },
   });
 
@@ -843,8 +812,8 @@ const createAvatarWindow = () => {
 
 // The chat renderer mounts its IPC listeners shortly after the page loads.
 const CHAT_RENDERER_READY_DELAY_MS = 300;
-const CHAT_PANEL_W = 420;
-const CHAT_EXPANDED_W = 820;
+const CHAT_PANEL_W = 520;
+const CHAT_EXPANDED_W = 1160;
 const CHAT_CONTENT_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 let chatContentZoomFactor = 1;
 
@@ -857,18 +826,30 @@ const createChatWindow = () => {
 
   chatWindow = new BrowserWindow({
     show: false,
-    width: CHAT_PANEL_W,
-    height: 700,
+    width: isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W,
+    height: 780,
+    minWidth: 420,
+    minHeight: 500,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: true,
     skipTaskbar: process.platform !== 'darwin',
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     webPreferences: { preload: preloadPath(), backgroundThrottling: false },
   });
 
-  configureFullscreenCompanionWindow(chatWindow);
+  configureMainWindow(chatWindow);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
+
+  const reportLayout = () => {
+    if (!chatWindow || chatWindow.isDestroyed()) return;
+    isFloatMode = chatWindow.getBounds().width < 780;
+    chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
+  };
+  chatWindow.on('resize', reportLayout);
+  chatWindow.webContents.on('did-finish-load', () => {
+    setTimeout(reportLayout, CHAT_RENDERER_READY_DELAY_MS);
+  });
 
   // A recreated chat window starts blank. Give it the current conversation so
   // it doesn't show an empty, task-less chat mid-session.
@@ -1074,12 +1055,12 @@ const showChatPanel = () => {
 
   const disp = screen.getDisplayMatching(chatWindow.getBounds());
   const { x: dx, y: dy, width: sw, height: sh } = disp.workArea;
-  const w = isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W;
-  const h = Math.min(760, sh - 32);
+  const w = Math.min(isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W, sw - 32);
+  const h = Math.min(780, sh - 32);
 
   chatWindow.setSize(w, h);
   chatWindow.setPosition(dx + sw - w - 16, dy + Math.floor((sh - h) / 2));
-  chatWindow.setAlwaysOnTop(true, 'floating');
+  configureMainWindow(chatWindow);
   chatWindow.show();
   chatWindow.focus();
   // The avatar stays visible alongside the chat panel — never hide it, so the
@@ -1276,16 +1257,9 @@ const openChatSettings = () => {
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
+  isFloatMode = false;
   showChatPanel();
-  const revealSettings = () => {
-    if (!chatWindow || chatWindow.isDestroyed()) return;
-    chatWindow.webContents.send('open-chat-settings');
-  };
-  if (chatWindow.webContents.isLoadingMainFrame()) {
-    chatWindow.webContents.once('did-finish-load', revealSettings);
-  } else {
-    revealSettings();
-  }
+  sendToChat('open-chat-settings', null);
 };
 
 // The compact menu lives in the avatar renderer, while Settings lives in the
@@ -1417,7 +1391,6 @@ function createTray(): void {
           click: () => { void desktopAppUpdater.checkForUpdates(true); },
         }]
       : [];
-  if (isAuthenticated) updateMenuItems.unshift({ label: 'Training & Administration…', click: openTraining });
   tray.setToolTip(
     pendingSetup ? 'Coco' : `Coco — ${sleeping ? 'Sleeping' : 'Awake'}`,
   );
@@ -1445,6 +1418,7 @@ function createTray(): void {
               label: setupLabel,
               click: openPrimaryTrayAction,
             },
+            ...(isAuthenticated ? [{ label: 'Training', click: openTraining }] : []),
             ...updateMenuItems,
             { type: 'separator' },
             { label: 'Quit', click: () => app.quit() },
@@ -1455,29 +1429,19 @@ function createTray(): void {
               label: sleeping ? 'Status: Sleeping' : 'Status: Awake',
               enabled: false,
             },
+            { type: 'separator' },
+            ...cocoNavigationItems({
+              'open-main-window': openPrimaryTrayAction,
+              'open-training': openTraining,
+              'open-chat-settings': openChatSettings,
+            }),
+            { type: 'separator' },
             {
-              label: sleeping ? 'Wake Coco' : 'Put Coco to Sleep',
+              label: sleeping ? 'Wake Coco' : 'Sleep',
               click: () => {
                 setCocoSleepMode(!sleeping).catch((err) =>
                   log.warn(`[Tray] Could not change sleep mode: ${err}`),
                 );
-              },
-            },
-            { type: 'separator' },
-            {
-              label: 'Open Chat',
-              click: openPrimaryTrayAction,
-            },
-            {
-              label: 'Open History',
-              click: () => {
-                openHistory();
-              },
-            },
-            {
-              label: 'Settings…',
-              click: () => {
-                openChatSettings();
               },
             },
             ...updateMenuItems,
@@ -1500,13 +1464,11 @@ function openHistory(): void {
 
 function applyAvatarVisibility(hidden: boolean): void {
   hideAvatarMode = hidden;
+  createTray();
   if (hidden) {
     avatarWindow?.hide();
-    createTray();
     return;
   }
-  tray?.destroy();
-  tray = null;
   createAvatarWindow();
   avatarWindow?.show();
 }
@@ -1527,7 +1489,6 @@ const openChatForSession = (
   seed?: ChatSeed,
 ) => {
   const alreadyLoaded = chatWindow && !chatWindow.isDestroyed();
-  isFloatMode = true;
   showChatPanel();
   if (!chatWindow) return;
 
@@ -2973,9 +2934,11 @@ ipcMain.on(
 // The renderer sends this when the user clicks the expand / collapse button to
 // switch the chat between the narrow side panel and a wider reading width.
 ipcMain.removeAllListeners('toggle-float-window');
-ipcMain.on('toggle-float-window', () => {
+ipcMain.on('toggle-float-window', (_event, options?: { expanded?: boolean }) => {
   if (!chatWindow || chatWindow.isDestroyed()) return;
-  isFloatMode = !isFloatMode; // isFloatMode === narrow side-panel
+  isFloatMode = typeof options?.expanded === 'boolean'
+    ? !options.expanded
+    : !isFloatMode;
   showChatPanel();
   chatWindow.webContents.send('float-window-state', { isFloat: isFloatMode });
 });

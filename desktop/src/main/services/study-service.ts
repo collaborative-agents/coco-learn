@@ -5,6 +5,8 @@ import path from 'path';
 import type { IpcMain } from 'electron';
 import type { CocoGatewayClient } from './gateway-client';
 import type { DailyReflection, StudyState } from '../../shared/study';
+import registerTrainingMaterialsIpc from './training-materials-ipc';
+import registerTrainingSubmissionIpc from './training-submission-ipc';
 import {
   type AiLiteracyAnswers,
   type ExecutionQuestionnaire,
@@ -131,6 +133,10 @@ export function registerStudyIpc(
     return `/admin/users/${encodeURIComponent(id.trim())}`;
   };
   ipc.handle('study-me', () => request('/me'));
+  registerTrainingSubmissionIpc(ipc, () => request('/me'));
+  registerTrainingMaterialsIpc(ipc, (day) =>
+    request(`/days/${dayNumber(day)}/download`),
+  );
   ipc.handle('study-start', (_event, timezone: string) =>
     request('/start', 'POST', { timezone }),
   );

@@ -5,13 +5,47 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import SessionChatView from '../renderer/components/SessionChatView';
 // Existing tutor behavior tests run as an authorized study participant.
 // Fail-closed policy behavior has its own useStudyAccess tests.
-jest.mock('../renderer/useStudyAccess', () => ({ __esModule: true, default: () => true }));
+jest.mock('../renderer/useStudyAccess', () => ({
+  __esModule: true,
+  default: () => true,
+}));
+// Training's data and assessment flows are covered by TrainingView.test.tsx.
+jest.mock('../renderer/components/TrainingView', () => ({
+  __esModule: true,
+  default: () => <div>Training task content</div>,
+}));
 
 describe('deferred suggestion context', () => {
+  it('does not display the task banner for the active chat', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke: jest.fn(async () => null),
+      },
+    };
+
+    render(<SessionChatView />);
+    await act(async () => {
+      listeners.get('session-init')?.({
+        sessionId: 'general-help',
+        problemStatement: 'General help session',
+      });
+    });
+
+    expect(screen.queryByText(/^Task:/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask the tutor/)).toBeInTheDocument();
+  });
+
   it('shows only missing macOS permissions in Coco Health', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-system-permissions') {
@@ -78,62 +112,10 @@ describe('deferred suggestion context', () => {
     expect(screen.queryByText(/permission required/i)).toBeNull();
   });
 
-  it('shows editable model settings when no saved configuration is available', async () => {
-    (window as any).electron = {
-      ipcRenderer: {
-        on: jest.fn(() => jest.fn()),
-        sendMessage: jest.fn(),
-        invoke: jest.fn(async () => null),
-      },
-    };
-
-    render(<SessionChatView />);
-    fireEvent.click(screen.getByTitle('Settings'));
-
-    expect(screen.getByText('Models & providers')).toBeInTheDocument();
-    expect(
-      await screen.findByText(/No saved model configuration was found/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText('Vision-capable sensing model'),
-    ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Tutor model ID')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Configure multiple models, choose a default/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Save model settings' }),
-    ).toBeEnabled();
-  });
-
-  it('keeps the tutor selector width fixed and exposes full model details', async () => {
-    const invoke = jest.fn(async (channel: string, payload?: any) => {
-      if (channel === 'get-model-configuration') {
-        return {
-          sensing: {
-            id: 'sensing',
-            label: 'Sensing',
-            provider: 'gemini',
-            model: 'gemini/gemini-vision',
-          },
-          tutors: [{
-            id: 'primary',
-            label: 'A much longer primary tutor display name',
-            provider: 'hosted_vllm',
-            model: 'hosted_vllm/org/tutor-model',
-            baseUrl: 'https://models.example.test/v1',
-          }],
-          defaultTutorId: 'primary',
-        };
-      }
-      if (channel === 'test-model-connection') {
-        return {
-          success: true,
-          message: payload.role === 'sensing'
-            ? 'Connected — text and image input accepted.'
-            : 'Connected — text input accepted.',
-        };
-      }
+  it('shows only the four requested settings sections, without model or toolkit controls', async () => {
+    const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'get-profile')
+        return { participantId: 'alex.user', userName: 'Alex' };
       return null;
     });
     (window as any).electron = {
@@ -145,65 +127,35 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    const selector = await screen.findByRole('combobox', {
-      name: 'Tutor model',
-    });
-
-    expect(selector).toHaveStyle({ width: '120px' });
-    expect(screen.getByRole('banner')).not.toContainElement(selector);
-    expect(screen.getByTestId('composer-model-selector')).toContainElement(selector);
-    expect(selector).toHaveAttribute(
-      'title',
-      expect.stringContaining('A much longer primary tutor display name'),
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('get-model-configuration'),
     );
-    expect(selector).toHaveAttribute(
-      'title',
-      expect.stringContaining('Provider: OpenAI-compatible endpoint'),
-    );
-    expect(selector).toHaveAttribute(
-      'title',
-      expect.stringContaining('Model: org/tutor-model'),
-    );
-    expect(selector).toHaveAttribute(
-      'title',
-      expect.stringContaining('Endpoint: https://models.example.test/v1'),
-    );
-
+    expect(
+      screen.queryByRole('combobox', { name: 'Tutor model' }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTitle('Settings'));
-    fireEvent.click(await screen.findByRole('button', {
-      name: 'Test sensing model connection',
-    }));
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(
-        'test-model-connection',
-        expect.objectContaining({
-          role: 'sensing',
-          connection: expect.objectContaining({
-            model: 'gemini/gemini-vision',
-          }),
-        }),
-      );
-      expect(
-        screen.getByText('Connected — text and image input accepted.'),
-      ).toBeInTheDocument();
-    });
 
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Test A much longer primary tutor display name connection',
-    }));
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith(
-        'test-model-connection',
-        expect.objectContaining({
-          role: 'tutor',
-          connection: expect.objectContaining({
-            model: 'org/tutor-model',
-          }),
-        }),
-      );
-      expect(screen.getByText('Connected — text input accepted.'))
-        .toBeInTheDocument();
+    expect(await screen.findByText('alex.user')).toBeInTheDocument();
+    expect(screen.getByLabelText('What should Coco call you?')).toHaveValue(
+      'Alex',
+    );
+    expect(
+      screen
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent),
+    ).toEqual(['Account', 'Coco Health', 'Voice & desktop avatar', 'Memory']);
+    [
+      'Models & providers',
+      'Agent mode',
+      'AI Chatbots',
+      'AI Agents',
+      'Messages with participants',
+    ].forEach((label) => {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
     });
+    expect(
+      screen.queryByTestId('composer-model-selector'),
+    ).not.toBeInTheDocument();
   });
 
   it('scales chat content without scaling the header', async () => {
@@ -296,13 +248,17 @@ describe('deferred suggestion context', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/actions processed/)).not.toBeInTheDocument();
-    expect(screen.getByText(/text and image input accepted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/text and image input accepted/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Service is not running/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
     await waitFor(() => {
       expect(
-        invoke.mock.calls.filter(([channel]) => channel === 'get-service-health'),
+        invoke.mock.calls.filter(
+          ([channel]) => channel === 'get-service-health',
+        ),
       ).toHaveLength(2);
       expect(invoke).toHaveBeenLastCalledWith('get-service-health', {
         forceModelTest: true,
@@ -387,15 +343,15 @@ describe('deferred suggestion context', () => {
 
     render(<SessionChatView />);
     const warning = await screen.findByRole('button', {
-      name: 'Configure models. Open Settings',
+      name: 'Needs attention. Open Settings',
     });
     expect(warning).toHaveStyle({ color: '#b45309' });
 
     fireEvent.click(warning);
-    expect(screen.getByText('Models & providers')).toBeInTheDocument();
+    expect(screen.getByText('Coco Health')).toBeInTheDocument();
     expect(
-      await screen.findByText(/No saved model configuration was found/),
-    ).toBeInTheDocument();
+      screen.getAllByText(/No model configuration was found/),
+    ).toHaveLength(2);
   });
 
   it('shows a failed real model check in the chat header', async () => {
@@ -466,17 +422,19 @@ describe('deferred suggestion context', () => {
 
     render(<SessionChatView />);
     fireEvent.click(screen.getByTitle('Settings'));
-    const checkbox = screen.getByRole('checkbox', {
-      name: /Hide desktop avatar/,
+    const checkbox = screen.getByRole('switch', {
+      name: 'Desktop avatar',
     });
     fireEvent.click(checkbox);
 
-    expect(checkbox).toBeChecked();
+    expect(checkbox).not.toBeChecked();
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('update-avatar-visibility', {
         hideAvatar: true,
       });
-      expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+      expect(
+        screen.queryByRole('button', { name: 'Save changes' }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -500,11 +458,13 @@ describe('deferred suggestion context', () => {
       listeners.get('open-chat-settings')?.();
     });
 
-    expect(screen.getByText('Models & providers')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Account' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Coco Health')).toBeInTheDocument();
   });
 
-  it('opens and resumes a past conversation from the chat header', async () => {
+  it('opens and resumes a past conversation from the hover sidebar', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-chat-conversations') {
         return [
@@ -538,9 +498,7 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review past conversations' }),
-    );
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Chat' }));
 
     expect(await screen.findByText('Launch checklist')).toBeInTheDocument();
     expect(screen.getByText('What should I do first?')).toBeInTheDocument();
@@ -608,7 +566,7 @@ describe('deferred suggestion context', () => {
     });
   });
 
-  it('aligns header actions and uses a todo icon for Training', () => {
+  it('keeps only chat and training navigation plus bottom settings in the rail', () => {
     (window as any).electron = {
       ipcRenderer: {
         on: jest.fn(() => jest.fn()),
@@ -617,27 +575,30 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    const { container } = render(<SessionChatView />);
+    render(<SessionChatView />);
     const actions = [
       screen.getByRole('button', { name: 'Start a new session' }),
-      screen.getByRole('button', { name: 'Review past conversations' }),
-      screen.getByRole('button', { name: 'Social and messages' }),
-      screen.getByRole('button', { name: 'Training & Administration' }),
-      screen.getByRole('button', { name: 'Settings' }),
-      screen.getByRole('button', { name: 'Expand' }),
+      screen.getByRole('button', { name: 'Collapse' }),
       screen.getByRole('button', { name: 'Close' }),
     ];
 
-    actions.forEach((action) => expect(action).toHaveStyle({ height: '28px' }));
-    const icons = container.querySelectorAll('[data-header-icon]');
-    expect(icons).toHaveLength(7);
-    icons.forEach((icon) => {
-      expect(icon).toHaveAttribute('width', '15');
-      expect(icon).toHaveAttribute('height', '15');
-    });
+    actions.forEach((action) =>
+      expect(action).toHaveStyle({
+        display: 'inline-flex',
+        alignItems: 'center',
+      }),
+    );
+    const rail = screen.getByRole('navigation', { name: 'Main navigation' });
+    expect(within(rail).getAllByRole('button')).toHaveLength(3);
+    expect(
+      within(rail).getByRole('button', { name: 'Chat' }),
+    ).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Settings' })).toHaveClass(
+      'workspace-settings-button',
+    );
     expect(
       screen
-        .getByRole('button', { name: 'Training & Administration' })
+        .getByRole('button', { name: 'Training tasks' })
         .querySelector('[data-header-icon="todo"]'),
     ).toBeInTheDocument();
   });
@@ -708,7 +669,9 @@ describe('deferred suggestion context', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy user message' }));
     await waitFor(() => {
-      expect(writeText).toHaveBeenLastCalledWith(savedConversation.messages[0].text);
+      expect(writeText).toHaveBeenLastCalledWith(
+        savedConversation.messages[0].text,
+      );
     });
   });
 
@@ -881,16 +844,25 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    fireEvent.click(
-      await screen.findByRole('button', { name: '✓ Finish' }),
+    const checkUnderstanding = await screen.findByRole('button', {
+      name: 'Check my understanding',
+    });
+    expect(checkUnderstanding).toHaveAttribute(
+      'title',
+      'Review what you learned with Coco and take a short quiz. Completing or skipping the recap ends this session.',
     );
+    expect(checkUnderstanding.querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    fireEvent.click(checkUnderstanding);
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('finish-task-successfully');
     });
   });
 
-  it('disables Finish while the message input has content', async () => {
+  it('disables Check my understanding while the message input has content', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile') {
         return { tutorScenario: 'ai_upskilling', aiTools: [] };
@@ -908,7 +880,9 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    const finish = await screen.findByRole('button', { name: '✓ Finish' });
+    const finish = await screen.findByRole('button', {
+      name: 'Check my understanding',
+    });
     const inputBox = screen.getByPlaceholderText(/Ask the tutor/);
 
     fireEvent.change(inputBox, { target: { value: 'Help with this draft' } });
@@ -920,7 +894,7 @@ describe('deferred suggestion context', () => {
     expect(finish).toBeEnabled();
   });
 
-  it('shows approachable prompt examples in an empty AI upskilling chat', async () => {
+  it('shows a highlighted screen prompt and two secondary suggestions', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile') {
         return { tutorScenario: 'ai_upskilling', aiTools: [] };
@@ -939,26 +913,48 @@ describe('deferred suggestion context', () => {
     render(<SessionChatView />);
 
     const starter = await screen.findByRole('button', {
-      name: 'Show me how to ask AI for a useful first draft.',
+      name: 'Help me with the current ask on my screen',
     });
-    fireEvent.click(starter);
-
-    expect(screen.getByPlaceholderText(/Ask the tutor/)).toHaveValue(
-      'Show me how to ask AI for a useful first draft.',
-    );
+    expect(starter).toHaveStyle({ fontWeight: 700 });
     expect(
-      screen.getByRole('button', { name: /Suggest tasks for me/ }),
+      screen.queryByRole('button', {
+        name: 'Show me how to ask AI for a useful first draft.',
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Review my recent work activity to find one part that AI could handle.',
+      }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Suggest something useful to learn.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Suggest tasks for me/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Or try an example')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Find something useful to do or learn/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '✓ Finish' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('asks the tutor for memory-aware practice ideas from the empty state', async () => {
+  it.each([
+    'Help me with the current ask on my screen',
+    'Review my recent work activity to find one part that AI could handle.',
+    'Suggest something useful to learn.',
+  ])('sends the prompt "%s" as an ordinary chat request', async (prompt) => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile') {
         return { tutorScenario: 'ai_upskilling', aiTools: [] };
       }
       if (channel === 'get-supported-modes') return ['ai_upskilling'];
       if (channel === 'send-chat-message') {
-        return { guidance: 'Here are three tasks for you.' };
+        return { guidance: 'Let’s look at your current task.' };
       }
       return null;
     });
@@ -971,24 +967,17 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    fireEvent.click(
-      await screen.findByRole('button', { name: /Suggest tasks for me/ }),
-    );
+    fireEvent.click(await screen.findByRole('button', { name: prompt }));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
         'send-chat-message',
         expect.objectContaining({
-          userText:
-            'Suggest meaningful tasks I can practice or topics I can learn based on my usual work and experience level.',
-          requestKind: 'practice_suggestions',
+          userText: prompt,
+          requestKind: 'chat',
         }),
       );
     });
-    expect(
-      screen.getByText(
-        'Suggest meaningful tasks I can practice or topics I can learn based on my usual work and experience level.',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(prompt)).toBeInTheDocument();
   });
 
   it('does not show the manual recap control in other modes', async () => {
@@ -1010,7 +999,7 @@ describe('deferred suggestion context', () => {
     render(<SessionChatView />);
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('get-profile'));
     expect(
-      screen.queryByRole('button', { name: '✓ Finish' }),
+      screen.queryByRole('button', { name: 'Check my understanding' }),
     ).not.toBeInTheDocument();
   });
 
@@ -1065,7 +1054,9 @@ describe('deferred suggestion context', () => {
       },
     };
     render(<SessionChatView />);
-    await screen.findByRole('combobox', { name: 'Tutor model' });
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('get-model-configuration'),
+    );
 
     const imageDataUrl = 'data:image/png;base64,cHJldmlldw==';
     act(() => {
@@ -1092,7 +1083,9 @@ describe('deferred suggestion context', () => {
       );
     });
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Preview message attachment 1' }),
+      await screen.findByRole('button', {
+        name: 'Preview message attachment 1',
+      }),
     );
     expect(sendMessage).toHaveBeenCalledWith('open-image-preview', {
       imageDataUrl,

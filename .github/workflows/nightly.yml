@@ -156,7 +156,7 @@ jobs:
           node -e '
             const { createHash } = require("node:crypto");
             const { appendFileSync } = require("node:fs");
-            const values = ["v1", process.env.CHECKPOINT_RUN, process.env.CHECKPOINT_SOURCE,
+            const values = ["v2-sdk-smoke", process.env.CHECKPOINT_RUN, process.env.CHECKPOINT_SOURCE,
               process.env.CHECKPOINT_PLATFORM, process.env.RELEASE_VERSION,
               process.env.COCO_GATEWAY_URL, process.env.LLM_ROUTER_URL];
             const key = createHash("sha256").update(JSON.stringify(values)).digest("hex");
@@ -198,7 +198,15 @@ jobs:
 
       - name: Install Python dependencies
         if: steps.signed.outputs.cache-hit != 'true'
-        run: node desktop/scripts/retry-command.mjs bash -c "uv sync --group dev"
+        run: node desktop/scripts/retry-command.mjs bash -c "uv sync --locked --group dev"
+
+      - name: Check installed dependency requirements
+        if: steps.signed.outputs.cache-hit != 'true'
+        run: uv pip check
+
+      - name: Check SDK tool calls before packaging
+        if: steps.signed.outputs.cache-hit != 'true'
+        run: uv run --locked python -m external_api.dependency_smoke
 
       - name: Install desktop dependencies
         working-directory: ./desktop
@@ -223,6 +231,16 @@ jobs:
         if: steps.signed.outputs.cache-hit != 'true' && steps.services.outputs.cache-hit != 'true'
         working-directory: ./desktop
         run: npm run build:services
+
+      - name: Check packaged SDK tool calls before caching or signing
+        if: steps.signed.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          service="desktop/service-dist/coco-services/tutor-server"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            service="$service.exe"
+          fi
+          "$service" --dependency-smoke-test
 
       - name: Save completed service build
         if: steps.signed.outputs.cache-hit != 'true' && steps.services.outputs.cache-hit != 'true'

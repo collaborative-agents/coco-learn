@@ -140,7 +140,7 @@ export default function TrainingView({
           <p>
             During the three-week AI Literacy Camp, you’ll try a new AI
             collaboration task each day in the first week. Starting and final
-            assessments, followed by an assignment seven days after your final
+            assessments, followed by an assignment 14 days after your final
             assessment, help you track your progress.
           </p>
         </header>

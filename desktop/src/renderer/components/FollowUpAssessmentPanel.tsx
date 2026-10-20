@@ -64,7 +64,7 @@ export default function FollowUpAssessmentPanel({
       {!state && !error && <p>Loading your follow-up assignment…</p>}
       {state && !state.unlocked && (
         <p>
-          Your follow-up assignment unlocks seven days after completing the
+          Your follow-up assignment unlocks 14 days after completing the
           post-assessment.
         </p>
       )}

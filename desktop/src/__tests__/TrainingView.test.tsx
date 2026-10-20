@@ -696,7 +696,7 @@ it('groups practice days beneath a concise training heading without row subtitle
     screen.getByText(/Coco helps you get work done faster/),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/an assignment seven days after your final assessment/),
+    screen.getByText(/an assignment 14 days after your final assessment/),
   ).toBeInTheDocument();
   const training = within(checklist).getByRole('list', {
     name: 'Training tasks',
@@ -810,18 +810,18 @@ it('lets an admin enter and exit the gated student experience', async () => {
   ).toBeInTheDocument();
 });
 
-it('shows a server-timed seven-day follow-up countdown after post-assessment completion', async () => {
+it('shows a server-timed 14-day follow-up countdown after post-assessment completion', async () => {
   me.post_assessment_complete = true;
   me.follow_up_assessment = {
     visible: true,
     unlocked: false,
     complete: false,
     server_now: '2026-10-01T12:00:00Z',
-    unlocks_at: '2026-10-08T12:00:00Z',
+    unlocks_at: '2026-10-15T12:00:00Z',
   };
   render(<TrainingView />);
   const followUp = await screen.findByRole('button', {
-    name: /Follow-up assignment — unlocks in 7d 0h 0m 0s/,
+    name: /Follow-up assignment — unlocks in 14d 0h 0m 0s/,
   });
   expect(followUp).toBeDisabled();
   expect(invoke).not.toHaveBeenCalledWith(
@@ -834,8 +834,8 @@ it('opens the released staffing mission and uses the follow-up recorder channels
     visible: true,
     unlocked: true,
     complete: false,
-    server_now: '2026-10-08T12:00:00Z',
-    unlocks_at: '2026-10-08T12:00:00Z',
+    server_now: '2026-10-15T12:00:00Z',
+    unlocks_at: '2026-10-15T12:00:00Z',
   };
   const original = invoke.getMockImplementation()!;
   invoke.mockImplementation(async (channel, ...args) => {
@@ -843,7 +843,7 @@ it('opens the released staffing mission and uses the follow-up recorder channels
       return {
         ...postAssessment,
         unlocked: true,
-        execution_started_at: '2026-10-08T12:00:00Z',
+        execution_started_at: '2026-10-15T12:00:00Z',
       };
     if (channel === 'follow-up-assessment-recorder-state')
       return {

@@ -13,6 +13,13 @@ export interface StudyState {
   tutoring_allowed: boolean;
   pre_assessments_complete: boolean;
   post_assessment_complete?: boolean;
+  follow_up_assessment?: {
+    visible: boolean;
+    unlocked: boolean;
+    unlocks_at: string | null;
+    server_now: string;
+    complete: boolean;
+  };
   post_assessment_toolkit_available?: boolean;
   started_at: string | null;
   timezone: string | null;

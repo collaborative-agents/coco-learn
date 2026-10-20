@@ -419,9 +419,13 @@ class TutorSystem:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.conversation_history.append(f"[{ts}] [Coco suggestion]: {text}")
 
-    def generate_recap(self) -> tuple[dict, LLMCallMetrics]:
-        """Generate a grounded session summary and four-choice recap question."""
-        transcript = "\n".join(self.conversation_history).strip()
+    def generate_recap(
+        self, transcript: str | None = None
+    ) -> tuple[dict, LLMCallMetrics]:
+        """Generate a quiz from a snapshot without changing the active conversation."""
+        transcript = (
+            "\n".join(self.conversation_history) if transcript is None else transcript
+        ).strip()
         if not transcript:
             raise ValueError("Session transcript is empty — cannot generate recap")
 

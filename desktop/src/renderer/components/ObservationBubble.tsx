@@ -86,6 +86,7 @@ export default function ObservationBubble({
   onDismiss,
   onViewConversation,
   onChatAboutSuggestion,
+  onRunSuggestion,
   onMouseEnter,
   onMouseLeave,
 }: {
@@ -94,6 +95,7 @@ export default function ObservationBubble({
   onDismiss?: () => void;
   onViewConversation?: () => void;
   onChatAboutSuggestion?: () => void;
+  onRunSuggestion?: () => void;
   /** Hovering pauses the auto-hide so the user can read / copy the bubble. */
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -142,8 +144,14 @@ export default function ObservationBubble({
   };
 
   if (!bubble) return null;
-  const { status, phrase, fadingOut, showHelpButton, tutorMessage, suggestion } =
-    bubble;
+  const {
+    status,
+    phrase,
+    fadingOut,
+    showHelpButton,
+    tutorMessage,
+    suggestion,
+  } = bubble;
   const isTier3 = !!tutorMessage;
   const isFrameworkPager =
     suggestion != null && bubble.scenario === 'ai_upskilling';
@@ -161,7 +169,9 @@ export default function ObservationBubble({
         bubble.rawObservation,
       )
     : null;
-  const label = isTier3 ? 'AI Tutor' : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
+  const label = isTier3
+    ? 'AI Tutor'
+    : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
 
   // Copy the prompt/content and, when a tool is chosen, launch it. `toolId` null
   // means copy-only.
@@ -281,9 +291,7 @@ export default function ObservationBubble({
         </div>
       ) : suggestion ? (
         <div className="observation-bubble-text observation-suggestion-body">
-          {suggestion.kind === 'delegate'
-            ? suggestion.prompt
-            : suggestion.body}
+          {suggestion.kind === 'delegate' ? suggestion.prompt : suggestion.body}
         </div>
       ) : isTier3 ? (
         <div className="observation-bubble-text observation-bubble-tutor-preview">
@@ -332,6 +340,15 @@ export default function ObservationBubble({
           >
             Ask Coco about it
           </button>
+          {onRunSuggestion && (
+            <button
+              type="button"
+              className="bubble-action-btn bubble-chat-action"
+              onClick={onRunSuggestion}
+            >
+              Run with Coco
+            </button>
+          )}
         </div>
       )}
       {suggestion && !isFrameworkOverview && suggestion.kind === 'delegate' && (
@@ -351,6 +368,15 @@ export default function ObservationBubble({
           >
             Ask Coco about it
           </button>
+          {onRunSuggestion && (
+            <button
+              type="button"
+              className="bubble-action-btn bubble-chat-action"
+              onClick={onRunSuggestion}
+            >
+              Run with Coco
+            </button>
+          )}
           {suggestedTool && (
             <button
               type="button"
@@ -374,8 +400,12 @@ export default function ObservationBubble({
             <div className="bubble-pager-rating">{ratingButtons}</div>
           )}
           <div className="bubble-framework-page-bars" aria-hidden="true">
-            <span className={`bubble-framework-page-bar${suggestionPage === 0 ? ' is-active' : ''}`} />
-            <span className={`bubble-framework-page-bar${suggestionPage === 1 ? ' is-active' : ''}`} />
+            <span
+              className={`bubble-framework-page-bar${suggestionPage === 0 ? ' is-active' : ''}`}
+            />
+            <span
+              className={`bubble-framework-page-bar${suggestionPage === 1 ? ' is-active' : ''}`}
+            />
           </div>
           <button
             type="button"

@@ -92,6 +92,7 @@ provider for inference.
 6. Choose an available action:
    - **Copy prompt** copies the suggestion to your clipboard.
    - **Chat about it** opens the CoCo chat with the suggestion as context.
+   - **Run with Coco** asks CoCo to carry out the suggestion in chat.
    - **Open [tool]** opens one of the AI tools selected during onboarding.
 
 Dismissing a suggestion continues your work without opening a session.
@@ -107,9 +108,26 @@ You can start direct support in either of these ways:
 You can paste images into the chat when visual context is necessary. Press
 Enter or select **Send** to submit a message.
 
+CoCo can work through tasks using files, shell commands, screen context, and
+memory. Choose a **working folder** above the composer before asking it to
+work on a project. CoCo remembers the folder for each conversation, including
+after restarting the app. New conversations start in CoCo’s own workspace.
+The folder sets where commands and relative file paths start, and does not
+restrict access to that folder.
+
+Progress messages and tool cards appear as CoCo works. Expand **Live output**
+or **View details** to inspect a command or file operation. The final answer
+appears below the completed steps. Select **Stop** to cancel a running task;
+files already changed remain changed. Voice messages use the same execution
+path after transcription. Proactive suggestions run only when you select
+**Run with Coco** or explicitly ask for the work in chat.
+
+In AI Fluency Upskilling mode, you can open a previous conversation and select
+**Check my understanding** to review that conversation and complete its quiz.
+
 ## 7. Finish a session and complete the recap
 
-In AI Fluency Upskilling mode, select **Finish** in the chat when your task is
+In AI Fluency Upskilling mode, select **Check my understanding** when your task is
 complete. CoCo displays:
 
 - A short summary of the session

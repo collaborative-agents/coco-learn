@@ -54,10 +54,18 @@ export interface TutorMemoryResult {
   evidence?: TutorObservation[];
 }
 
+export interface AgentQuestion {
+  header: string;
+  question: string;
+  multiSelect?: boolean;
+  options: { label: string; description: string; preview?: string }[];
+}
+
 export interface TutorToolCall {
   id: string;
   name: string;
   arguments: {
+    [key: string]: unknown;
     query?: string;
     focus?: string;
     start_hh_mm_ago?: string | null;
@@ -67,6 +75,11 @@ export interface TutorToolCall {
   };
   status: 'running' | 'completed' | 'error';
   result?: {
+    waitingForAnswer?: boolean;
+    questions?: AgentQuestion[];
+    cancelled?: boolean;
+    answers?: { questionIndex: number; answer: string | null; selected?: string[] }[];
+    output?: string;
     count?: number;
     results?: TutorMemoryResult[];
     observation?: string;

@@ -1,18 +1,21 @@
+/* eslint-disable react/require-default-props -- Optional shared task configuration. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AI_LITERACY_QUESTIONS,
   EXECUTION_QUESTIONNAIRE_QUESTIONS,
   POST_ASSESSMENT_TOOLKIT,
-  SELF_EFFICACY_QUESTIONS,
-  SELF_EFFICACY_SCALE,
   type AiLiteracyAnswers,
   type ExecutionQuestionnaire,
   type PostAssessmentSection,
   type PostAssessmentState,
-  type SelfEfficacyAnswers,
   type TaskRecorderCapture,
   type TaskRecorderState,
 } from '../../shared/post-assessment';
+
+import FollowUpBriefing, {
+  FOLLOW_UP_TOOLKIT,
+} from './training/FollowUpBriefing';
+import SelfEfficacySection from './training/SelfEfficacySection';
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
@@ -27,95 +30,6 @@ const emptyQuestionnaire = (): ExecutionQuestionnaire => ({
   challenge: '',
   ownership: 0,
 });
-
-function SelfEfficacySection({
-  complete,
-  busy,
-  onSubmit,
-}: {
-  complete: boolean;
-  busy: boolean;
-  onSubmit: (answers: SelfEfficacyAnswers) => Promise<void>;
-}) {
-  const [answers, setAnswers] = useState<SelfEfficacyAnswers>({});
-  const ready = SELF_EFFICACY_QUESTIONS.every(
-    (_question, index) => answers[String(index + 1)] >= 1,
-  );
-
-  return (
-    <section className="post-assessment-section">
-      <div className="pre-assessment-challenge-header">
-        <div>
-          <span className="training-eyebrow">PART 1 · ABOUT 2–3 MINUTES</span>
-          <h3>AI Self-Efficacy Scale</h3>
-          <p>
-            Select the response that best represents how you feel right now.
-            There are no right or wrong answers.
-          </p>
-        </div>
-        <span
-          className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-        >
-          {complete ? '✓ Submitted' : 'Ready'}
-        </span>
-      </div>
-      {complete ? (
-        <div className="post-assessment-submitted">
-          Your self-assessment has been submitted.
-        </div>
-      ) : (
-        <div className="post-assessment-scale-questions">
-          {SELF_EFFICACY_QUESTIONS.map((question, index) => {
-            const id = String(index + 1);
-            return (
-              <fieldset
-                key={question}
-                className="post-assessment-scale-question"
-              >
-                <legend>
-                  {index + 1}. {question}
-                </legend>
-                <div className="post-assessment-rating-scale">
-                  {SELF_EFFICACY_SCALE.map((option) => (
-                    <label
-                      key={option.value}
-                      htmlFor={`efficacy-${id}-${option.value}`}
-                    >
-                      <input
-                        id={`efficacy-${id}-${option.value}`}
-                        type="radio"
-                        name={`efficacy-${id}`}
-                        value={option.value}
-                        checked={answers[id] === option.value}
-                        disabled={busy}
-                        onChange={() =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [id]: option.value,
-                          }))
-                        }
-                      />
-                      <span>{option.value}</span>
-                      <small>{option.label}</small>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            );
-          })}
-          <button
-            type="button"
-            className="pre-assessment-submit"
-            disabled={busy || !ready}
-            onClick={async () => onSubmit(answers)}
-          >
-            {busy ? 'Submitting…' : 'Submit self-assessment'}
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
 
 function AiLiteracySection({
   complete,
@@ -135,15 +49,14 @@ function AiLiteracySection({
     <section className="post-assessment-section">
       <div className="pre-assessment-challenge-header">
         <div>
-          <span className="training-eyebrow">PART 2 · 8 QUESTIONS</span>
           <h3>AI Literacy Test</h3>
           <p>Choose the one best answer for each question.</p>
         </div>
-        <span
-          className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-        >
-          {complete ? '✓ Submitted' : 'Ready'}
-        </span>
+        {complete && (
+          <span className="pre-assessment-status pre-assessment-status--done">
+            ✓ Submitted
+          </span>
+        )}
       </div>
       {complete ? (
         <div className="post-assessment-submitted">
@@ -206,7 +119,6 @@ function MissionBriefing() {
       <div className="post-assessment-mission-title">
         <span aria-hidden>🎯</span>
         <div>
-          <span className="training-eyebrow">MISSION</span>
           <h3>Trust, But Verify</h3>
         </div>
       </div>
@@ -262,8 +174,9 @@ function MissionBriefing() {
   );
 }
 
-function ExecutionSection({
+export function ExecutionSection({
   state,
+  followUp = false,
   busy,
   onStart,
   onDownload,
@@ -271,12 +184,23 @@ function ExecutionSection({
   onSubmit,
 }: {
   state: PostAssessmentState;
+  followUp?: boolean;
   busy: boolean;
   onStart: () => Promise<void>;
   onDownload: () => Promise<void>;
   onChooseAnswerSheet: () => Promise<string | null>;
   onSubmit: (questionnaire: ExecutionQuestionnaire) => Promise<void>;
 }) {
+  const invokeTask = useCallback(
+    (channel: Parameters<typeof invoke>[0], ...args: unknown[]) =>
+      invoke(
+        (followUp
+          ? channel.replace('post-assessment', 'follow-up-assessment')
+          : channel) as Parameters<typeof invoke>[0],
+        ...args,
+      ),
+    [followUp],
+  );
   const complete = Boolean(state.sections.execution);
   const [questionnaire, setQuestionnaire] = useState(emptyQuestionnaire);
   const [outcomeFilename, setOutcomeFilename] = useState('');
@@ -296,12 +220,12 @@ function ExecutionSection({
 
   const refreshRecorder = useCallback(async () => {
     if (!startedAt || complete) return;
-    const next = (await invoke(
+    const next = (await invokeTask(
       'post-assessment-recorder-state',
       startedAt,
     )) as TaskRecorderState;
     setRecorder(next);
-  }, [complete, startedAt]);
+  }, [complete, startedAt, invokeTask]);
 
   useEffect(() => {
     if (!startedAt || complete) return undefined;
@@ -334,7 +258,7 @@ function ExecutionSection({
     setRecorderBusy(true);
     setRecorderError('');
     try {
-      const next = (await invoke(
+      const next = (await invokeTask(
         'post-assessment-recorder-captures',
       )) as TaskRecorderCapture[];
       setCaptures(next);
@@ -348,7 +272,7 @@ function ExecutionSection({
     }
   };
 
-  let executionStatus = 'Ready';
+  let executionStatus = '';
   if (startedAt) executionStatus = 'In progress';
   if (complete) executionStatus = '✓ Submitted';
   const ready =
@@ -363,26 +287,30 @@ function ExecutionSection({
     <section className="post-assessment-section">
       <div className="pre-assessment-challenge-header">
         <div>
-          <span className="training-eyebrow">PART 3 · EXECUTION TASK</span>
-          <h3>Financial Analysis Mission</h3>
+          <h3>
+            {followUp
+              ? 'Staffing Planning Mission'
+              : 'Financial Analysis Mission'}
+          </h3>
           <p>
             In this task, we’ll give you a brand-new work challenge and see how
             you tackle it—how you make decisions, use AI, verify its work, and
             turn your process into a final submission.
           </p>
         </div>
-        <span
-          className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-        >
-          {executionStatus}
-        </span>
+        {executionStatus && (
+          <span
+            className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
+          >
+            {executionStatus}
+          </span>
+        )}
       </div>
 
-      <MissionBriefing />
+      {followUp ? <FollowUpBriefing /> : <MissionBriefing />}
 
       <div className="post-assessment-toolkit">
         <div>
-          <span className="training-eyebrow">YOUR TOOLKIT</span>
           <h4>Reference files</h4>
           <p>
             {state.toolkit_available
@@ -397,9 +325,9 @@ function ExecutionSection({
               <strong>Complete mission toolkit</strong>
               <small>
                 Includes{' '}
-                {POST_ASSESSMENT_TOOLKIT.map((file) => file.filename).join(
-                  ', ',
-                )}
+                {(followUp ? FOLLOW_UP_TOOLKIT : POST_ASSESSMENT_TOOLKIT)
+                  .map((file) => file.filename)
+                  .join(', ')}
               </small>
             </div>
             <button
@@ -445,7 +373,6 @@ function ExecutionSection({
             aria-modal="true"
             aria-labelledby="task-recording-consent-title"
           >
-            <span className="training-eyebrow">TASK ACTIVITY RECORDING</span>
             <h4 id="task-recording-consent-title">
               Task activity will be recorded
             </h4>
@@ -472,7 +399,7 @@ function ExecutionSection({
                   if (startedAt) {
                     await recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-start',
                         ) as Promise<TaskRecorderState>,
                     );
@@ -543,7 +470,7 @@ function ExecutionSection({
                   onClick={() =>
                     recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-pause',
                         ) as Promise<TaskRecorderState>,
                     )
@@ -559,7 +486,7 @@ function ExecutionSection({
                   onClick={() =>
                     recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-resume',
                         ) as Promise<TaskRecorderState>,
                     )
@@ -608,9 +535,6 @@ function ExecutionSection({
               >
                 <div className="post-assessment-capture-review-header">
                   <div>
-                    <span className="training-eyebrow">
-                      REVIEW ACTIVITY LOG
-                    </span>
                     <h4 id="capture-review-title">Recorded screenshots</h4>
                     <p>
                       Remove anything unrelated or sensitive. Removed captures
@@ -643,7 +567,7 @@ function ExecutionSection({
                             setRecorderBusy(true);
                             setRecorderError('');
                             try {
-                              const next = (await invoke(
+                              const next = (await invokeTask(
                                 'post-assessment-recorder-remove-capture',
                                 capture.id,
                               )) as TaskRecorderState;
@@ -675,7 +599,6 @@ function ExecutionSection({
           )}
 
           <div className="post-assessment-questionnaire">
-            <span className="training-eyebrow">FINAL QUESTIONNAIRE</span>
             <h4>Tell us about your approach</h4>
             {EXECUTION_QUESTIONNAIRE_QUESTIONS.map(
               ({ key, question }, index) => (
@@ -756,8 +679,10 @@ function ExecutionSection({
 
 export default function PostAssessmentPanel({
   unlocked,
+  onSubmitted,
 }: {
   unlocked: boolean;
+  onSubmitted?: () => Promise<void>;
 }) {
   const [state, setState] = useState<PostAssessmentState | null>(null);
   const [activeSection, setActiveSection] =
@@ -792,6 +717,7 @@ export default function PostAssessmentPanel({
     try {
       await action();
       await load();
+      await onSubmitted?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -810,7 +736,6 @@ export default function PostAssessmentPanel({
           🔒
         </div>
         <div>
-          <span className="training-eyebrow">AFTER CAMP</span>
           <h2>Post-assessment</h2>
           <p>
             Complete all seven training levels to unlock the self-assessment, AI
@@ -828,7 +753,6 @@ export default function PostAssessmentPanel({
           {error ? '!' : '…'}
         </div>
         <div>
-          <span className="training-eyebrow">AFTER CAMP</span>
           <h2>Post-assessment</h2>
           <p role={error ? 'alert' : undefined}>
             {error || 'Loading your post-assessment…'}
@@ -850,7 +774,6 @@ export default function PostAssessmentPanel({
     >
       <div className="post-assessment-intro">
         <div>
-          <span className="training-eyebrow">AFTER CAMP</span>
           <h2 id="post-assessment-title">
             {state?.complete
               ? 'Post-assessment complete!'

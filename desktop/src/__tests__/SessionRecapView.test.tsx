@@ -67,4 +67,51 @@ describe('SessionRecapView completion tracking', () => {
       selectedIndex: 0,
     });
   });
+
+  it('offers to continue the session after an understanding check', () => {
+    render(<SessionRecapView />);
+    act(() => {
+      listeners.get('session-recap-init')?.({ mode: 'check' });
+      listeners.get('session-recap-data')?.({
+        data: {
+          summary_title: 'You practiced giving AI clear context.',
+          bullets: [],
+          quiz: {
+            question: 'What should you do next?',
+            choices: ['Check the output', 'Ignore the output'],
+            correct_index: 0,
+            explanation: 'Reviewing the result catches errors.',
+          },
+        },
+        error: false,
+      });
+    });
+
+    expect(screen.getByText('Check your understanding')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'End session' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Check the output/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to session' }));
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      'session-recap-done',
+      expect.objectContaining({ quizAnswered: true, quizCorrect: true }),
+    );
+  });
+  it('returns to the conversation when an understanding check fails to load', () => {
+    render(<SessionRecapView />);
+    act(() => {
+      listeners.get('session-recap-init')?.({ mode: 'check' });
+      listeners.get('session-recap-data')?.({ error: true });
+    });
+    expect(screen.queryByRole('button', { name: 'End session' })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Back to conversation' }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith('session-recap-done', {
+      quizSkipped: true,
+      quizAnswered: false,
+    });
+  });
 });

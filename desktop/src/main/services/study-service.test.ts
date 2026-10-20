@@ -1,5 +1,6 @@
 import { dialog } from 'electron';
 import fs from 'fs/promises';
+import JSZip from 'jszip';
 import { registerStudyIpc } from './study-service';
 import type { CocoGatewayClient } from './gateway-client';
 
@@ -43,6 +44,96 @@ function fixture(
 }
 
 beforeEach(() => jest.clearAllMocks());
+
+it('previews task instructions through the unchanged authenticated download endpoint', async () => {
+  const { invoke, requestJson } = fixture({
+    filename: 'instructions.pdf',
+    data: Buffer.from('%PDF-1.4 preview').toString('base64'),
+  });
+  const materials = await invoke('study-task-materials', 1);
+  expect(materials.documents[0]).toMatchObject({
+    id: 'instructions.pdf',
+    kind: 'pdf',
+  });
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/days/1/download',
+    'GET',
+    undefined,
+  );
+  expect(dialog.showSaveDialog).not.toHaveBeenCalled();
+  expect(fs.writeFile).not.toHaveBeenCalled();
+  await expect(invoke('study-task-materials', 8)).rejects.toThrow(
+    'Invalid training day',
+  );
+});
+
+it('downloads all references in one ZIP without including the instruction PDF', async () => {
+  const zip = new JSZip();
+  zip.file('Task/Day1_Instruction.pdf', '%PDF-1.4 instructions');
+  zip.file('Task/style_guide.pdf', '%PDF-1.4 reference');
+  zip.file('Task/data.csv', 'name,value\nA,10');
+  const { invoke } = fixture({
+    filename: 'day1.zip',
+    data: await zip.generateAsync({ type: 'base64' }),
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePath: '/chosen/references.zip',
+  });
+  await expect(invoke('study-save-references', 1)).resolves.toEqual({
+    success: true,
+  });
+  const saved = await JSZip.loadAsync(
+    (fs.writeFile as jest.Mock).mock.calls[0][1],
+  );
+  expect(
+    Object.keys(saved.files)
+      .filter((name) => !saved.files[name].dir)
+      .sort(),
+  ).toEqual(['Task/data.csv', 'Task/style_guide.pdf']);
+  expect(await saved.file('Task/data.csv')!.async('string')).toBe(
+    'name,value\nA,10',
+  );
+  (fs.writeFile as jest.Mock).mockClear();
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: true });
+  await expect(invoke('study-save-references', 1)).resolves.toEqual({
+    canceled: true,
+  });
+  expect(fs.writeFile).not.toHaveBeenCalled();
+});
+
+it('does not create an empty reference archive for a standalone instruction PDF', async () => {
+  const { invoke } = fixture({
+    filename: 'task.pdf',
+    data: Buffer.from('%PDF-1.4 instructions').toString('base64'),
+  });
+  await expect(invoke('study-save-references', 1)).resolves.toEqual({
+    empty: true,
+  });
+  expect(dialog.showSaveDialog).not.toHaveBeenCalled();
+});
+
+it('saves only a selected material file and respects cancellation', async () => {
+  const data = Buffer.from('Reference notes');
+  const { invoke } = fixture({
+    filename: 'notes.txt',
+    data: data.toString('base64'),
+  });
+  (dialog.showSaveDialog as jest.Mock)
+    .mockResolvedValueOnce({ canceled: true })
+    .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/notes.txt' });
+  await expect(invoke('study-save-reference', 1, 'notes.txt')).resolves.toEqual(
+    { canceled: true },
+  );
+  expect(fs.writeFile).not.toHaveBeenCalled();
+  await expect(invoke('study-save-reference', 1, 'notes.txt')).resolves.toEqual(
+    { success: true },
+  );
+  expect(fs.writeFile).toHaveBeenCalledWith('/chosen/notes.txt', data);
+  await expect(invoke('study-save-reference', 1, '../missing')).rejects.toThrow(
+    'no longer available',
+  );
+});
 
 const reflection = {
   q1: 5,

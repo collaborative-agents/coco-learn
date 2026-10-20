@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from proactive_tutor.html_executor import VIZ_ROOT, VizResult, save_html_visualization
+from proactive_tutor.pi_bridge import create_pi_router
 from proactive_tutor.tutor_system import TutorSystem
 from py_utils.logging import init_logger
 from pydantic import BaseModel, Field
@@ -22,6 +23,9 @@ logger = init_logger(__name__)
 
 app = FastAPI(title="Tutor System API")
 tutor: TutorSystem | None = None
+
+
+app.include_router(create_pi_router(lambda: tutor))
 
 # Model the server was started with. Used by the stateless /suggestion/instant
 # endpoint, which does not own a TutorSystem instance. Set in main_async();
@@ -154,6 +158,10 @@ class MemoryRequest(BaseModel):
 class ConversationMessage(BaseModel):
     role: str
     text: str
+
+
+class RecapRequest(BaseModel):
+    messages: list[ConversationMessage] | None = None
 
 
 class ConversationRequest(BaseModel):
@@ -814,12 +822,17 @@ async def record_competency_coached(req: CompetencyCoachedRequest):
 
 
 @app.post("/recap", response_model=RecapResponse)
-async def generate_recap():
-    """Generate a summary and recap question from the active local transcript."""
+async def generate_recap(req: RecapRequest | None = None):
+    """Check a supplied conversation without resuming or ending any session."""
     if tutor is None:
         raise HTTPException(status_code=503, detail="TutorSystem not initialized")
     try:
-        recap, _metrics = await asyncio.to_thread(tutor.generate_recap)
+        transcript = (
+            "\n".join(f"[{message.role}]: {message.text}" for message in req.messages)
+            if req is not None and req.messages is not None
+            else None
+        )
+        recap, _metrics = await asyncio.to_thread(tutor.generate_recap, transcript)
         return RecapResponse(**recap)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './SessionRecapView.css';
 
 interface RecapData {
   summary_title: string;
@@ -12,6 +13,8 @@ interface RecapData {
 }
 
 type QuizState = 'unanswered' | 'correct' | 'wrong';
+// 'check' is a mid-session "Check my understanding" quiz; 'end' ends the session.
+type RecapMode = 'check' | 'end';
 
 export default function SessionRecapView() {
   const [recap, setRecap] = useState<RecapData | null>(null);
@@ -19,11 +22,15 @@ export default function SessionRecapView() {
   const [loadError, setLoadError] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [quizState, setQuizState] = useState<QuizState>('unanswered');
+  const [mode, setMode] = useState<RecapMode>('end');
 
   useEffect(() => {
     const cleanupInit = window.electron?.ipcRenderer.on(
       'session-recap-init',
-      () => setLoading(true),
+      (payload: any) => {
+        setLoading(true);
+        setMode(payload?.mode === 'check' ? 'check' : 'end');
+      },
     );
     const cleanupData = window.electron?.ipcRenderer.on(
       'session-recap-data',
@@ -59,7 +66,9 @@ export default function SessionRecapView() {
       <div className="recap-card">
         <div className="recap-header">
           <span className="recap-header-dot" />
-          <span className="recap-header-title">Session recap</span>
+          <span className="recap-header-title">
+            {mode === 'check' ? 'Check your understanding' : 'Session recap'}
+          </span>
           <button
             type="button"
             className="recap-close"
@@ -85,7 +94,7 @@ export default function SessionRecapView() {
               className="recap-btn-continue"
               onClick={finish}
             >
-              End session
+              {mode === 'check' ? 'Back to conversation' : 'End session'}
             </button>
           </div>
         )}
@@ -179,7 +188,7 @@ export default function SessionRecapView() {
               onClick={finish}
               disabled={!answered}
             >
-              End session
+              {mode === 'check' ? 'Back to session' : 'End session'}
             </button>
           </div>
         )}

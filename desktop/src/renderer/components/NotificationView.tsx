@@ -202,6 +202,7 @@ export function NotificationBubble({
   suggestion,
   onSuggestionAction,
   onChatAboutSuggestion,
+  onRunSuggestion,
   suggestionRating,
   onRateSuggestion,
   copyConfirmed,
@@ -224,6 +225,7 @@ export function NotificationBubble({
   suggestion?: InstantSuggestion;
   onSuggestionAction?: (toolId: string | null) => void;
   onChatAboutSuggestion?: () => void;
+  onRunSuggestion?: () => void;
   suggestionRating?: 'up' | 'down' | null;
   onRateSuggestion?: (rating: 'up' | 'down') => void;
   copyConfirmed?: boolean;
@@ -395,6 +397,15 @@ export function NotificationBubble({
           >
             Ask Coco about it
           </button>
+          {onRunSuggestion && (
+            <button
+              type="button"
+              className="toast-action toast-chat-action"
+              onClick={onRunSuggestion}
+            >
+              Run with Coco
+            </button>
+          )}
           {suggestedTool && (
             <button
               type="button"
@@ -419,13 +430,24 @@ export function NotificationBubble({
           <div className="toast-footer">
             {footerRating}
             {isRevealedSuggestion && (
-              <button
-                type="button"
-                className="toast-action toast-chat-action"
-                onClick={onChatAboutSuggestion}
-              >
-                Ask Coco about it
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="toast-action toast-chat-action"
+                  onClick={onChatAboutSuggestion}
+                >
+                  Ask Coco about it
+                </button>
+                {onRunSuggestion && (
+                  <button
+                    type="button"
+                    className="toast-action toast-chat-action"
+                    onClick={onRunSuggestion}
+                  >
+                    Run with Coco
+                  </button>
+                )}
+              </>
             )}
             <button type="button" className="toast-action" onClick={onAction}>
               {isRevealedSuggestion ? actionLabel : `${actionLabel} →`}
@@ -441,8 +463,12 @@ export function NotificationBubble({
             <div className="toast-pager-rating">{ratingButtons}</div>
           )}
           <div className="toast-framework-page-bars" aria-hidden="true">
-            <span className={`toast-framework-page-bar${frameworkPage === 0 ? ' is-active' : ''}`} />
-            <span className={`toast-framework-page-bar${frameworkPage === 1 ? ' is-active' : ''}`} />
+            <span
+              className={`toast-framework-page-bar${frameworkPage === 0 ? ' is-active' : ''}`}
+            />
+            <span
+              className={`toast-framework-page-bar${frameworkPage === 1 ? ' is-active' : ''}`}
+            />
           </div>
           <button
             type="button"
@@ -732,10 +758,11 @@ export default function NotificationView() {
     window.close();
   };
 
-  const handleChatAboutSuggestion = () => {
+  const handleChatAboutSuggestion = (execute = false) => {
     if (!payload.suggestion) return;
     reportResponse('accepted');
     ipc?.sendMessage('chat-about-suggestion', {
+      execute,
       observationId: payload.observationId,
       status: payload.status,
       rawObservation: payload.rawObservation,
@@ -750,7 +777,9 @@ export default function NotificationView() {
     <div className="notification-root" ref={rootRef}>
       <NotificationBubble
         message={payload.message}
-        actionLabel={loadingSuggestion ? 'Preparing suggestion…' : payload.actionLabel}
+        actionLabel={
+          loadingSuggestion ? 'Preparing suggestion…' : payload.actionLabel
+        }
         cancelLabel={payload.cancelLabel}
         notifType={payload.notifType}
         onAction={handleAction}
@@ -759,7 +788,8 @@ export default function NotificationView() {
         onHoverChange={handleHoverChange}
         suggestion={payload.suggestion}
         onSuggestionAction={handleSuggestionAction}
-        onChatAboutSuggestion={handleChatAboutSuggestion}
+        onChatAboutSuggestion={() => handleChatAboutSuggestion()}
+        onRunSuggestion={() => handleChatAboutSuggestion(true)}
         suggestionRating={suggestionRating}
         onRateSuggestion={rateInstantSuggestion}
         copyConfirmed={copyConfirmed}

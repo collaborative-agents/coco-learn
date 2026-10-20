@@ -139,7 +139,7 @@ export function MessageReactionControls({
             background: reaction.reacted_by_me ? '#eff6ff' : '#fff',
             color: '#374151',
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 'var(--coco-text-caption)',
           }}
           onClick={() => onToggle(reaction.emoji)}
         >
@@ -162,7 +162,7 @@ export function MessageReactionControls({
           background: '#fff',
           color: '#6b7280',
           cursor: 'pointer',
-          fontSize: 12,
+          fontSize: 'var(--coco-text-caption)',
           opacity: showAddButton || open ? 1 : 0,
           pointerEvents: showAddButton || open ? 'auto' : 'none',
           transition: 'opacity 100ms ease',

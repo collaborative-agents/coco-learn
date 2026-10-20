@@ -1,3 +1,4 @@
+import subscribeCocoSleepMode from './services/coco-sleep-mode';
 import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
@@ -27,6 +28,8 @@ import {
   summarizeDay,
 } from './components/activity-rollup';
 import RatingButtons from './components/RatingButtons';
+import PetMenuIcon from './components/PetMenuIcon';
+import { COCO_NAVIGATION } from '../shared/coco-navigation';
 
 // How long the bubble (and the active pet mood) stay up after the latest event.
 const HOLD_MS = 20_000;
@@ -52,68 +55,6 @@ const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
 const WIN_ACTION_MENU_W = 200;
 const WIN_ACTION_MENU_H = 440;
 
-function PetMenuIcon({
-  name,
-}: {
-  name:
-    | 'chat'
-    | 'sleep'
-    | 'wake'
-    | 'history'
-    | 'training'
-    | 'settings'
-    | 'hide';
-}) {
-  if (name === 'chat') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden>
-        <path d="M4 5.5h16v11H9l-5 4v-15Z" />
-      </svg>
-    );
-  }
-  if (name === 'hide') {
-    return <svg viewBox="0 0 24 24" aria-hidden><path d="M3 3l18 18M10.5 5.2c5.3-.8 9 4.2 10.5 6.8a19 19 0 0 1-3 3.8M6.1 6.1A20 20 0 0 0 3 12c2.5 4 5.5 7 9 7a10 10 0 0 0 4-1M10 10a3 3 0 0 0 4 4" /></svg>;
-  }
-  if (name === 'sleep') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden>
-        <path d="M20 15.2A8.6 8.6 0 0 1 8.8 4a8.7 8.7 0 1 0 11.2 11.2Z" />
-      </svg>
-    );
-  }
-  if (name === 'wake') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" />
-      </svg>
-    );
-  }
-  if (name === 'history') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden>
-        <path d="M4.5 8.5H1.8V5.8" />
-        <path d="M3 8a9 9 0 1 1-.2 7.5" />
-        <path d="M12 7.2V12l3.2 2" />
-      </svg>
-    );
-  }
-  if (name === 'training') {
-    return (
-      <svg className="pet-menu-icon--training" viewBox="0 0 24 24" aria-hidden>
-        <path d="M6 5.5h12v15H6z" />
-        <path d="M9 3.5h6v4H9z" />
-        <path d="m9.2 13.5 1.8 1.8 4-4" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <path d="M9.6 3.2h4.8l.6 2.2 1.5.9 2.2-.6 2.4 4.1-1.6 1.6v1.7l1.6 1.6-2.4 4.1-2.2-.6-1.5.9-.6 2.2H9.6L9 19.1l-1.5-.9-2.2.6-2.4-4.1 1.6-1.6v-1.7L2.9 9.8l2.4-4.1 2.2.6L9 5.4l.6-2.2Z" />
-      <circle cx="12" cy="12.2" r="3" />
-    </svg>
-  );
-}
 
 /**
  * Statuses that represent mid-friction observations (Tier 2).
@@ -579,26 +520,7 @@ function PetView() {
     };
   }, []);
 
-  useEffect(() => {
-    window.electron?.ipcRenderer
-      .invoke('get-coco-sleep-mode')
-      .then((result) => {
-        const state = result as { sleeping?: boolean } | undefined;
-        setCocoSleeping(state?.sleeping === true);
-        return undefined;
-      })
-      .catch(() => undefined);
-    const cleanup = window.electron?.ipcRenderer.on(
-      'coco-sleep-mode-changed',
-      (result) => {
-        const state = result as { sleeping?: boolean } | undefined;
-        setCocoSleeping(state?.sleeping === true);
-      },
-    );
-    return () => {
-      if (typeof cleanup === 'function') cleanup();
-    };
-  }, []);
+  useEffect(() => subscribeCocoSleepMode(setCocoSleeping), []);
 
   const setCocoSleepMode = async (sleeping: boolean) => {
     const result = (await window.electron?.ipcRenderer.invoke(
@@ -957,10 +879,11 @@ function PetView() {
     }, FADE_MS);
   };
 
-  const handleChatAboutSuggestion = () => {
+  const handleChatAboutSuggestion = (execute = false) => {
     if (!bubble?.suggestion) return;
     const current = bubble;
     window.electron?.ipcRenderer.sendMessage('chat-about-suggestion', {
+      execute,
       observationId: current.observationId,
       status: current.status,
       rawObservation: current.rawObservation ?? '',
@@ -1098,7 +1021,8 @@ function PetView() {
         onHelpMe={handleHelpMe}
         onDismiss={handleDismiss}
         onViewConversation={handleViewConversation}
-        onChatAboutSuggestion={handleChatAboutSuggestion}
+        onChatAboutSuggestion={() => handleChatAboutSuggestion()}
+        onRunSuggestion={() => handleChatAboutSuggestion(true)}
         onMouseEnter={handleBubbleEnter}
         onMouseLeave={handleBubbleLeave}
       />
@@ -1147,17 +1071,25 @@ function PetView() {
             role="menu"
             aria-label="Coco actions"
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(event) => {
-                setActionsMenuOpen(false);
-                handleOpenChat(event);
-              }}
-            >
-              <PetMenuIcon name="chat" />
-              <span>Open Chat</span>
-            </button>
+            {COCO_NAVIGATION.map(({ label, channel, icon }) => (
+              <button
+                type="button"
+                role="menuitem"
+                key={channel}
+                className={
+                  icon === 'training' ? 'pet-training-action' : undefined
+                }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActionsMenuOpen(false);
+                  if (channel === 'open-main-window') handleOpenChat(event);
+                  else window.electron?.ipcRenderer.sendMessage(channel);
+                }}
+              >
+                <PetMenuIcon name={icon} />
+                <span>{label}</span>
+              </button>
+            ))}
             <div className="pet-actions-divider" role="separator" />
             <button
               type="button"
@@ -1168,18 +1100,34 @@ function PetView() {
                 setHideError('');
                 setHidingAvatar(true);
                 try {
-                  const result = await window.electron?.ipcRenderer.invoke('update-avatar-visibility', { hideAvatar: true }) as { success?: boolean } | undefined;
-                  if (!result?.success) throw new Error('Could not hide Coco. Please try again.');
+                  const result = (await window.electron?.ipcRenderer.invoke(
+                    'update-avatar-visibility',
+                    { hideAvatar: true },
+                  )) as { success?: boolean } | undefined;
+                  if (!result?.success)
+                    throw new Error('Could not hide Coco. Please try again.');
                   setActionsMenuOpen(false);
                 } catch {
                   setHideError('Could not hide Coco. Please try again.');
-                } finally { setHidingAvatar(false); }
+                } finally {
+                  setHidingAvatar(false);
+                }
               }}
             >
               <PetMenuIcon name="hide" />
               <span>{hidingAvatar ? 'Hiding…' : 'Hide'}</span>
             </button>
-            {hideError && <div role="alert" style={{ padding: '4px 10px', fontSize: 11 }}>{hideError}</div>}
+            {hideError && (
+              <div
+                role="alert"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 'var(--coco-text-secondary)',
+                }}
+              >
+                {hideError}
+              </div>
+            )}
             <button
               type="button"
               role="menuitem"
@@ -1192,43 +1140,18 @@ function PetView() {
               <PetMenuIcon name={cocoSleeping ? 'wake' : 'sleep'} />
               <span>{cocoSleeping ? 'Wake Coco' : 'Sleep'}</span>
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(event) => {
-                event.stopPropagation();
-                setActionsMenuOpen(false);
-                setShowHistory(true);
-              }}
-            >
-              <PetMenuIcon name="history" />
-              <span>History</span>
-            </button>
             <div className="pet-actions-divider" role="separator" />
             <button
               type="button"
-              className="pet-training-action"
               role="menuitem"
               onClick={(event) => {
                 event.stopPropagation();
                 setActionsMenuOpen(false);
-                window.electron?.ipcRenderer.sendMessage('open-training');
+                window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
               }}
             >
-              <PetMenuIcon name="training" />
-              <span>Training</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(event) => {
-                event.stopPropagation();
-                setActionsMenuOpen(false);
-                window.electron?.ipcRenderer.sendMessage('open-chat-settings');
-              }}
-            >
-              <PetMenuIcon name="settings" />
-              <span>Settings</span>
+              <PetMenuIcon name="quit" />
+              <span>Quit</span>
             </button>
           </div>
         )}

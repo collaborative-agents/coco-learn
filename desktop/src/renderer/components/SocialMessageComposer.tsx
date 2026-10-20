@@ -58,8 +58,8 @@ export default function SocialMessageComposer({
       <div
         style={{
           border: `1px solid ${BORDER}`,
-          borderRadius: 11,
-          background: '#fff',
+          borderRadius: 'var(--coco-radius-control)',
+          background: 'var(--coco-color-surface)',
           overflow: 'visible',
         }}
       >
@@ -84,7 +84,7 @@ export default function SocialMessageComposer({
                 color: ACCENT,
                 cursor: 'pointer',
                 fontFamily: FONT,
-                fontSize: 10.5,
+                fontSize: 'var(--coco-text-control)',
                 fontWeight: 700,
               }}
               onClick={() => setExpanded((current) => !current)}
@@ -107,13 +107,13 @@ export default function SocialMessageComposer({
             display: 'block',
             resize: 'none',
             border: 'none',
-            borderRadius: 11,
+            borderRadius: 'var(--coco-radius-control)',
             padding: '9px 11px 4px',
             background: 'transparent',
-            color: '#111827',
+            color: 'var(--coco-color-text)',
             fontFamily: FONT,
-            fontSize: 12.5,
-            lineHeight: 1.4,
+            fontSize: 'var(--coco-text-body)',
+            lineHeight: 'var(--coco-leading-body)',
             outline: 'none',
             transition: 'height 100ms ease',
           }}
@@ -147,13 +147,13 @@ export default function SocialMessageComposer({
             disabled={!value.trim() || sending}
             style={{
               border: 'none',
-              borderRadius: 8,
+              borderRadius: 'var(--coco-radius-control)',
               padding: '6px 10px',
               background: ACCENT,
-              color: '#fff',
+              color: 'var(--coco-color-surface)',
               cursor: !value.trim() || sending ? 'default' : 'pointer',
               fontFamily: FONT,
-              fontSize: 11.5,
+              fontSize: 'var(--coco-text-control)',
               fontWeight: 700,
               opacity: !value.trim() || sending ? 0.45 : 1,
             }}

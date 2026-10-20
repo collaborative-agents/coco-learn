@@ -9,12 +9,28 @@ import {
 
 export type Channels =
   | 'open-training'
+  | 'study-upload-follow-up-assessment-toolkit'
+  | 'follow-up-assessment-state'
+  | 'follow-up-assessment-start-execution'
+  | 'follow-up-assessment-recorder-state'
+  | 'follow-up-assessment-recorder-start'
+  | 'follow-up-assessment-recorder-pause'
+  | 'follow-up-assessment-recorder-resume'
+  | 'follow-up-assessment-recorder-captures'
+  | 'follow-up-assessment-recorder-remove-capture'
+  | 'follow-up-assessment-download-toolkit'
+  | 'follow-up-assessment-select-execution-files'
+  | 'follow-up-assessment-submit-execution'
   | 'study-me'
   | 'study-access'
   | 'study-refresh-access'
   | 'study-start'
   | 'study-complete'
   | 'study-download'
+  | 'study-task-materials'
+  | 'study-task-submission'
+  | 'study-save-reference'
+  | 'study-save-references'
   | 'study-upload'
   | 'study-upload-post-assessment-toolkit'
   | 'study-admin-users'
@@ -38,6 +54,7 @@ export type Channels =
   | 'post-assessment-submit-execution'
   | 'auth-quit-requested'
   | 'quit-from-auth'
+  | 'quit-from-avatar'
   | 'get-system-permissions'
   | 'open-system-permissions'
   | 'social-list-friendships'
@@ -69,6 +86,7 @@ export type Channels =
   | 'authentication-ui-complete'
   | 'toggle-float-window'
   | 'float-window-state'
+  | 'open-training-panel'
   | 'get-chat-content-zoom-factor'
   | 'chat-content-zoom-factor'
   | 'open-chat-settings'
@@ -82,10 +100,15 @@ export type Channels =
   | 'session-recap-init'
   | 'session-recap-data'
   | 'session-recap-done'
-  | 'finish-task-successfully'
+  | 'check-understanding'
   // Local chat (SessionChatView) — session context + user turns
   | 'session-init'
   | 'start-new-chat-session'
+  | 'get-agent-workspace'
+  | 'choose-agent-workspace'
+  | 'stop-agent-run'
+  | 'get-agent-context'
+  | 'answer-agent-question'
   | 'send-chat-message'
   | 'send-audio-message'
   | 'chat-stream-event'
@@ -105,6 +128,7 @@ export type Channels =
   | 'onboarding-complete'
   | 'model-configuration-complete'
   | 'hide-onboarding'
+  | 'close-chat-window'
   | 'get-profile'
   | 'get-supported-modes'
   | 'get-model-configuration'
@@ -169,6 +193,7 @@ export type Channels =
   | 'wake-word-capture-window-ready';
 
 const electronHandler = {
+  platform: process.platform,
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

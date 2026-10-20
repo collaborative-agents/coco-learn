@@ -185,7 +185,7 @@ describe('App', () => {
     expect(sendMessage).toHaveBeenCalledWith('open-main-window');
   });
 
-  it('opens History, Training, and Settings from the contextual action menu', async () => {
+  it('offers consistent navigation and Quit, without History', async () => {
     const sendMessage = jest.fn();
     (window as any).electron = {
       ipcRenderer: {
@@ -206,10 +206,10 @@ describe('App', () => {
       );
     });
     fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(screen.getByText('History'));
-    expect(screen.getByText('Activity')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTitle('More actions'));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Open Chat', 'Training', 'Settings', 'Hide', 'Sleep', 'Quit',
+    ]);
+    expect(screen.queryByRole('menuitem', { name: /History/i })).not.toBeInTheDocument();
     const trainingItem = screen.getByRole('menuitem', { name: 'Training' });
     expect(trainingItem).toHaveClass('pet-training-action');
     expect(
@@ -221,6 +221,11 @@ describe('App', () => {
     fireEvent.click(screen.getByTitle('More actions'));
     fireEvent.click(screen.getByText('Settings'));
     expect(sendMessage).toHaveBeenCalledWith('open-chat-settings');
+
+    fireEvent.click(screen.getByTitle('More actions'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Quit' }));
+    expect(sendMessage).toHaveBeenCalledWith('quit-from-avatar');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('closes the contextual action menu when the avatar window loses focus', async () => {

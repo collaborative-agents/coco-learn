@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StudyState } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
+import FollowUpAssessmentPanel from './FollowUpAssessmentPanel';
 import PostAssessmentPanel from './PostAssessmentPanel';
 import DailyReflectionForm from './training/DailyReflectionForm';
 import TrainingDialog from './training/TrainingDialog';
@@ -25,10 +26,28 @@ export default function TrainingView({
     visible,
     refreshKey,
   );
+  const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const followUp = state?.follow_up_assessment;
+  useEffect(() => {
+    if (!followUp?.unlocks_at) return undefined;
+    const receivedAt = Date.now();
+    const remaining =
+      Date.parse(followUp.unlocks_at) - Date.parse(followUp.server_now);
+    const tick = () =>
+      setCountdownSeconds(
+        Math.max(0, Math.ceil((remaining - (Date.now() - receivedAt)) / 1000)),
+      );
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [followUp]);
+  const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
-  const [active, setActive] = useState<'pre' | 'post' | number | null>(null);
+  const [active, setActive] = useState<
+    'pre' | 'post' | 'follow-up' | number | null
+  >(null);
   const [reflectionDayNumber, setReflectionDayNumber] = useState<number | null>(
     null,
   );
@@ -54,6 +73,15 @@ export default function TrainingView({
   const studentExperience = state?.role === 'participant' || studentMode;
   const adminMode =
     (state?.role === 'admin' || state?.role === 'super_admin') && !studentMode;
+  const followUpVisible =
+    adminMode || Boolean(followUp?.unlocks_at && followUp.visible);
+  const followUpUnlocked =
+    adminMode ||
+    Boolean(
+      followUp?.unlocked &&
+        followUp.unlocks_at &&
+        Date.parse(followUp.unlocks_at) <= Date.parse(followUp.server_now),
+    );
   const trainingUnlocked = !studentExperience || preAssessmentComplete;
   const trainingComplete = Boolean(
     state?.days.length === 7 && state.days.every((day) => day.completed_at),
@@ -86,6 +114,7 @@ export default function TrainingView({
       setActive(null);
       setReflectionDayNumber(null);
     }
+    if (active === 'follow-up' && !followUpUnlocked) setActive(null);
     if (active === 'post' && !postAssessmentUnlocked) setActive(null);
   }, [
     active,
@@ -93,6 +122,7 @@ export default function TrainingView({
     trainingUnlocked,
     state?.started_at,
     postAssessmentUnlocked,
+    followUpUnlocked,
   ]);
   return (
     <main className="training-page">
@@ -109,8 +139,9 @@ export default function TrainingView({
           </p>
           <p>
             During the three-week AI Literacy Camp, you’ll try a new AI
-            collaboration task each day in the first week. Assessments on Days
-            0, 7, and 21, with feedback from Coco, help you track your progress.
+            collaboration task each day in the first week. Starting and final
+            assessments, followed by an assignment seven days after your final
+            assessment, help you track your progress.
           </p>
         </header>
         {state && (
@@ -185,6 +216,18 @@ export default function TrainingView({
                   onClick={() => setActive('post')}
                 />
               )}
+              {followUpVisible && (
+                <TrainingTodo
+                  title={
+                    followUpUnlocked
+                      ? 'Follow-up assignment'
+                      : `Follow-up assignment — unlocks in ${countdown}`
+                  }
+                  complete={followUp?.complete}
+                  disabled={!followUpUnlocked}
+                  onClick={() => setActive('follow-up')}
+                />
+              )}
             </ol>
           </>
         )}
@@ -206,8 +249,20 @@ export default function TrainingView({
             title="Final assessment"
             onClose={() => setActive(null)}
           >
-            <PostAssessmentPanel unlocked={postAssessmentUnlocked} />
+            <PostAssessmentPanel
+              unlocked={postAssessmentUnlocked}
+              onSubmitted={refresh}
+            />
           </TrainingDialog>
+          {followUpUnlocked && (
+            <TrainingDialog
+              open={active === 'follow-up'}
+              title="Follow-up assignment"
+              onClose={() => setActive(null)}
+            >
+              <FollowUpAssessmentPanel onSubmitted={refresh} />
+            </TrainingDialog>
+          )}
           {selectedDay && dayCanOpen(selectedDay) && (
             <TrainingDialog
               open={reflectionDayNumber === null}

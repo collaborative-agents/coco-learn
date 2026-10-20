@@ -696,13 +696,13 @@ it('groups practice days beneath a concise training heading without row subtitle
     screen.getByText(/Coco helps you get work done faster/),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Assessments on Days 0, 7, and 21/),
+    screen.getByText(/an assignment seven days after your final assessment/),
   ).toBeInTheDocument();
   const training = within(checklist).getByRole('list', {
     name: 'Training tasks',
   });
   expect(training.parentElement?.parentElement).toBe(checklist);
-  expect(checklist.children).toHaveLength(3);
+  expect(checklist.children).toHaveLength(4);
   expect(within(training).getAllByRole('listitem')).toHaveLength(7);
   expect(
     within(training).queryByRole('button', { name: /assessment/ }),
@@ -809,3 +809,105 @@ it('lets an admin enter and exit the gated student experience', async () => {
     screen.getByRole('button', { name: /Final assessment/ }),
   ).toBeInTheDocument();
 });
+
+it('shows a server-timed seven-day follow-up countdown after post-assessment completion', async () => {
+  me.post_assessment_complete = true;
+  me.follow_up_assessment = {
+    visible: true,
+    unlocked: false,
+    complete: false,
+    server_now: '2026-10-01T12:00:00Z',
+    unlocks_at: '2026-10-08T12:00:00Z',
+  };
+  render(<TrainingView />);
+  const followUp = await screen.findByRole('button', {
+    name: /Follow-up assignment — unlocks in 7d 0h 0m 0s/,
+  });
+  expect(followUp).toBeDisabled();
+  expect(invoke).not.toHaveBeenCalledWith(
+    'follow-up-assessment-start-execution',
+  );
+});
+
+it('opens the released staffing mission and uses the follow-up recorder channels', async () => {
+  me.follow_up_assessment = {
+    visible: true,
+    unlocked: true,
+    complete: false,
+    server_now: '2026-10-08T12:00:00Z',
+    unlocks_at: '2026-10-08T12:00:00Z',
+  };
+  const original = invoke.getMockImplementation()!;
+  invoke.mockImplementation(async (channel, ...args) => {
+    if (channel === 'follow-up-assessment-state')
+      return {
+        ...postAssessment,
+        unlocked: true,
+        execution_started_at: '2026-10-08T12:00:00Z',
+      };
+    if (channel === 'follow-up-assessment-recorder-state')
+      return {
+        ...taskRecorderState,
+        status: 'recording',
+        can_generate_log: true,
+      };
+    if (channel === 'follow-up-assessment-recorder-pause')
+      return {
+        ...taskRecorderState,
+        status: 'paused',
+        can_generate_log: true,
+      };
+    return original(channel, ...args);
+  });
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Follow-up assignment' }),
+  );
+  expect(
+    await screen.findByText('Decide Where the Risk Goes'),
+  ).toBeInTheDocument();
+  const pause = await screen.findByRole('button', { name: 'Pause' });
+  fireEvent.click(pause);
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('follow-up-assessment-recorder-pause'),
+  );
+  expect(invoke).not.toHaveBeenCalledWith('post-assessment-recorder-pause');
+});
+
+it.each(['admin', 'super_admin'] as const)(
+  'shows the follow-up assessment before post-assessment completion for %s',
+  async (role) => {
+    me.role = role;
+    me.follow_up_assessment = {
+      visible: true,
+      unlocked: true,
+      complete: false,
+      unlocks_at: null,
+      server_now: '2026-10-01T12:00:00Z',
+    };
+    render(<TrainingView />);
+    expect(
+      await screen.findByRole('button', { name: 'Follow-up assignment' }),
+    ).toBeEnabled();
+  },
+);
+
+it.each(['admin', 'super_admin'] as const)(
+  'keeps the follow-up hidden in student mode for %s before post-assessment completion',
+  async (role) => {
+    me.role = role;
+    studentMode = true;
+    me.follow_up_assessment = {
+      visible: true,
+      unlocked: true,
+      complete: false,
+      unlocks_at: null,
+      server_now: '2026-10-01T12:00:00Z',
+    };
+    render(<TrainingView />);
+    await screen.findByRole('button', { name: 'Exit student mode' });
+    expect(
+      screen.queryByRole('button', { name: /Follow-up assignment/ }),
+    ).not.toBeInTheDocument();
+  },
+);

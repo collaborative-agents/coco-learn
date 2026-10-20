@@ -9,6 +9,18 @@ import {
 
 export type Channels =
   | 'open-training'
+  | 'study-upload-follow-up-assessment-toolkit'
+  | 'follow-up-assessment-state'
+  | 'follow-up-assessment-start-execution'
+  | 'follow-up-assessment-recorder-state'
+  | 'follow-up-assessment-recorder-start'
+  | 'follow-up-assessment-recorder-pause'
+  | 'follow-up-assessment-recorder-resume'
+  | 'follow-up-assessment-recorder-captures'
+  | 'follow-up-assessment-recorder-remove-capture'
+  | 'follow-up-assessment-download-toolkit'
+  | 'follow-up-assessment-select-execution-files'
+  | 'follow-up-assessment-submit-execution'
   | 'study-me'
   | 'study-access'
   | 'study-refresh-access'

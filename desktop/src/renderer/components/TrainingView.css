@@ -73,6 +73,13 @@
   color: var(--coco-color-surface);
   border-color: var(--coco-color-primary);
 }
+.training-page button.training-primary:not(:disabled):hover,
+.training-page button.training-proof-action:not(:disabled):hover,
+.training-page .post-assessment-final-submit button:not(:disabled):hover {
+  background: var(--coco-color-primary-hover);
+  color: var(--coco-color-surface);
+  border-color: var(--coco-color-primary-hover);
+}
 .training-page select,
 .training-page input:not([type='radio']) {
   padding: 8px 10px;

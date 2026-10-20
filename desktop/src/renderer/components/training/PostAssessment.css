@@ -480,3 +480,25 @@
     grid-template-columns: 1fr;
   }
 }
+
+.follow-up-briefing > section {
+  margin-top: 22px;
+}
+
+.follow-up-briefing h4 {
+  margin: 0;
+  color: var(--coco-color-text);
+}
+
+.follow-up-briefing p,
+.follow-up-briefing li {
+  line-height: 1.65;
+}
+
+.follow-up-briefing li + li {
+  margin-top: 10px;
+}
+
+.follow-up-briefing li strong {
+  overflow-wrap: anywhere;
+}

@@ -1499,6 +1499,14 @@ function openPrimaryTrayAction(): void {
 // hidden rather than destroyed, so "no window object" can't be the signal.
 function revealCoco(): void {
   if (isQuitting) return;
+  // Activation brings the existing page forward. Opening a conversation sends
+  // session-init, which would switch Tasks or Settings back to Chat.
+  if (!setupPending() && chatWindow && !chatWindow.isDestroyed()) {
+    if (chatWindow.isMinimized()) chatWindow.restore();
+    chatWindow.show();
+    chatWindow.focus();
+    return;
+  }
   if (!areRequiredPreAssessmentsComplete()) {
     openTraining();
     return;

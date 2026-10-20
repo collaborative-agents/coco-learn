@@ -1,3 +1,4 @@
+/* eslint-disable react/require-default-props -- Optional shared task configuration. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AI_LITERACY_QUESTIONS,
@@ -11,6 +12,9 @@ import {
   type TaskRecorderState,
 } from '../../shared/post-assessment';
 
+import FollowUpBriefing, {
+  FOLLOW_UP_TOOLKIT,
+} from './training/FollowUpBriefing';
 import SelfEfficacySection from './training/SelfEfficacySection';
 
 const invoke = (
@@ -170,8 +174,9 @@ function MissionBriefing() {
   );
 }
 
-function ExecutionSection({
+export function ExecutionSection({
   state,
+  followUp = false,
   busy,
   onStart,
   onDownload,
@@ -179,12 +184,23 @@ function ExecutionSection({
   onSubmit,
 }: {
   state: PostAssessmentState;
+  followUp?: boolean;
   busy: boolean;
   onStart: () => Promise<void>;
   onDownload: () => Promise<void>;
   onChooseAnswerSheet: () => Promise<string | null>;
   onSubmit: (questionnaire: ExecutionQuestionnaire) => Promise<void>;
 }) {
+  const invokeTask = useCallback(
+    (channel: Parameters<typeof invoke>[0], ...args: unknown[]) =>
+      invoke(
+        (followUp
+          ? channel.replace('post-assessment', 'follow-up-assessment')
+          : channel) as Parameters<typeof invoke>[0],
+        ...args,
+      ),
+    [followUp],
+  );
   const complete = Boolean(state.sections.execution);
   const [questionnaire, setQuestionnaire] = useState(emptyQuestionnaire);
   const [outcomeFilename, setOutcomeFilename] = useState('');
@@ -204,12 +220,12 @@ function ExecutionSection({
 
   const refreshRecorder = useCallback(async () => {
     if (!startedAt || complete) return;
-    const next = (await invoke(
+    const next = (await invokeTask(
       'post-assessment-recorder-state',
       startedAt,
     )) as TaskRecorderState;
     setRecorder(next);
-  }, [complete, startedAt]);
+  }, [complete, startedAt, invokeTask]);
 
   useEffect(() => {
     if (!startedAt || complete) return undefined;
@@ -242,7 +258,7 @@ function ExecutionSection({
     setRecorderBusy(true);
     setRecorderError('');
     try {
-      const next = (await invoke(
+      const next = (await invokeTask(
         'post-assessment-recorder-captures',
       )) as TaskRecorderCapture[];
       setCaptures(next);
@@ -271,7 +287,11 @@ function ExecutionSection({
     <section className="post-assessment-section">
       <div className="pre-assessment-challenge-header">
         <div>
-          <h3>Financial Analysis Mission</h3>
+          <h3>
+            {followUp
+              ? 'Staffing Planning Mission'
+              : 'Financial Analysis Mission'}
+          </h3>
           <p>
             In this task, we’ll give you a brand-new work challenge and see how
             you tackle it—how you make decisions, use AI, verify its work, and
@@ -287,7 +307,7 @@ function ExecutionSection({
         )}
       </div>
 
-      <MissionBriefing />
+      {followUp ? <FollowUpBriefing /> : <MissionBriefing />}
 
       <div className="post-assessment-toolkit">
         <div>
@@ -305,9 +325,9 @@ function ExecutionSection({
               <strong>Complete mission toolkit</strong>
               <small>
                 Includes{' '}
-                {POST_ASSESSMENT_TOOLKIT.map((file) => file.filename).join(
-                  ', ',
-                )}
+                {(followUp ? FOLLOW_UP_TOOLKIT : POST_ASSESSMENT_TOOLKIT)
+                  .map((file) => file.filename)
+                  .join(', ')}
               </small>
             </div>
             <button
@@ -379,7 +399,7 @@ function ExecutionSection({
                   if (startedAt) {
                     await recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-start',
                         ) as Promise<TaskRecorderState>,
                     );
@@ -450,7 +470,7 @@ function ExecutionSection({
                   onClick={() =>
                     recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-pause',
                         ) as Promise<TaskRecorderState>,
                     )
@@ -466,7 +486,7 @@ function ExecutionSection({
                   onClick={() =>
                     recorderAction(
                       () =>
-                        invoke(
+                        invokeTask(
                           'post-assessment-recorder-resume',
                         ) as Promise<TaskRecorderState>,
                     )
@@ -547,7 +567,7 @@ function ExecutionSection({
                             setRecorderBusy(true);
                             setRecorderError('');
                             try {
-                              const next = (await invoke(
+                              const next = (await invokeTask(
                                 'post-assessment-recorder-remove-capture',
                                 capture.id,
                               )) as TaskRecorderState;
@@ -659,8 +679,10 @@ function ExecutionSection({
 
 export default function PostAssessmentPanel({
   unlocked,
+  onSubmitted,
 }: {
   unlocked: boolean;
+  onSubmitted?: () => Promise<void>;
 }) {
   const [state, setState] = useState<PostAssessmentState | null>(null);
   const [activeSection, setActiveSection] =
@@ -695,6 +717,7 @@ export default function PostAssessmentPanel({
     try {
       await action();
       await load();
+      await onSubmitted?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {

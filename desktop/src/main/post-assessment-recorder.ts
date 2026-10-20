@@ -564,10 +564,10 @@ export class PostAssessmentActivityRecorder {
       )
       .join('\n');
     const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Post-assessment activity log</title>
+<html lang="en"><head><meta charset="utf-8"><title>Assessment activity log</title>
 <style>
 body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17211c;max-width:1000px;margin:32px auto;padding:0 24px}h1,h2{color:#123d2b}.notice{background:#f1f7f3;border:1px solid #bdd8c8;padding:12px;border-radius:8px}.capture,.message,article{break-inside:avoid;border-top:1px solid #d8e2dc;padding:16px 0}.capture img{display:block;max-width:100%;height:auto;border:1px solid #cad5ce;border-radius:6px}.message{padding:10px}.message.user{background:#f6f8f7}.message.tutor{background:#eef6ff}pre{white-space:pre-wrap;word-break:break-word;font:inherit}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d8e2dc;padding:8px;text-align:left;vertical-align:top}td:first-child{white-space:nowrap}</style></head>
-<body><h1>Post-assessment task activity log</h1>
+<body><h1>Assessment task activity log</h1>
 <p class="notice">Generated automatically by Coco Learn after the participant was informed that this task session would be recorded. It includes periodic task screenshots, application names when available, Coco conversations, and semantic activity events from recording intervals. Paused intervals are excluded. It does not contain raw keystrokes, audio, or a guaranteed complete transcript from external AI tools.</p>
 <dl><dt>Task started</dt><dd>${escapeHtml(new Date(this.manifest.started_at).toLocaleString())}</dd><dt>Log generated</dt><dd>${escapeHtml(new Date(generatedAt).toLocaleString())}</dd><dt>Captures retained</dt><dd>${captures.length}</dd></dl>
 <h2>Recording events</h2><ul>${eventRows || '<li>No events recorded.</li>'}</ul>
@@ -628,10 +628,12 @@ async function capturePrimaryDisplay(): Promise<CaptureResult> {
   };
 }
 
-export function createPostAssessmentActivityRecorder(): PostAssessmentActivityRecorder {
+export function createPostAssessmentActivityRecorder(
+  assessment = 'post-assessment',
+): PostAssessmentActivityRecorder {
   return new PostAssessmentActivityRecorder({
     recordsRoot: () =>
-      path.join(app.getPath('userData'), 'post-assessment-recordings'),
+      path.join(app.getPath('userData'), `${assessment}-recordings`),
     captureScreen: capturePrimaryDisplay,
     activeApplication: activeMacApplication,
     readConversations,

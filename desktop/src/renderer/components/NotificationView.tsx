@@ -44,14 +44,6 @@ function suggestionToolLabel(suggestion: InstantSuggestion): string {
   return 'an AI tool';
 }
 
-function preferredSuggestionTool(suggestion: InstantSuggestion) {
-  return (
-    (suggestion.availableTools ?? []).find(
-      (tool) => tool.id === suggestion.targetTool,
-    ) ?? suggestion.availableTools?.[0]
-  );
-}
-
 // ── Tutor JSON parsing ────────────────────────────────────────────────────────
 // The tutor backend sometimes sends a JSON envelope like:
 //   {"guidance": "...", "visualization_url": null, ...}
@@ -200,12 +192,10 @@ export function NotificationBubble({
   onDismiss,
   onHoverChange,
   suggestion,
-  onSuggestionAction,
   onChatAboutSuggestion,
   onRunSuggestion,
   suggestionRating,
   onRateSuggestion,
-  copyConfirmed,
   adjustable,
   expanded,
   onToggleExpanded,
@@ -223,12 +213,10 @@ export function NotificationBubble({
   onDismiss?: () => void;
   onHoverChange?: (hovered: boolean) => void;
   suggestion?: InstantSuggestion;
-  onSuggestionAction?: (toolId: string | null) => void;
   onChatAboutSuggestion?: () => void;
   onRunSuggestion?: () => void;
   suggestionRating?: 'up' | 'down' | null;
   onRateSuggestion?: (rating: 'up' | 'down') => void;
-  copyConfirmed?: boolean;
   adjustable?: boolean;
   expanded?: boolean;
   onToggleExpanded?: () => void;
@@ -245,9 +233,8 @@ export function NotificationBubble({
     notifType === 'instant-suggestion' && suggestion != null;
   const isFrameworkPager = showFrameworkIntro && suggestion != null;
   const isFrameworkOverview = isFrameworkPager && frameworkPage === 0;
-  const suggestedTool = suggestion
-    ? preferredSuggestionTool(suggestion)
-    : undefined;
+  const runWithCoco =
+    suggestion?.kind === 'delegate' && Boolean(onRunSuggestion);
   const explanation = suggestion
     ? buildSuggestionExplanation(suggestion)
     : null;
@@ -387,70 +374,23 @@ export function NotificationBubble({
             </button>
           )}
         </div>
-      ) : isRevealedSuggestion && suggestion.kind === 'delegate' ? (
-        <div className="toast-footer toast-tool-actions">
+      ) : isRevealedSuggestion ? (
+        <div className="toast-footer">
           {footerRating}
           <button
             type="button"
             className="toast-action toast-chat-action"
-            onClick={onChatAboutSuggestion}
+            onClick={runWithCoco ? onRunSuggestion : onChatAboutSuggestion}
           >
-            Ask Coco about it
-          </button>
-          {onRunSuggestion && (
-            <button
-              type="button"
-              className="toast-action toast-chat-action"
-              onClick={onRunSuggestion}
-            >
-              Run with Coco
-            </button>
-          )}
-          {suggestedTool && (
-            <button
-              type="button"
-              className="toast-action toast-tool-action"
-              onClick={() => onSuggestionAction?.(suggestedTool.id)}
-            >
-              Open {suggestedTool.label}
-            </button>
-          )}
-          <button
-            type="button"
-            className="toast-action"
-            onClick={() => onSuggestionAction?.(null)}
-            disabled={copyConfirmed}
-            autoFocus
-          >
-            {copyConfirmed ? 'Copied ✓' : 'Copy prompt'}
+            {runWithCoco ? 'Run with Coco' : 'Chat with Coco'}
           </button>
         </div>
       ) : (
         actionLabel && (
           <div className="toast-footer">
             {footerRating}
-            {isRevealedSuggestion && (
-              <>
-                <button
-                  type="button"
-                  className="toast-action toast-chat-action"
-                  onClick={onChatAboutSuggestion}
-                >
-                  Ask Coco about it
-                </button>
-                {onRunSuggestion && (
-                  <button
-                    type="button"
-                    className="toast-action toast-chat-action"
-                    onClick={onRunSuggestion}
-                  >
-                    Run with Coco
-                  </button>
-                )}
-              </>
-            )}
             <button type="button" className="toast-action" onClick={onAction}>
-              {isRevealedSuggestion ? actionLabel : `${actionLabel} →`}
+              {`${actionLabel} →`}
             </button>
           </div>
         )
@@ -490,7 +430,6 @@ export default function NotificationView() {
   const [suggestionRating, setSuggestionRating] = useState<
     'up' | 'down' | null
   >(null);
-  const [copyConfirmed, setCopyConfirmed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [frameworkPage, setFrameworkPage] = useState<0 | 1>(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -536,7 +475,6 @@ export default function NotificationView() {
         });
         setLoadingSuggestion(false);
         setSuggestionRating(null);
-        setCopyConfirmed(false);
         setExpanded(false);
         setFrameworkPage(0);
         setVisible(true);
@@ -743,21 +681,6 @@ export default function NotificationView() {
     });
   };
 
-  const handleSuggestionAction = (toolId: string | null) => {
-    reportResponse('accepted');
-    ipc?.sendMessage('suggestion-action', {
-      toolId,
-      copyText: payload.suggestion?.copyText,
-    });
-    if (toolId === null) {
-      rateInstantSuggestion('up');
-      setCopyConfirmed(true);
-      return;
-    }
-    setVisible(false);
-    window.close();
-  };
-
   const handleChatAboutSuggestion = (execute = false) => {
     if (!payload.suggestion) return;
     reportResponse('accepted');
@@ -787,12 +710,10 @@ export default function NotificationView() {
         onDismiss={handleDismiss}
         onHoverChange={handleHoverChange}
         suggestion={payload.suggestion}
-        onSuggestionAction={handleSuggestionAction}
         onChatAboutSuggestion={() => handleChatAboutSuggestion()}
         onRunSuggestion={() => handleChatAboutSuggestion(true)}
         suggestionRating={suggestionRating}
         onRateSuggestion={rateInstantSuggestion}
-        copyConfirmed={copyConfirmed}
         adjustable={payload.adjustable}
         expanded={expanded}
         onToggleExpanded={handleToggleExpanded}

@@ -275,11 +275,13 @@ describe('instant suggestion actions', () => {
         notifType="instant-suggestion"
         suggestion={contentSuggestion}
         onChatAboutSuggestion={onChat}
+        onRunSuggestion={jest.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ask Coco about it' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chat with Coco' }));
     expect(onChat).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /Run with Coco|Copy|Got it/ })).not.toBeInTheDocument();
   });
 
   it('keeps the opposite rating available for a correction', () => {
@@ -305,8 +307,9 @@ describe('instant suggestion actions', () => {
     expect(onRate).toHaveBeenCalledWith('down');
   });
 
-  it('makes copying the prompt the main delegation action', () => {
+  it('offers only Run with Coco for delegation, without external-tool or copy actions', () => {
     const onChat = jest.fn();
+    const onRun = jest.fn();
     render(
       <NotificationBubble
         message="Ask an AI tool"
@@ -316,28 +319,17 @@ describe('instant suggestion actions', () => {
           title: 'Ask an AI tool',
           prompt: 'Explain this error.',
           copyText: 'Explain this error.',
-          targetTool: 'claude-code',
-          availableTools: [
-            { id: 'claude-cowork', label: 'Claude Cowork', category: 'agent' },
-            { id: 'claude-code', label: 'Claude Code', category: 'agent' },
-          ],
+          targetTool: 'chatgpt',
+          availableTools: [{ id: 'chatgpt', label: 'ChatGPT', category: 'chatbot' }],
         }}
         onChatAboutSuggestion={onChat}
+        onRunSuggestion={onRun}
       />,
     );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Ask Coco about it' }));
-    expect(onChat).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByRole('button', { name: 'Open Claude Code' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Open Claude Cowork' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Open Coco Chat' }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy prompt' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Run with Coco' }));
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(onChat).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Chat with Coco|Open |Copy/ })).not.toBeInTheDocument();
   });
 
   it('shows the 4D overview before an AI-upskilling suggestion', () => {

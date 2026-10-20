@@ -34,8 +34,8 @@ export interface BubbleState {
   /**
    * Instant suggestion revealed in-place after the user clicks "Help me with
    * this" (pre-computed while the bubble was on screen). When set, the bubble
-   * shows the ready-to-use content with a Copy button, or a delegation prompt
-   * with an Approve button, instead of the "Help me with this" button.
+   * shows the content or delegation prompt with one Chat/Run with Coco action
+   * instead of the "Help me with this" button.
    */
   suggestion?: InstantSuggestion;
   /** Tutor mode active when the suggestion was generated. */
@@ -70,14 +70,6 @@ function suggestionToolLabel(suggestion: InstantSuggestion): string {
   if (preferred) return preferred.label;
   if (suggestion.availableTools?.[0]) return suggestion.availableTools[0].label;
   return 'an AI tool';
-}
-
-function preferredSuggestionTool(suggestion: InstantSuggestion) {
-  return (
-    (suggestion.availableTools ?? []).find(
-      (tool) => tool.id === suggestion.targetTool,
-    ) ?? suggestion.availableTools?.[0]
-  );
 }
 
 export default function ObservationBubble({
@@ -156,9 +148,8 @@ export default function ObservationBubble({
   const isFrameworkPager =
     suggestion != null && bubble.scenario === 'ai_upskilling';
   const isFrameworkOverview = isFrameworkPager && suggestionPage === 0;
-  const suggestedTool = suggestion
-    ? preferredSuggestionTool(suggestion)
-    : undefined;
+  const runWithCoco =
+    suggestion?.kind === 'delegate' && Boolean(onRunSuggestion);
   const explanation = suggestion
     ? buildSuggestionExplanation(suggestion)
     : null;
@@ -172,19 +163,6 @@ export default function ObservationBubble({
   const label = isTier3
     ? 'AI Tutor'
     : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
-
-  // Copy the prompt/content and, when a tool is chosen, launch it. `toolId` null
-  // means copy-only.
-  const act = (toolId: string | null, toolLabel?: string) => {
-    if (!suggestion) return;
-    window.electron?.ipcRenderer.sendMessage('suggestion-action', {
-      toolId: toolId ?? null,
-      copyText: suggestion.copyText ?? '',
-    });
-    showToast(
-      toolId ? `Opening ${toolLabel} — paste with ⌘V` : 'Copied to clipboard',
-    );
-  };
 
   // Rate the revealed suggestion. Logged into feedback.jsonl via the sensing
   // server so it joins observations by observation_id.
@@ -321,71 +299,15 @@ export default function ObservationBubble({
         </div>
       )}
 
-      {/* Revealed instant suggestion. `content` → one Copy button. `delegate` →
-          Copy prompt plus one Open button per the user's chatbots/agents so
-          they pick where to hand the prompt. */}
-      {suggestion && !isFrameworkOverview && suggestion.kind === 'content' && (
+      {suggestion && !isFrameworkOverview && (
         <div className="bubble-tool-actions">
           <button
             type="button"
-            className="bubble-action-btn"
-            onClick={() => act(null)}
-          >
-            Copy
-          </button>
-          <button
-            type="button"
             className="bubble-action-btn bubble-chat-action"
-            onClick={onChatAboutSuggestion}
+            onClick={runWithCoco ? onRunSuggestion : onChatAboutSuggestion}
           >
-            Ask Coco about it
+            {runWithCoco ? 'Run with Coco' : 'Chat with Coco'}
           </button>
-          {onRunSuggestion && (
-            <button
-              type="button"
-              className="bubble-action-btn bubble-chat-action"
-              onClick={onRunSuggestion}
-            >
-              Run with Coco
-            </button>
-          )}
-        </div>
-      )}
-      {suggestion && !isFrameworkOverview && suggestion.kind === 'delegate' && (
-        <div className="bubble-tool-actions">
-          <button
-            type="button"
-            className="bubble-action-btn"
-            onClick={() => act(null)}
-            autoFocus
-          >
-            Copy prompt
-          </button>
-          <button
-            type="button"
-            className="bubble-action-btn bubble-chat-action"
-            onClick={onChatAboutSuggestion}
-          >
-            Ask Coco about it
-          </button>
-          {onRunSuggestion && (
-            <button
-              type="button"
-              className="bubble-action-btn bubble-chat-action"
-              onClick={onRunSuggestion}
-            >
-              Run with Coco
-            </button>
-          )}
-          {suggestedTool && (
-            <button
-              type="button"
-              className="bubble-action-btn bubble-tool-btn"
-              onClick={() => act(suggestedTool.id, suggestedTool.label)}
-            >
-              Open {suggestedTool.label}
-            </button>
-          )}
         </div>
       )}
 

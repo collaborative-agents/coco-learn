@@ -42,7 +42,7 @@ describe('ObservationBubble 4D suggestion pages', () => {
       screen.queryByText(/Stage: You are updating payroll/),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Copy prompt' }),
+      screen.queryByRole('button', { name: 'Chat with Coco' }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show me how →' }));
@@ -50,10 +50,10 @@ describe('ObservationBubble 4D suggestion pages', () => {
     expect(
       screen.getByText(/Stage: You are updating payroll/),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy prompt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chat with Coco' })).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Open Claude Cowork' }),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Open Claude Cowork' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Open Claude Code' }),
     ).not.toBeInTheDocument();
@@ -146,9 +146,12 @@ describe('ObservationBubble controls', () => {
     );
   });
 
-  it('offers your own tools without an Open Coco Chat button', () => {
+  it('offers only Run with Coco for delegation', () => {
+    const onRun = jest.fn();
     render(
       <ObservationBubble
+        onRunSuggestion={onRun}
+        onChatAboutSuggestion={jest.fn()}
         bubble={{
           status: 'inefficient',
           phrase: 'Delegate this task',
@@ -170,7 +173,12 @@ describe('ObservationBubble controls', () => {
     const actions = screen
       .getAllByRole('button')
       .map((button) => button.textContent);
-    expect(actions).toContain('Open ChatGPT');
+    expect(actions).toContain('Run with Coco');
+    expect(actions).not.toContain('Chat with Coco');
+    expect(actions).not.toContain('Copy prompt');
+    expect(actions).not.toContain('Open ChatGPT');
+    fireEvent.click(screen.getByRole('button', { name: 'Run with Coco' }));
+    expect(onRun).toHaveBeenCalledTimes(1);
     expect(actions).not.toContain('Open Claude');
     expect(actions).not.toContain('Open Coco Chat');
   });

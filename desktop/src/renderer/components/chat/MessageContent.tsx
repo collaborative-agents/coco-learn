@@ -167,17 +167,10 @@ export function SuggestionMessage({
   onRun?: () => void;
   runDisabled?: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
-  const ipc = window.electron?.ipcRenderer;
   const detail =
     (suggestion.kind === 'delegate' ? suggestion.prompt : suggestion.body) ||
     suggestion.copyText;
   const explanation = buildSuggestionExplanation(suggestion);
-  const copyPrompt = () => {
-    ipc?.sendMessage('suggestion-action', { copyText: suggestion.copyText });
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
-  };
   return (
     <div style={S.tutorBubble}>
       <div style={S.suggestionHeader}>
@@ -226,25 +219,6 @@ export function SuggestionMessage({
         (suggestion.kind === 'delegate' ? (
           <div style={S.example}>
             <div style={S.suggestionPrompt}>{detail}</div>
-            <div style={S.suggestionActions}>
-              <button type="button" style={S.exampleBtn} onClick={copyPrompt}>
-                {copied ? 'Copied ✓' : 'Copy prompt'}
-              </button>
-              {suggestion.tool && (
-                <button
-                  type="button"
-                  style={S.exampleBtn}
-                  onClick={() =>
-                    ipc?.sendMessage('suggestion-action', {
-                      toolId: suggestion.tool?.id,
-                      copyText: suggestion.copyText,
-                    })
-                  }
-                >
-                  Open {suggestion.tool.label}
-                </button>
-              )}
-            </div>
           </div>
         ) : (
           <div className="chat-markdown">

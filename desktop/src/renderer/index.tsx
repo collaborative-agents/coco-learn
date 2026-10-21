@@ -12,6 +12,7 @@ import SessionRecapView from './components/SessionRecapView';
 import AuthView from './components/AuthView';
 import WakeWordCaptureView from './components/WakeWordCaptureView';
 import AvatarMenuView from './components/AvatarMenuView';
+import AvatarBubbleView from './components/AvatarBubbleView';
 
 const container = document.getElementById('root') as HTMLElement;
 const root = createRoot(container);
@@ -38,6 +39,8 @@ if (view === 'auth') {
   rendered = <WakeWordCaptureView />;
 } else if (view === 'avatar-menu') {
   rendered = <AvatarMenuView />;
+} else if (view === 'avatar-bubble') {
+  rendered = <AvatarBubbleView />;
 } else {
   rendered = <App />;
 }

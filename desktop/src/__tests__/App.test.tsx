@@ -8,6 +8,19 @@ import {
 } from '@testing-library/react';
 import App from '../renderer/App';
 
+// The bubble most recently sent to the bubble window.
+const lastBubbleState = (sendMessage: jest.Mock) =>
+  sendMessage.mock.calls
+    .filter(([channel]) => channel === 'avatar-bubble-state')
+    .at(-1)?.[1]?.bubble;
+
+const mistakeEvent = () => ({
+  type: 'snapshot',
+  observation: 'The user may have made an error.',
+  status: 'mistake',
+  ts: Date.now() / 1000,
+});
+
 describe('App', () => {
   it('should render', () => {
     expect(render(<App />)).toBeTruthy();
@@ -32,18 +45,14 @@ describe('App', () => {
         'get-coco-sleep-mode',
       );
     });
-    act(() => {
-      listeners.get('observation-update')?.({
-        type: 'snapshot',
-        observation: 'The user may have made an error.',
-        status: 'mistake',
-        ts: Date.now() / 1000,
-      });
-    });
-    expect(screen.getByText('Heads up')).toBeInTheDocument();
+    const { sendMessage } = window.electron!.ipcRenderer as any;
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'mistake' }),
+    );
 
     act(() => listeners.get('system-suspend')?.());
-    expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
+    expect(lastBubbleState(sendMessage)).toBeNull();
   });
 
   it('clears proactive UI when the post-assessment starts', async () => {
@@ -60,22 +69,18 @@ describe('App', () => {
     };
 
     render(<App />);
-    act(() => {
-      listeners.get('observation-update')?.({
-        type: 'snapshot',
-        observation: 'The user may have made an error.',
-        status: 'mistake',
-        ts: Date.now() / 1000,
-      });
-    });
-    expect(screen.getByText('Heads up')).toBeInTheDocument();
+    const { sendMessage } = window.electron!.ipcRenderer as any;
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'mistake' }),
+    );
 
     act(() =>
       listeners.get('post-assessment-proactive-suppression')?.({
         active: true,
       }),
     );
-    expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
+    expect(lastBubbleState(sendMessage)).toBeNull();
   });
 
   const setupMenuIpc = (
@@ -100,40 +105,65 @@ describe('App', () => {
     return { sendMessage, listeners, chooseMenuItem };
   };
 
-  it.each([
-    [70, 180],
-    [200, 240],
-  ])(
-    'sizes the window to a %ipx bubble so Coco can still reach the top',
-    async (bubbleHeight, windowHeight) => {
-      const offsetHeight = jest
-        .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
-        .mockImplementation(function offsetHeightOf(this: HTMLElement) {
-          return this.classList.contains('observation-bubble')
-            ? bubbleHeight
-            : 0;
-        });
-      const { listeners } = setupMenuIpc();
-      const { invoke } = window.electron!.ipcRenderer as any;
+  it('keeps the avatar window at the pet footprint when a bubble appears', async () => {
+    const { listeners, sendMessage } = setupMenuIpc();
+    const { invoke } = window.electron!.ipcRenderer as any;
 
-      render(<App />);
-      act(() => {
-        listeners.get('observation-update')?.({
-          type: 'snapshot',
-          observation: 'The user may have made an error.',
-          status: 'mistake',
-          ts: Date.now() / 1000,
-        });
-      });
-      await waitFor(() =>
-        expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
-          width: 420,
-          height: windowHeight,
-        }),
-      );
-      offsetHeight.mockRestore();
-    },
-  );
+    render(<App />);
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({
+        status: 'mistake',
+        phrase: expect.any(String),
+      }),
+    );
+    const resizes = invoke.mock.calls.filter(
+      ([channel]: [string]) => channel === 'resize-avatar-window',
+    );
+    expect(resizes.length).toBeGreaterThan(0);
+    resizes.forEach(([, size]: [string, unknown]) =>
+      expect(size).toEqual({ width: 180, height: 180 }),
+    );
+  });
+
+  it('hides the ••• trigger while Coco is dragged', () => {
+    const { listeners } = setupMenuIpc();
+    render(<App />);
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    const container = trigger.closest('.pet-container');
+    expect(container).not.toHaveClass('is-dragging');
+
+    act(() => listeners.get('avatar-dragging')?.({ dragging: true }));
+    expect(container).toHaveClass('is-dragging');
+    act(() => listeners.get('avatar-dragging')?.({ dragging: false }));
+    expect(container).not.toHaveClass('is-dragging');
+  });
+
+  it('handles clicks and hovers from the bubble window', async () => {
+    jest.useFakeTimers();
+    const { listeners, sendMessage } = setupMenuIpc();
+    render(<App />);
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+    const bubbleEvent = (type: string) =>
+      act(() => listeners.get('avatar-bubble-event')?.(type));
+
+    // Hovering pauses the auto-hide.
+    bubbleEvent('enter');
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'mistake', fadingOut: false }),
+    );
+
+    bubbleEvent('dismiss');
+    expect(sendMessage).toHaveBeenCalledWith(
+      'training-feedback',
+      expect.objectContaining({ kind: 'dismiss', status: 'mistake' }),
+    );
+    act(() => jest.advanceTimersByTime(1_000));
+    expect(lastBubbleState(sendMessage)).toBeNull();
+    jest.useRealTimers();
+  });
 
   it('keeps Coco asleep on avatar click and wakes it from the menu', async () => {
     const invoke = jest.fn(

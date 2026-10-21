@@ -8,6 +8,13 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'avatar-bubble-state'
+  | 'avatar-bubble-size'
+  | 'avatar-bubble-painted'
+  | 'avatar-bubble-placement'
+  | 'avatar-bubble-pointer'
+  | 'avatar-bubble-event'
+  | 'avatar-dragging'
   | 'open-training'
   | 'study-upload-follow-up-assessment-toolkit'
   | 'follow-up-assessment-state'

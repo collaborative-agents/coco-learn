@@ -3,8 +3,9 @@
  *        See https://github.com/webpack-contrib/sass-loader#imports
  */
 /* The avatar window is resized dynamically by main.ts to fit whatever is on
-   stage (just-pet vs. bubble vs. history panel). The stage is a transparent
-   flex row: bubble on the left, pet anchored bottom-right. */
+   stage (just the pet, or the history panel too). The stage is a transparent
+   flex row with the pet anchored bottom-right. The observation bubble is
+   drawn in its own window (see AvatarBubbleView.css). */
 .pet-stage {
   width: 100%;
   height: 100%;
@@ -154,19 +155,25 @@
 .observation-bubble-label {
   font-size: var(--coco-text-caption);
   font-weight: 700;
+  line-height: 1.35;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--bubble-accent);
   margin-bottom: var(--coco-space-1);
+  /* Clear the × / ? in the top-right corner when a long label wraps. */
+  padding-right: 18px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 5px;
 }
 
+/* Centered on the label's first line, however many lines it wraps to. */
 .observation-bubble-label::before {
   content: '';
+  flex-shrink: 0;
   width: 6px;
   height: 6px;
+  margin-top: calc(0.675em - 3px);
   border-radius: 50%;
   background: var(--bubble-accent);
   display: inline-block;
@@ -271,24 +278,22 @@
   font-weight: 700;
 }
 
+/* Thumbs (on the action page), page bars, then the arrow at the far right.
+   The row is laid out in order so a wide arrow can't cover the bars. */
 .bubble-framework-pager {
-  position: relative;
   min-height: 30px;
   margin-top: 6px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: var(--coco-space-2);
   flex-shrink: 0;
 }
 
 .bubble-framework-page-bars {
-  position: absolute;
-  left: 50%;
-  top: 50%;
   display: flex;
   align-items: center;
   gap: var(--coco-space-1);
-  transform: translate(-50%, -50%);
+  margin-right: auto;
 }
 
 .bubble-framework-page-bar {
@@ -418,7 +423,7 @@
 }
 
 .bubble-pager-rating {
-  margin-right: auto;
+  display: flex;
 }
 
 /* Tier-1 (progress/observing) "?" badge: a passive explainer in the top-right
@@ -561,6 +566,15 @@
   color: rgba(31, 41, 55, 0.96);
   opacity: 1;
   outline: none;
+}
+
+/* While Coco is dragged the pointer is over it the whole time; keep the
+   hover-only trigger and hint out of the way until the drag ends. */
+.pet-container.is-dragging .pet-actions-trigger,
+.pet-container.is-dragging .pet-drag-hint {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1322,23 +1336,20 @@
   display: none;
 }
 
+/* Same order as the bubble's pager, so the arrow can't cover the bars. */
 .toast-framework-pager {
-  position: relative;
   min-height: 34px;
   padding: 2px 14px 10px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: var(--coco-space-2);
 }
 
 .toast-framework-page-bars {
-  position: absolute;
-  left: 50%;
-  top: 50%;
   display: flex;
   align-items: center;
   gap: var(--coco-space-1);
-  transform: translate(-50%, -60%);
+  margin-right: auto;
 }
 
 .toast-framework-page-bar {
@@ -1482,7 +1493,7 @@
 
 .toast-footer-rating,
 .toast-pager-rating {
-  margin-right: auto;
+  display: flex;
 }
 
 .coco-rating--compact .coco-rating-btn {

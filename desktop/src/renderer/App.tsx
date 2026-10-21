@@ -1,16 +1,8 @@
 import subscribeCocoSleepMode from './services/coco-sleep-mode';
-import {
-  type SyntheticEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
-import ObservationBubble, {
-  BubbleState,
-} from './components/ObservationBubble';
+import type { BubbleState } from './components/ObservationBubble';
 import PetSprite from './components/PetSprite';
 import {
   ActivityRecord,
@@ -35,6 +27,7 @@ import {
 } from './components/activity-rollup';
 import RatingButtons from './components/RatingButtons';
 import type { AvatarMenuAction } from './components/AvatarMenuView';
+import type { AvatarBubbleEvent } from './components/AvatarBubbleView';
 
 // How long the bubble (and the active pet mood) stay up after the latest event.
 const HOLD_MS = 20_000;
@@ -46,20 +39,11 @@ const FADE_MS = 400;
 const PULSE_MS = 1_000;
 
 // Avatar window sizing. The window starts at the base footprint (just the
-// pet) and is grown by main.ts whenever the bubble or history panel becomes
-// visible, then shrunk back when they go away — keeps the transparent
-// overlay from stealing clicks on the rest of the desktop.
+// pet) and is grown by main.ts whenever the history panel opens, then shrunk
+// back when it closes — keeps the transparent overlay from stealing clicks on
+// the rest of the desktop. The bubble is drawn in its own window.
 const WIN_BASE_W = 180;
 const WIN_BASE_H = 180;
-const WIN_BUBBLE_W = 420;   // Tier 3 bubble max-width 240 + 168 offset + slack
-const WIN_BUBBLE_H = 320;   // bubble (label + wrapped text + action button)
-// A measured bubble only needs its own height above its 24px bottom offset,
-// plus room for its drop shadow. Keeping the window no taller than that lets
-// Coco be dragged as close to the menu bar with a bubble as without one.
-const BUBBLE_BOTTOM_OFFSET = 24;
-const BUBBLE_SHADOW_ROOM = 16;
-// Revealed instant suggestion shows a scrollable body — taller footprint.
-const WIN_SUGGESTION_H = 520;
 const WIN_HISTORY_W = 440;  // activity panel ~260 + 168 offset + slack
 const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
 
@@ -452,8 +436,10 @@ function PetView() {
   // Mirrors whether the ••• menu window is open, for the trigger's styling.
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const menuActionRef = useRef<(action: AvatarMenuAction) => void>(() => {});
-  const stageRef = useRef<HTMLDivElement | null>(null);
-  const [bubbleBoxHeight, setBubbleBoxHeight] = useState(0);
+  // While Coco is dragged the pointer stays over it, so its hover controls
+  // are hidden until the drag ends.
+  const [dragging, setDragging] = useState(false);
+  const bubbleEventRef = useRef<(type: AvatarBubbleEvent) => void>(() => {});
 
   // Use refs so listener captures the latest cleanup targets without
   // re-subscribing every render.
@@ -529,12 +515,23 @@ function PetView() {
       'avatar-menu-action',
       (action: unknown) => menuActionRef.current(action as AvatarMenuAction),
     );
+    const cleanupBubbleEvent = window.electron?.ipcRenderer.on(
+      'avatar-bubble-event',
+      (type: unknown) => bubbleEventRef.current(type as AvatarBubbleEvent),
+    );
+    const cleanupDragging = window.electron?.ipcRenderer.on(
+      'avatar-dragging',
+      (value: unknown) =>
+        setDragging((value as { dragging?: boolean })?.dragging === true),
+    );
     window.electron?.ipcRenderer.sendMessage('avatar-renderer-ready');
     return () => {
       if (typeof cleanupToggle === 'function') cleanupToggle();
       if (typeof cleanupOpen === 'function') cleanupOpen();
       if (typeof cleanupMenuVisibility === 'function') cleanupMenuVisibility();
       if (typeof cleanupMenuAction === 'function') cleanupMenuAction();
+      if (typeof cleanupBubbleEvent === 'function') cleanupBubbleEvent();
+      if (typeof cleanupDragging === 'function') cleanupDragging();
     };
   }, []);
 
@@ -983,43 +980,33 @@ function PetView() {
     else window.electron?.ipcRenderer.sendMessage(action);
   };
 
-  const bubbleVisible = bubble != null;
-  const suggestionVisible = bubble?.suggestion != null;
-  const historyVisible = showHistory;
+  // Clicks and hovers on the bubble, which is drawn in its own window. Also
+  // refreshed every render so handlers see the current bubble.
+  bubbleEventRef.current = (type: AvatarBubbleEvent) => {
+    if (type === 'help') handleHelpMe();
+    else if (type === 'dismiss') handleDismiss();
+    else if (type === 'view-conversation') handleViewConversation();
+    else if (type === 'chat') handleChatAboutSuggestion();
+    else if (type === 'run') handleChatAboutSuggestion(true);
+    else if (type === 'enter') handleBubbleEnter();
+    else if (type === 'leave') handleBubbleLeave();
+  };
 
-  // The bubble's layout height (the entry animation's transform does not
-  // affect it), tracked as its text, buttons or toast change.
-  useLayoutEffect(() => {
-    const element = bubbleVisible
-      ? stageRef.current?.querySelector<HTMLElement>('.observation-bubble')
-      : null;
-    if (!element) {
-      setBubbleBoxHeight(0);
-      return undefined;
-    }
-    const measure = () => setBubbleBoxHeight(element.offsetHeight);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [bubbleVisible]);
+  // The bubble window draws whatever bubble is current here.
+  useEffect(() => {
+    window.electron?.ipcRenderer.sendMessage('avatar-bubble-state', {
+      bubble,
+    });
+  }, [bubble]);
+
+  const historyVisible = showHistory;
 
   // Resize the avatar window to fit whatever is currently on stage. Runs on
   // mount (shrinks from any leftover default size to the base footprint) and
-  // whenever the bubble or history visibility flips.
+  // whenever the history panel opens or closes. The bubble has its own window.
   useEffect(() => {
     let width = WIN_BASE_W;
     let height = WIN_BASE_H;
-    if (bubbleVisible) {
-      width = Math.max(width, WIN_BUBBLE_W);
-      let bubbleHeight = WIN_BUBBLE_H;
-      if (suggestionVisible) bubbleHeight = WIN_SUGGESTION_H;
-      else if (bubbleBoxHeight > 0)
-        bubbleHeight =
-          BUBBLE_BOTTOM_OFFSET + bubbleBoxHeight + BUBBLE_SHADOW_ROOM;
-      height = Math.max(height, bubbleHeight);
-    }
     if (historyVisible) {
       width = Math.max(width, WIN_HISTORY_W);
       height = Math.max(height, WIN_HISTORY_H);
@@ -1027,10 +1014,10 @@ function PetView() {
     window.electron?.ipcRenderer
       .invoke('resize-avatar-window', { width, height })
       ?.catch(() => undefined);
-  }, [bubbleVisible, suggestionVisible, historyVisible, bubbleBoxHeight]);
+  }, [historyVisible]);
 
   return (
-    <div ref={stageRef} className="pet-stage">
+    <div className="pet-stage">
       {/* Activity panel */}
       {showHistory && (
         <ActivityPanel
@@ -1042,16 +1029,6 @@ function PetView() {
         />
       )}
 
-      <ObservationBubble
-        bubble={bubble}
-        onHelpMe={handleHelpMe}
-        onDismiss={handleDismiss}
-        onViewConversation={handleViewConversation}
-        onChatAboutSuggestion={() => handleChatAboutSuggestion()}
-        onRunSuggestion={() => handleChatAboutSuggestion(true)}
-        onMouseEnter={handleBubbleEnter}
-        onMouseLeave={handleBubbleLeave}
-      />
       {pulse && (
         <span
           key={pulse.key}
@@ -1060,7 +1037,9 @@ function PetView() {
         />
       )}
       <div
-        className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}`}
+        className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}${
+          dragging ? ' is-dragging' : ''
+        }`}
         onContextMenu={(event) => {
           event.preventDefault();
           openActionsMenu();

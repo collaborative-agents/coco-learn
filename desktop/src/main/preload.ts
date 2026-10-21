@@ -158,6 +158,8 @@ export type Channels =
   | 'activity-support-rated'
   // Renderer asks main to resize the avatar window to fit current content
   | 'resize-avatar-window'
+  // Renderer asks whether the actions menu fits above Coco or must drop down
+  | 'get-avatar-actions-menu-placement'
   // Tier 3: tutor guidance routed to bubble when webapp is hidden
   | 'tutor-notification'
   // Tier 2: user clicked "Help me with this" in the bubble
@@ -186,6 +188,7 @@ export type Channels =
   | 'wake-word-audio-frame'
   | 'wake-word-detected'
   | 'wake-word-detection-ack'
+  | 'onboarding-wake-word-detected'
   | 'set-wake-word-capture-paused'
   | 'wake-word-capture-paused-changed'
   | 'wake-word-capture-status'

@@ -442,9 +442,19 @@ function PetView() {
   const [showHistory, setShowHistory] = useState(false);
   const [cocoSleeping, setCocoSleeping] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  // 'below' when Coco sits too close to the top of the screen for the menu to
+  // open upward; the menu then drops down over Coco and the window grows down.
+  const [actionsMenuPlacement, setActionsMenuPlacement] = useState<
+    'above' | 'below'
+  >('above');
+  // Which window edge the pet is pinned to. Mirrors the anchor main.ts uses
+  // when resizing; only flipped while the window is at its base footprint,
+  // where both anchors put the pet in the same spot.
+  const [stageAnchor, setStageAnchor] = useState<'top' | 'bottom'>('bottom');
   const [hideError, setHideError] = useState('');
   const [hidingAvatar, setHidingAvatar] = useState(false);
   const petActionsRef = useRef<HTMLDivElement | null>(null);
+  const bubbleVisibleRef = useRef(false);
 
   // Use refs so listener captures the latest cleanup targets without
   // re-subscribing every render.
@@ -494,6 +504,29 @@ function PetView() {
     if (bubble) scheduleBubbleHide(holdMsRef.current);
   };
 
+  // Ask main whether the menu fits above Coco before showing it, so the window
+  // never grows off the top of the screen (macOS would push it back down and
+  // drag Coco with it). While a bubble is up the window is already enlarged,
+  // so keep the default upward layout.
+  const openActionsMenu = async () => {
+    setShowHistory(false);
+    setHideError('');
+    let placement: 'above' | 'below' = 'above';
+    if (!bubbleVisibleRef.current) {
+      try {
+        const result = await window.electron?.ipcRenderer.invoke(
+          'get-avatar-actions-menu-placement',
+          { height: WIN_ACTION_MENU_H },
+        );
+        if (result === 'below') placement = 'below';
+      } catch {
+        // Fall back to opening upward.
+      }
+    }
+    setActionsMenuPlacement(placement);
+    setActionsMenuOpen(true);
+  };
+
   // Cmd/Ctrl+Shift+H toggles the history panel from anywhere on the system.
   useEffect(() => {
     const cleanupToggle = window.electron?.ipcRenderer.on(
@@ -507,9 +540,7 @@ function PetView() {
     const cleanupActionsMenu = window.electron?.ipcRenderer.on(
       'open-avatar-actions-menu',
       () => {
-        setShowHistory(false);
-        setHideError('');
-        setActionsMenuOpen(true);
+        openActionsMenu().catch(() => undefined);
       },
     );
     window.electron?.ipcRenderer.sendMessage('avatar-renderer-ready');
@@ -978,6 +1009,9 @@ function PetView() {
   const suggestionVisible = bubble?.suggestion != null;
   const historyVisible = showHistory;
   const actionsMenuVisible = actionsMenuOpen;
+  bubbleVisibleRef.current = bubbleVisible;
+  const desiredStageAnchor =
+    actionsMenuVisible && actionsMenuPlacement === 'below' ? 'top' : 'bottom';
 
   // Resize the avatar window to fit whatever is currently on stage. Runs on
   // mount (shrinks from any leftover default size to the base footprint) and
@@ -997,14 +1031,34 @@ function PetView() {
       width = Math.max(width, WIN_ACTION_MENU_W);
       height = Math.max(height, WIN_ACTION_MENU_H);
     }
-    window.electron?.ipcRenderer.sendMessage('resize-avatar-window', {
-      width,
-      height,
-    });
-  }, [bubbleVisible, suggestionVisible, historyVisible, actionsMenuVisible]);
+    // Growing downward starts from the base footprint, so pin the pet to the
+    // top first; when shrinking back, wait until the window is small again.
+    if (desiredStageAnchor === 'top') setStageAnchor('top');
+    let cancelled = false;
+    const resize = async () => {
+      await window.electron?.ipcRenderer.invoke('resize-avatar-window', {
+        width,
+        height,
+        anchor: desiredStageAnchor,
+      });
+      if (!cancelled) setStageAnchor(desiredStageAnchor);
+    };
+    resize().catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bubbleVisible,
+    suggestionVisible,
+    historyVisible,
+    actionsMenuVisible,
+    desiredStageAnchor,
+  ]);
 
   return (
-    <div className="pet-stage">
+    <div
+      className={`pet-stage${stageAnchor === 'top' ? ' is-anchored-top' : ''}`}
+    >
       {/* Activity panel */}
       {showHistory && (
         <ActivityPanel
@@ -1038,9 +1092,7 @@ function PetView() {
         className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}`}
         onContextMenu={(event) => {
           event.preventDefault();
-          setShowHistory(false);
-          setHideError('');
-          setActionsMenuOpen(true);
+          openActionsMenu().catch(() => undefined);
         }}
       >
         <PetSprite mood={cocoSleeping ? 'sleep' : mood} />
@@ -1053,9 +1105,8 @@ function PetView() {
           className={`pet-actions-trigger${actionsMenuOpen ? ' is-open' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
-            setShowHistory(false);
-            setHideError('');
-            setActionsMenuOpen((open) => !open);
+            if (actionsMenuOpen) setActionsMenuOpen(false);
+            else openActionsMenu().catch(() => undefined);
           }}
           title="More actions"
           aria-label="More actions"
@@ -1067,7 +1118,9 @@ function PetView() {
 
         {actionsMenuVisible && (
           <div
-            className="pet-actions-menu"
+            className={`pet-actions-menu${
+              actionsMenuPlacement === 'below' ? ' is-below' : ''
+            }`}
             role="menu"
             aria-label="Coco actions"
           >

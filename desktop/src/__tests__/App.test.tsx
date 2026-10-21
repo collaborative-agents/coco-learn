@@ -15,7 +15,7 @@ describe('App', () => {
     (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage } };
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide' }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('update-avatar-visibility', { hideAvatar: true }));
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
     expect(invoke.mock.calls.some(([channel]) => channel === 'set-coco-sleep-mode')).toBe(false);
@@ -26,7 +26,7 @@ describe('App', () => {
     (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage: jest.fn() } };
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not hide Coco');
     expect(screen.getByRole('menu')).toBeInTheDocument();
   });
@@ -123,7 +123,7 @@ describe('App', () => {
       expect(invoke).toHaveBeenCalledWith('get-coco-sleep-mode');
     });
     fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(screen.getByText('Sleep'));
+    fireEvent.click(await screen.findByText('Sleep'));
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
@@ -138,7 +138,7 @@ describe('App', () => {
     });
 
     fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(screen.getByText('Wake Coco'));
+    fireEvent.click(await screen.findByText('Wake Coco'));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
         sleeping: false,
@@ -146,7 +146,7 @@ describe('App', () => {
     });
   });
 
-  it('opens the action menu when the avatar is right-clicked', () => {
+  it('opens the action menu when the avatar is right-clicked', async () => {
     const sendMessage = jest.fn();
     const listeners = new Map<string, (...args: unknown[]) => void>();
     (window as any).electron = {
@@ -171,14 +171,15 @@ describe('App', () => {
 
     fireEvent.contextMenu(avatarContainer!);
     expect(
-      screen.getByRole('menu', { name: 'Coco actions' }),
+      await screen.findByRole('menu', { name: 'Coco actions' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Open Chat')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle('More actions'));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     act(() => listeners.get('open-avatar-actions-menu')?.());
     expect(
-      screen.getByRole('menu', { name: 'Coco actions' }),
+      await screen.findByRole('menu', { name: 'Coco actions' }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Open Chat'));
@@ -206,7 +207,7 @@ describe('App', () => {
       );
     });
     fireEvent.click(screen.getByTitle('More actions'));
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+    expect((await screen.findAllByRole('menuitem')).map((item) => item.textContent)).toEqual([
       'Open Chat', 'Training', 'Settings', 'Hide', 'Sleep', 'Quit',
     ]);
     expect(screen.queryByRole('menuitem', { name: /History/i })).not.toBeInTheDocument();
@@ -219,11 +220,11 @@ describe('App', () => {
     expect(sendMessage).toHaveBeenCalledWith('open-training');
 
     fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(screen.getByText('Settings'));
+    fireEvent.click(await screen.findByText('Settings'));
     expect(sendMessage).toHaveBeenCalledWith('open-chat-settings');
 
     fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Quit' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Quit' }));
     expect(sendMessage).toHaveBeenCalledWith('quit-from-avatar');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
@@ -245,12 +246,54 @@ describe('App', () => {
     });
     fireEvent.click(screen.getByTitle('More actions'));
     expect(
-      screen.getByRole('menu', { name: 'Coco actions' }),
+      await screen.findByRole('menu', { name: 'Coco actions' }),
     ).toBeInTheDocument();
 
     fireEvent.blur(window);
     expect(
       screen.queryByRole('menu', { name: 'Coco actions' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('drops the menu down over Coco when there is no room above', async () => {
+    const invoke = jest.fn((channel: string) =>
+      Promise.resolve(
+        channel === 'get-avatar-actions-menu-placement' ? 'below' : [],
+      ),
+    );
+    (window as any).electron = {
+      ipcRenderer: { on: jest.fn(() => jest.fn()), sendMessage: jest.fn(), invoke },
+    };
+
+    const { container } = render(<App />);
+    fireEvent.contextMenu(container.querySelector('.pet-container')!);
+
+    expect(
+      await screen.findByRole('menu', { name: 'Coco actions' }),
+    ).toHaveClass('is-below');
+    expect(invoke).toHaveBeenCalledWith('resize-avatar-window', {
+      width: 200,
+      height: 440,
+      anchor: 'top',
+    });
+    await waitFor(() =>
+      expect(container.querySelector('.pet-stage')).toHaveClass(
+        'is-anchored-top',
+      ),
+    );
+
+    fireEvent.blur(window);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
+        width: 180,
+        height: 180,
+        anchor: 'bottom',
+      }),
+    );
+    await waitFor(() =>
+      expect(container.querySelector('.pet-stage')).not.toHaveClass(
+        'is-anchored-top',
+      ),
+    );
   });
 });

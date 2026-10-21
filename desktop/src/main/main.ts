@@ -253,6 +253,11 @@ const desktopAppUpdater = new DesktopAppUpdater({
 // imagePreviewWindow: full-display preview for pending and sent chat images.
 // sessionSetupWindow: small floating window for proactive session config
 let avatarWindow: BrowserWindow | null = null;
+// Base avatar footprint (just the pet) and which edge of the avatar window the
+// pet is currently pinned to — see 'resize-avatar-window'.
+const AVATAR_BASE_SIZE = 180;
+type AvatarStageAnchor = 'top' | 'bottom';
+let avatarStageAnchor: AvatarStageAnchor = 'bottom';
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
@@ -857,10 +862,11 @@ const createAvatarWindow = () => {
   // 'resize-avatar-window' when a bubble or the history panel becomes visible,
   // and shrinks it back when they go away. Keeps transparent dead-zones from
   // intercepting clicks meant for the desktop below.
+  avatarStageAnchor = 'bottom';
   avatarWindow = new BrowserWindow({
     show: false,
-    width: 180,
-    height: 180,
+    width: AVATAR_BASE_SIZE,
+    height: AVATAR_BASE_SIZE,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -1397,6 +1403,12 @@ const initializeWakeWordService = (): void => {
     onDetected: (keyword) => {
       if (!wakeWordEnabled || isCocoSleeping() || systemSuspended) return;
       log.info(`[Wake word] Detected ${keyword}`);
+      // The tutor service starts only after setup, so a voice turn here would
+      // always fail. During onboarding, just confirm the phrase was heard.
+      if (setupPending()) {
+        onboardingWindow?.webContents.send('onboarding-wake-word-detected');
+        return;
+      }
       queueWakeWordDetection(keyword);
     },
   });
@@ -3189,24 +3201,56 @@ ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
 });
 
 // ── Dynamic avatar-window resize ──────────────────────────────────────────────
-// Renderer asks for a new content size when the bubble or history panel
-// appears/disappears. We pin the bottom-right corner so the pet stays put
-// while the window grows up and to the left.
-ipcMain.removeAllListeners('resize-avatar-window');
-ipcMain.on(
+// Renderer asks for a new content size when the bubble, history panel or
+// actions menu appears/disappears. The right edge is always pinned. The pet
+// normally sits at the bottom so the window grows up and to the left; when the
+// actions menu has no room above (Coco parked at the top of the screen) the
+// renderer anchors the pet to the top instead and the window grows downward.
+// Either way the pet's base footprint keeps its screen position, so macOS never
+// has to push the window back on-screen and drag Coco along with it.
+const avatarPetTop = (bounds: Electron.Rectangle) =>
+  avatarStageAnchor === 'top'
+    ? bounds.y
+    : bounds.y + bounds.height - AVATAR_BASE_SIZE;
+
+ipcMain.removeHandler('resize-avatar-window');
+ipcMain.handle(
   'resize-avatar-window',
-  (_event, { width, height }: { width: number; height: number }) => {
+  (
+    _event,
+    {
+      width,
+      height,
+      anchor = 'bottom',
+    }: { width: number; height: number; anchor?: AvatarStageAnchor },
+  ) => {
     if (!avatarWindow || avatarWindow.isDestroyed()) return;
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const b = avatarWindow.getBounds();
-    if (b.width === w && b.height === h) return;
-    avatarWindow.setBounds({
-      x: b.x + b.width - w,
-      y: b.y + b.height - h,
-      width: w,
-      height: h,
-    });
+    const petTop = avatarPetTop(b);
+    avatarStageAnchor = anchor === 'top' ? 'top' : 'bottom';
+    const y =
+      avatarStageAnchor === 'top' ? petTop : petTop + AVATAR_BASE_SIZE - h;
+    if (b.width === w && b.height === h && b.y === y) return;
+    avatarWindow.setBounds({ x: b.x + b.width - w, y, width: w, height: h });
+  },
+);
+
+// Renderer asks where the actions menu fits before opening it: 'above' Coco
+// (default) or 'below', dropping down over Coco when the window can't grow
+// upward without leaving the work area.
+ipcMain.removeHandler('get-avatar-actions-menu-placement');
+ipcMain.handle(
+  'get-avatar-actions-menu-placement',
+  (_event, { height }: { height: number }) => {
+    if (!avatarWindow || avatarWindow.isDestroyed()) return 'above';
+    const b = avatarWindow.getBounds();
+    const { workArea } = screen.getDisplayMatching(b);
+    const petTop = avatarPetTop(b);
+    const fitsAbove = petTop + AVATAR_BASE_SIZE - height >= workArea.y;
+    const fitsBelow = petTop + height <= workArea.y + workArea.height;
+    return !fitsAbove && fitsBelow ? 'below' : 'above';
   },
 );
 

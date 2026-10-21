@@ -17,6 +17,25 @@
   overflow: visible;
 }
 
+/* Coco parked near the top of the screen with the actions menu open: the
+   window grows downward, so pin the pet to the top. The extra top padding puts
+   the pet exactly where the bottom-anchored layout does at the 180px base
+   size, so flipping anchors there never moves Coco. */
+.pet-stage.is-anchored-top {
+  align-items: flex-start;
+  padding-top: 18px;
+}
+
+.pet-stage.is-anchored-top .observation-bubble {
+  top: 24px;
+  bottom: auto;
+}
+
+.pet-stage.is-anchored-top .pet-pulse-ring {
+  top: 24px;
+  bottom: auto;
+}
+
 .pet-container {
   position: relative;
   width: 150px;
@@ -642,6 +661,19 @@
   height: 1px;
   margin: var(--coco-space-1) 7px;
   background: rgba(60, 60, 67, 0.14);
+}
+
+/* No room above Coco: drop the menu down from the ••• trigger, over Coco. */
+.pet-actions-menu.is-below {
+  top: 38px;
+  bottom: auto;
+  transform-origin: top right;
+  animation-name: pet-menu-in-below;
+}
+
+@keyframes pet-menu-in-below {
+  from { opacity: 0; transform: translateY(-3px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes pet-menu-in {

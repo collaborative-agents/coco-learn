@@ -949,18 +949,20 @@ export default function SessionChatView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'help-request',
       (data: any) => {
-        const { rawObservation, phrase, label, deferUntilUserMessage } =
+        const { rawObservation, phrase, label, deferUntilUserMessage, draft } =
           (data ?? {}) as {
             rawObservation?: string;
             phrase?: string;
             label?: string;
             deferUntilUserMessage?: boolean;
+            draft?: string;
           };
         const seed = (rawObservation || phrase || '').trim();
-        if (seed) {
+        if (seed || draft) {
           setActivePage('chat');
           setShowSettings(false);
         }
+        if (draft) setInput(draft);
         if (seed && (deferUntilUserMessage || sending)) {
           pendingContextRef.current = seed;
           setPendingContextLabel(

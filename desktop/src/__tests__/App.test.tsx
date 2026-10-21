@@ -254,3 +254,168 @@ describe('App', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('session invite bubble', () => {
+  const setup = () => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const sendMessage = jest.fn();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage,
+        invoke: jest.fn().mockResolvedValue([]),
+      },
+    };
+    render(<App />);
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-1',
+        taskLabel: 'Drafting a social media thread',
+      });
+    });
+    return { listeners, sendMessage };
+  };
+
+  it('shows the detected task and confirms it is on screen', () => {
+    const { sendMessage } = setup();
+    expect(screen.getByText('Support available')).toBeInTheDocument();
+    expect(
+      screen.getByText('Drafting a social media thread'),
+    ).toBeInTheDocument();
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-shown', {
+      inviteId: 'invite-1',
+    });
+  });
+
+  it('starts the session from "Help me with this"', () => {
+    const { sendMessage } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Help me with this' }));
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-response', {
+      inviteId: 'invite-1',
+      outcome: 'accepted',
+    });
+    expect(screen.queryByText('Support available')).not.toBeInTheDocument();
+  });
+
+  it('reports a dismissal instead of training feedback', () => {
+    const { sendMessage } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-response', {
+      inviteId: 'invite-1',
+      outcome: 'dismissed',
+    });
+    expect(
+      sendMessage.mock.calls.some(
+        ([channel]) => channel === 'training-feedback',
+      ),
+    ).toBe(false);
+  });
+
+  it('stays up through new observations until main clears it', () => {
+    const { listeners } = setup();
+    act(() => {
+      listeners.get('observation-update')?.({
+        type: 'snapshot',
+        observation: 'The user may have made an error.',
+        status: 'mistake',
+        ts: Date.now() / 1000,
+      });
+    });
+    expect(screen.getByText('Support available')).toBeInTheDocument();
+    expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
+
+    act(() => listeners.get('session-invite-clear')?.({ inviteId: 'other' }));
+    expect(screen.getByText('Support available')).toBeInTheDocument();
+    act(() =>
+      listeners.get('session-invite-clear')?.({ inviteId: 'invite-1' }),
+    );
+    expect(screen.queryByText('Support available')).not.toBeInTheDocument();
+  });
+
+  it('hands a second invite back to main while the bubble is pinned', () => {
+    const { listeners, sendMessage } = setup();
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-2',
+        taskLabel: 'Something else',
+      });
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-busy', {
+      inviteId: 'invite-2',
+    });
+    expect(
+      screen.getByText('Drafting a social media thread'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('session invite with a suggestion preview', () => {
+  const suggestion = {
+    kind: 'content',
+    title: 'Draft social media thread',
+    body: 'Open with the main result, then one post per idea.',
+    copyText: 'Open with the main result, then one post per idea.',
+  };
+
+  it('opens the preview in place and starts the session from chat', async () => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const sendMessage = jest.fn();
+    const invoke = jest.fn(async (channel: string) =>
+      channel === 'get-instant-suggestion'
+        ? { status: 'ready', suggestion, scenario: 'everyday_support' }
+        : [],
+    );
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage,
+        invoke,
+      },
+    };
+    render(<App />);
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-1',
+        taskLabel: 'Announcing a blog post',
+        observationId: 'invite-obs-1',
+        rawObservation: 'The user is finishing a blog post.',
+        suggestionTitle: 'Draft social media thread',
+      });
+    });
+    expect(screen.getByText('Support available')).toBeInTheDocument();
+    expect(screen.getByText('Draft social media thread')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Help me with this' }));
+    expect(
+      await screen.findByText(
+        'Open with the main result, then one post per idea.',
+      ),
+    ).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith('get-instant-suggestion', {
+      observationId: 'invite-obs-1',
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-revealed', {
+      inviteId: 'invite-1',
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      'session-invite-response',
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat with Coco' }));
+    expect(sendMessage).toHaveBeenCalledWith(
+      'chat-about-suggestion',
+      expect.objectContaining({
+        observationId: 'invite-obs-1',
+        sessionInviteId: 'invite-1',
+        suggestion,
+      }),
+    );
+  });
+});

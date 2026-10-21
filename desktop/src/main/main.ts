@@ -251,7 +251,6 @@ const desktopAppUpdater = new DesktopAppUpdater({
 //                     conversation survives a reopen. Talks only to the local
 //                     tutor/sensing servers — no external backend or WebSocket.
 // imagePreviewWindow: full-display preview for pending and sent chat images.
-// sessionSetupWindow: small floating window for proactive session config
 let avatarWindow: BrowserWindow | null = null;
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
@@ -264,7 +263,6 @@ let proactiveSuggestionOpen = false;
 let latestHiddenSuggestionObservationId: string | undefined;
 let authWindow: BrowserWindow | null = null;
 let onboardingWindow: BrowserWindow | null = null;
-let sessionSetupWindow: BrowserWindow | null = null;
 let sessionRecapWindow: BrowserWindow | null = null;
 let sessionRecapContext: {
   sessionId: string | null;
@@ -306,7 +304,7 @@ const setPostAssessmentActive = (active: boolean) => {
     latestHiddenSuggestionObservationId = undefined;
     proactiveSuggestionOpen = false;
     notificationWindow?.destroy();
-    sessionSetupWindow?.destroy();
+    clearAvatarInvite('ignored');
   }
   avatarWindow?.webContents.send('post-assessment-proactive-suppression', {
     active,
@@ -1664,6 +1662,8 @@ interface ChatSeed {
   rawObservation: string;
   /** Attach context to the user's next turn instead of sending immediately. */
   deferUntilUserMessage?: boolean;
+  /** Text to prefill in the chat composer for the user to edit and send. */
+  draft?: string;
 }
 
 // Open the chat panel for a session, pushing the session context (and an
@@ -1710,49 +1710,6 @@ const openDraftChat = (problemStatement: string, seed?: ChatSeed): string => {
   openChatForSession(draftSessionId, problemStatement, seed);
   log.info(`[Chat] Draft opened without starting a session: ${draftSessionId}`);
   return draftSessionId;
-};
-
-// ── Session-setup floating window ────────────────────────────────────────────
-// Small always-on-top panel shown after the user accepts a proactive "start
-// a session?" prompt.  Lets them pick a model and struggle-check interval.
-
-const showSessionSetupWindow = async (taskLabel: string | null) => {
-  sessionSetupWindow?.destroy();
-
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  const w = 340;
-  const h = 280; // editable task description textarea + struggle interval
-  const x = sw - w - 16;
-  const y = sh - h - 16;
-
-  sessionSetupWindow = new BrowserWindow({
-    show: false,
-    x,
-    y,
-    width: w,
-    height: h,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    resizable: false,
-    skipTaskbar: process.platform !== 'darwin',
-    webPreferences: { preload: preloadPath() },
-  });
-  if (process.platform === 'darwin') {
-    sessionSetupWindow.excludedFromShownWindowsMenu = true;
-  }
-
-  const url = `${resolveHtmlPath('index.html')}?view=session-setup`;
-  sessionSetupWindow.loadURL(url);
-
-  sessionSetupWindow.on('ready-to-show', () => {
-    sessionSetupWindow?.show();
-    sessionSetupWindow?.webContents.send('session-setup-init', { taskLabel });
-  });
-
-  sessionSetupWindow.on('closed', () => {
-    sessionSetupWindow = null;
-  });
 };
 
 // ── Session-recap floating window ────────────────────────────────────────────
@@ -1919,7 +1876,7 @@ const notificationCategory = (notifType: NotifType | undefined): string => {
   }
 };
 
-const showNotification = (payload: {
+interface NotificationPayload {
   message: string;
   actionLabel: string;
   vizState?: VizState;
@@ -1931,7 +1888,52 @@ const showNotification = (payload: {
   suggestion?: InstantSuggestion;
   scenario?: string;
   category?: string;
-}): boolean => {
+  /** Pre-session invite; recorded as a session-start prompt. */
+  sessionInvite?: boolean;
+}
+
+const NOTIFICATION_IGNORE_MS = 5 * 60_000;
+
+// Record a shown notification with the gateway. One left unanswered resolves
+// as ignored after NOTIFICATION_IGNORE_MS, and onIgnored then runs.
+const createNotificationRecord = (
+  payload: NotificationPayload,
+  {
+    id = randomUUID(),
+    onIgnored,
+  }: { id?: string; onIgnored?: () => void } = {},
+): ActiveNotificationRecord => {
+  const notifType = payload.sessionInvite
+    ? 'session-start-prompt'
+    : payload.notifType;
+  const record: ActiveNotificationRecord = {
+    id,
+    resolved: false,
+    created:
+      gatewayClient?.addNotification({
+        id,
+        category: payload.category ?? notificationCategory(notifType),
+        notificationType: notifType ?? 'default',
+        message: payload.message,
+        shownAt: new Date(),
+        sessionId:
+          isSessionActive && currentSessionId ? currentSessionId : undefined,
+        observationId: payload.observationId,
+        actionLabel: payload.actionLabel,
+        cancelLabel: payload.cancelLabel,
+        status: payload.status,
+        fourDDimension: payload.suggestion?.fourDDimension,
+        triggerType: payload.suggestion?.triggerType,
+      }) ?? Promise.resolve(),
+  };
+  record.ignoreTimer = setTimeout(() => {
+    resolveNotificationRecord(record, 'ignored');
+    onIgnored?.();
+  }, NOTIFICATION_IGNORE_MS);
+  return record;
+};
+
+const showNotification = (payload: NotificationPayload): boolean => {
   if (!tutoringAllowed) return false;
   if (postAssessmentActive && payload.category !== 'system') {
     log.info(
@@ -1978,39 +1980,10 @@ const showNotification = (payload: {
   resolveNotificationRecord(activeNotificationRecord, 'ignored');
   notificationWindow?.destroy();
 
-  const notificationId = randomUUID();
-  const shouldPersist = payload.notifType !== 'daily-summary';
-  const notificationRecord: ActiveNotificationRecord | null = shouldPersist
-    ? {
-        id: notificationId,
-        resolved: false,
-        created:
-          gatewayClient?.addNotification({
-            id: notificationId,
-            category:
-              payload.category ?? notificationCategory(payload.notifType),
-            notificationType: payload.notifType ?? 'default',
-            message: payload.message,
-            shownAt: new Date(),
-            sessionId:
-              isSessionActive && currentSessionId
-                ? currentSessionId
-                : undefined,
-            observationId: payload.observationId,
-            actionLabel: payload.actionLabel,
-            cancelLabel: payload.cancelLabel,
-            status: payload.status,
-            fourDDimension: payload.suggestion?.fourDDimension,
-            triggerType: payload.suggestion?.triggerType,
-          }) ?? Promise.resolve(),
-      }
-    : null;
-  if (notificationRecord) {
-    notificationRecord.ignoreTimer = setTimeout(
-      () => resolveNotificationRecord(notificationRecord, 'ignored'),
-      5 * 60_000,
-    );
-  }
+  const notificationRecord =
+    payload.notifType !== 'daily-summary'
+      ? createNotificationRecord(payload)
+      : null;
   activeNotificationRecord = notificationRecord;
 
   const isInteractiveSuggestion =
@@ -2080,7 +2053,7 @@ const showNotification = (payload: {
     nextNotificationWindow.showInactive();
     nextNotificationWindow.webContents.send('notification', {
       ...payload,
-      notificationId: shouldPersist ? notificationId : undefined,
+      notificationId: notificationRecord?.id,
       adjustable,
     });
   });
@@ -2099,6 +2072,241 @@ const showNotification = (payload: {
   });
   return true;
 };
+
+// ── Session invite ────────────────────────────────────────────────────────────
+// Before a session exists, Coco offers one for the task the observer detected.
+// The invite previews a suggestion written for that moment: a bubble beside
+// Coco when the avatar is visible, otherwise the corner pop-up. Opening the
+// suggestion only shows it; "Chat with Coco" or "Run with Coco" starts the
+// session. If the writer abstains, the invite shows the detected task and
+// "Help me with this" starts the session. Either way it is recorded as a
+// session_start notification.
+
+const SESSION_INVITE_STRUGGLE_SECONDS = 120;
+
+interface SessionInviteContent {
+  taskLabel: string;
+  rawObservation: string;
+  observationId?: string;
+  suggestion?: InstantSuggestion;
+}
+
+// The invite bubble on the avatar. Its record is created only once the
+// renderer confirms the bubble is on screen, and shares the invite's id.
+let avatarInvite:
+  | (SessionInviteContent & {
+      id: string;
+      record: ActiveNotificationRecord | null;
+    })
+  | null = null;
+// The observation behind the latest invite, so a slow preview for an older
+// invite is dropped.
+let latestInviteObservationId: string | undefined;
+// What the observer saw when it detected the invited task. Attached to the
+// user's first chat message if they accept an invite without a preview.
+let pendingInviteObservation = '';
+
+const sessionInvitePayload = (
+  invite: SessionInviteContent,
+): NotificationPayload =>
+  invite.suggestion
+    ? {
+        message: invite.suggestion.title,
+        actionLabel: 'Reveal full suggestion',
+        notifType: 'proactive-suggestion',
+        observationId: invite.observationId,
+        status: 'task_suggested',
+        rawObservation: invite.rawObservation,
+        suggestion: invite.suggestion,
+        scenario: readProfile().scenario,
+        sessionInvite: true,
+      }
+    : {
+        message: invite.taskLabel,
+        actionLabel: 'Help me with this',
+        notifType: 'session-start-prompt',
+        sessionInvite: true,
+      };
+
+function clearAvatarInvite(outcome: NotificationOutcome) {
+  if (!avatarInvite) return;
+  const { id, record } = avatarInvite;
+  avatarInvite = null;
+  resolveNotificationRecord(record, outcome);
+  if (avatarWindow && !avatarWindow.isDestroyed()) {
+    avatarWindow.webContents.send('session-invite-clear', { inviteId: id });
+  }
+}
+
+const presentSessionInvite = (invite: SessionInviteContent) => {
+  clearAvatarInvite('ignored');
+  if (
+    hideAvatarMode ||
+    !avatarWindow ||
+    avatarWindow.isDestroyed() ||
+    !avatarWindow.isVisible()
+  ) {
+    showNotification(sessionInvitePayload(invite));
+    return;
+  }
+  avatarInvite = { ...invite, id: randomUUID(), record: null };
+  avatarWindow.webContents.send('session-invite', {
+    inviteId: avatarInvite.id,
+    taskLabel: invite.taskLabel,
+    observationId: invite.observationId,
+    rawObservation: invite.rawObservation,
+    suggestionTitle: invite.suggestion?.title,
+  });
+};
+
+const showSessionInvite = (
+  event: Parameters<typeof precomputeSuggestion>[0],
+  taskLabel: string,
+) => {
+  if (!tutoringAllowed || postAssessmentActive) return;
+  if (!event.observation_id) {
+    syntheticObsSeq += 1;
+    event.observation_id = `invite-${Date.now()}-${syntheticObsSeq}`;
+  }
+  const observationId = event.observation_id;
+  const rawObservation = event.observation
+    ? cleanObservation(event.observation)
+    : '';
+  latestInviteObservationId = observationId;
+  // Writing the preview takes several seconds; the invite waits for it.
+  (precomputeSuggestion(event) ?? Promise.resolve(null))
+    .then((value) => {
+      if (
+        latestInviteObservationId !== observationId ||
+        isSessionActive ||
+        isCocoSleeping() ||
+        systemSuspended ||
+        postAssessmentActive
+      ) {
+        return;
+      }
+      pendingTaskLabel = taskLabel;
+      pendingInviteObservation = rawObservation;
+      let suggestion: InstantSuggestion | undefined;
+      if (value) {
+        suggestion =
+          value.kind === 'delegate'
+            ? {
+                ...value,
+                availableTools: buildAvailableTools(value.targetTool),
+              }
+            : value;
+      }
+      presentSessionInvite({
+        taskLabel,
+        rawObservation,
+        observationId: suggestion ? observationId : undefined,
+        suggestion,
+      });
+    })
+    .catch((err) => {
+      log.warn(`[SessionInvite] Could not show invite: ${err}`);
+    });
+};
+
+// Accepting an invite without a preview: prefill a message the user can edit
+// to correct the task, with the observation attached as removable context.
+const acceptSessionInvite = async () => {
+  const taskLabel = pendingTaskLabel || 'General help session';
+  const observation = pendingInviteObservation;
+  pendingInviteObservation = '';
+  const seed: ChatSeed = {
+    phrase: observation ? 'What Coco noticed' : '',
+    label: taskLabel,
+    rawObservation: observation,
+    deferUntilUserMessage: true,
+    draft: `I'm working on: ${taskLabel.replace(/[.\s]+$/, '')}. Help me with this.`,
+  };
+  // A session can begin some other way while the invite is up.
+  if (isSessionActive && currentSessionId) {
+    openChatForSession(currentSessionId, pendingTaskLabel || '', seed);
+    return;
+  }
+  await createProactiveTutorSession(
+    taskLabel,
+    SESSION_INVITE_STRUGGLE_SECONDS,
+    'proactive_suggestion',
+    seed,
+  );
+};
+
+ipcMain.removeAllListeners('session-invite-shown');
+ipcMain.on(
+  'session-invite-shown',
+  (_event, { inviteId }: { inviteId?: string }) => {
+    if (!avatarInvite || avatarInvite.id !== inviteId || avatarInvite.record) {
+      return;
+    }
+    const invite = avatarInvite;
+    invite.record = createNotificationRecord(sessionInvitePayload(invite), {
+      id: invite.id,
+      onIgnored: () => {
+        if (avatarInvite === invite) clearAvatarInvite('ignored');
+      },
+    });
+  },
+);
+
+// Once the user opens the full suggestion, the invite stays until they act
+// on it or close it, rather than expiring as ignored mid-read.
+ipcMain.removeAllListeners('session-invite-revealed');
+ipcMain.on(
+  'session-invite-revealed',
+  (_event, { inviteId }: { inviteId?: string }) => {
+    if (!inviteId) return;
+    let record: ActiveNotificationRecord | null = null;
+    if (avatarInvite && avatarInvite.id === inviteId) {
+      record = avatarInvite.record;
+    } else if (activeNotificationRecord?.id === inviteId) {
+      record = activeNotificationRecord;
+    }
+    if (record?.ignoreTimer) clearTimeout(record.ignoreTimer);
+  },
+);
+
+// The avatar bubble is holding a suggestion the user opened, so the invite
+// goes to the corner pop-up instead.
+ipcMain.removeAllListeners('session-invite-busy');
+ipcMain.on(
+  'session-invite-busy',
+  (_event, { inviteId }: { inviteId?: string }) => {
+    if (!avatarInvite || avatarInvite.id !== inviteId) return;
+    const invite = avatarInvite;
+    avatarInvite = null;
+    showNotification(sessionInvitePayload(invite));
+  },
+);
+
+// Dismissing an avatar invite, or accepting one without a preview. Previews
+// are accepted through chat-about-suggestion.
+ipcMain.removeAllListeners('session-invite-response');
+ipcMain.on(
+  'session-invite-response',
+  (
+    _event,
+    { inviteId, outcome }: { inviteId?: string; outcome?: NotificationOutcome },
+  ) => {
+    if (!avatarInvite || avatarInvite.id !== inviteId) return;
+    if (outcome !== 'accepted' && outcome !== 'dismissed') return;
+    const { record } = avatarInvite;
+    avatarInvite = null;
+    resolveNotificationRecord(record, outcome);
+    if (outcome === 'accepted') acceptSessionInvite();
+  },
+);
+
+// "Help me with this" on a corner invite without a preview. Its outcome is
+// reported through notification-response like any other notification.
+ipcMain.removeAllListeners('session-invite-accepted');
+ipcMain.on('session-invite-accepted', () => {
+  notificationWindow?.destroy();
+  acceptSessionInvite();
+});
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 // Use removeAllListeners before each .on() so hot-reloads in development never
@@ -2856,6 +3064,7 @@ async function setCocoSleepMode(sleeping: boolean) {
   syncWakeWordService();
 
   if (sleeping) {
+    clearAvatarInvite('ignored');
     if (pendingChatRequest) pendingChatRequest.stopped = true;
     await piHarness.abort();
     if (isSessionActive) endCurrentSession();
@@ -3259,14 +3468,6 @@ ipcMain.on(
   },
 );
 
-// User clicked "Yes" in the "start a session?" notification.
-// Main shows the mini session-setup window.
-ipcMain.removeAllListeners('show-session-setup');
-ipcMain.on('show-session-setup', () => {
-  notificationWindow?.destroy();
-  showSessionSetupWindow(pendingTaskLabel);
-});
-
 // Read the user's onboarding profile for the AI tools and tutor mode they
 // selected. Returns sensible defaults when the file is missing or malformed.
 // Shared by createProactiveTutorSession() and the instant-suggestion precompute.
@@ -3579,6 +3780,10 @@ ipcMain.on(
       rawObservation?: string;
       suggestion?: InstantSuggestion;
       surface?: 'bubble' | 'notification';
+      /** Sent from a session invite pop-up. */
+      sessionInvite?: boolean;
+      /** Sent from a session invite bubble on the avatar. */
+      sessionInviteId?: string;
     },
   ) => {
     if (payload?.surface === 'notification') notificationWindow?.destroy();
@@ -3627,6 +3832,25 @@ ipcMain.on(
       .catch((err) => {
         log.warn(`[Feedback] failed to post: ${(err as Error).message}`);
       });
+
+    // Chatting about an invite's preview accepts the invite. (The pop-up
+    // reports its own outcome.)
+    let acceptsInvite = payload.sessionInvite === true;
+    if (avatarInvite && avatarInvite.id === payload.sessionInviteId) {
+      resolveNotificationRecord(avatarInvite.record, 'accepted');
+      avatarInvite = null;
+      acceptsInvite = true;
+    }
+    if (acceptsInvite && !isSessionActive) {
+      pendingInviteObservation = '';
+      await createProactiveTutorSession(
+        pendingTaskLabel || suggestion.title,
+        SESSION_INVITE_STRUGGLE_SECONDS,
+        'proactive_suggestion',
+        seed,
+      );
+      return;
+    }
 
     // A pop-up suggestion is already in the chat and the tutor's history, so
     // open it there rather than attaching it again as hidden context.
@@ -3679,6 +3903,7 @@ async function createProactiveTutorSession(
   isSessionActive = true;
   pendingTaskLabel = problemStatement;
   sessionStruggleSeconds = struggleSeconds;
+  clearAvatarInvite('ignored');
   if (options.openChat !== false) {
     openChatForSession(sessionId, problemStatement, seed);
   }
@@ -3946,30 +4171,6 @@ ipcMain.handle(
       return { success: false, error: 'Conversation not found.' };
     }
     return resumeSavedConversation(conversation);
-  },
-);
-
-// User confirmed the task + struggle-time in the session-setup window.
-ipcMain.removeAllListeners('proactive-session-confirmed');
-ipcMain.on(
-  'proactive-session-confirmed',
-  async (
-    _event,
-    {
-      struggleSeconds,
-      taskLabel,
-    }: { struggleSeconds: number; taskLabel?: string },
-  ) => {
-    sessionSetupWindow?.destroy();
-    // Prefer the user-edited task label from the setup window; fall back to
-    // the auto-detected pendingTaskLabel, then a generic default.
-    const problemStatement =
-      taskLabel?.trim() || pendingTaskLabel || 'General help session';
-    await createProactiveTutorSession(
-      problemStatement,
-      struggleSeconds,
-      'proactive_suggestion',
-    );
   },
 );
 
@@ -4934,7 +5135,6 @@ async function stopTutoringForAccess(): Promise<void> {
   delete process.env.LLM_ROUTER_API_KEY;
   notificationWindow?.destroy();
   sessionRecapWindow?.destroy();
-  sessionSetupWindow?.destroy();
   suggestionCache.clear();
   stopObservationStream();
   if (isSessionActive) endCurrentSession();
@@ -5624,14 +5824,7 @@ const startObserver = () => {
         const now = Date.now();
         if (now - lastTaskSuggestionMs >= TASK_SUGGESTION_COOLDOWN_MS) {
           lastTaskSuggestionMs = now;
-          pendingTaskLabel = taskLabel;
-          const message = `I see you're ${taskLabel}. Want me to guide you with AI tools?`;
-          showNotification({
-            message,
-            actionLabel: 'Yes, start session',
-            cancelLabel: 'Not now',
-            notifType: 'session-start-prompt',
-          });
+          showSessionInvite(event, taskLabel);
         }
       }
 
@@ -5669,6 +5862,7 @@ app
       suggestionCache.clear();
       notificationHovered = false;
       notificationWindow?.destroy();
+      clearAvatarInvite('ignored');
       if (avatarWindow && !avatarWindow.isDestroyed()) {
         avatarWindow.webContents.send('system-suspend');
       }

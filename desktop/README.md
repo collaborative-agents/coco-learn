@@ -24,7 +24,6 @@ desktop/
 │   │   └── components/
 │   │       ├── OnboardingView.tsx     # First-run setup (mode selection, AI tools, custom prompt)
 │   │       ├── SessionChatView.tsx    # Full tutor chat panel
-│   │       ├── SessionSetupView.tsx   # Task label + struggle-detection interval picker
 │   │       ├── NotificationView.tsx   # Session start/end prompts
 │   │       ├── ObservationBubble.tsx  # Tiered status bubbles on the avatar
 │   │       ├── PetSprite.tsx          # Animated avatar sprite with mood states
@@ -52,7 +51,6 @@ A single React bundle is loaded into several `BrowserWindow` instances, each rou
 | **Avatar** | _(default)_ | Transparent, always-on-top pet sprite with observation bubbles |
 | **Onboarding** | `onboarding` | First-run configuration wizard |
 | **Chat** | `session` | Full tutor conversation panel |
-| **Session Setup** | `session-setup` | Task label and check-in interval |
 | **Notification** | `notification` | Session prompts and system warnings |
 
 ### Observation bubbles

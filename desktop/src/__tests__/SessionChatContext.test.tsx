@@ -743,6 +743,44 @@ describe('deferred suggestion context', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('prefills an editable draft alongside the attached context', () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async () => null);
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+
+    render(<SessionChatView />);
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: 'What Coco noticed',
+        label: 'Drafting a social media thread',
+        rawObservation: 'The user is drafting a thread in a notes app.',
+        deferUntilUserMessage: true,
+        draft:
+          "I'm working on: Drafting a social media thread. Help me with this.",
+      });
+    });
+
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue(
+      "I'm working on: Drafting a social media thread. Help me with this.",
+    );
+    expect(
+      screen.getByText('Suggestion context attached: What Coco noticed'),
+    ).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.anything(),
+    );
+  });
+
   it('renders streamed text and tool-call lifecycle events in one reply', async () => {
     const listeners = new Map<string, (data: any) => void>();
     let requestId = '';

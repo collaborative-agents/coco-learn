@@ -90,7 +90,15 @@ export type Channels =
   | 'get-chat-content-zoom-factor'
   | 'chat-content-zoom-factor'
   | 'open-chat-settings'
-  | 'open-avatar-actions-menu'
+  // Coco's ••• menu, shown in its own window next to the avatar
+  | 'open-avatar-menu'
+  | 'close-avatar-menu'
+  | 'avatar-menu-open'
+  | 'avatar-menu-closed'
+  | 'avatar-menu-painted'
+  | 'avatar-menu-size'
+  | 'avatar-menu-action'
+  | 'avatar-menu-visibility'
   // Proactive session flow
   | 'session-active'
   | 'show-session-setup'
@@ -158,8 +166,6 @@ export type Channels =
   | 'activity-support-rated'
   // Renderer asks main to resize the avatar window to fit current content
   | 'resize-avatar-window'
-  // Renderer asks whether the actions menu fits above Coco or must drop down
-  | 'get-avatar-actions-menu-placement'
   // Tier 3: tutor guidance routed to bubble when webapp is hidden
   | 'tutor-notification'
   // Tier 2: user clicked "Help me with this" in the bubble

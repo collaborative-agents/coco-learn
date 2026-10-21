@@ -6,31 +6,9 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import App, { placeActionsMenu } from '../renderer/App';
+import App from '../renderer/App';
 
 describe('App', () => {
-  it('hides the avatar from the three-dot menu without sleeping or quitting', async () => {
-    const invoke = jest.fn().mockResolvedValue({ success: true });
-    const sendMessage = jest.fn();
-    (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage } };
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide' }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('update-avatar-visibility', { hideAvatar: true }));
-    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-    expect(invoke.mock.calls.some(([channel]) => channel === 'set-coco-sleep-mode')).toBe(false);
-  });
-
-  it('keeps the menu open when hiding fails', async () => {
-    const invoke = jest.fn(async (channel) => channel === 'update-avatar-visibility' ? { success: false } : []);
-    (window as any).electron = { ipcRenderer: { on: jest.fn(() => jest.fn()), invoke, sendMessage: jest.fn() } };
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not hide Coco');
-    expect(screen.getByRole('menu')).toBeInTheDocument();
-  });
-
   it('should render', () => {
     expect(render(<App />)).toBeTruthy();
   });
@@ -100,53 +78,9 @@ describe('App', () => {
     expect(screen.queryByText('Heads up')).not.toBeInTheDocument();
   });
 
-  it('keeps Coco asleep on avatar click and wakes it from the menu', async () => {
-    const sendMessage = jest.fn();
-    const invoke = jest.fn(
-      (channel: string, payload?: { sleeping?: boolean }) => {
-        if (channel === 'get-coco-sleep-mode') {
-          return Promise.resolve({ sleeping: false });
-        }
-        return Promise.resolve({ success: true, sleeping: payload?.sleeping });
-      },
-    );
-    (window as any).electron = {
-      ipcRenderer: {
-        on: jest.fn(() => jest.fn()),
-        sendMessage,
-        invoke,
-      },
-    };
-
-    render(<App />);
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('get-coco-sleep-mode');
-    });
-    fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(await screen.findByText('Sleep'));
-
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
-        sleeping: true,
-      });
-    });
-
-    fireEvent.click(screen.getByAltText('Desktop Pet'));
-    expect(sendMessage).not.toHaveBeenCalledWith('open-main-window');
-    expect(invoke).not.toHaveBeenCalledWith('set-coco-sleep-mode', {
-      sleeping: false,
-    });
-
-    fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(await screen.findByText('Wake Coco'));
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
-        sleeping: false,
-      });
-    });
-  });
-
-  it('opens the action menu when the avatar is right-clicked', async () => {
+  const setupMenuIpc = (
+    invoke: jest.Mock = jest.fn().mockResolvedValue({ sleeping: false }),
+  ) => {
     const sendMessage = jest.fn();
     const listeners = new Map<string, (...args: unknown[]) => void>();
     (window as any).electron = {
@@ -158,257 +92,120 @@ describe('App', () => {
           },
         ),
         sendMessage,
-        invoke: jest.fn().mockResolvedValue({ sleeping: false }),
-      },
-    };
-
-    render(<App />);
-    expect(screen.getByText('Right-click for menu')).toBeInTheDocument();
-    const avatarContainer = screen
-      .getByAltText('Desktop Pet')
-      .closest('.pet-container');
-    expect(avatarContainer).not.toBeNull();
-
-    fireEvent.contextMenu(avatarContainer!);
-    expect(
-      await screen.findByRole('menu', { name: 'Coco actions' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Open Chat')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTitle('More actions'));
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    act(() => listeners.get('open-avatar-actions-menu')?.());
-    expect(
-      await screen.findByRole('menu', { name: 'Coco actions' }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Open Chat'));
-    expect(sendMessage).toHaveBeenCalledWith('open-main-window');
-  });
-
-  it('offers consistent navigation and Quit, without History', async () => {
-    const sendMessage = jest.fn();
-    (window as any).electron = {
-      ipcRenderer: {
-        on: jest.fn(() => jest.fn()),
-        sendMessage,
-        invoke: jest.fn((channel: string) =>
-          Promise.resolve(
-            channel === 'get-coco-sleep-mode' ? { sleeping: false } : [],
-          ),
-        ),
-      },
-    };
-
-    render(<App />);
-    await waitFor(() => {
-      expect(window.electron?.ipcRenderer.invoke).toHaveBeenCalledWith(
-        'get-coco-sleep-mode',
-      );
-    });
-    fireEvent.click(screen.getByTitle('More actions'));
-    expect((await screen.findAllByRole('menuitem')).map((item) => item.textContent)).toEqual([
-      'Open Chat', 'Training', 'Settings', 'Hide', 'Sleep', 'Quit',
-    ]);
-    expect(screen.queryByRole('menuitem', { name: /History/i })).not.toBeInTheDocument();
-    const trainingItem = screen.getByRole('menuitem', { name: 'Training' });
-    expect(trainingItem).toHaveClass('pet-training-action');
-    expect(
-      trainingItem.querySelector('.pet-menu-icon--training'),
-    ).toBeInTheDocument();
-    fireEvent.click(trainingItem);
-    expect(sendMessage).toHaveBeenCalledWith('open-training');
-
-    fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(await screen.findByText('Settings'));
-    expect(sendMessage).toHaveBeenCalledWith('open-chat-settings');
-
-    fireEvent.click(screen.getByTitle('More actions'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Quit' }));
-    expect(sendMessage).toHaveBeenCalledWith('quit-from-avatar');
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-  });
-
-  it('closes the contextual action menu when the avatar window loses focus', async () => {
-    (window as any).electron = {
-      ipcRenderer: {
-        on: jest.fn(() => jest.fn()),
-        sendMessage: jest.fn(),
-        invoke: jest.fn().mockResolvedValue({ sleeping: false }),
-      },
-    };
-
-    render(<App />);
-    await waitFor(() => {
-      expect(window.electron?.ipcRenderer.invoke).toHaveBeenCalledWith(
-        'get-coco-sleep-mode',
-      );
-    });
-    fireEvent.click(screen.getByTitle('More actions'));
-    expect(
-      await screen.findByRole('menu', { name: 'Coco actions' }),
-    ).toBeInTheDocument();
-
-    fireEvent.blur(window);
-    expect(
-      screen.queryByRole('menu', { name: 'Coco actions' }),
-    ).not.toBeInTheDocument();
-  });
-
-  const workArea = { x: 0, y: 25, width: 1440, height: 875 };
-  const setupAvatar = (footprint: { x: number; y: number }) => {
-    const listeners = new Map<string, (...args: unknown[]) => void>();
-    const invoke = jest.fn((channel: string) =>
-      Promise.resolve(
-        channel === 'get-avatar-actions-menu-placement'
-          ? { footprint, workArea }
-          : [],
-      ),
-    );
-    (window as any).electron = {
-      ipcRenderer: {
-        on: (channel: string, callback: (...args: unknown[]) => void) => {
-          listeners.set(channel, callback);
-          return () => listeners.delete(channel);
-        },
-        sendMessage: jest.fn(),
         invoke,
       },
     };
-    const { container } = render(<App />);
-    return { container, invoke, listeners };
+    const chooseMenuItem = (action: string) =>
+      act(() => listeners.get('avatar-menu-action')?.(action));
+    return { sendMessage, listeners, chooseMenuItem };
   };
 
-  it('drops the menu down over Coco when there is no room above', async () => {
-    const { container, invoke } = setupAvatar({ x: 1200, y: 30 });
-    fireEvent.contextMenu(container.querySelector('.pet-container')!);
+  it.each([
+    [70, 180],
+    [200, 240],
+  ])(
+    'sizes the window to a %ipx bubble so Coco can still reach the top',
+    async (bubbleHeight, windowHeight) => {
+      const offsetHeight = jest
+        .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+        .mockImplementation(function offsetHeightOf(this: HTMLElement) {
+          return this.classList.contains('observation-bubble')
+            ? bubbleHeight
+            : 0;
+        });
+      const { listeners } = setupMenuIpc();
+      const { invoke } = window.electron!.ipcRenderer as any;
 
-    expect(
-      await screen.findByRole('menu', { name: 'Coco actions' }),
-    ).toHaveClass('is-below');
-    expect(invoke).toHaveBeenCalledWith('resize-avatar-window', {
-      width: 200,
-      height: 440,
-      anchor: 'top',
-      anchorX: 'right',
-    });
-    await waitFor(() =>
-      expect(container.querySelector('.pet-stage')).toHaveClass(
-        'is-anchored-top',
-      ),
-    );
-
-    fireEvent.blur(window);
-    await waitFor(() =>
-      expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
-        width: 180,
-        height: 180,
-        anchor: 'bottom',
-        anchorX: 'right',
-      }),
-    );
-    await waitFor(() =>
-      expect(container.querySelector('.pet-stage')).not.toHaveClass(
-        'is-anchored-top',
-      ),
-    );
-  });
-
-  it('drops the menu down near the top even while a bubble is showing', async () => {
-    const { container, invoke, listeners } = setupAvatar({ x: 1200, y: 30 });
-    act(() => {
-      listeners.get('observation-update')?.({
-        type: 'snapshot',
-        observation: 'The user may have made an error.',
-        status: 'mistake',
-        ts: Date.now() / 1000,
+      render(<App />);
+      act(() => {
+        listeners.get('observation-update')?.({
+          type: 'snapshot',
+          observation: 'The user may have made an error.',
+          status: 'mistake',
+          ts: Date.now() / 1000,
+        });
       });
-    });
-    expect(screen.getByText('Heads up')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
+          width: 420,
+          height: windowHeight,
+        }),
+      );
+      offsetHeight.mockRestore();
+    },
+  );
 
-    fireEvent.contextMenu(container.querySelector('.pet-container')!);
-    expect(
-      await screen.findByRole('menu', { name: 'Coco actions' }),
-    ).toHaveClass('is-below');
-    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
-      width: 420,
-      height: 440,
-      anchor: 'top',
-      anchorX: 'right',
-    });
-    // The short bubble stays beside Coco instead of jumping to the top.
-    await waitFor(() =>
-      expect(container.querySelector('.pet-stage')).toHaveClass(
-        'is-anchored-top',
-        'keeps-bubble-in-place',
-      ),
+  it('keeps Coco asleep on avatar click and wakes it from the menu', async () => {
+    const invoke = jest.fn(
+      (channel: string, payload?: { sleeping?: boolean }) => {
+        if (channel === 'get-coco-sleep-mode') {
+          return Promise.resolve({ sleeping: false });
+        }
+        return Promise.resolve({ success: true, sleeping: payload?.sleeping });
+      },
     );
-  });
+    const { sendMessage, chooseMenuItem } = setupMenuIpc(invoke);
 
-  it('grows the window rightward when Coco is partly past the left edge', async () => {
-    const { container, invoke, listeners } = setupAvatar({ x: -50, y: 500 });
-    act(() => {
-      listeners.get('observation-update')?.({
-        type: 'snapshot',
-        observation: 'The user may have made an error.',
-        status: 'mistake',
-        ts: Date.now() / 1000,
+    render(<App />);
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('get-coco-sleep-mode');
+    });
+    chooseMenuItem('toggle-sleep');
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
+        sleeping: true,
       });
     });
 
-    fireEvent.contextMenu(container.querySelector('.pet-container')!);
-    const menu = await screen.findByRole('menu', { name: 'Coco actions' });
-    // The menu's left edge lands 4px inside the screen: -50 + 18 + 36 = 4.
-    expect(menu).toHaveStyle({ left: '36px' });
-    expect(menu).not.toHaveClass('is-below');
-    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
-      width: 222,
-      height: 440,
-      anchor: 'bottom',
-      anchorX: 'left',
+    // Let the sleep result settle before interacting again.
+    await act(async () => {});
+    fireEvent.click(screen.getByAltText('Desktop Pet'));
+    expect(sendMessage).not.toHaveBeenCalledWith('open-main-window');
+    expect(invoke).not.toHaveBeenCalledWith('set-coco-sleep-mode', {
+      sleeping: false,
     });
-    await waitFor(() =>
-      expect(container.querySelector('.pet-stage')).toHaveClass(
-        'is-anchored-left',
-        'hides-bubble',
-      ),
+
+    chooseMenuItem('toggle-sleep');
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
+        sleeping: false,
+      });
+    });
+  });
+
+  it('asks main to open the menu from the ••• button and a right-click', () => {
+    const { sendMessage, listeners } = setupMenuIpc();
+
+    render(<App />);
+    expect(screen.getByText('Right-click for menu')).toBeInTheDocument();
+    const trigger = screen.getByTitle('More actions');
+    fireEvent.click(trigger);
+    expect(sendMessage).toHaveBeenCalledWith('open-avatar-menu');
+
+    sendMessage.mockClear();
+    fireEvent.contextMenu(
+      screen.getByAltText('Desktop Pet').closest('.pet-container')!,
     );
+    expect(sendMessage).toHaveBeenCalledWith('open-avatar-menu');
 
-    fireEvent.blur(window);
-    await waitFor(() =>
-      expect(container.querySelector('.pet-stage')).not.toHaveClass(
-        'is-anchored-left',
-      ),
-    );
-    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
-      width: 420,
-      height: 320,
-      anchor: 'bottom',
-      anchorX: 'right',
-    });
-  });
-});
-
-describe('placeActionsMenu', () => {
-  const workArea = { x: 0, y: 25, width: 1440, height: 875 };
-
-  it('opens above and up-left of Coco when there is room', () => {
-    expect(
-      placeActionsMenu({ footprint: { x: 700, y: 500 }, workArea }, 440),
-    ).toEqual({ vertical: 'above', left: -16 });
+    act(() => listeners.get('avatar-menu-visibility')?.({ open: true }));
+    expect(trigger).toHaveClass('is-open');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    act(() => listeners.get('avatar-menu-visibility')?.({ open: false }));
+    expect(trigger).not.toHaveClass('is-open');
   });
 
-  it('slides the menu left when Coco is partly past the right edge', () => {
-    // 1300 - 28 + 164 = 1436, 4px inside the right edge.
-    expect(
-      placeActionsMenu({ footprint: { x: 1300, y: 500 }, workArea }, 440),
-    ).toEqual({ vertical: 'above', left: -28 });
-  });
+  it('runs the navigation and Quit items chosen in the menu window', () => {
+    const { sendMessage, chooseMenuItem } = setupMenuIpc();
 
-  it('keeps the default layout when the geometry is unavailable', () => {
-    expect(placeActionsMenu(null, 440)).toEqual({
-      vertical: 'above',
-      left: -16,
-    });
+    render(<App />);
+    chooseMenuItem('open-main-window');
+    expect(sendMessage).toHaveBeenCalledWith('open-main-window');
+    chooseMenuItem('open-training');
+    expect(sendMessage).toHaveBeenCalledWith('open-training');
+    chooseMenuItem('open-chat-settings');
+    expect(sendMessage).toHaveBeenCalledWith('open-chat-settings');
+    chooseMenuItem('quit');
+    expect(sendMessage).toHaveBeenCalledWith('quit-from-avatar');
   });
 });

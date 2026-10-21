@@ -30,11 +30,15 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent, Rectangle, WebContents } from 'electron';
+import type { IpcMainInvokeEvent, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
-import { avatarRecoveryItems, cocoNavigationItems } from './avatar-menu';
+import {
+  avatarRecoveryItems,
+  cocoNavigationItems,
+  placeAvatarMenu,
+} from './avatar-menu';
 import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
@@ -253,13 +257,18 @@ const desktopAppUpdater = new DesktopAppUpdater({
 // imagePreviewWindow: full-display preview for pending and sent chat images.
 // sessionSetupWindow: small floating window for proactive session config
 let avatarWindow: BrowserWindow | null = null;
-// Base avatar footprint (just the pet) and which edges of the avatar window the
-// pet is currently pinned to — see 'resize-avatar-window'.
+// Base avatar footprint (just the pet), pinned to the avatar window's
+// bottom-right corner — see 'resize-avatar-window'.
 const AVATAR_BASE_SIZE = 180;
-type AvatarStageAnchor = 'top' | 'bottom';
-type AvatarStageAnchorX = 'left' | 'right';
-let avatarStageAnchor: AvatarStageAnchor = 'bottom';
-let avatarStageAnchorX: AvatarStageAnchorX = 'right';
+// avatarMenuWindow: Coco's ••• menu, shown next to the pet on demand.
+let avatarMenuWindow: BrowserWindow | null = null;
+// Menu content size, reported by its renderer once laid out.
+let avatarMenuSize = { width: 0, height: 0 };
+let avatarMenuOpen = false;
+let avatarMenuClosedAt = 0;
+// Transparent room around the menu for its drop shadow; matches the padding of
+// .avatar-menu-view.
+const AVATAR_MENU_PADDING = 24;
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
@@ -854,6 +863,150 @@ const createOnboardingWindow = (modelsOnly = false) => {
   });
 };
 
+// ── Avatar actions menu ───────────────────────────────────────────────────────
+// The ••• menu lives in its own small transparent window. Growing the avatar
+// window to fit it made macOS show that window blank or misplaced for a frame
+// or two on every open. This window is sized and placed while hidden, and only
+// becomes visible once its renderer has painted the menu.
+
+const avatarMenuBounds = () => {
+  if (!avatarWindow || avatarWindow.isDestroyed()) return null;
+  const b = avatarWindow.getBounds();
+  const { x, y, below } = placeAvatarMenu(
+    {
+      x: b.x + b.width - AVATAR_BASE_SIZE,
+      y: b.y + b.height - AVATAR_BASE_SIZE,
+    },
+    avatarMenuSize,
+    screen.getDisplayMatching(b).workArea,
+  );
+  return {
+    below,
+    bounds: {
+      x: x - AVATAR_MENU_PADDING,
+      y: y - AVATAR_MENU_PADDING,
+      width: avatarMenuSize.width + AVATAR_MENU_PADDING * 2,
+      height: avatarMenuSize.height + AVATAR_MENU_PADDING * 2,
+    },
+  };
+};
+
+function closeAvatarMenu(): void {
+  if (!avatarMenuOpen) return;
+  avatarMenuOpen = false;
+  avatarMenuClosedAt = Date.now();
+  if (avatarMenuWindow && !avatarMenuWindow.isDestroyed()) {
+    avatarMenuWindow.setOpacity(0);
+    avatarMenuWindow.hide();
+    avatarMenuWindow.webContents.send('avatar-menu-closed');
+  }
+  avatarWindow?.webContents.send('avatar-menu-visibility', { open: false });
+}
+
+function openAvatarMenu(): void {
+  if (avatarMenuOpen) {
+    closeAvatarMenu();
+    return;
+  }
+  // The click that closed the menu (by blurring it) must not reopen it.
+  if (Date.now() - avatarMenuClosedAt < 300) return;
+  const placement = avatarMenuBounds();
+  if (
+    !placement ||
+    !avatarMenuWindow ||
+    avatarMenuWindow.isDestroyed() ||
+    avatarMenuSize.height === 0
+  ) {
+    return;
+  }
+  avatarMenuOpen = true;
+  avatarMenuWindow.setOpacity(0);
+  avatarMenuWindow.setBounds(placement.bounds);
+  avatarMenuWindow.webContents.send('avatar-menu-open', {
+    below: placement.below,
+  });
+  // Focus it so Escape and clicking elsewhere close it.
+  avatarMenuWindow.show();
+  avatarWindow?.webContents.send('avatar-menu-visibility', { open: true });
+}
+
+const createAvatarMenuWindow = () => {
+  if (avatarMenuWindow && !avatarMenuWindow.isDestroyed()) return;
+  avatarMenuWindow = new BrowserWindow({
+    show: false,
+    width: 1,
+    height: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: process.platform !== 'darwin',
+    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+  });
+  if (process.platform === 'darwin') {
+    avatarMenuWindow.excludedFromShownWindowsMenu = true;
+  }
+  configureFullscreenCompanionWindow(avatarMenuWindow);
+  avatarMenuWindow.setOpacity(0);
+  avatarMenuWindow.loadURL(`${resolveHtmlPath('index.html')}?view=avatar-menu`);
+  // Clicking anywhere else closes the menu, like a native one.
+  avatarMenuWindow.on('blur', () => closeAvatarMenu());
+  avatarMenuWindow.on('closed', () => {
+    avatarMenuWindow = null;
+    avatarMenuOpen = false;
+    avatarMenuSize = { width: 0, height: 0 };
+  });
+};
+
+ipcMain.removeAllListeners('open-avatar-menu');
+ipcMain.on('open-avatar-menu', (event) => {
+  if (event.sender !== avatarWindow?.webContents) return;
+  openAvatarMenu();
+});
+
+ipcMain.removeAllListeners('close-avatar-menu');
+ipcMain.on('close-avatar-menu', (event) => {
+  if (event.sender !== avatarMenuWindow?.webContents) return;
+  closeAvatarMenu();
+});
+
+// The menu renderer has painted the freshly opened menu: reveal the window.
+ipcMain.removeAllListeners('avatar-menu-painted');
+ipcMain.on('avatar-menu-painted', (event) => {
+  if (event.sender !== avatarMenuWindow?.webContents || !avatarMenuOpen) return;
+  avatarMenuWindow.setOpacity(1);
+});
+
+ipcMain.removeAllListeners('avatar-menu-size');
+ipcMain.on(
+  'avatar-menu-size',
+  (event, size: { width?: unknown; height?: unknown } | undefined) => {
+    if (event.sender !== avatarMenuWindow?.webContents) return;
+    const width = Number(size?.width);
+    const height = Number(size?.height);
+    if (!(width > 0 && height > 0)) return;
+    avatarMenuSize = { width: Math.ceil(width), height: Math.ceil(height) };
+    // Content grew or shrank while open (e.g. a Hide error): keep it in place.
+    const placement = avatarMenuOpen ? avatarMenuBounds() : null;
+    if (placement) avatarMenuWindow?.setBounds(placement.bounds);
+  },
+);
+
+// Menu items other than Hide run in the avatar renderer, which owns the state
+// they touch (the current bubble, Coco's mood).
+ipcMain.removeAllListeners('avatar-menu-action');
+ipcMain.on('avatar-menu-action', (event, action: unknown) => {
+  if (event.sender !== avatarMenuWindow?.webContents) return;
+  if (typeof action !== 'string') return;
+  closeAvatarMenu();
+  avatarWindow?.webContents.send('avatar-menu-action', action);
+});
+
 // ── Avatar window ─────────────────────────────────────────────────────────────
 
 const createAvatarWindow = () => {
@@ -864,8 +1017,6 @@ const createAvatarWindow = () => {
   // 'resize-avatar-window' when a bubble or the history panel becomes visible,
   // and shrinks it back when they go away. Keeps transparent dead-zones from
   // intercepting clicks meant for the desktop below.
-  avatarStageAnchor = 'bottom';
-  avatarStageAnchorX = 'right';
   avatarWindow = new BrowserWindow({
     show: false,
     width: AVATAR_BASE_SIZE,
@@ -899,6 +1050,7 @@ const createAvatarWindow = () => {
   avatarWindow.on('closed', () => {
     avatarWindow = null;
     avatarRendererReady = false;
+    avatarMenuWindow?.destroy();
   });
 
   avatarWindow.webContents.setWindowOpenHandler((edata) => {
@@ -907,20 +1059,18 @@ const createAvatarWindow = () => {
   });
 
   // Native drag regions do not reliably dispatch DOM context-menu events. Use
-  // Electron's native hooks, then ask the renderer to reveal the same menu as
-  // the ellipsis button so both entry points stay visually and functionally
-  // consistent.
-  const revealActionsMenu = () => {
-    avatarWindow?.webContents.send('open-avatar-actions-menu');
-  };
+  // Electron's native hooks to open the same menu as the ellipsis button so
+  // both entry points stay visually and functionally consistent.
   avatarWindow.webContents.on('context-menu', (event) => {
     event.preventDefault();
-    revealActionsMenu();
+    openAvatarMenu();
   });
   avatarWindow.on('system-context-menu', (event) => {
     event.preventDefault();
-    revealActionsMenu();
+    openAvatarMenu();
   });
+
+  createAvatarMenuWindow();
 
   // (notification is screen-pinned; no need to reposition on move)
 };
@@ -2834,6 +2984,7 @@ ipcMain.on('training-feedback', async (_event, payload) => {
 function publishCocoSleepMode() {
   const state = { sleeping: isCocoSleeping() };
   avatarWindow?.webContents.send('coco-sleep-mode-changed', state);
+  avatarMenuWindow?.webContents.send('coco-sleep-mode-changed', state);
   chatWindow?.webContents.send('coco-sleep-mode-changed', state);
   wakeWordCaptureWindow?.webContents.send('coco-sleep-mode-changed', state);
   if (tray && !tray.isDestroyed()) createTray();
@@ -3204,69 +3355,26 @@ ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
 });
 
 // ── Dynamic avatar-window resize ──────────────────────────────────────────────
-// Renderer asks for a new content size when the bubble, history panel or
-// actions menu appears/disappears. The pet normally sits in the bottom-right
-// corner so the window grows up and to the left. When the actions menu has no
-// room above or to the left (Coco parked at the top or left edge of the
-// screen), the renderer pins the pet to the top and/or left instead and the
-// window grows down and/or right. Either way the pet's base footprint keeps its
-// screen position, so macOS never has to push the window back on-screen and
-// drag Coco along with it.
-const avatarPetTop = (bounds: Rectangle) =>
-  avatarStageAnchor === 'top'
-    ? bounds.y
-    : bounds.y + bounds.height - AVATAR_BASE_SIZE;
-const avatarPetLeft = (bounds: Rectangle) =>
-  avatarStageAnchorX === 'left'
-    ? bounds.x
-    : bounds.x + bounds.width - AVATAR_BASE_SIZE;
-
+// Renderer asks for a new content size when the bubble or history panel
+// appears/disappears. We pin the bottom-right corner so the pet stays put
+// while the window grows up and to the left.
 ipcMain.removeHandler('resize-avatar-window');
 ipcMain.handle(
   'resize-avatar-window',
-  (
-    _event,
-    {
-      width,
-      height,
-      anchor = 'bottom',
-      anchorX = 'right',
-    }: {
-      width: number;
-      height: number;
-      anchor?: AvatarStageAnchor;
-      anchorX?: AvatarStageAnchorX;
-    },
-  ) => {
+  (_event, { width, height }: { width: number; height: number }) => {
     if (!avatarWindow || avatarWindow.isDestroyed()) return;
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const b = avatarWindow.getBounds();
-    const petTop = avatarPetTop(b);
-    const petLeft = avatarPetLeft(b);
-    avatarStageAnchor = anchor === 'top' ? 'top' : 'bottom';
-    avatarStageAnchorX = anchorX === 'left' ? 'left' : 'right';
-    const x =
-      avatarStageAnchorX === 'left' ? petLeft : petLeft + AVATAR_BASE_SIZE - w;
-    const y =
-      avatarStageAnchor === 'top' ? petTop : petTop + AVATAR_BASE_SIZE - h;
-    if (b.width === w && b.height === h && b.x === x && b.y === y) return;
-    avatarWindow.setBounds({ x, y, width: w, height: h });
+    if (b.width === w && b.height === h) return;
+    avatarWindow.setBounds({
+      x: b.x + b.width - w,
+      y: b.y + b.height - h,
+      width: w,
+      height: h,
+    });
   },
 );
-
-// Renderer asks where Coco's base footprint sits relative to the work area
-// before opening the actions menu, so it can open the menu above or below Coco
-// and keep it horizontally on-screen.
-ipcMain.removeHandler('get-avatar-actions-menu-placement');
-ipcMain.handle('get-avatar-actions-menu-placement', () => {
-  if (!avatarWindow || avatarWindow.isDestroyed()) return null;
-  const b = avatarWindow.getBounds();
-  return {
-    footprint: { x: avatarPetLeft(b), y: avatarPetTop(b) },
-    workArea: screen.getDisplayMatching(b).workArea,
-  };
-});
 
 ipcMain.removeAllListeners('activity-history-visibility');
 ipcMain.on(

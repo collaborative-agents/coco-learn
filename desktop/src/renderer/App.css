@@ -31,9 +31,34 @@
   bottom: auto;
 }
 
+/* A bubble short enough to fit keeps its usual spot instead of jumping to the
+   top: 156px is where bottom: 24px puts its bottom edge at the base size. */
+.pet-stage.is-anchored-top.keeps-bubble-in-place .observation-bubble {
+  top: auto;
+  bottom: calc(100% - 156px);
+}
+
 .pet-stage.is-anchored-top .pet-pulse-ring {
   top: 24px;
   bottom: auto;
+}
+
+/* Coco parked at the left edge with the actions menu open: the window grows
+   rightward, so pin the pet to the left. As above, 18px puts the pet where the
+   right-anchored layout does at the base size. */
+.pet-stage.is-anchored-left {
+  justify-content: flex-start;
+  padding-left: 18px;
+}
+
+.pet-stage.is-anchored-left .pet-pulse-ring {
+  left: 24px;
+  right: auto;
+}
+
+/* The bubble sits to Coco's left, which is off-screen in that case. */
+.pet-stage.hides-bubble .observation-bubble {
+  visibility: hidden;
 }
 
 .pet-container {
@@ -663,17 +688,19 @@
   background: rgba(60, 60, 67, 0.14);
 }
 
-/* No room above Coco: drop the menu down from the ••• trigger, over Coco. */
+/* No room above Coco: drop the menu down from the ••• trigger, over Coco.
+   Opaque and without a fade, so Coco never shows through it. */
 .pet-actions-menu.is-below {
   top: 38px;
   bottom: auto;
+  background: rgb(247, 247, 249);
   transform-origin: top right;
   animation-name: pet-menu-in-below;
 }
 
 @keyframes pet-menu-in-below {
-  from { opacity: 0; transform: translateY(-3px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { transform: translateY(-3px) scale(0.96); }
+  to { transform: translateY(0) scale(1); }
 }
 
 @keyframes pet-menu-in {

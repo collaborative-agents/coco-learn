@@ -52,8 +52,55 @@ const WIN_BUBBLE_H = 320;   // bubble (label + wrapped text + action button)
 const WIN_SUGGESTION_H = 520;
 const WIN_HISTORY_W = 440;  // activity panel ~260 + 168 offset + slack
 const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
-const WIN_ACTION_MENU_W = 200;
 const WIN_ACTION_MENU_H = 440;
+// Actions-menu geometry relative to Coco's base footprint, mirroring App.css:
+// .pet-container sits 18px inside the footprint, and the 164px menu normally
+// ends 20px inside the container's right edge, so it starts 16px left of the
+// footprint.
+const PET_CONTAINER_INSET = 18;
+const ACTION_MENU_WIDTH = 164;
+const ACTION_MENU_DEFAULT_LEFT = -16;
+const ACTION_MENU_SCREEN_MARGIN = 4;
+// Where .observation-bubble's bottom: 24px puts its bottom edge, measured from
+// the top of the base footprint.
+const BUBBLE_BOTTOM_IN_FOOTPRINT = WIN_BASE_H - 24;
+
+type ActionsMenuLayout = {
+  vertical: 'above' | 'below';
+  /** Menu's left edge relative to Coco's base footprint. */
+  left: number;
+};
+
+export type AvatarMenuGeometry = {
+  footprint: { x: number; y: number };
+  workArea: { x: number; y: number; width: number; height: number };
+} | null;
+
+/**
+ * Open the actions menu above Coco unless the window would leave the top of
+ * the work area, and slide it sideways when Coco is parked at (or partly past)
+ * a side edge, so the whole menu stays on-screen.
+ */
+export function placeActionsMenu(
+  geometry: AvatarMenuGeometry,
+  windowHeight: number,
+): ActionsMenuLayout {
+  if (!geometry) return { vertical: 'above', left: ACTION_MENU_DEFAULT_LEFT };
+  const { footprint, workArea } = geometry;
+  const fitsAbove = footprint.y + WIN_BASE_H - windowHeight >= workArea.y;
+  const fitsBelow = footprint.y + windowHeight <= workArea.y + workArea.height;
+  const minLeft = workArea.x + ACTION_MENU_SCREEN_MARGIN - footprint.x;
+  const maxLeft =
+    workArea.x +
+    workArea.width -
+    ACTION_MENU_SCREEN_MARGIN -
+    ACTION_MENU_WIDTH -
+    footprint.x;
+  return {
+    vertical: !fitsAbove && fitsBelow ? 'below' : 'above',
+    left: Math.max(minLeft, Math.min(ACTION_MENU_DEFAULT_LEFT, maxLeft)),
+  };
+}
 
 
 /**
@@ -442,19 +489,28 @@ function PetView() {
   const [showHistory, setShowHistory] = useState(false);
   const [cocoSleeping, setCocoSleeping] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  // 'below' when Coco sits too close to the top of the screen for the menu to
-  // open upward; the menu then drops down over Coco and the window grows down.
-  const [actionsMenuPlacement, setActionsMenuPlacement] = useState<
-    'above' | 'below'
-  >('above');
-  // Which window edge the pet is pinned to. Mirrors the anchor main.ts uses
-  // when resizing; only flipped while the window is at its base footprint,
-  // where both anchors put the pet in the same spot.
+  // vertical is 'below' when Coco sits too close to the top of the screen for
+  // the menu to open upward; the menu then drops down over Coco and the window
+  // grows down. left moves the menu sideways when Coco is at a side edge.
+  const [actionsMenuLayout, setActionsMenuLayout] = useState<ActionsMenuLayout>(
+    { vertical: 'above', left: ACTION_MENU_DEFAULT_LEFT },
+  );
+  // Which window edges the pet is pinned to. Mirrors the anchors main.ts uses
+  // when resizing; flipped before the window grows the other way and restored
+  // once it has shrunk back.
   const [stageAnchor, setStageAnchor] = useState<'top' | 'bottom'>('bottom');
+  const [stageAnchorX, setStageAnchorX] = useState<'left' | 'right'>('right');
+  // Whether the bubble is short enough to stay put while the window is pinned
+  // to the top; taller bubbles hang down below the top edge instead.
+  const [bubbleKeepsPlace, setBubbleKeepsPlace] = useState(true);
+  // The menu is drawn only once main has resized the window for it; drawn any
+  // earlier it would flash clipped inside the old, smaller window.
+  const [actionsMenuReady, setActionsMenuReady] = useState(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const [hideError, setHideError] = useState('');
   const [hidingAvatar, setHidingAvatar] = useState(false);
   const petActionsRef = useRef<HTMLDivElement | null>(null);
-  const bubbleVisibleRef = useRef(false);
+  const bubbleHeightRef = useRef(0);
 
   // Use refs so listener captures the latest cleanup targets without
   // re-subscribing every render.
@@ -504,26 +560,35 @@ function PetView() {
     if (bubble) scheduleBubbleHide(holdMsRef.current);
   };
 
-  // Ask main whether the menu fits above Coco before showing it, so the window
-  // never grows off the top of the screen (macOS would push it back down and
-  // drag Coco with it). While a bubble is up the window is already enlarged,
-  // so keep the default upward layout.
+  // Ask main where Coco sits before showing the menu, so the window never
+  // grows off the top of the screen (macOS would push it back down and drag
+  // Coco with it) and the menu is never cut off at a side edge. A visible
+  // bubble keeps the window at least its own height, so size for both.
   const openActionsMenu = async () => {
     setShowHistory(false);
     setHideError('');
-    let placement: 'above' | 'below' = 'above';
-    if (!bubbleVisibleRef.current) {
-      try {
-        const result = await window.electron?.ipcRenderer.invoke(
-          'get-avatar-actions-menu-placement',
-          { height: WIN_ACTION_MENU_H },
-        );
-        if (result === 'below') placement = 'below';
-      } catch {
-        // Fall back to opening upward.
-      }
+    let geometry: AvatarMenuGeometry = null;
+    try {
+      const result = (await window.electron?.ipcRenderer.invoke(
+        'get-avatar-actions-menu-placement',
+      )) as AvatarMenuGeometry | undefined;
+      if (result?.footprint && result.workArea) geometry = result;
+    } catch {
+      // Fall back to the default layout above Coco.
     }
-    setActionsMenuPlacement(placement);
+    setActionsMenuLayout(
+      placeActionsMenu(
+        geometry,
+        Math.max(WIN_ACTION_MENU_H, bubbleHeightRef.current),
+      ),
+    );
+    const bubbleElement = stageRef.current?.querySelector<HTMLElement>(
+      '.observation-bubble',
+    );
+    setBubbleKeepsPlace(
+      (bubbleElement?.offsetHeight ?? 0) <= BUBBLE_BOTTOM_IN_FOOTPRINT,
+    );
+    setActionsMenuReady(false);
     setActionsMenuOpen(true);
   };
 
@@ -1009,9 +1074,31 @@ function PetView() {
   const suggestionVisible = bubble?.suggestion != null;
   const historyVisible = showHistory;
   const actionsMenuVisible = actionsMenuOpen;
-  bubbleVisibleRef.current = bubbleVisible;
+  let bubbleHeight = 0;
+  if (bubbleVisible)
+    bubbleHeight = suggestionVisible ? WIN_SUGGESTION_H : WIN_BUBBLE_H;
+  bubbleHeightRef.current = bubbleHeight;
   const desiredStageAnchor =
-    actionsMenuVisible && actionsMenuPlacement === 'below' ? 'top' : 'bottom';
+    actionsMenuVisible && actionsMenuLayout.vertical === 'below'
+      ? 'top'
+      : 'bottom';
+  const menuExtendLeft = Math.max(
+    0,
+    ACTION_MENU_SCREEN_MARGIN - actionsMenuLayout.left,
+  );
+  const menuExtendRight = Math.max(
+    0,
+    actionsMenuLayout.left +
+      ACTION_MENU_WIDTH +
+      ACTION_MENU_SCREEN_MARGIN -
+      WIN_BASE_W,
+  );
+  const desiredStageAnchorX =
+    actionsMenuVisible && menuExtendRight > 0 ? 'left' : 'right';
+  // The bubble sits to Coco's left, so when Coco is parked at the left edge it
+  // is off-screen anyway. Hide it while the menu grows the window rightward.
+  const bubbleHidden = desiredStageAnchorX === 'left';
+  const actionsMenuWidth = WIN_BASE_W + menuExtendLeft + menuExtendRight;
 
   // Resize the avatar window to fit whatever is currently on stage. Runs on
   // mount (shrinks from any leftover default size to the base footprint) and
@@ -1019,7 +1106,7 @@ function PetView() {
   useEffect(() => {
     let width = WIN_BASE_W;
     let height = WIN_BASE_H;
-    if (bubbleVisible) {
+    if (bubbleVisible && !bubbleHidden) {
       width = Math.max(width, WIN_BUBBLE_W);
       height = Math.max(height, suggestionVisible ? WIN_SUGGESTION_H : WIN_BUBBLE_H);
     }
@@ -1028,20 +1115,26 @@ function PetView() {
       height = Math.max(height, WIN_HISTORY_H);
     }
     if (actionsMenuVisible) {
-      width = Math.max(width, WIN_ACTION_MENU_W);
+      width = Math.max(width, actionsMenuWidth);
       height = Math.max(height, WIN_ACTION_MENU_H);
     }
-    // Growing downward starts from the base footprint, so pin the pet to the
-    // top first; when shrinking back, wait until the window is small again.
+    // Growing down or right, pin the pet to the top or left first; when
+    // shrinking back, wait until the window is small again.
     if (desiredStageAnchor === 'top') setStageAnchor('top');
+    if (desiredStageAnchorX === 'left') setStageAnchorX('left');
     let cancelled = false;
     const resize = async () => {
       await window.electron?.ipcRenderer.invoke('resize-avatar-window', {
         width,
         height,
         anchor: desiredStageAnchor,
+        anchorX: desiredStageAnchorX,
       });
-      if (!cancelled) setStageAnchor(desiredStageAnchor);
+      if (!cancelled) {
+        setStageAnchor(desiredStageAnchor);
+        setStageAnchorX(desiredStageAnchorX);
+        if (actionsMenuVisible) setActionsMenuReady(true);
+      }
     };
     resize().catch(() => undefined);
     return () => {
@@ -1052,12 +1145,20 @@ function PetView() {
     suggestionVisible,
     historyVisible,
     actionsMenuVisible,
+    actionsMenuWidth,
+    bubbleHidden,
     desiredStageAnchor,
+    desiredStageAnchorX,
   ]);
 
   return (
     <div
-      className={`pet-stage${stageAnchor === 'top' ? ' is-anchored-top' : ''}`}
+      ref={stageRef}
+      className={`pet-stage${stageAnchor === 'top' ? ' is-anchored-top' : ''}${
+        stageAnchorX === 'left' ? ' is-anchored-left' : ''
+      }${bubbleHidden ? ' hides-bubble' : ''}${
+        bubbleKeepsPlace ? ' keeps-bubble-in-place' : ''
+      }`}
     >
       {/* Activity panel */}
       {showHistory && (
@@ -1116,11 +1217,15 @@ function PetView() {
           •••
         </button>
 
-        {actionsMenuVisible && (
+        {actionsMenuVisible && actionsMenuReady && (
           <div
             className={`pet-actions-menu${
-              actionsMenuPlacement === 'below' ? ' is-below' : ''
+              actionsMenuLayout.vertical === 'below' ? ' is-below' : ''
             }`}
+            style={{
+              left: actionsMenuLayout.left - PET_CONTAINER_INSET,
+              right: 'auto',
+            }}
             role="menu"
             aria-label="Coco actions"
           >

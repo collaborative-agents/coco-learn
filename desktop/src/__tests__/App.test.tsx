@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import App from '../renderer/App';
+import App, { placeActionsMenu } from '../renderer/App';
 
 describe('App', () => {
   it('hides the avatar from the three-dot menu without sleeping or quitting', async () => {
@@ -255,17 +255,32 @@ describe('App', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('drops the menu down over Coco when there is no room above', async () => {
+  const workArea = { x: 0, y: 25, width: 1440, height: 875 };
+  const setupAvatar = (footprint: { x: number; y: number }) => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
     const invoke = jest.fn((channel: string) =>
       Promise.resolve(
-        channel === 'get-avatar-actions-menu-placement' ? 'below' : [],
+        channel === 'get-avatar-actions-menu-placement'
+          ? { footprint, workArea }
+          : [],
       ),
     );
     (window as any).electron = {
-      ipcRenderer: { on: jest.fn(() => jest.fn()), sendMessage: jest.fn(), invoke },
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage: jest.fn(),
+        invoke,
+      },
     };
-
     const { container } = render(<App />);
+    return { container, invoke, listeners };
+  };
+
+  it('drops the menu down over Coco when there is no room above', async () => {
+    const { container, invoke } = setupAvatar({ x: 1200, y: 30 });
     fireEvent.contextMenu(container.querySelector('.pet-container')!);
 
     expect(
@@ -275,6 +290,7 @@ describe('App', () => {
       width: 200,
       height: 440,
       anchor: 'top',
+      anchorX: 'right',
     });
     await waitFor(() =>
       expect(container.querySelector('.pet-stage')).toHaveClass(
@@ -288,6 +304,7 @@ describe('App', () => {
         width: 180,
         height: 180,
         anchor: 'bottom',
+        anchorX: 'right',
       }),
     );
     await waitFor(() =>
@@ -295,5 +312,103 @@ describe('App', () => {
         'is-anchored-top',
       ),
     );
+  });
+
+  it('drops the menu down near the top even while a bubble is showing', async () => {
+    const { container, invoke, listeners } = setupAvatar({ x: 1200, y: 30 });
+    act(() => {
+      listeners.get('observation-update')?.({
+        type: 'snapshot',
+        observation: 'The user may have made an error.',
+        status: 'mistake',
+        ts: Date.now() / 1000,
+      });
+    });
+    expect(screen.getByText('Heads up')).toBeInTheDocument();
+
+    fireEvent.contextMenu(container.querySelector('.pet-container')!);
+    expect(
+      await screen.findByRole('menu', { name: 'Coco actions' }),
+    ).toHaveClass('is-below');
+    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
+      width: 420,
+      height: 440,
+      anchor: 'top',
+      anchorX: 'right',
+    });
+    // The short bubble stays beside Coco instead of jumping to the top.
+    await waitFor(() =>
+      expect(container.querySelector('.pet-stage')).toHaveClass(
+        'is-anchored-top',
+        'keeps-bubble-in-place',
+      ),
+    );
+  });
+
+  it('grows the window rightward when Coco is partly past the left edge', async () => {
+    const { container, invoke, listeners } = setupAvatar({ x: -50, y: 500 });
+    act(() => {
+      listeners.get('observation-update')?.({
+        type: 'snapshot',
+        observation: 'The user may have made an error.',
+        status: 'mistake',
+        ts: Date.now() / 1000,
+      });
+    });
+
+    fireEvent.contextMenu(container.querySelector('.pet-container')!);
+    const menu = await screen.findByRole('menu', { name: 'Coco actions' });
+    // The menu's left edge lands 4px inside the screen: -50 + 18 + 36 = 4.
+    expect(menu).toHaveStyle({ left: '36px' });
+    expect(menu).not.toHaveClass('is-below');
+    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
+      width: 222,
+      height: 440,
+      anchor: 'bottom',
+      anchorX: 'left',
+    });
+    await waitFor(() =>
+      expect(container.querySelector('.pet-stage')).toHaveClass(
+        'is-anchored-left',
+        'hides-bubble',
+      ),
+    );
+
+    fireEvent.blur(window);
+    await waitFor(() =>
+      expect(container.querySelector('.pet-stage')).not.toHaveClass(
+        'is-anchored-left',
+      ),
+    );
+    expect(invoke).toHaveBeenLastCalledWith('resize-avatar-window', {
+      width: 420,
+      height: 320,
+      anchor: 'bottom',
+      anchorX: 'right',
+    });
+  });
+});
+
+describe('placeActionsMenu', () => {
+  const workArea = { x: 0, y: 25, width: 1440, height: 875 };
+
+  it('opens above and up-left of Coco when there is room', () => {
+    expect(
+      placeActionsMenu({ footprint: { x: 700, y: 500 }, workArea }, 440),
+    ).toEqual({ vertical: 'above', left: -16 });
+  });
+
+  it('slides the menu left when Coco is partly past the right edge', () => {
+    // 1300 - 28 + 164 = 1436, 4px inside the right edge.
+    expect(
+      placeActionsMenu({ footprint: { x: 1300, y: 500 }, workArea }, 440),
+    ).toEqual({ vertical: 'above', left: -28 });
+  });
+
+  it('keeps the default layout when the geometry is unavailable', () => {
+    expect(placeActionsMenu(null, 440)).toEqual({
+      vertical: 'above',
+      left: -16,
+    });
   });
 });

@@ -30,7 +30,7 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent, WebContents } from 'electron';
+import type { IpcMainInvokeEvent, Rectangle, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
@@ -253,11 +253,13 @@ const desktopAppUpdater = new DesktopAppUpdater({
 // imagePreviewWindow: full-display preview for pending and sent chat images.
 // sessionSetupWindow: small floating window for proactive session config
 let avatarWindow: BrowserWindow | null = null;
-// Base avatar footprint (just the pet) and which edge of the avatar window the
+// Base avatar footprint (just the pet) and which edges of the avatar window the
 // pet is currently pinned to — see 'resize-avatar-window'.
 const AVATAR_BASE_SIZE = 180;
 type AvatarStageAnchor = 'top' | 'bottom';
+type AvatarStageAnchorX = 'left' | 'right';
 let avatarStageAnchor: AvatarStageAnchor = 'bottom';
+let avatarStageAnchorX: AvatarStageAnchorX = 'right';
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
@@ -863,6 +865,7 @@ const createAvatarWindow = () => {
   // and shrinks it back when they go away. Keeps transparent dead-zones from
   // intercepting clicks meant for the desktop below.
   avatarStageAnchor = 'bottom';
+  avatarStageAnchorX = 'right';
   avatarWindow = new BrowserWindow({
     show: false,
     width: AVATAR_BASE_SIZE,
@@ -3202,16 +3205,21 @@ ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
 
 // ── Dynamic avatar-window resize ──────────────────────────────────────────────
 // Renderer asks for a new content size when the bubble, history panel or
-// actions menu appears/disappears. The right edge is always pinned. The pet
-// normally sits at the bottom so the window grows up and to the left; when the
-// actions menu has no room above (Coco parked at the top of the screen) the
-// renderer anchors the pet to the top instead and the window grows downward.
-// Either way the pet's base footprint keeps its screen position, so macOS never
-// has to push the window back on-screen and drag Coco along with it.
-const avatarPetTop = (bounds: Electron.Rectangle) =>
+// actions menu appears/disappears. The pet normally sits in the bottom-right
+// corner so the window grows up and to the left. When the actions menu has no
+// room above or to the left (Coco parked at the top or left edge of the
+// screen), the renderer pins the pet to the top and/or left instead and the
+// window grows down and/or right. Either way the pet's base footprint keeps its
+// screen position, so macOS never has to push the window back on-screen and
+// drag Coco along with it.
+const avatarPetTop = (bounds: Rectangle) =>
   avatarStageAnchor === 'top'
     ? bounds.y
     : bounds.y + bounds.height - AVATAR_BASE_SIZE;
+const avatarPetLeft = (bounds: Rectangle) =>
+  avatarStageAnchorX === 'left'
+    ? bounds.x
+    : bounds.x + bounds.width - AVATAR_BASE_SIZE;
 
 ipcMain.removeHandler('resize-avatar-window');
 ipcMain.handle(
@@ -3222,37 +3230,43 @@ ipcMain.handle(
       width,
       height,
       anchor = 'bottom',
-    }: { width: number; height: number; anchor?: AvatarStageAnchor },
+      anchorX = 'right',
+    }: {
+      width: number;
+      height: number;
+      anchor?: AvatarStageAnchor;
+      anchorX?: AvatarStageAnchorX;
+    },
   ) => {
     if (!avatarWindow || avatarWindow.isDestroyed()) return;
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const b = avatarWindow.getBounds();
     const petTop = avatarPetTop(b);
+    const petLeft = avatarPetLeft(b);
     avatarStageAnchor = anchor === 'top' ? 'top' : 'bottom';
+    avatarStageAnchorX = anchorX === 'left' ? 'left' : 'right';
+    const x =
+      avatarStageAnchorX === 'left' ? petLeft : petLeft + AVATAR_BASE_SIZE - w;
     const y =
       avatarStageAnchor === 'top' ? petTop : petTop + AVATAR_BASE_SIZE - h;
-    if (b.width === w && b.height === h && b.y === y) return;
-    avatarWindow.setBounds({ x: b.x + b.width - w, y, width: w, height: h });
+    if (b.width === w && b.height === h && b.x === x && b.y === y) return;
+    avatarWindow.setBounds({ x, y, width: w, height: h });
   },
 );
 
-// Renderer asks where the actions menu fits before opening it: 'above' Coco
-// (default) or 'below', dropping down over Coco when the window can't grow
-// upward without leaving the work area.
+// Renderer asks where Coco's base footprint sits relative to the work area
+// before opening the actions menu, so it can open the menu above or below Coco
+// and keep it horizontally on-screen.
 ipcMain.removeHandler('get-avatar-actions-menu-placement');
-ipcMain.handle(
-  'get-avatar-actions-menu-placement',
-  (_event, { height }: { height: number }) => {
-    if (!avatarWindow || avatarWindow.isDestroyed()) return 'above';
-    const b = avatarWindow.getBounds();
-    const { workArea } = screen.getDisplayMatching(b);
-    const petTop = avatarPetTop(b);
-    const fitsAbove = petTop + AVATAR_BASE_SIZE - height >= workArea.y;
-    const fitsBelow = petTop + height <= workArea.y + workArea.height;
-    return !fitsAbove && fitsBelow ? 'below' : 'above';
-  },
-);
+ipcMain.handle('get-avatar-actions-menu-placement', () => {
+  if (!avatarWindow || avatarWindow.isDestroyed()) return null;
+  const b = avatarWindow.getBounds();
+  return {
+    footprint: { x: avatarPetLeft(b), y: avatarPetTop(b) },
+    workArea: screen.getDisplayMatching(b).workArea,
+  };
+});
 
 ipcMain.removeAllListeners('activity-history-visibility');
 ipcMain.on(

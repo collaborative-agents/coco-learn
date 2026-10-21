@@ -39,7 +39,11 @@ import {
   cocoNavigationItems,
   placeAvatarMenu,
 } from './avatar-menu';
-import { avatarBubbleMaxHeight, placeAvatarBubble } from './avatar-bubble';
+import {
+  type AvatarCardPlacement,
+  avatarBubbleMaxHeight,
+  placeAvatarBubble,
+} from './avatar-bubble';
 import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
@@ -93,11 +97,11 @@ import {
   type WakeWordStatusEvent,
 } from './services/wake-word-service';
 import {
-  appendActivity,
+  appendActivity as storeAppendActivity,
   readActivity,
-  recordSupportEngagement,
-  recordSupportRating,
-  recordSupportSuggestion,
+  recordSupportEngagement as storeRecordSupportEngagement,
+  recordSupportRating as storeRecordSupportRating,
+  recordSupportSuggestion as storeRecordSupportSuggestion,
   pruneActivity,
 } from './activity-store';
 import {
@@ -258,8 +262,8 @@ const desktopAppUpdater = new DesktopAppUpdater({
 // imagePreviewWindow: full-display preview for pending and sent chat images.
 // sessionSetupWindow: small floating window for proactive session config
 let avatarWindow: BrowserWindow | null = null;
-// Base avatar footprint (just the pet), pinned to the avatar window's
-// bottom-right corner — see 'resize-avatar-window'.
+// Base avatar footprint (just the pet). The avatar window is exactly this size;
+// the bubble, menu and Activity panel each have their own window beside it.
 const AVATAR_BASE_SIZE = 180;
 // avatarMenuWindow: Coco's ••• menu, shown next to the pet on demand.
 let avatarMenuWindow: BrowserWindow | null = null;
@@ -279,6 +283,13 @@ let avatarBubbleCardSize = { width: 0, height: 0 };
 // Transparent room around the card for its drop shadow; matches the padding of
 // .avatar-bubble-view.
 const AVATAR_BUBBLE_PADDING = 24;
+// avatarHistoryWindow: Coco's Activity panel, shown next to the pet on demand.
+let avatarHistoryWindow: BrowserWindow | null = null;
+let avatarHistoryReady = false;
+let avatarHistoryOpen = false;
+let avatarHistoryCardSize = { width: 0, height: 0 };
+// Matches the padding of .avatar-history-view.
+const AVATAR_HISTORY_PADDING = 24;
 // Whether Coco is being dragged; a drag ends this long after its last move.
 let avatarDragging = false;
 let avatarDragEndTimer: ReturnType<typeof setTimeout> | null = null;
@@ -302,8 +313,36 @@ let sessionRecapContext: {
 } | null = null;
 let tray: Tray | null = null;
 let hideAvatarMode = false;
-let avatarRendererReady = false;
-let pendingOpenHistory = false;
+// The open Activity panel rereads the history file whenever it changes.
+const notifyActivityChanged = () => {
+  if (
+    avatarHistoryOpen &&
+    avatarHistoryWindow &&
+    !avatarHistoryWindow.isDestroyed()
+  ) {
+    avatarHistoryWindow.webContents.send('activity-history-changed');
+  }
+};
+const appendActivity: typeof storeAppendActivity = (...args) => {
+  storeAppendActivity(...args);
+  notifyActivityChanged();
+};
+const recordSupportEngagement: typeof storeRecordSupportEngagement = (
+  ...args
+) => {
+  storeRecordSupportEngagement(...args);
+  notifyActivityChanged();
+};
+const recordSupportRating: typeof storeRecordSupportRating = (...args) => {
+  storeRecordSupportRating(...args);
+  notifyActivityChanged();
+};
+const recordSupportSuggestion: typeof storeRecordSupportSuggestion = (
+  ...args
+) => {
+  storeRecordSupportSuggestion(...args);
+  notifyActivityChanged();
+};
 let cocoSleeping = false;
 let postAssessmentActive = false;
 const observationSleepGuard = new ObservationSleepGuard();
@@ -933,6 +972,7 @@ function openAvatarMenu(): void {
   ) {
     return;
   }
+  closeAvatarHistory();
   avatarMenuOpen = true;
   avatarMenuWindow.setOpacity(0);
   avatarMenuWindow.setBounds(placement.bounds);
@@ -1043,33 +1083,53 @@ const hideAvatarBubble = () => {
   avatarBubbleWindow.setIgnoreMouseEvents(true, { forward: true });
 };
 
-// Place the bubble next to Coco's current position. Returns false when there
-// is nothing to place yet.
-const placeAvatarBubbleWindow = (): boolean => {
+// Size and place a card window (bubble or Activity panel) beside Coco's
+// current position. Returns the side it went on, or null when it can't be
+// placed yet.
+const placeBesideAvatar = (
+  win: BrowserWindow | null,
+  card: { width: number; height: number },
+  padding: number,
+  options?: Parameters<typeof placeAvatarBubble>[3],
+): AvatarCardPlacement | null => {
   if (
-    !avatarBubbleState ||
-    !avatarBubbleWindow ||
-    avatarBubbleWindow.isDestroyed() ||
+    !win ||
+    win.isDestroyed() ||
     !avatarWindow ||
     avatarWindow.isDestroyed() ||
     !avatarWindow.isVisible() ||
-    avatarBubbleCardSize.height === 0
+    card.height === 0
   ) {
-    return false;
+    return null;
   }
   const b = avatarWindow.getBounds();
-  const { x, y, side } = placeAvatarBubble(
+  const placement = placeAvatarBubble(
     avatarFootprint(b),
-    avatarBubbleCardSize,
+    card,
     screen.getDisplayMatching(b).workArea,
+    options,
   );
-  avatarBubbleWindow.setBounds({
-    x: x - AVATAR_BUBBLE_PADDING,
-    y: y - AVATAR_BUBBLE_PADDING,
-    width: avatarBubbleCardSize.width + AVATAR_BUBBLE_PADDING * 2,
-    height: avatarBubbleCardSize.height + AVATAR_BUBBLE_PADDING * 2,
+  win.setBounds({
+    x: placement.x - padding,
+    y: placement.y - padding,
+    width: card.width + padding * 2,
+    height: card.height + padding * 2,
   });
-  avatarBubbleWindow.webContents.send('avatar-bubble-placement', { side });
+  return placement;
+};
+
+// Place the bubble next to Coco. Returns false when there is nothing to place.
+const placeAvatarBubbleWindow = (): boolean => {
+  if (!avatarBubbleState) return false;
+  const placement = placeBesideAvatar(
+    avatarBubbleWindow,
+    avatarBubbleCardSize,
+    AVATAR_BUBBLE_PADDING,
+  );
+  if (!placement) return false;
+  avatarBubbleWindow?.webContents.send('avatar-bubble-placement', {
+    side: placement.side,
+  });
   return true;
 };
 
@@ -1181,16 +1241,159 @@ ipcMain.on('avatar-bubble-event', (event, type: unknown) => {
   avatarWindow?.webContents.send('avatar-bubble-event', type);
 });
 
+// ── Avatar Activity panel ─────────────────────────────────────────────────────
+// Also its own child window beside Coco, for the same reasons as the bubble.
+// Main owns whether it is open (the hot key, tray and avatar all toggle it);
+// its renderer owns the records, read from the persisted history.
+
+// The panel is centered on Coco with a tail pointing at it, a little further
+// out than the bubble so the tall panel doesn't crowd the pet. While Coco is
+// dragged the panel is faded out and left alone; it is placed again, and
+// faded back in, once the drag ends.
+const placeAvatarHistoryWindow = (): boolean => {
+  if (!avatarHistoryOpen || avatarDragging) return false;
+  const placement = placeBesideAvatar(
+    avatarHistoryWindow,
+    avatarHistoryCardSize,
+    AVATAR_HISTORY_PADDING,
+    { align: 'center', insetX: 10 },
+  );
+  if (!placement) return false;
+  avatarHistoryWindow?.webContents.send('avatar-history-placement', {
+    side: placement.side,
+    tailY: placement.tailY,
+  });
+  return true;
+};
+
+function closeAvatarHistory(): void {
+  if (!avatarHistoryOpen) return;
+  avatarHistoryOpen = false;
+  avatarHistoryCardSize = { width: 0, height: 0 };
+  if (avatarHistoryWindow && !avatarHistoryWindow.isDestroyed()) {
+    avatarHistoryWindow.setOpacity(0);
+    avatarHistoryWindow.hide();
+    avatarHistoryWindow.setIgnoreMouseEvents(true, { forward: true });
+    avatarHistoryWindow.webContents.send('avatar-history-closed');
+  }
+  // The panel brought a hidden Coco along; put it away again.
+  if (hideAvatarMode) avatarWindow?.hide();
+}
+
+function openAvatarHistory(): void {
+  if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
+  if (!avatarWindow || avatarWindow.isDestroyed()) return;
+  closeAvatarMenu();
+  avatarHistoryOpen = true;
+  // The panel sits beside Coco, so it brings Coco back in hidden-avatar mode.
+  if (!avatarWindow.isVisible()) avatarWindow.show();
+  if (avatarHistoryReady) {
+    avatarHistoryWindow?.webContents.send('avatar-history-open');
+  }
+}
+
+function toggleAvatarHistory(): void {
+  if (avatarHistoryOpen) closeAvatarHistory();
+  else openAvatarHistory();
+}
+
+const createAvatarHistoryWindow = () => {
+  if (avatarHistoryWindow && !avatarHistoryWindow.isDestroyed()) return;
+  if (!avatarWindow || avatarWindow.isDestroyed()) return;
+  avatarHistoryReady = false;
+  avatarHistoryWindow = new BrowserWindow({
+    parent: avatarWindow,
+    show: false,
+    width: 1,
+    height: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: process.platform !== 'darwin',
+    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+  });
+  if (process.platform === 'darwin') {
+    avatarHistoryWindow.excludedFromShownWindowsMenu = true;
+  }
+  configureFullscreenCompanionWindow(avatarHistoryWindow);
+  avatarHistoryWindow.setOpacity(0);
+  avatarHistoryWindow.setIgnoreMouseEvents(true, { forward: true });
+  avatarHistoryWindow.loadURL(
+    `${resolveHtmlPath('index.html')}?view=avatar-history`,
+  );
+  // History asked for before the renderer loaded opens as soon as it has.
+  avatarHistoryWindow.webContents.on('did-finish-load', () => {
+    avatarHistoryReady = true;
+    if (avatarHistoryOpen) {
+      avatarHistoryWindow?.webContents.send('avatar-history-open');
+    }
+  });
+  avatarHistoryWindow.on('closed', () => {
+    avatarHistoryWindow = null;
+    avatarHistoryReady = false;
+    avatarHistoryOpen = false;
+    avatarHistoryCardSize = { width: 0, height: 0 };
+  });
+};
+
+ipcMain.removeAllListeners('avatar-history-close');
+ipcMain.on('avatar-history-close', (event) => {
+  if (event.sender !== avatarHistoryWindow?.webContents) return;
+  closeAvatarHistory();
+});
+
+ipcMain.removeAllListeners('avatar-history-size');
+ipcMain.on(
+  'avatar-history-size',
+  (event, size: { width?: unknown; height?: unknown } | undefined) => {
+    if (event.sender !== avatarHistoryWindow?.webContents) return;
+    const width = Number(size?.width);
+    const height = Number(size?.height);
+    if (!(width > 0 && height > 0)) return;
+    avatarHistoryCardSize = {
+      width: Math.ceil(width),
+      height: Math.ceil(height),
+    };
+    placeAvatarHistoryWindow();
+  },
+);
+
+// The opened panel has been painted at its final size: reveal it.
+ipcMain.removeAllListeners('avatar-history-painted');
+ipcMain.on('avatar-history-painted', (event) => {
+  if (event.sender !== avatarHistoryWindow?.webContents) return;
+  if (!placeAvatarHistoryWindow()) return;
+  avatarHistoryWindow.showInactive();
+  avatarHistoryWindow.setOpacity(1);
+});
+
+// Only the panel catches the mouse; its transparent margin lets clicks through.
+ipcMain.removeAllListeners('avatar-history-pointer');
+ipcMain.on(
+  'avatar-history-pointer',
+  (event, { inside }: { inside?: boolean } = {}) => {
+    if (event.sender !== avatarHistoryWindow?.webContents) return;
+    avatarHistoryWindow.setIgnoreMouseEvents(inside !== true, {
+      forward: true,
+    });
+  },
+);
+
 // ── Avatar window ─────────────────────────────────────────────────────────────
 
 const createAvatarWindow = () => {
   if (avatarWindow && !avatarWindow.isDestroyed()) return;
-  avatarRendererReady = false;
 
-  // Start small (just the pet). The renderer grows the window via
-  // 'resize-avatar-window' when the history panel opens, and shrinks it back
-  // when it closes. Keeps transparent dead-zones from intercepting clicks
-  // meant for the desktop below. The bubble and menu have their own windows.
+  // Just the pet. The bubble, menu and Activity panel have their own windows,
+  // so this one never resizes: resizing it pushed Coco around near the top of
+  // the screen, and its transparent margins would intercept desktop clicks.
   avatarWindow = new BrowserWindow({
     show: false,
     width: AVATAR_BASE_SIZE,
@@ -1223,9 +1426,9 @@ const createAvatarWindow = () => {
 
   avatarWindow.on('closed', () => {
     avatarWindow = null;
-    avatarRendererReady = false;
     avatarMenuWindow?.destroy();
     avatarBubbleWindow?.destroy();
+    avatarHistoryWindow?.destroy();
     avatarBubbleState = null;
     if (avatarDragEndTimer) clearTimeout(avatarDragEndTimer);
     avatarDragEndTimer = null;
@@ -1242,6 +1445,17 @@ const createAvatarWindow = () => {
     if (avatarWindow && !avatarWindow.isDestroyed()) {
       avatarWindow.webContents.send('avatar-dragging', { dragging });
     }
+    // The tall panel would trail off screen as it moves with Coco; fade it
+    // out for the drag and back in beside Coco's new spot.
+    if (
+      avatarHistoryOpen &&
+      avatarHistoryWindow &&
+      !avatarHistoryWindow.isDestroyed() &&
+      avatarHistoryWindow.isVisible()
+    ) {
+      if (dragging) avatarHistoryWindow.setOpacity(0);
+      else if (placeAvatarHistoryWindow()) avatarHistoryWindow.setOpacity(1);
+    }
   };
   const noteAvatarMove = () => {
     setAvatarDragging(true);
@@ -1254,7 +1468,10 @@ const createAvatarWindow = () => {
   };
   avatarWindow.on('will-move', noteAvatarMove);
   avatarWindow.on('move', noteAvatarMove);
-  avatarWindow.on('hide', hideAvatarBubble);
+  avatarWindow.on('hide', () => {
+    hideAvatarBubble();
+    closeAvatarHistory();
+  });
   avatarWindow.on('show', () => {
     if (!placeAvatarBubbleWindow() || !avatarBubbleWindow) return;
     avatarBubbleWindow.showInactive();
@@ -1280,6 +1497,7 @@ const createAvatarWindow = () => {
 
   createAvatarMenuWindow();
   createAvatarBubbleWindow();
+  createAvatarHistoryWindow();
 
   // (notification is screen-pinned; no need to reposition on move)
 };
@@ -2012,13 +2230,7 @@ function createTray(): void {
 }
 
 function openHistory(): void {
-  pendingOpenHistory = true;
-  if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
-  if (!avatarWindow || avatarWindow.isDestroyed()) return;
-  if (!avatarRendererReady) return;
-  pendingOpenHistory = false;
-  avatarWindow.show();
-  avatarWindow.webContents.send('open-observation-history');
+  openAvatarHistory();
 }
 
 function applyAvatarVisibility(hidden: boolean): void {
@@ -3561,47 +3773,6 @@ ipcMain.on('close-chat-window', (event) => {
 
 ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
   shell.showItemInFolder(fullPath);
-});
-
-// ── Dynamic avatar-window resize ──────────────────────────────────────────────
-// Renderer asks for a new content size when the history panel opens or
-// closes. We pin the bottom-right corner so the pet stays put while the window
-// grows up and to the left.
-ipcMain.removeHandler('resize-avatar-window');
-ipcMain.handle(
-  'resize-avatar-window',
-  (_event, { width, height }: { width: number; height: number }) => {
-    if (!avatarWindow || avatarWindow.isDestroyed()) return;
-    const w = Math.max(1, Math.round(width));
-    const h = Math.max(1, Math.round(height));
-    const b = avatarWindow.getBounds();
-    if (b.width === w && b.height === h) return;
-    avatarWindow.setBounds({
-      x: b.x + b.width - w,
-      y: b.y + b.height - h,
-      width: w,
-      height: h,
-    });
-    // The bubble, as a child window, just shifted with the window's origin.
-    // Coco itself didn't move, so put the bubble back beside it.
-    placeAvatarBubbleWindow();
-  },
-);
-
-ipcMain.removeAllListeners('activity-history-visibility');
-ipcMain.on(
-  'activity-history-visibility',
-  (_event, { visible }: { visible?: boolean }) => {
-    if (!hideAvatarMode) return;
-    if (visible === true) avatarWindow?.show();
-    else if (visible === false) avatarWindow?.hide();
-  },
-);
-
-ipcMain.removeAllListeners('avatar-renderer-ready');
-ipcMain.on('avatar-renderer-ready', () => {
-  avatarRendererReady = true;
-  if (pendingOpenHistory) openHistory();
 });
 
 // ── Proactive session IPC handlers ────────────────────────────────────────────
@@ -6181,9 +6352,7 @@ app
 
     // Cmd/Ctrl+Shift+H — toggle the observation history panel on the avatar.
     globalShortcut.register('CommandOrControl+Shift+H', () => {
-      if (avatarWindow && !avatarWindow.isDestroyed()) {
-        avatarWindow.webContents.send('toggle-observation-history');
-      }
+      toggleAvatarHistory();
     });
 
     app.on('activate', () => {

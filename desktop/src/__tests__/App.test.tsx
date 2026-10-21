@@ -105,7 +105,7 @@ describe('App', () => {
     return { sendMessage, listeners, chooseMenuItem };
   };
 
-  it('keeps the avatar window at the pet footprint when a bubble appears', async () => {
+  it('sends a new bubble to its own window without resizing the avatar', () => {
     const { listeners, sendMessage } = setupMenuIpc();
     const { invoke } = window.electron!.ipcRenderer as any;
 
@@ -118,12 +118,50 @@ describe('App', () => {
         phrase: expect.any(String),
       }),
     );
-    const resizes = invoke.mock.calls.filter(
-      ([channel]: [string]) => channel === 'resize-avatar-window',
+    expect(invoke).not.toHaveBeenCalledWith(
+      'resize-avatar-window',
+      expect.anything(),
     );
-    expect(resizes.length).toBeGreaterThan(0);
-    resizes.forEach(([, size]: [string, unknown]) =>
-      expect(size).toEqual({ width: 180, height: 180 }),
+  });
+
+  it('lets bubbles through again after sleeping with a suggestion open', async () => {
+    const suggestion = {
+      kind: 'content',
+      title: 'Try a smaller example',
+      body: 'Reduce the input first.',
+      copyText: 'Reduce the input first.',
+    };
+    const invoke = jest.fn(async (channel: string, payload?: any) => {
+      if (channel === 'get-instant-suggestion')
+        return { status: 'ready', suggestion, scenario: 'everyday_support' };
+      if (channel === 'set-coco-sleep-mode')
+        return { success: true, sleeping: payload?.sleeping };
+      return { sleeping: false };
+    });
+    const { listeners, sendMessage, chooseMenuItem } = setupMenuIpc(invoke);
+    render(<App />);
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+    // Reveal the suggestion, which pins the bubble.
+    await act(async () => {
+      listeners.get('avatar-bubble-event')?.('help');
+    });
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ suggestion }),
+    );
+
+    await act(async () => chooseMenuItem('toggle-sleep'));
+    expect(lastBubbleState(sendMessage)).toBeNull();
+    await act(async () => chooseMenuItem('toggle-sleep'));
+
+    act(() =>
+      listeners.get('observation-update')?.({
+        ...mistakeEvent(),
+        observation: 'A new observation after waking.',
+        status: 'stuck',
+      }),
+    );
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'stuck' }),
     );
   });
 

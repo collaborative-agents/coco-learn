@@ -589,15 +589,13 @@
 }
 
 /* ── Observation-history floating panel ─────────────────────────────────────
-   Appears to the left of the pet, sharing the same zone as the bubble.
-   Rendered above the bubble (later in DOM, z-index: 10).                   */
+   Drawn in its own window to the left of the pet, in the same zone as the
+   bubble (see AvatarHistoryView.css).                                       */
 
 .obs-history-panel {
   position: absolute;
   bottom: 24px;
   right: 168px;        /* flush left of the 150px pet + 12px padding + 6px gap */
-  /* main.ts grows the window to ~440×540 when this panel is visible, so the
-     252px width + 168px right offset fits without clipping. */
   width: 252px;
   max-height: 480px;
   display: flex;

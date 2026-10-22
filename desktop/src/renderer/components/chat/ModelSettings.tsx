@@ -50,7 +50,7 @@ export default function ModelSettings({
       <div style={S.groupLabel}>Models &amp; providers</div>
       <div style={S.helpText}>
         {routerManaged
-          ? 'Models use the managed CoCo Router. Personal API keys are not required; the sensing model is fixed, while Gemini tutor models remain configurable.'
+          ? 'Models use the managed CoCo Router. Personal API keys are not required; the sensing model is fixed, while tutor models remain configurable.'
           : 'The sensing model receives screenshots. Saving changes restarts the local sensing and tutor services.'}
       </div>
       {modelConfigLoading && (
@@ -195,7 +195,6 @@ export default function ModelSettings({
           <select
             style={S.customInput}
             value={model.provider}
-            disabled={routerManaged}
             onChange={(event) =>
               setTutorModels((current) =>
                 current.map((item, i) =>
@@ -207,7 +206,9 @@ export default function ModelSettings({
             }
           >
             {(routerManaged
-              ? MODEL_PROVIDER_OPTIONS.filter(([id]) => id === 'gemini')
+              ? MODEL_PROVIDER_OPTIONS.filter(([id]) =>
+                  ['gemini', 'openai', 'anthropic'].includes(id),
+                )
               : MODEL_PROVIDER_OPTIONS
             ).map(([id, label]) => (
               <option key={id} value={id}>

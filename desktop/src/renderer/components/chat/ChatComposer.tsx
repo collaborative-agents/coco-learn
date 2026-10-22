@@ -12,6 +12,7 @@ const HOTKEY_LABEL =
     : 'Ctrl + Shift + Space';
 
 interface Props {
+  modelPicker?: React.ReactNode;
   workspaceSessionId: string | null;
   agentRunning: boolean;
   stopAgent: () => Promise<void>;
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export default function ChatComposer({
+  modelPicker,
   workspaceSessionId,
   agentRunning,
   stopAgent,
@@ -150,6 +152,7 @@ export default function ChatComposer({
           onKeyDown={onKeyDown}
         />
         <ChatComposerActions
+          modelPicker={modelPicker}
           sessionId={workspaceSessionId}
           showUnderstandingCheck={profile.scenario === 'ai_upskilling'}
           checkingUnderstanding={checkingUnderstanding}

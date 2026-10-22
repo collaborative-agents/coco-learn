@@ -28,6 +28,7 @@ import { S } from './chat/styles';
 import ChatHeader from './chat/ChatHeader';
 import ChatTranscript from './chat/ChatTranscript';
 import ChatComposer from './chat/ChatComposer';
+import TutorModelPicker from './chat/TutorModelPicker';
 import DesktopWorkspace from './chat/DesktopWorkspace';
 import ConversationSidebar from './chat/ConversationSidebar';
 import HealthSettings from './chat/HealthSettings';
@@ -1451,6 +1452,16 @@ export default function SessionChatView() {
                 }}
               />{' '}
               <ChatComposer
+                modelPicker={
+                  <TutorModelPicker
+                    modelId={currentTutorModelId}
+                    onChange={setCurrentTutorModelId}
+                    disabled={
+                      sending || hasRunningTool || startingNewSession ||
+                      checkingUnderstanding || Boolean(reviewing)
+                    }
+                  />
+                }
                 workspaceSessionId={
                   reviewing?.sessionId ?? sessionIdRef.current
                 }

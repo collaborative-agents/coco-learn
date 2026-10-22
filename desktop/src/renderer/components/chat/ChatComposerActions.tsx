@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react';
 import { S } from './styles';
 import ContextViewer from './ContextViewer';
 
 interface Props {
+  modelPicker?: ReactNode;
   sessionId: string | null;
   showUnderstandingCheck: boolean;
   checkingUnderstanding: boolean;
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export default function ChatComposerActions({
+  modelPicker,
   sessionId,
   showUnderstandingCheck,
   checkingUnderstanding,
@@ -68,6 +71,7 @@ export default function ChatComposerActions({
         <ContextViewer key={sessionId} sessionId={sessionId} />
       </div>
       <div style={S.composerSendActions}>
+        {modelPicker}
         <button
           type="button"
           aria-label={

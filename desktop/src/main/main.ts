@@ -30,11 +30,20 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent, WebContents } from 'electron';
+import type { IpcMainInvokeEvent, Rectangle, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
-import { avatarRecoveryItems, cocoNavigationItems } from './avatar-menu';
+import {
+  avatarRecoveryItems,
+  cocoNavigationItems,
+  placeAvatarMenu,
+} from './avatar-menu';
+import {
+  type AvatarCardPlacement,
+  avatarBubbleMaxHeight,
+  placeAvatarBubble,
+} from './avatar-bubble';
 import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
@@ -88,11 +97,11 @@ import {
   type WakeWordStatusEvent,
 } from './services/wake-word-service';
 import {
-  appendActivity,
+  appendActivity as storeAppendActivity,
   readActivity,
-  recordSupportEngagement,
-  recordSupportRating,
-  recordSupportSuggestion,
+  recordSupportEngagement as storeRecordSupportEngagement,
+  recordSupportRating as storeRecordSupportRating,
+  recordSupportSuggestion as storeRecordSupportSuggestion,
   pruneActivity,
 } from './activity-store';
 import {
@@ -252,6 +261,38 @@ const desktopAppUpdater = new DesktopAppUpdater({
 //                     tutor/sensing servers — no external backend or WebSocket.
 // imagePreviewWindow: full-display preview for pending and sent chat images.
 let avatarWindow: BrowserWindow | null = null;
+// Base avatar footprint (just the pet). The avatar window is exactly this size;
+// the bubble, menu and Activity panel each have their own window beside it.
+const AVATAR_BASE_SIZE = 180;
+// avatarMenuWindow: Coco's ••• menu, shown next to the pet on demand.
+let avatarMenuWindow: BrowserWindow | null = null;
+// Menu content size, reported by its renderer once laid out.
+let avatarMenuSize = { width: 0, height: 0 };
+let avatarMenuOpen = false;
+let avatarMenuClosedAt = 0;
+// Transparent room around the menu for its drop shadow; matches the padding of
+// .avatar-menu-view.
+const AVATAR_MENU_PADDING = 24;
+// avatarBubbleWindow: the observation bubble, shown next to the pet.
+let avatarBubbleWindow: BrowserWindow | null = null;
+// The bubble the avatar renderer is showing (null when none), and the size of
+// its card as laid out by the bubble window's renderer.
+let avatarBubbleState: unknown = null;
+let avatarBubbleCardSize = { width: 0, height: 0 };
+// Transparent room around the card for its drop shadow; matches the padding of
+// .avatar-bubble-view.
+const AVATAR_BUBBLE_PADDING = 24;
+// avatarHistoryWindow: Coco's Activity panel, shown next to the pet on demand.
+let avatarHistoryWindow: BrowserWindow | null = null;
+let avatarHistoryReady = false;
+let avatarHistoryOpen = false;
+let avatarHistoryCardSize = { width: 0, height: 0 };
+// Matches the padding of .avatar-history-view.
+const AVATAR_HISTORY_PADDING = 24;
+// Whether Coco is being dragged; a drag ends this long after its last move.
+let avatarDragging = false;
+let avatarDragEndTimer: ReturnType<typeof setTimeout> | null = null;
+const AVATAR_DRAG_END_MS = 150;
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
@@ -270,8 +311,36 @@ let sessionRecapContext: {
 } | null = null;
 let tray: Tray | null = null;
 let hideAvatarMode = false;
-let avatarRendererReady = false;
-let pendingOpenHistory = false;
+// The open Activity panel rereads the history file whenever it changes.
+const notifyActivityChanged = () => {
+  if (
+    avatarHistoryOpen &&
+    avatarHistoryWindow &&
+    !avatarHistoryWindow.isDestroyed()
+  ) {
+    avatarHistoryWindow.webContents.send('activity-history-changed');
+  }
+};
+const appendActivity: typeof storeAppendActivity = (...args) => {
+  storeAppendActivity(...args);
+  notifyActivityChanged();
+};
+const recordSupportEngagement: typeof storeRecordSupportEngagement = (
+  ...args
+) => {
+  storeRecordSupportEngagement(...args);
+  notifyActivityChanged();
+};
+const recordSupportRating: typeof storeRecordSupportRating = (...args) => {
+  storeRecordSupportRating(...args);
+  notifyActivityChanged();
+};
+const recordSupportSuggestion: typeof storeRecordSupportSuggestion = (
+  ...args
+) => {
+  storeRecordSupportSuggestion(...args);
+  notifyActivityChanged();
+};
 let cocoSleeping = false;
 let postAssessmentActive = false;
 const observationSleepGuard = new ObservationSleepGuard();
@@ -845,20 +914,488 @@ const createOnboardingWindow = (modelsOnly = false) => {
   });
 };
 
+// ── Avatar actions menu ───────────────────────────────────────────────────────
+// The ••• menu lives in its own small transparent window. Growing the avatar
+// window to fit it made macOS show that window blank or misplaced for a frame
+// or two on every open. This window is sized and placed while hidden, and only
+// becomes visible once its renderer has painted the menu.
+
+const avatarMenuBounds = () => {
+  if (!avatarWindow || avatarWindow.isDestroyed()) return null;
+  const b = avatarWindow.getBounds();
+  const { x, y, below } = placeAvatarMenu(
+    {
+      x: b.x + b.width - AVATAR_BASE_SIZE,
+      y: b.y + b.height - AVATAR_BASE_SIZE,
+    },
+    avatarMenuSize,
+    screen.getDisplayMatching(b).workArea,
+  );
+  return {
+    below,
+    bounds: {
+      x: x - AVATAR_MENU_PADDING,
+      y: y - AVATAR_MENU_PADDING,
+      width: avatarMenuSize.width + AVATAR_MENU_PADDING * 2,
+      height: avatarMenuSize.height + AVATAR_MENU_PADDING * 2,
+    },
+  };
+};
+
+function closeAvatarMenu(): void {
+  if (!avatarMenuOpen) return;
+  avatarMenuOpen = false;
+  avatarMenuClosedAt = Date.now();
+  if (avatarMenuWindow && !avatarMenuWindow.isDestroyed()) {
+    avatarMenuWindow.setOpacity(0);
+    avatarMenuWindow.hide();
+    avatarMenuWindow.webContents.send('avatar-menu-closed');
+  }
+  avatarWindow?.webContents.send('avatar-menu-visibility', { open: false });
+}
+
+function openAvatarMenu(): void {
+  if (avatarMenuOpen) {
+    closeAvatarMenu();
+    return;
+  }
+  // The click that closed the menu (by blurring it) must not reopen it.
+  if (Date.now() - avatarMenuClosedAt < 300) return;
+  const placement = avatarMenuBounds();
+  if (
+    !placement ||
+    !avatarMenuWindow ||
+    avatarMenuWindow.isDestroyed() ||
+    avatarMenuSize.height === 0
+  ) {
+    return;
+  }
+  closeAvatarHistory();
+  avatarMenuOpen = true;
+  avatarMenuWindow.setOpacity(0);
+  avatarMenuWindow.setBounds(placement.bounds);
+  avatarMenuWindow.webContents.send('avatar-menu-open', {
+    below: placement.below,
+  });
+  // Focus it so Escape and clicking elsewhere close it.
+  avatarMenuWindow.show();
+  avatarWindow?.webContents.send('avatar-menu-visibility', { open: true });
+}
+
+const createAvatarMenuWindow = () => {
+  if (avatarMenuWindow && !avatarMenuWindow.isDestroyed()) return;
+  avatarMenuWindow = new BrowserWindow({
+    show: false,
+    width: 1,
+    height: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: process.platform !== 'darwin',
+    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+  });
+  if (process.platform === 'darwin') {
+    avatarMenuWindow.excludedFromShownWindowsMenu = true;
+  }
+  configureFullscreenCompanionWindow(avatarMenuWindow);
+  avatarMenuWindow.setOpacity(0);
+  avatarMenuWindow.loadURL(`${resolveHtmlPath('index.html')}?view=avatar-menu`);
+  // Clicking anywhere else closes the menu, like a native one.
+  avatarMenuWindow.on('blur', () => closeAvatarMenu());
+  avatarMenuWindow.on('closed', () => {
+    avatarMenuWindow = null;
+    avatarMenuOpen = false;
+    avatarMenuSize = { width: 0, height: 0 };
+  });
+};
+
+ipcMain.removeAllListeners('open-avatar-menu');
+ipcMain.on('open-avatar-menu', (event) => {
+  if (event.sender !== avatarWindow?.webContents) return;
+  openAvatarMenu();
+});
+
+ipcMain.removeAllListeners('close-avatar-menu');
+ipcMain.on('close-avatar-menu', (event) => {
+  if (event.sender !== avatarMenuWindow?.webContents) return;
+  closeAvatarMenu();
+});
+
+// The menu renderer has painted the freshly opened menu: reveal the window.
+ipcMain.removeAllListeners('avatar-menu-painted');
+ipcMain.on('avatar-menu-painted', (event) => {
+  if (event.sender !== avatarMenuWindow?.webContents || !avatarMenuOpen) return;
+  avatarMenuWindow.setOpacity(1);
+});
+
+ipcMain.removeAllListeners('avatar-menu-size');
+ipcMain.on(
+  'avatar-menu-size',
+  (event, size: { width?: unknown; height?: unknown } | undefined) => {
+    if (event.sender !== avatarMenuWindow?.webContents) return;
+    const width = Number(size?.width);
+    const height = Number(size?.height);
+    if (!(width > 0 && height > 0)) return;
+    avatarMenuSize = { width: Math.ceil(width), height: Math.ceil(height) };
+    // Content grew or shrank while open (e.g. a Hide error): keep it in place.
+    const placement = avatarMenuOpen ? avatarMenuBounds() : null;
+    if (placement) avatarMenuWindow?.setBounds(placement.bounds);
+  },
+);
+
+// Menu items other than Hide run in the avatar renderer, which owns the state
+// they touch (the current bubble, Coco's mood).
+ipcMain.removeAllListeners('avatar-menu-action');
+ipcMain.on('avatar-menu-action', (event, action: unknown) => {
+  if (event.sender !== avatarMenuWindow?.webContents) return;
+  if (typeof action !== 'string') return;
+  closeAvatarMenu();
+  avatarWindow?.webContents.send('avatar-menu-action', action);
+});
+
+// ── Avatar observation bubble ─────────────────────────────────────────────────
+// Like the ••• menu, the bubble lives in its own transparent window. Growing
+// the avatar window to fit it pushed Coco down whenever the window would have
+// crossed the menu bar, and could flash Coco out of place for a frame. The
+// avatar renderer still owns the bubble's state and handles its actions; this
+// window only draws it. Its transparent margin lets clicks through to whatever
+// is below, so it never blocks Coco or the desktop. It is a child of the avatar
+// window, so macOS moves it with Coco in the same frame while Coco is dragged;
+// it is re-placed once the drag ends, in case Coco now sits near an edge.
+
+const avatarFootprint = (bounds: Rectangle) => ({
+  x: bounds.x + bounds.width - AVATAR_BASE_SIZE,
+  y: bounds.y + bounds.height - AVATAR_BASE_SIZE,
+});
+
+const hideAvatarBubble = () => {
+  if (!avatarBubbleWindow || avatarBubbleWindow.isDestroyed()) return;
+  avatarBubbleWindow.setOpacity(0);
+  avatarBubbleWindow.hide();
+  avatarBubbleWindow.setIgnoreMouseEvents(true, { forward: true });
+};
+
+// Size and place a card window (bubble or Activity panel) beside Coco's
+// current position. Returns the side it went on, or null when it can't be
+// placed yet.
+const placeBesideAvatar = (
+  win: BrowserWindow | null,
+  card: { width: number; height: number },
+  padding: number,
+  options?: Parameters<typeof placeAvatarBubble>[3],
+): AvatarCardPlacement | null => {
+  if (
+    !win ||
+    win.isDestroyed() ||
+    !avatarWindow ||
+    avatarWindow.isDestroyed() ||
+    !avatarWindow.isVisible() ||
+    card.height === 0
+  ) {
+    return null;
+  }
+  const b = avatarWindow.getBounds();
+  const placement = placeAvatarBubble(
+    avatarFootprint(b),
+    card,
+    screen.getDisplayMatching(b).workArea,
+    options,
+  );
+  win.setBounds({
+    x: placement.x - padding,
+    y: placement.y - padding,
+    width: card.width + padding * 2,
+    height: card.height + padding * 2,
+  });
+  return placement;
+};
+
+// Place the bubble next to Coco. Returns false when there is nothing to place.
+const placeAvatarBubbleWindow = (): boolean => {
+  if (!avatarBubbleState) return false;
+  const placement = placeBesideAvatar(
+    avatarBubbleWindow,
+    avatarBubbleCardSize,
+    AVATAR_BUBBLE_PADDING,
+  );
+  if (!placement) return false;
+  avatarBubbleWindow?.webContents.send('avatar-bubble-placement', {
+    side: placement.side,
+  });
+  return true;
+};
+
+const createAvatarBubbleWindow = () => {
+  if (avatarBubbleWindow && !avatarBubbleWindow.isDestroyed()) return;
+  if (!avatarWindow || avatarWindow.isDestroyed()) return;
+  avatarBubbleWindow = new BrowserWindow({
+    parent: avatarWindow,
+    show: false,
+    width: 1,
+    height: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    // Showing a bubble must never take focus from the user's work.
+    focusable: false,
+    skipTaskbar: process.platform !== 'darwin',
+    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+  });
+  if (process.platform === 'darwin') {
+    avatarBubbleWindow.excludedFromShownWindowsMenu = true;
+  }
+  configureFullscreenCompanionWindow(avatarBubbleWindow);
+  avatarBubbleWindow.setOpacity(0);
+  avatarBubbleWindow.setIgnoreMouseEvents(true, { forward: true });
+  avatarBubbleWindow.loadURL(
+    `${resolveHtmlPath('index.html')}?view=avatar-bubble`,
+  );
+  // A reloaded renderer needs the current bubble again.
+  avatarBubbleWindow.webContents.on('did-finish-load', () => {
+    avatarBubbleWindow?.webContents.send('avatar-bubble-state', {
+      bubble: avatarBubbleState,
+    });
+  });
+  avatarBubbleWindow.on('closed', () => {
+    avatarBubbleWindow = null;
+    avatarBubbleCardSize = { width: 0, height: 0 };
+  });
+};
+
+// The avatar renderer's bubble changed (null when it went away).
+ipcMain.removeAllListeners('avatar-bubble-state');
+ipcMain.on('avatar-bubble-state', (event, payload: { bubble?: unknown }) => {
+  if (event.sender !== avatarWindow?.webContents) return;
+  avatarBubbleState = payload?.bubble ?? null;
+  if (!avatarBubbleWindow || avatarBubbleWindow.isDestroyed()) return;
+  if (!avatarBubbleState) {
+    hideAvatarBubble();
+    avatarBubbleCardSize = { width: 0, height: 0 };
+  }
+  const { workArea } = screen.getDisplayMatching(
+    avatarWindow?.getBounds() ?? screen.getPrimaryDisplay().workArea,
+  );
+  avatarBubbleWindow.webContents.send('avatar-bubble-state', {
+    bubble: avatarBubbleState,
+    maxHeight: avatarBubbleMaxHeight(workArea, AVATAR_BUBBLE_PADDING),
+  });
+});
+
+ipcMain.removeAllListeners('avatar-bubble-size');
+ipcMain.on(
+  'avatar-bubble-size',
+  (event, size: { width?: unknown; height?: unknown } | undefined) => {
+    if (event.sender !== avatarBubbleWindow?.webContents) return;
+    const width = Number(size?.width);
+    const height = Number(size?.height);
+    if (!(width > 0 && height > 0)) return;
+    avatarBubbleCardSize = {
+      width: Math.ceil(width),
+      height: Math.ceil(height),
+    };
+    placeAvatarBubbleWindow();
+  },
+);
+
+// The bubble renderer has painted a new bubble at its final size: reveal it.
+ipcMain.removeAllListeners('avatar-bubble-painted');
+ipcMain.on('avatar-bubble-painted', (event) => {
+  if (event.sender !== avatarBubbleWindow?.webContents) return;
+  if (!placeAvatarBubbleWindow()) return;
+  avatarBubbleWindow.showInactive();
+  avatarBubbleWindow.setOpacity(1);
+});
+
+// Only the card catches the mouse; its transparent margin lets clicks through.
+ipcMain.removeAllListeners('avatar-bubble-pointer');
+ipcMain.on(
+  'avatar-bubble-pointer',
+  (event, { inside }: { inside?: boolean } = {}) => {
+    if (event.sender !== avatarBubbleWindow?.webContents) return;
+    avatarBubbleWindow.setIgnoreMouseEvents(inside !== true, {
+      forward: true,
+    });
+  },
+);
+
+// Clicks and hovers on the bubble run in the avatar renderer, which owns the
+// bubble's state.
+ipcMain.removeAllListeners('avatar-bubble-event');
+ipcMain.on('avatar-bubble-event', (event, type: unknown) => {
+  if (event.sender !== avatarBubbleWindow?.webContents) return;
+  if (typeof type !== 'string') return;
+  avatarWindow?.webContents.send('avatar-bubble-event', type);
+});
+
+// ── Avatar Activity panel ─────────────────────────────────────────────────────
+// Also its own child window beside Coco, for the same reasons as the bubble.
+// Main owns whether it is open (the hot key, tray and avatar all toggle it);
+// its renderer owns the records, read from the persisted history.
+
+// The panel is centered on Coco with a tail pointing at it, a little further
+// out than the bubble so the tall panel doesn't crowd the pet. While Coco is
+// dragged the panel is faded out and left alone; it is placed again, and
+// faded back in, once the drag ends.
+const placeAvatarHistoryWindow = (): boolean => {
+  if (!avatarHistoryOpen || avatarDragging) return false;
+  const placement = placeBesideAvatar(
+    avatarHistoryWindow,
+    avatarHistoryCardSize,
+    AVATAR_HISTORY_PADDING,
+    { align: 'center', insetX: 10 },
+  );
+  if (!placement) return false;
+  avatarHistoryWindow?.webContents.send('avatar-history-placement', {
+    side: placement.side,
+    tailY: placement.tailY,
+  });
+  return true;
+};
+
+function closeAvatarHistory(): void {
+  if (!avatarHistoryOpen) return;
+  avatarHistoryOpen = false;
+  avatarHistoryCardSize = { width: 0, height: 0 };
+  if (avatarHistoryWindow && !avatarHistoryWindow.isDestroyed()) {
+    avatarHistoryWindow.setOpacity(0);
+    avatarHistoryWindow.hide();
+    avatarHistoryWindow.setIgnoreMouseEvents(true, { forward: true });
+    avatarHistoryWindow.webContents.send('avatar-history-closed');
+  }
+  // The panel brought a hidden Coco along; put it away again.
+  if (hideAvatarMode) avatarWindow?.hide();
+}
+
+function openAvatarHistory(): void {
+  if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
+  if (!avatarWindow || avatarWindow.isDestroyed()) return;
+  closeAvatarMenu();
+  avatarHistoryOpen = true;
+  // The panel sits beside Coco, so it brings Coco back in hidden-avatar mode.
+  if (!avatarWindow.isVisible()) avatarWindow.show();
+  if (avatarHistoryReady) {
+    avatarHistoryWindow?.webContents.send('avatar-history-open');
+  }
+}
+
+function toggleAvatarHistory(): void {
+  if (avatarHistoryOpen) closeAvatarHistory();
+  else openAvatarHistory();
+}
+
+const createAvatarHistoryWindow = () => {
+  if (avatarHistoryWindow && !avatarHistoryWindow.isDestroyed()) return;
+  if (!avatarWindow || avatarWindow.isDestroyed()) return;
+  avatarHistoryReady = false;
+  avatarHistoryWindow = new BrowserWindow({
+    parent: avatarWindow,
+    show: false,
+    width: 1,
+    height: 1,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: process.platform !== 'darwin',
+    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+  });
+  if (process.platform === 'darwin') {
+    avatarHistoryWindow.excludedFromShownWindowsMenu = true;
+  }
+  configureFullscreenCompanionWindow(avatarHistoryWindow);
+  avatarHistoryWindow.setOpacity(0);
+  avatarHistoryWindow.setIgnoreMouseEvents(true, { forward: true });
+  avatarHistoryWindow.loadURL(
+    `${resolveHtmlPath('index.html')}?view=avatar-history`,
+  );
+  // History asked for before the renderer loaded opens as soon as it has.
+  avatarHistoryWindow.webContents.on('did-finish-load', () => {
+    avatarHistoryReady = true;
+    if (avatarHistoryOpen) {
+      avatarHistoryWindow?.webContents.send('avatar-history-open');
+    }
+  });
+  avatarHistoryWindow.on('closed', () => {
+    avatarHistoryWindow = null;
+    avatarHistoryReady = false;
+    avatarHistoryOpen = false;
+    avatarHistoryCardSize = { width: 0, height: 0 };
+  });
+};
+
+ipcMain.removeAllListeners('avatar-history-close');
+ipcMain.on('avatar-history-close', (event) => {
+  if (event.sender !== avatarHistoryWindow?.webContents) return;
+  closeAvatarHistory();
+});
+
+ipcMain.removeAllListeners('avatar-history-size');
+ipcMain.on(
+  'avatar-history-size',
+  (event, size: { width?: unknown; height?: unknown } | undefined) => {
+    if (event.sender !== avatarHistoryWindow?.webContents) return;
+    const width = Number(size?.width);
+    const height = Number(size?.height);
+    if (!(width > 0 && height > 0)) return;
+    avatarHistoryCardSize = {
+      width: Math.ceil(width),
+      height: Math.ceil(height),
+    };
+    placeAvatarHistoryWindow();
+  },
+);
+
+// The opened panel has been painted at its final size: reveal it.
+ipcMain.removeAllListeners('avatar-history-painted');
+ipcMain.on('avatar-history-painted', (event) => {
+  if (event.sender !== avatarHistoryWindow?.webContents) return;
+  if (!placeAvatarHistoryWindow()) return;
+  avatarHistoryWindow.showInactive();
+  avatarHistoryWindow.setOpacity(1);
+});
+
+// Only the panel catches the mouse; its transparent margin lets clicks through.
+ipcMain.removeAllListeners('avatar-history-pointer');
+ipcMain.on(
+  'avatar-history-pointer',
+  (event, { inside }: { inside?: boolean } = {}) => {
+    if (event.sender !== avatarHistoryWindow?.webContents) return;
+    avatarHistoryWindow.setIgnoreMouseEvents(inside !== true, {
+      forward: true,
+    });
+  },
+);
+
 // ── Avatar window ─────────────────────────────────────────────────────────────
 
 const createAvatarWindow = () => {
   if (avatarWindow && !avatarWindow.isDestroyed()) return;
-  avatarRendererReady = false;
 
-  // Start small (just the pet). The renderer grows the window via
-  // 'resize-avatar-window' when a bubble or the history panel becomes visible,
-  // and shrinks it back when they go away. Keeps transparent dead-zones from
-  // intercepting clicks meant for the desktop below.
+  // Just the pet. The bubble, menu and Activity panel have their own windows,
+  // so this one never resizes: resizing it pushed Coco around near the top of
+  // the screen, and its transparent margins would intercept desktop clicks.
   avatarWindow = new BrowserWindow({
     show: false,
-    width: 180,
-    height: 180,
+    width: AVATAR_BASE_SIZE,
+    height: AVATAR_BASE_SIZE,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -887,7 +1424,56 @@ const createAvatarWindow = () => {
 
   avatarWindow.on('closed', () => {
     avatarWindow = null;
-    avatarRendererReady = false;
+    avatarMenuWindow?.destroy();
+    avatarBubbleWindow?.destroy();
+    avatarHistoryWindow?.destroy();
+    avatarBubbleState = null;
+    if (avatarDragEndTimer) clearTimeout(avatarDragEndTimer);
+    avatarDragEndTimer = null;
+    avatarDragging = false;
+  });
+
+  // A drag shows up as a run of move events, the first preceded by will-move
+  // where the platform reports it. Treat a short pause in them as the drag's
+  // end. While dragging, the ••• trigger stays hidden even though the pointer
+  // is over Coco, and the bubble (a child window) moves with Coco by itself.
+  const setAvatarDragging = (dragging: boolean) => {
+    if (avatarDragging === dragging) return;
+    avatarDragging = dragging;
+    if (avatarWindow && !avatarWindow.isDestroyed()) {
+      avatarWindow.webContents.send('avatar-dragging', { dragging });
+    }
+    // The tall panel would trail off screen as it moves with Coco; fade it
+    // out for the drag and back in beside Coco's new spot.
+    if (
+      avatarHistoryOpen &&
+      avatarHistoryWindow &&
+      !avatarHistoryWindow.isDestroyed() &&
+      avatarHistoryWindow.isVisible()
+    ) {
+      if (dragging) avatarHistoryWindow.setOpacity(0);
+      else if (placeAvatarHistoryWindow()) avatarHistoryWindow.setOpacity(1);
+    }
+  };
+  const noteAvatarMove = () => {
+    setAvatarDragging(true);
+    if (avatarDragEndTimer) clearTimeout(avatarDragEndTimer);
+    avatarDragEndTimer = setTimeout(() => {
+      avatarDragEndTimer = null;
+      setAvatarDragging(false);
+      placeAvatarBubbleWindow();
+    }, AVATAR_DRAG_END_MS);
+  };
+  avatarWindow.on('will-move', noteAvatarMove);
+  avatarWindow.on('move', noteAvatarMove);
+  avatarWindow.on('hide', () => {
+    hideAvatarBubble();
+    closeAvatarHistory();
+  });
+  avatarWindow.on('show', () => {
+    if (!placeAvatarBubbleWindow() || !avatarBubbleWindow) return;
+    avatarBubbleWindow.showInactive();
+    avatarBubbleWindow.setOpacity(1);
   });
 
   avatarWindow.webContents.setWindowOpenHandler((edata) => {
@@ -896,20 +1482,20 @@ const createAvatarWindow = () => {
   });
 
   // Native drag regions do not reliably dispatch DOM context-menu events. Use
-  // Electron's native hooks, then ask the renderer to reveal the same menu as
-  // the ellipsis button so both entry points stay visually and functionally
-  // consistent.
-  const revealActionsMenu = () => {
-    avatarWindow?.webContents.send('open-avatar-actions-menu');
-  };
+  // Electron's native hooks to open the same menu as the ellipsis button so
+  // both entry points stay visually and functionally consistent.
   avatarWindow.webContents.on('context-menu', (event) => {
     event.preventDefault();
-    revealActionsMenu();
+    openAvatarMenu();
   });
   avatarWindow.on('system-context-menu', (event) => {
     event.preventDefault();
-    revealActionsMenu();
+    openAvatarMenu();
   });
+
+  createAvatarMenuWindow();
+  createAvatarBubbleWindow();
+  createAvatarHistoryWindow();
 
   // (notification is screen-pinned; no need to reposition on move)
 };
@@ -1395,6 +1981,12 @@ const initializeWakeWordService = (): void => {
     onDetected: (keyword) => {
       if (!wakeWordEnabled || isCocoSleeping() || systemSuspended) return;
       log.info(`[Wake word] Detected ${keyword}`);
+      // The tutor service starts only after setup, so a voice turn here would
+      // always fail. During onboarding, just confirm the phrase was heard.
+      if (setupPending()) {
+        onboardingWindow?.webContents.send('onboarding-wake-word-detected');
+        return;
+      }
       queueWakeWordDetection(keyword);
     },
   });
@@ -1636,13 +2228,7 @@ function createTray(): void {
 }
 
 function openHistory(): void {
-  pendingOpenHistory = true;
-  if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
-  if (!avatarWindow || avatarWindow.isDestroyed()) return;
-  if (!avatarRendererReady) return;
-  pendingOpenHistory = false;
-  avatarWindow.show();
-  avatarWindow.webContents.send('open-observation-history');
+  openAvatarHistory();
 }
 
 function applyAvatarVisibility(hidden: boolean): void {
@@ -3048,6 +3634,7 @@ ipcMain.on('training-feedback', async (_event, payload) => {
 function publishCocoSleepMode() {
   const state = { sleeping: isCocoSleeping() };
   avatarWindow?.webContents.send('coco-sleep-mode-changed', state);
+  avatarMenuWindow?.webContents.send('coco-sleep-mode-changed', state);
   chatWindow?.webContents.send('coco-sleep-mode-changed', state);
   wakeWordCaptureWindow?.webContents.send('coco-sleep-mode-changed', state);
   if (tray && !tray.isDestroyed()) createTray();
@@ -3416,44 +4003,6 @@ ipcMain.on('close-chat-window', (event) => {
 
 ipcMain.on('shell-show-item-in-finder', (event, fullPath) => {
   shell.showItemInFolder(fullPath);
-});
-
-// ── Dynamic avatar-window resize ──────────────────────────────────────────────
-// Renderer asks for a new content size when the bubble or history panel
-// appears/disappears. We pin the bottom-right corner so the pet stays put
-// while the window grows up and to the left.
-ipcMain.removeAllListeners('resize-avatar-window');
-ipcMain.on(
-  'resize-avatar-window',
-  (_event, { width, height }: { width: number; height: number }) => {
-    if (!avatarWindow || avatarWindow.isDestroyed()) return;
-    const w = Math.max(1, Math.round(width));
-    const h = Math.max(1, Math.round(height));
-    const b = avatarWindow.getBounds();
-    if (b.width === w && b.height === h) return;
-    avatarWindow.setBounds({
-      x: b.x + b.width - w,
-      y: b.y + b.height - h,
-      width: w,
-      height: h,
-    });
-  },
-);
-
-ipcMain.removeAllListeners('activity-history-visibility');
-ipcMain.on(
-  'activity-history-visibility',
-  (_event, { visible }: { visible?: boolean }) => {
-    if (!hideAvatarMode) return;
-    if (visible === true) avatarWindow?.show();
-    else if (visible === false) avatarWindow?.hide();
-  },
-);
-
-ipcMain.removeAllListeners('avatar-renderer-ready');
-ipcMain.on('avatar-renderer-ready', () => {
-  avatarRendererReady = true;
-  if (pendingOpenHistory) openHistory();
 });
 
 // ── Proactive session IPC handlers ────────────────────────────────────────────
@@ -6034,9 +6583,7 @@ app
 
     // Cmd/Ctrl+Shift+H — toggle the observation history panel on the avatar.
     globalShortcut.register('CommandOrControl+Shift+H', () => {
-      if (avatarWindow && !avatarWindow.isDestroyed()) {
-        avatarWindow.webContents.send('toggle-observation-history');
-      }
+      toggleAvatarHistory();
     });
 
     app.on('activate', () => {

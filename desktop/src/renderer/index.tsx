@@ -10,6 +10,9 @@ import SessionChatView from './components/SessionChatView';
 import SessionRecapView from './components/SessionRecapView';
 import AuthView from './components/AuthView';
 import WakeWordCaptureView from './components/WakeWordCaptureView';
+import AvatarMenuView from './components/AvatarMenuView';
+import AvatarBubbleView from './components/AvatarBubbleView';
+import AvatarHistoryView from './components/AvatarHistoryView';
 
 const container = document.getElementById('root') as HTMLElement;
 const root = createRoot(container);
@@ -32,6 +35,12 @@ if (view === 'auth') {
   rendered = <ImagePreviewView />;
 } else if (view === 'wake-word-capture') {
   rendered = <WakeWordCaptureView />;
+} else if (view === 'avatar-menu') {
+  rendered = <AvatarMenuView />;
+} else if (view === 'avatar-bubble') {
+  rendered = <AvatarBubbleView />;
+} else if (view === 'avatar-history') {
+  rendered = <AvatarHistoryView />;
 } else {
   rendered = <App />;
 }

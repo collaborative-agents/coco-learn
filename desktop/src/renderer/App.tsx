@@ -2,34 +2,20 @@ import subscribeCocoSleepMode from './services/coco-sleep-mode';
 import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
-import ObservationBubble, {
-  BubbleState,
-} from './components/ObservationBubble';
+import type { BubbleState } from './components/ObservationBubble';
 import PetSprite from './components/PetSprite';
 import {
-  ActivityRecord,
   InstantSuggestion,
-  LANE_LABEL,
   ObservationEvent,
   ObservationStatus,
   PetMood,
   STATUS_LABEL,
   STATUS_TO_MOOD,
   cleanObservation,
-  formatClockTime,
-  formatDuration,
-  laneOf,
   pickPhrase,
 } from './components/observation-types';
-import {
-  DaySummary,
-  dailyBuckets,
-  dayStartOf,
-  summarizeDay,
-} from './components/activity-rollup';
-import RatingButtons from './components/RatingButtons';
-import PetMenuIcon from './components/PetMenuIcon';
-import { COCO_NAVIGATION } from '../shared/coco-navigation';
+import type { AvatarMenuAction } from './components/AvatarMenuView';
+import type { AvatarBubbleEvent } from './components/AvatarBubbleView';
 
 // How long the bubble (and the active pet mood) stay up after the latest event.
 const HOLD_MS = 20_000;
@@ -40,20 +26,6 @@ const FADE_MS = 400;
 // Pulse ring is shown for one second per new event.
 const PULSE_MS = 1_000;
 
-// Avatar window sizing. The window starts at the base footprint (just the
-// pet) and is grown by main.ts whenever the bubble or history panel becomes
-// visible, then shrunk back when they go away — keeps the transparent
-// overlay from stealing clicks on the rest of the desktop.
-const WIN_BASE_W = 180;
-const WIN_BASE_H = 180;
-const WIN_BUBBLE_W = 420;   // Tier 3 bubble max-width 240 + 168 offset + slack
-const WIN_BUBBLE_H = 320;   // bubble (label + wrapped text + action button)
-// Revealed instant suggestion shows a scrollable body — taller footprint.
-const WIN_SUGGESTION_H = 520;
-const WIN_HISTORY_W = 440;  // activity panel ~260 + 168 offset + slack
-const WIN_HISTORY_H = 540;  // strip + summary + timeline + counts + feed
-const WIN_ACTION_MENU_W = 200;
-const WIN_ACTION_MENU_H = 440;
 
 
 /**
@@ -69,359 +41,6 @@ const TIER2_STATUSES = new Set<ObservationStatus>([
   'ai_struggle',
   'discernment_opportunity',
 ]);
-
-// ── Activity Panel ─────────────────────────────────────────────────────────
-// Hybrid layout: a 14-day contribution strip on top, then the selected day's
-// summary + flow timeline, then that day's observation feed. Everything is
-// derived from the raw ActivityRecord[] via the pure rollup helpers, so the
-// strip, timeline, and counts can never disagree.
-
-function dayHeading(dayStartTs: number, todayStart: number): string {
-  if (dayStartTs === todayStart) return 'Today';
-  if (dayStartTs === todayStart - 24 * 3600) return 'Yesterday';
-  return new Date(dayStartTs * 1000).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function formatMetricTokens(n?: number): string {
-  if (typeof n !== 'number') return '0';
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
-}
-
-function formatMetricLatency(ms?: number): string {
-  if (typeof ms !== 'number') return '0s';
-  if (ms >= 1000) return `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s`;
-  return `${Math.round(ms)}ms`;
-}
-
-function LlmMetricChips({ record }: { record: ActivityRecord }) {
-  const m = record.llm_metrics;
-  if (!m) return null;
-  return (
-    <div className="obs-history-metrics">
-      <span>{formatMetricTokens(m.input_tokens ?? m.prompt_tokens)} in</span>
-      <span>{formatMetricTokens(m.output_tokens ?? m.completion_tokens)} out</span>
-      <span>{formatMetricLatency(m.duration_ms)}</span>
-    </div>
-  );
-}
-
-function SupportControls({
-  record,
-  isOpen,
-  onToggle,
-  onRate,
-}: {
-  record: ActivityRecord;
-  isOpen: boolean;
-  onToggle: () => void;
-  onRate: (rating: 'up' | 'down') => void;
-}) {
-  const support = record.proactive_support;
-  if (!support) return null;
-  const canView = support.suggestion != null || support.available === true;
-  const ratingLabels = { up: 'Good suggestion', down: 'Not helpful' };
-  return (
-    <div className="obs-support-controls">
-      {canView && (
-        <button
-          type="button"
-          className="obs-support-view"
-          onClick={onToggle}
-          aria-expanded={isOpen}
-        >
-          {isOpen ? 'Hide' : 'View support'}
-        </button>
-      )}
-      <RatingButtons
-        value={support.rating}
-        onRate={onRate}
-        labels={ratingLabels}
-        className="coco-rating--compact"
-      />
-    </div>
-  );
-}
-
-function HistoricalSupport({
-  record,
-  onViewConversation,
-  loading,
-  error,
-}: {
-  record: ActivityRecord;
-  onViewConversation: () => void;
-  loading: boolean;
-  error: boolean;
-}) {
-  const support = record.proactive_support;
-  if (!support) return null;
-  const { suggestion } = support;
-  if (loading) {
-    return <div className="obs-support-content">Preparing suggestion…</div>;
-  }
-  if (!suggestion) {
-    return (
-      <div className="obs-support-content obs-support-content--conversation">
-        <p>
-          {error
-            ? 'The suggestion could not be loaded.'
-            : 'This support continued in the conversation.'}
-        </p>
-        {support.engaged && (
-          <button type="button" onClick={onViewConversation}>
-            View conversation →
-          </button>
-        )}
-      </div>
-    );
-  }
-  return (
-    <div className="obs-support-content">
-      <strong>{suggestion.title}</strong>
-      <p>
-        {suggestion.kind === 'delegate' ? suggestion.prompt : suggestion.body}
-      </p>
-    </div>
-  );
-}
-
-function FlowTimeline({ summary }: { summary: DaySummary }) {
-  const { segments, windowStartTs, windowEndTs } = summary;
-  const winDur = Math.max(1, windowEndTs - windowStartTs);
-
-  if (segments.length === 0) {
-    return <div className="obs-timeline obs-timeline--empty">No activity</div>;
-  }
-
-  return (
-    <div className="obs-timeline">
-      <div className="obs-timeline-track">
-        {segments.map((seg, i) => {
-          const left = ((seg.startTs - windowStartTs) / winDur) * 100;
-          const width = ((seg.endTs - seg.startTs) / winDur) * 100;
-          return (
-            <span
-              // eslint-disable-next-line react/no-array-index-key
-              key={i}
-              className={`obs-timeline-seg obs-lane--${seg.lane}`}
-              style={{ left: `${left}%`, width: `${Math.max(width, 0.6)}%` }}
-              title={`${LANE_LABEL[seg.lane]} · ${formatClockTime(seg.startTs)}`}
-            />
-          );
-        })}
-      </div>
-      <div className="obs-timeline-axis">
-        <span>{formatClockTime(windowStartTs)}</span>
-        <span>{formatClockTime(windowEndTs)}</span>
-      </div>
-    </div>
-  );
-}
-
-function ActivityPanel({
-  records,
-  onClose,
-  onViewConversation,
-  onLoadSuggestion,
-  onRateSupport,
-}: {
-  records: ActivityRecord[];
-  onClose: () => void;
-  onViewConversation: () => void;
-  onLoadSuggestion: (
-    record: ActivityRecord,
-  ) => Promise<InstantSuggestion | null>;
-  onRateSupport: (record: ActivityRecord, rating: 'up' | 'down') => void;
-}) {
-  const nowSec = Math.floor(Date.now() / 1000);
-  const todayStart = dayStartOf(nowSec);
-  const [selectedDay, setSelectedDay] = useState(todayStart);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [openSupport, setOpenSupport] = useState<Set<number>>(new Set());
-  const [loadingSupport, setLoadingSupport] = useState<Set<string>>(new Set());
-  const [supportErrors, setSupportErrors] = useState<Set<string>>(new Set());
-
-  const buckets = dailyBuckets(records, 14, nowSec);
-  const summary = summarizeDay(records, selectedDay, nowSec);
-  const dayEnd = selectedDay + 24 * 3600;
-  // Day's observations, newest-first, for the feed.
-  const dayRecords = records
-    .filter((r) => r.ts >= selectedDay && r.ts < dayEnd)
-    .sort((a, b) => b.ts - a.ts);
-
-  function toggle(i: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  }
-
-  function selectDay(ts: number) {
-    setSelectedDay(ts);
-    setExpanded(new Set());
-    setOpenSupport(new Set());
-  }
-
-  async function toggleSupport(i: number, record: ActivityRecord) {
-    const opening = !openSupport.has(i);
-    setOpenSupport((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-    if (!opening || record.proactive_support?.suggestion) return;
-    const key = record.observation_id ?? `${record.ts}-${i}`;
-    setLoadingSupport((prev) => new Set(prev).add(key));
-    setSupportErrors((prev) => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-    const suggestion = await onLoadSuggestion(record);
-    setLoadingSupport((prev) => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-    if (!suggestion) setSupportErrors((prev) => new Set(prev).add(key));
-  }
-
-  return (
-    <div className="obs-history-panel">
-      <div className="obs-history-header">
-        <span className="obs-history-title">Activity</span>
-        <button
-          type="button"
-          className="obs-history-close"
-          onClick={onClose}
-          title="Close"
-        >
-          ×
-        </button>
-      </div>
-
-      {/* 14-day contribution strip — fill intensity tracks flow time. */}
-      <div className="obs-strip" role="group" aria-label="Last 14 days">
-        {buckets.map((b) => (
-          <button
-            key={b.dayStartTs}
-            type="button"
-            className={`obs-strip-cell obs-level--${b.level}${
-              b.dayStartTs === selectedDay ? ' is-selected' : ''
-            }${b.isToday ? ' is-today' : ''}`}
-            title={`${dayHeading(b.dayStartTs, todayStart)} · ${formatDuration(
-              b.flowSec,
-            )} in flow`}
-            onClick={() => selectDay(b.dayStartTs)}
-          />
-        ))}
-      </div>
-
-      {/* Selected-day summary. */}
-      <div className="obs-summary">
-        <span className="obs-summary-day">
-          {dayHeading(selectedDay, todayStart)}
-        </span>
-        <span className="obs-summary-stat">
-          {formatDuration(summary.activeSec)} active
-        </span>
-        <span className="obs-summary-stat obs-lane-text--flow">
-          {summary.flowPct}% flow
-        </span>
-      </div>
-
-      <FlowTimeline summary={summary} />
-
-      <div className="obs-summary-counts">
-        <span className="obs-count">
-          <i className="obs-dot obs-lane--focus" /> {summary.focusCount} focus
-        </span>
-        <span className="obs-count">
-          <i className="obs-dot obs-lane--assist" /> {summary.assistCount} AI
-          assist
-        </span>
-      </div>
-
-      {/* Day's observation feed. */}
-      {dayRecords.length === 0 ? (
-        <p className="obs-history-empty">No observations this day.</p>
-      ) : (
-        <ul className="obs-history-list">
-          {dayRecords.map((e, i) => {
-            const isOpen = expanded.has(i);
-            const lane = laneOf(e.status);
-            const label = STATUS_LABEL[e.status] ?? STATUS_LABEL.observing;
-            const supportOpen = openSupport.has(i);
-            const supportKey = e.observation_id ?? `${e.ts}-${i}`;
-            return (
-              // eslint-disable-next-line react/no-array-index-key
-              <li key={i} className="obs-history-entry">
-                <span
-                  className={`obs-history-dot obs-lane--${lane}`}
-                  title={LANE_LABEL[lane]}
-                />
-                <div className="obs-history-body">
-                  <div className="obs-history-meta">
-                    <span className="obs-history-label">{label}</span>
-                    <span className="obs-history-time">
-                      {formatClockTime(e.ts)}
-                    </span>
-                  </div>
-                  {e.proactive_support &&
-                    (e.proactive_support.suggestion ||
-                      e.proactive_support.available) && (
-                      <div className="obs-support-status">
-                        <span>Proactive support</span>
-                        <SupportControls
-                          record={e}
-                          isOpen={supportOpen}
-                          onToggle={() => toggleSupport(i, e)}
-                          onRate={(rating) => onRateSupport(e, rating)}
-                        />
-                      </div>
-                    )}
-                  <LlmMetricChips record={e} />
-                  <button
-                    type="button"
-                    className="obs-history-row"
-                    onClick={() => toggle(i)}
-                    aria-expanded={isOpen}
-                  >
-                    <p className={`obs-history-text${isOpen ? ' is-open' : ''}`}>
-                      {e.observation}
-                    </p>
-                    <span
-                      className={`obs-history-chevron${isOpen ? ' is-open' : ''}`}
-                      aria-hidden
-                    >
-                      ›
-                    </span>
-                  </button>
-                  {supportOpen && (
-                    <HistoricalSupport
-                      record={e}
-                      onViewConversation={onViewConversation}
-                      loading={loadingSupport.has(supportKey)}
-                      error={supportErrors.has(supportKey)}
-                    />
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 // ── Pet View ──────────────────────────────────────────────────────────────────
 
@@ -441,15 +60,14 @@ function PetView() {
     key: number;
   } | null>(null);
 
-  // Persisted activity history (newest-first). Hydrated from the main process
-  // on mount, then appended to live as observation events arrive.
-  const [records, setRecords] = useState<ActivityRecord[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
   const [cocoSleeping, setCocoSleeping] = useState(false);
+  // Mirrors whether the ••• menu window is open, for the trigger's styling.
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
-  const [hideError, setHideError] = useState('');
-  const [hidingAvatar, setHidingAvatar] = useState(false);
-  const petActionsRef = useRef<HTMLDivElement | null>(null);
+  const menuActionRef = useRef<(action: AvatarMenuAction) => void>(() => {});
+  // While Coco is dragged the pointer stays over it, so its hover controls
+  // are hidden until the drag ends.
+  const [dragging, setDragging] = useState(false);
+  const bubbleEventRef = useRef<(type: AvatarBubbleEvent) => void>(() => {});
 
   // Use refs so listener captures the latest cleanup targets without
   // re-subscribing every render.
@@ -499,29 +117,37 @@ function PetView() {
     if (bubble) scheduleBubbleHide(holdMsRef.current);
   };
 
-  // Cmd/Ctrl+Shift+H toggles the history panel from anywhere on the system.
+  // The menu has its own window; main places it next to Coco and toggles it.
+  const openActionsMenu = () =>
+    window.electron?.ipcRenderer.sendMessage('open-avatar-menu');
+
   useEffect(() => {
-    const cleanupToggle = window.electron?.ipcRenderer.on(
-      'toggle-observation-history',
-      () => setShowHistory((v) => !v),
-    );
-    const cleanupOpen = window.electron?.ipcRenderer.on(
-      'open-observation-history',
-      () => setShowHistory(true),
-    );
-    const cleanupActionsMenu = window.electron?.ipcRenderer.on(
-      'open-avatar-actions-menu',
-      () => {
-        setShowHistory(false);
-        setHideError('');
-        setActionsMenuOpen(true);
+    const cleanupMenuVisibility = window.electron?.ipcRenderer.on(
+      'avatar-menu-visibility',
+      (value: unknown) => {
+        setActionsMenuOpen(
+          (value as { open?: boolean } | undefined)?.open === true,
+        );
       },
     );
-    window.electron?.ipcRenderer.sendMessage('avatar-renderer-ready');
+    const cleanupMenuAction = window.electron?.ipcRenderer.on(
+      'avatar-menu-action',
+      (action: unknown) => menuActionRef.current(action as AvatarMenuAction),
+    );
+    const cleanupBubbleEvent = window.electron?.ipcRenderer.on(
+      'avatar-bubble-event',
+      (type: unknown) => bubbleEventRef.current(type as AvatarBubbleEvent),
+    );
+    const cleanupDragging = window.electron?.ipcRenderer.on(
+      'avatar-dragging',
+      (value: unknown) =>
+        setDragging((value as { dragging?: boolean })?.dragging === true),
+    );
     return () => {
-      if (typeof cleanupToggle === 'function') cleanupToggle();
-      if (typeof cleanupOpen === 'function') cleanupOpen();
-      if (typeof cleanupActionsMenu === 'function') cleanupActionsMenu();
+      if (typeof cleanupMenuVisibility === 'function') cleanupMenuVisibility();
+      if (typeof cleanupMenuAction === 'function') cleanupMenuAction();
+      if (typeof cleanupBubbleEvent === 'function') cleanupBubbleEvent();
+      if (typeof cleanupDragging === 'function') cleanupDragging();
     };
   }, []);
 
@@ -534,57 +160,13 @@ function PetView() {
     )) as { success?: boolean; sleeping?: boolean } | undefined;
     if (result?.success) {
       setCocoSleeping(result.sleeping === true);
+      // A suggestion pinned before sleep must not block bubbles after waking.
       bubblePinnedRef.current = false;
       setBubble(null);
       setMood(result.sleeping ? 'sleep' : 'idle');
     }
   };
 
-  useEffect(() => {
-    if (!actionsMenuOpen) return undefined;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setActionsMenuOpen(false);
-    };
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!petActionsRef.current?.contains(event.target as Node)) {
-        setActionsMenuOpen(false);
-      }
-    };
-    const closeOnWindowBlur = () => setActionsMenuOpen(false);
-    document.addEventListener('keydown', closeOnEscape);
-    document.addEventListener('pointerdown', closeOnOutsidePointer);
-    window.addEventListener('blur', closeOnWindowBlur);
-    return () => {
-      document.removeEventListener('keydown', closeOnEscape);
-      document.removeEventListener('pointerdown', closeOnOutsidePointer);
-      window.removeEventListener('blur', closeOnWindowBlur);
-    };
-  }, [actionsMenuOpen]);
-
-  useEffect(() => {
-    window.electron?.ipcRenderer.sendMessage('activity-history-visibility', {
-      visible: showHistory,
-    });
-  }, [showHistory]);
-
-  // Refresh from persisted activity whenever History opens. Engagement is
-  // written by the main process after the original observation, so a one-time
-  // mount snapshot can otherwise remain stale even though the disk record is
-  // correct. The file is chronological; renderer state is newest-first.
-  useEffect(() => {
-    if (!showHistory) return undefined;
-    let cancelled = false;
-    window.electron?.ipcRenderer
-      .invoke('get-activity-history')
-      .then((rows) => {
-        if (cancelled || !Array.isArray(rows)) return;
-        setRecords((rows as ActivityRecord[]).slice().reverse());
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [showHistory]);
 
   useEffect(() => {
     const cleanupPostAssessmentSuppression = window.electron?.ipcRenderer.on(
@@ -681,34 +263,6 @@ function PetView() {
         // After HOLD_MS: fade the bubble out and drop the pet back to idle.
         // (Paused while the pointer is over the bubble.)
         scheduleBubbleHide(HOLD_MS);
-
-        // ── Accumulate activity history ────────────────────────────────────
-        // Main has already persisted this event to disk; we mirror it into
-        // local state so the open panel updates live without a re-fetch.
-        const record: ActivityRecord = {
-          status: incomingStatus,
-          observation: cleanObservation(event.observation),
-          ts: event.ts ?? Math.floor(Date.now() / 1000),
-          observation_id: event.observation_id,
-          proactive_support: showHelpButton
-            ? { engaged: false, available: true }
-            : undefined,
-          llm_metrics: event.llm_metrics,
-        };
-        // Prepend so the list is newest-first.
-        // Deduplicate: if the most recent record has the same text and
-        // status, skip it (handles SSE reconnect replays and server
-        // double-emits from the progress detector).
-        setRecords((prev) => {
-          if (
-            prev.length > 0 &&
-            prev[0].observation === record.observation &&
-            prev[0].status === record.status
-          ) {
-            return prev;
-          }
-          return [record, ...prev];
-        });
       },
     );
 
@@ -890,21 +444,6 @@ function PetView() {
       destination: 'inline' | 'conversation',
     ) => {
       if (!current.observationId) return;
-      setRecords((prev) =>
-        prev.map((record) =>
-          record.observation_id === current.observationId
-            ? {
-                ...record,
-                proactive_support: {
-                  engaged: true,
-                  engaged_at: engagedAt,
-                  suggestion,
-                  destination,
-                },
-              }
-            : record,
-        ),
-      );
       window.electron?.ipcRenderer.sendMessage('activity-support-engaged', {
         observationId: current.observationId,
         engagedAt,
@@ -913,7 +452,7 @@ function PetView() {
       });
     };
 
-    // Reflect the click immediately. If the precomputed content is available,
+    // Record the click right away. If the precomputed content is available,
     // the same record is enriched below so History can reopen it verbatim.
     recordEngagement(undefined, 'conversation');
     window.electron?.ipcRenderer.sendMessage('training-feedback', {
@@ -1018,130 +557,38 @@ function PetView() {
     window.electron?.ipcRenderer.sendMessage('open-main-window');
   };
 
-  const loadHistoricalSuggestion = async (
-    record: ActivityRecord,
-  ): Promise<InstantSuggestion | null> => {
-    let res;
-    try {
-      res = await window.electron?.ipcRenderer.invoke(
-        'get-instant-suggestion',
-        {
-          observationId: record.observation_id ?? null,
-        },
-      );
-    } catch {
-      return null;
-    }
-    const suggestion = res?.status === 'ready' ? res.suggestion : null;
-    if (!suggestion) return null;
-    setRecords((prev) =>
-      prev.map((item) =>
-        item.observation_id === record.observation_id
-          ? {
-              ...item,
-              proactive_support: {
-                engaged: item.proactive_support?.engaged ?? false,
-                ...item.proactive_support,
-                suggestion,
-                available: true,
-              },
-            }
-          : item,
-      ),
-    );
-    return suggestion;
+  // Menu items chosen in the ••• menu window run here, where the current bubble
+  // and Coco's mood live. Refreshed every render so the listener sees both.
+  menuActionRef.current = (action: AvatarMenuAction) => {
+    if (action === 'open-main-window') handleOpenChat();
+    else if (action === 'toggle-sleep')
+      setCocoSleepMode(!cocoSleeping).catch(() => undefined);
+    else if (action === 'quit')
+      window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
+    else window.electron?.ipcRenderer.sendMessage(action);
   };
 
-  const rateHistoricalSupport = (
-    record: ActivityRecord,
-    rating: 'up' | 'down',
-  ) => {
-    const previousRating = record.proactive_support?.rating;
-    if (!record.observation_id || previousRating === rating) return;
-    const ratedAt = Math.floor(Date.now() / 1000);
-    setRecords((prev) =>
-      prev.map((item) =>
-        item.observation_id === record.observation_id
-          ? {
-              ...item,
-              proactive_support: {
-                engaged: item.proactive_support?.engaged ?? false,
-                ...item.proactive_support,
-                rating,
-                rated_at: ratedAt,
-              },
-            }
-          : item,
-      ),
-    );
-    window.electron?.ipcRenderer.sendMessage('training-feedback', {
-      kind: rating === 'up' ? 'thumbs_up' : 'thumbs_down',
-      previous_kind: previousRating ? `thumbs_${previousRating}` : null,
-      surface: 'history',
-      observation_id: record.observation_id,
-      status: record.status,
-      text:
-        record.proactive_support?.suggestion?.copyText ?? record.observation,
-    });
-    window.electron?.ipcRenderer.sendMessage('activity-support-rated', {
-      observationId: record.observation_id,
-      rating,
-      ratedAt,
-    });
+  // Clicks and hovers on the bubble, which is drawn in its own window. Also
+  // refreshed every render so handlers see the current bubble.
+  bubbleEventRef.current = (type: AvatarBubbleEvent) => {
+    if (type === 'help') handleHelpMe();
+    else if (type === 'dismiss') handleDismiss();
+    else if (type === 'view-conversation') handleViewConversation();
+    else if (type === 'chat') handleChatAboutSuggestion();
+    else if (type === 'run') handleChatAboutSuggestion(true);
+    else if (type === 'enter') handleBubbleEnter();
+    else if (type === 'leave') handleBubbleLeave();
   };
 
-  const bubbleVisible = bubble != null;
-  const suggestionVisible = bubble?.suggestion != null;
-  const historyVisible = showHistory;
-  const actionsMenuVisible = actionsMenuOpen;
-
-  // Resize the avatar window to fit whatever is currently on stage. Runs on
-  // mount (shrinks from any leftover default size to the base footprint) and
-  // whenever the bubble or history visibility flips.
+  // The bubble window draws whatever bubble is current here.
   useEffect(() => {
-    let width = WIN_BASE_W;
-    let height = WIN_BASE_H;
-    if (bubbleVisible) {
-      width = Math.max(width, WIN_BUBBLE_W);
-      height = Math.max(height, suggestionVisible ? WIN_SUGGESTION_H : WIN_BUBBLE_H);
-    }
-    if (historyVisible) {
-      width = Math.max(width, WIN_HISTORY_W);
-      height = Math.max(height, WIN_HISTORY_H);
-    }
-    if (actionsMenuVisible) {
-      width = Math.max(width, WIN_ACTION_MENU_W);
-      height = Math.max(height, WIN_ACTION_MENU_H);
-    }
-    window.electron?.ipcRenderer.sendMessage('resize-avatar-window', {
-      width,
-      height,
+    window.electron?.ipcRenderer.sendMessage('avatar-bubble-state', {
+      bubble,
     });
-  }, [bubbleVisible, suggestionVisible, historyVisible, actionsMenuVisible]);
+  }, [bubble]);
 
   return (
     <div className="pet-stage">
-      {/* Activity panel */}
-      {showHistory && (
-        <ActivityPanel
-          records={records}
-          onClose={() => setShowHistory(false)}
-          onViewConversation={handleViewConversation}
-          onLoadSuggestion={loadHistoricalSuggestion}
-          onRateSupport={rateHistoricalSupport}
-        />
-      )}
-
-      <ObservationBubble
-        bubble={bubble}
-        onHelpMe={handleHelpMe}
-        onDismiss={handleDismiss}
-        onViewConversation={handleViewConversation}
-        onChatAboutSuggestion={() => handleChatAboutSuggestion()}
-        onRunSuggestion={() => handleChatAboutSuggestion(true)}
-        onMouseEnter={handleBubbleEnter}
-        onMouseLeave={handleBubbleLeave}
-      />
       {pulse && (
         <span
           key={pulse.key}
@@ -1150,13 +597,12 @@ function PetView() {
         />
       )}
       <div
-        ref={petActionsRef}
-        className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}`}
+        className={`pet-container${actionsMenuOpen ? ' has-open-actions' : ''}${
+          dragging ? ' is-dragging' : ''
+        }`}
         onContextMenu={(event) => {
           event.preventDefault();
-          setShowHistory(false);
-          setHideError('');
-          setActionsMenuOpen(true);
+          openActionsMenu();
         }}
       >
         <PetSprite mood={cocoSleeping ? 'sleep' : mood} />
@@ -1169,9 +615,7 @@ function PetView() {
           className={`pet-actions-trigger${actionsMenuOpen ? ' is-open' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
-            setShowHistory(false);
-            setHideError('');
-            setActionsMenuOpen((open) => !open);
+            openActionsMenu();
           }}
           title="More actions"
           aria-label="More actions"
@@ -1181,96 +625,6 @@ function PetView() {
           •••
         </button>
 
-        {actionsMenuVisible && (
-          <div
-            className="pet-actions-menu"
-            role="menu"
-            aria-label="Coco actions"
-          >
-            {COCO_NAVIGATION.map(({ label, channel, icon }) => (
-              <button
-                type="button"
-                role="menuitem"
-                key={channel}
-                className={
-                  icon === 'training' ? 'pet-training-action' : undefined
-                }
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setActionsMenuOpen(false);
-                  if (channel === 'open-main-window') handleOpenChat(event);
-                  else window.electron?.ipcRenderer.sendMessage(channel);
-                }}
-              >
-                <PetMenuIcon name={icon} />
-                <span>{label}</span>
-              </button>
-            ))}
-            <div className="pet-actions-divider" role="separator" />
-            <button
-              type="button"
-              role="menuitem"
-              disabled={hidingAvatar}
-              onClick={async (event) => {
-                event.stopPropagation();
-                setHideError('');
-                setHidingAvatar(true);
-                try {
-                  const result = (await window.electron?.ipcRenderer.invoke(
-                    'update-avatar-visibility',
-                    { hideAvatar: true },
-                  )) as { success?: boolean } | undefined;
-                  if (!result?.success)
-                    throw new Error('Could not hide Coco. Please try again.');
-                  setActionsMenuOpen(false);
-                } catch {
-                  setHideError('Could not hide Coco. Please try again.');
-                } finally {
-                  setHidingAvatar(false);
-                }
-              }}
-            >
-              <PetMenuIcon name="hide" />
-              <span>{hidingAvatar ? 'Hiding…' : 'Hide'}</span>
-            </button>
-            {hideError && (
-              <div
-                role="alert"
-                style={{
-                  padding: '4px 10px',
-                  fontSize: 'var(--coco-text-secondary)',
-                }}
-              >
-                {hideError}
-              </div>
-            )}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(event) => {
-                event.stopPropagation();
-                setActionsMenuOpen(false);
-                setCocoSleepMode(!cocoSleeping).catch(() => undefined);
-              }}
-            >
-              <PetMenuIcon name={cocoSleeping ? 'wake' : 'sleep'} />
-              <span>{cocoSleeping ? 'Wake Coco' : 'Sleep'}</span>
-            </button>
-            <div className="pet-actions-divider" role="separator" />
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(event) => {
-                event.stopPropagation();
-                setActionsMenuOpen(false);
-                window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
-              }}
-            >
-              <PetMenuIcon name="quit" />
-              <span>Quit</span>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

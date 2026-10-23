@@ -8,6 +8,21 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'avatar-bubble-state'
+  | 'avatar-bubble-size'
+  | 'avatar-bubble-painted'
+  | 'avatar-bubble-placement'
+  | 'avatar-bubble-pointer'
+  | 'avatar-bubble-event'
+  | 'avatar-dragging'
+  | 'avatar-history-open'
+  | 'avatar-history-closed'
+  | 'avatar-history-close'
+  | 'avatar-history-size'
+  | 'avatar-history-painted'
+  | 'avatar-history-pointer'
+  | 'avatar-history-placement'
+  | 'activity-history-changed'
   | 'open-training'
   | 'study-upload-follow-up-assessment-toolkit'
   | 'follow-up-assessment-state'
@@ -90,7 +105,15 @@ export type Channels =
   | 'get-chat-content-zoom-factor'
   | 'chat-content-zoom-factor'
   | 'open-chat-settings'
-  | 'open-avatar-actions-menu'
+  // Coco's ••• menu, shown in its own window next to the avatar
+  | 'open-avatar-menu'
+  | 'close-avatar-menu'
+  | 'avatar-menu-open'
+  | 'avatar-menu-closed'
+  | 'avatar-menu-painted'
+  | 'avatar-menu-size'
+  | 'avatar-menu-action'
+  | 'avatar-menu-visibility'
   // Proactive session flow
   | 'session-active'
   | 'session-invite'
@@ -150,10 +173,6 @@ export type Channels =
   | 'get-memory'
   | 'save-memory'
   // Observation history
-  | 'toggle-observation-history'
-  | 'open-observation-history'
-  | 'activity-history-visibility'
-  | 'avatar-renderer-ready'
   // Activity panel hydrates persisted history from main on open
   | 'get-activity-history'
   // Persist an observation's proactive-support engagement + revealed content
@@ -161,7 +180,6 @@ export type Channels =
   // Persist support content/rating independently of initial engagement
   | 'activity-support-rated'
   // Renderer asks main to resize the avatar window to fit current content
-  | 'resize-avatar-window'
   // Tier 3: tutor guidance routed to bubble when webapp is hidden
   | 'tutor-notification'
   // Tier 2: user clicked "Help me with this" in the bubble
@@ -190,6 +208,7 @@ export type Channels =
   | 'wake-word-audio-frame'
   | 'wake-word-detected'
   | 'wake-word-detection-ack'
+  | 'onboarding-wake-word-detected'
   | 'set-wake-word-capture-paused'
   | 'wake-word-capture-paused-changed'
   | 'wake-word-capture-status'

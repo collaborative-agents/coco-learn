@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -12,6 +12,42 @@ import { parseGuidance, makeMessageId } from './message-format';
 import { S } from './styles';
 import './MessageContent.css';
 
+// A fenced code block with a Copy button that stays put while the code
+// scrolls sideways.
+function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
+  const preRef = useRef<HTMLPreElement>(null);
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        (preRef.current?.textContent ?? '').replace(/\n$/, ''),
+      );
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
+    }
+    setTimeout(() => setStatus('idle'), 2000);
+  };
+  let label = 'Copy';
+  if (status === 'copied') label = 'Copied ✓';
+  if (status === 'failed') label = 'Copy failed';
+  return (
+    <div className="chat-code-block">
+      <pre ref={preRef} {...props}>
+        {children}
+      </pre>
+      <button
+        type="button"
+        className="chat-code-copy"
+        aria-label={status === 'idle' ? 'Copy code' : label}
+        onClick={() => void copy()}
+      >
+        {label}
+      </button>
+    </div>
+  );
+}
+
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
   {
     a({ href, children, ...props }: any) {
@@ -20,6 +56,9 @@ const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
           {children}
         </a>
       );
+    },
+    pre({ node: _node, ...props }: any) {
+      return <CodeBlock {...props} />;
     },
   };
 

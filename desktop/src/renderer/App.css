@@ -1597,8 +1597,14 @@
 }
 
 .toast-footer-rating,
-.toast-pager-rating {
+.toast-pager-start {
   margin-right: auto;
+}
+
+.toast-pager-start {
+  display: flex;
+  align-items: center;
+  gap: var(--coco-space-2);
 }
 
 .coco-rating--compact .coco-rating-btn {

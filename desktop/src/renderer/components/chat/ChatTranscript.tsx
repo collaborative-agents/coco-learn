@@ -1,5 +1,6 @@
 import type React from 'react';
 import { S } from './styles';
+import './ChatTranscript.css';
 import type { SavedConversation, ChatMessage } from './types';
 import { TutorMessage, SuggestionMessage } from './MessageContent';
 import AgentActivityList from './AgentActivityList';
@@ -30,6 +31,10 @@ interface Props {
   ratings: Record<string, 'up' | 'down'>;
   rateMessage: (m: ChatMessage, dir: 'up' | 'down') => void;
   hasRunningTool: boolean;
+  /** Whether new text keeps the transcript scrolled to the latest message. */
+  following: boolean;
+  onScroll: () => void;
+  onJumpToLatest: () => void;
 }
 
 export default function ChatTranscript({
@@ -48,9 +53,15 @@ export default function ChatTranscript({
   ratings,
   rateMessage,
   hasRunningTool,
+  following,
+  onScroll,
+  onJumpToLatest,
 }: Props) {
+  const progressLabel = hasRunningTool
+    ? 'Coco is working…'
+    : 'Coco is still writing…';
   return (
-    <div style={S.list} ref={listRef}>
+    <div style={S.list} ref={listRef} onScroll={onScroll}>
       {visibleMessages.length === 0 &&
         !sending &&
         (profile.scenario === 'ai_upskilling' && !reviewing ? (
@@ -249,8 +260,21 @@ export default function ChatTranscript({
           )}
         </div>
       ))}
-      {sending && !hasRunningTool && (
-        <div style={S.typing}>Coco is thinking…</div>
+      {sending && !reviewing && (
+        // Stays at the bottom edge while the user scrolls up to read.
+        <button
+          type="button"
+          className="chat-progress-dots"
+          aria-label={
+            following ? progressLabel : `${progressLabel} Jump to latest`
+          }
+          title={following ? progressLabel : 'Jump to latest'}
+          onClick={onJumpToLatest}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       )}
     </div>
   );

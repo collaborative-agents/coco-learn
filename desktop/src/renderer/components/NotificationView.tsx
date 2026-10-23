@@ -160,6 +160,29 @@ function resolveMessage(raw: string): string {
 // Matches .notification-root's padding in App.css.
 const NOTIFICATION_ROOT_PADDING = 8;
 
+/**
+ * Height the card needs to show all of its content. Measuring only the card's
+ * rows misses text hidden inside a row's own scroll area, which happens once
+ * the window is shorter than the card, so add that hidden overflow back.
+ */
+export function fittedCardHeight(card: HTMLElement): number {
+  const rows = Array.from(card.children).reduce(
+    (total, child) =>
+      total + Math.max((child as HTMLElement).offsetHeight, child.scrollHeight),
+    0,
+  );
+  const hidden = Array.from(
+    card.querySelectorAll<HTMLElement>(
+      '.toast-body .toast-markdown, .toast-body .toast-framework-overview',
+    ),
+  ).reduce(
+    (total, scroller) =>
+      total + Math.max(0, scroller.scrollHeight - scroller.clientHeight),
+    0,
+  );
+  return rows + hidden;
+}
+
 const PREVIEW_CHARS = 180;
 function truncateForPreview(text: string): string {
   if (text.length <= PREVIEW_CHARS) return text;
@@ -253,6 +276,17 @@ export function NotificationBubble({
       labels={{ up: 'Good suggestion', down: 'Not helpful' }}
     />
   ) : null;
+  const chatAction = (
+    <button
+      type="button"
+      className="toast-action toast-chat-action"
+      onClick={runWithCoco ? onRunSuggestion : onChatAboutSuggestion}
+    >
+      {runWithCoco ? 'Run with Coco' : 'Chat with Coco'}
+    </button>
+  );
+  const showChatActionInPager =
+    isRevealedSuggestion && isFrameworkPager && !isFrameworkOverview;
   // Without the page row, the thumbs lead the footer instead.
   const footerRating =
     ratingButtons && !isFrameworkPager ? (
@@ -375,16 +409,13 @@ export function NotificationBubble({
           )}
         </div>
       ) : isRevealedSuggestion ? (
-        <div className="toast-footer">
-          {footerRating}
-          <button
-            type="button"
-            className="toast-action toast-chat-action"
-            onClick={runWithCoco ? onRunSuggestion : onChatAboutSuggestion}
-          >
-            {runWithCoco ? 'Run with Coco' : 'Chat with Coco'}
-          </button>
-        </div>
+        // With pages, the action sits in the page row instead.
+        !isFrameworkPager && (
+          <div className="toast-footer">
+            {footerRating}
+            {chatAction}
+          </div>
+        )
       ) : (
         actionLabel && (
           <div className="toast-footer">
@@ -398,10 +429,20 @@ export function NotificationBubble({
 
       {isFrameworkPager && (
         <div className="toast-framework-pager" aria-label="Suggestion pages">
-          {/* Thumbs sit opposite the page arrow so the footer holds only actions. */}
-          {ratingButtons && (
-            <div className="toast-pager-rating">{ratingButtons}</div>
-          )}
+          {/* Thumbs lead the row on both pages. On the action page, "← Why"
+              follows them and the action takes the forward arrow's place. */}
+          <div className="toast-pager-start">
+            {ratingButtons}
+            {showChatActionInPager && (
+              <button
+                type="button"
+                className="toast-framework-arrow"
+                onClick={() => onFrameworkPageChange?.(0)}
+              >
+                ← Why
+              </button>
+            )}
+          </div>
           <div className="toast-framework-page-bars" aria-hidden="true">
             <span
               className={`toast-framework-page-bar${frameworkPage === 0 ? ' is-active' : ''}`}
@@ -410,13 +451,19 @@ export function NotificationBubble({
               className={`toast-framework-page-bar${frameworkPage === 1 ? ' is-active' : ''}`}
             />
           </div>
-          <button
-            type="button"
-            className="toast-framework-arrow"
-            onClick={() => onFrameworkPageChange?.(frameworkPage === 0 ? 1 : 0)}
-          >
-            {frameworkPage === 0 ? 'Show me how →' : '← Why'}
-          </button>
+          {showChatActionInPager ? (
+            chatAction
+          ) : (
+            <button
+              type="button"
+              className="toast-framework-arrow"
+              onClick={() =>
+                onFrameworkPageChange?.(frameworkPage === 0 ? 1 : 0)
+              }
+            >
+              {frameworkPage === 0 ? 'Show me how →' : '← Why'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -494,15 +541,11 @@ export default function NotificationView() {
     const fit = () => {
       const card = rootRef.current?.querySelector<HTMLElement>('.toast-card');
       if (!card) return;
-      const contentHeight = Array.from(card.children).reduce(
-        (total, child) =>
-          total +
-          Math.max((child as HTMLElement).offsetHeight, child.scrollHeight),
-        0,
-      );
       window.electron?.ipcRenderer.sendMessage('fit-notification-height', {
         // The root's padding keeps the card's shadow inside the window.
-        height: Math.ceil(contentHeight + NOTIFICATION_ROOT_PADDING * 2),
+        height: Math.ceil(
+          fittedCardHeight(card) + NOTIFICATION_ROOT_PADDING * 2,
+        ),
       });
     };
     fit();

@@ -119,3 +119,30 @@ test('separates coaching from the main answer but keeps both in copied text', ()
     ),
   ).toMatchObject({ mainText: '', coaching: guidance });
 });
+
+test('hides metadata a reply appends without the guidance envelope', () => {
+  const message =
+    "Your turn: Looking at the summary on your screen right now — what's one claim that feels like it's doing a lot of work? Tell me which one and we can walk through the three checks together.";
+  const bare = `${message}\n\n<four_d_dimension>discernment</four_d_dimension> <teaching_depth>introduce</teaching_depth>`;
+
+  expect(parseGuidance(bare)).toEqual({
+    competency: 'discernment',
+    text: message,
+    mainText: '',
+    coaching: message,
+    examplePrompt: null,
+    vizCode: null,
+  });
+  expect(copyableMessageText({ role: 'tutor', text: bare })).toBe(message);
+  for (let i = 1; i <= bare.length; i += 1) {
+    const text = parseGuidance(bare.slice(0, i)).text;
+    expect(text).not.toMatch(/four_d|teaching_depth|<\/?[a-z_]*$/);
+    expect(message.startsWith(text.trimEnd())).toBe(true);
+  }
+});
+
+test('keeps text that only mentions a metadata tag mid-message', () => {
+  const text =
+    'The tutor writes <four_d_dimension>discernment</four_d_dimension> and then keeps explaining.';
+  expect(parseGuidance(text).text).toBe(text);
+});

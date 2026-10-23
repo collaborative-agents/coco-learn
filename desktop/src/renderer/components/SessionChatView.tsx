@@ -44,6 +44,10 @@ export default function SessionChatView() {
   const [pendingContextLabel, setPendingContextLabel] = useState<string | null>(
     null,
   );
+  // The pending context is a suggestion shown in the transcript, so the
+  // composer invites questions about it instead of showing a context chip.
+  const [discussingSuggestion, setDiscussingSuggestion] = useState(false);
+  const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const [sending, setSending] = useState(false);
   const [voiceState, setVoiceState] = useState<
     'idle' | 'requesting' | VoiceRecorderStatus
@@ -139,6 +143,15 @@ export default function SessionChatView() {
   const pendingHotkeyImagesRef = useRef<Set<string>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
   const pendingContextRef = useRef<string | null>(null);
+  // What Coco saw on screen, attached to the next message as removable context.
+  const pendingScreenContextRef = useRef<string | null>(null);
+  const [pendingScreenContext, setPendingScreenContextState] = useState<
+    string | null
+  >(null);
+  const setPendingScreenContext = useCallback((value: string | null) => {
+    pendingScreenContextRef.current = value;
+    setPendingScreenContextState(value);
+  }, []);
   const messagesRef = useRef<ChatMessage[]>([]);
   const problemRef = useRef('');
   const cocoSleepingRef = useRef(false);
@@ -447,6 +460,7 @@ export default function SessionChatView() {
       isRetry = false,
       requestKind: 'chat' | 'practice_suggestions' = 'chat',
       hotkeyImages: string[] = [],
+      screenContext?: string,
     ) => {
       setSending(true);
       scrollToBottom();
@@ -459,6 +473,7 @@ export default function SessionChatView() {
           images,
           requestKind,
           hotkeyImages,
+          screenContext,
         })
         .catch((error: Error) => ({ error: error.message }));
       const r = res as
@@ -570,9 +585,10 @@ export default function SessionChatView() {
       const userText = pendingContext
         ? `${pendingContext}\n\nThe user now says:\n${trimmed}`
         : trimmed;
+      const screenContext = pendingScreenContextRef.current ?? undefined;
       setMessages((m) => [
         ...m,
-        { role: 'user', text: trimmed, images },
+        { role: 'user', text: trimmed, images, screenContext },
         {
           role: 'tutor',
           text: '',
@@ -587,6 +603,8 @@ export default function SessionChatView() {
       ]);
       pendingContextRef.current = null;
       setPendingContextLabel(null);
+      setDiscussingSuggestion(false);
+      setPendingScreenContext(null);
       await submitTutorRequest(
         requestId,
         userText,
@@ -595,9 +613,10 @@ export default function SessionChatView() {
         false,
         requestKind,
         hotkeyImages,
+        screenContext,
       );
     },
-    [submitTutorRequest],
+    [submitTutorRequest, setPendingScreenContext],
   );
 
   const retryMessage = useCallback(
@@ -615,6 +634,8 @@ export default function SessionChatView() {
         (askedWith?.role === 'user' ? askedWith.images : undefined) ??
         [];
       const hotkeyImages = message.retryHotkeyImages ?? [];
+      const screenContext =
+        askedWith?.role === 'user' ? askedWith.screenContext : undefined;
       setMessages((current) =>
         current.map((item) =>
           item.requestId === previousRequestId
@@ -639,6 +660,7 @@ export default function SessionChatView() {
         true,
         message.retryRequestKind ?? 'chat',
         hotkeyImages,
+        screenContext,
       );
     },
     [sending, startingNewSession, submitTutorRequest],
@@ -674,6 +696,8 @@ export default function SessionChatView() {
           setSending(false);
           pendingContextRef.current = null;
           setPendingContextLabel(null);
+          setDiscussingSuggestion(false);
+          setPendingScreenContext(null);
           window.electron?.ipcRenderer
             .invoke('get-chat-conversations')
             .then((saved: unknown) => {
@@ -726,7 +750,7 @@ export default function SessionChatView() {
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, []);
+  }, [setPendingScreenContext]);
 
   // Keep chat context and the selected model in sync with the saved profile.
   useEffect(() => {
@@ -949,20 +973,60 @@ export default function SessionChatView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'help-request',
       (data: any) => {
-        const { rawObservation, phrase, label, deferUntilUserMessage } =
-          (data ?? {}) as {
-            rawObservation?: string;
-            phrase?: string;
-            label?: string;
-            deferUntilUserMessage?: boolean;
-          };
+        const {
+          rawObservation,
+          phrase,
+          label,
+          deferUntilUserMessage,
+          draft,
+          suggestion,
+          screenObservation,
+        } = (data ?? {}) as {
+          rawObservation?: string;
+          phrase?: string;
+          label?: string;
+          deferUntilUserMessage?: boolean;
+          draft?: string;
+          suggestion?: ChatSuggestion;
+          screenObservation?: string;
+        };
         const seed = (rawObservation || phrase || '').trim();
-        if (seed) {
+        const screenContext = screenObservation?.trim();
+        if (screenContext) setPendingScreenContext(screenContext);
+        if (seed || draft || screenContext) {
           setActivePage('chat');
           setShowSettings(false);
         }
-        if (seed && (deferUntilUserMessage || sending)) {
+        if (draft) setInput(draft);
+        if (seed && !deferUntilUserMessage && sending) {
+          // Coco is still replying, so this can't go out yet. Leave it in the
+          // message box for the user to send, rather than as hidden context.
+          setInput(seed);
+          setComposerFocusRequest((n) => n + 1);
+          return;
+        }
+        if (seed && deferUntilUserMessage) {
           pendingContextRef.current = seed;
+          if (suggestion) {
+            // Continue from the suggestion the user just read. Its context is
+            // still sent with their first message.
+            const { observationId } = suggestion;
+            setMessages((current) =>
+              observationId &&
+              current.some((m) => m.suggestion?.observationId === observationId)
+                ? current.map((m) =>
+                    m.suggestion?.observationId === observationId
+                      ? { ...m, folded: false }
+                      : m,
+                  )
+                : [...current, suggestionMessage(suggestion, false)],
+            );
+            setPendingContextLabel(null);
+            setDiscussingSuggestion(true);
+            setComposerFocusRequest((n) => n + 1);
+            scrollToBottom();
+            return;
+          }
           setPendingContextLabel(
             (phrase || label || 'Tutor suggestion').trim(),
           );
@@ -974,7 +1038,7 @@ export default function SessionChatView() {
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [sendMessage, sending]);
+  }, [sendMessage, sending, scrollToBottom, setPendingScreenContext]);
 
   // Proactive suggestions from main arrive as Coco messages: unfolded when the
   // chat was open, folded when they first appeared as a pop-up. "Chat about
@@ -1472,6 +1536,11 @@ export default function SessionChatView() {
                   pendingContextLabel,
                   pendingContextRef,
                   setPendingContextLabel,
+                  discussingSuggestion,
+                  composerFocusRequest,
+                  pendingScreenContext,
+                  clearPendingScreenContext: () =>
+                    setPendingScreenContext(null),
                   pendingImages,
                   openImagePreview,
                   pendingHotkeyImagesRef,

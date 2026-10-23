@@ -7,6 +7,9 @@ import {
   waitFor,
 } from '@testing-library/react';
 import App from '../renderer/App';
+import ObservationBubble, {
+  type BubbleState,
+} from '../renderer/components/ObservationBubble';
 
 // The bubble most recently sent to the bubble window.
 const lastBubbleState = (sendMessage: jest.Mock) =>
@@ -275,5 +278,184 @@ describe('App', () => {
     expect(sendMessage).toHaveBeenCalledWith('open-chat-settings');
     chooseMenuItem('quit');
     expect(sendMessage).toHaveBeenCalledWith('quit-from-avatar');
+  });
+});
+
+// The invite bubble is drawn in the bubble window from the state App sends it;
+// clicks come back as avatar-bubble-event.
+const renderBubbleWindow = (bubble: BubbleState | null | undefined) =>
+  render(<ObservationBubble bubble={bubble ?? null} />);
+
+describe('session invite bubble', () => {
+  const setup = () => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const sendMessage = jest.fn();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage,
+        invoke: jest.fn().mockResolvedValue([]),
+      },
+    };
+    render(<App />);
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-1',
+        taskLabel: 'Drafting a social media thread',
+      });
+    });
+    const click = (type: string) =>
+      act(() => listeners.get('avatar-bubble-event')?.(type));
+    return { listeners, sendMessage, click };
+  };
+
+  it('shows the detected task and confirms it is on screen', () => {
+    const { sendMessage } = setup();
+    const bubble = lastBubbleState(sendMessage);
+    expect(bubble).toEqual(
+      expect.objectContaining({
+        phrase: 'Drafting a social media thread',
+        invite: { inviteId: 'invite-1', hasPreview: false },
+      }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-shown', {
+      inviteId: 'invite-1',
+    });
+
+    const { getByText } = renderBubbleWindow(bubble);
+    expect(getByText('Support available')).toBeInTheDocument();
+    expect(getByText('Drafting a social media thread')).toBeInTheDocument();
+  });
+
+  it('starts the session from "Help me with this"', () => {
+    const { sendMessage, click } = setup();
+    click('help');
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-response', {
+      inviteId: 'invite-1',
+      outcome: 'accepted',
+    });
+    expect(lastBubbleState(sendMessage)).toBeNull();
+  });
+
+  it('reports a dismissal instead of training feedback', () => {
+    const { sendMessage, click } = setup();
+    click('dismiss');
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-response', {
+      inviteId: 'invite-1',
+      outcome: 'dismissed',
+    });
+    expect(
+      sendMessage.mock.calls.some(
+        ([channel]) => channel === 'training-feedback',
+      ),
+    ).toBe(false);
+  });
+
+  it('stays up through new observations until main clears it', () => {
+    const { listeners, sendMessage } = setup();
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ invite: expect.anything() }),
+    );
+
+    act(() => listeners.get('session-invite-clear')?.({ inviteId: 'other' }));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ invite: expect.anything() }),
+    );
+    act(() =>
+      listeners.get('session-invite-clear')?.({ inviteId: 'invite-1' }),
+    );
+    expect(lastBubbleState(sendMessage)).toBeNull();
+  });
+
+  it('hands a second invite back to main while the bubble is pinned', () => {
+    const { listeners, sendMessage } = setup();
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-2',
+        taskLabel: 'Something else',
+      });
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-busy', {
+      inviteId: 'invite-2',
+    });
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ phrase: 'Drafting a social media thread' }),
+    );
+  });
+});
+
+describe('session invite with a suggestion preview', () => {
+  const suggestion = {
+    kind: 'content',
+    title: 'Draft social media thread',
+    body: 'Open with the main result, then one post per idea.',
+    copyText: 'Open with the main result, then one post per idea.',
+  };
+
+  it('opens the preview in place and starts the session from chat', async () => {
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const sendMessage = jest.fn();
+    const invoke = jest.fn(async (channel: string) =>
+      channel === 'get-instant-suggestion'
+        ? { status: 'ready', suggestion, scenario: 'everyday_support' }
+        : [],
+    );
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage,
+        invoke,
+      },
+    };
+    render(<App />);
+    act(() => {
+      listeners.get('session-invite')?.({
+        inviteId: 'invite-1',
+        taskLabel: 'Announcing a blog post',
+        observationId: 'invite-obs-1',
+        rawObservation: 'The user is finishing a blog post.',
+        suggestionTitle: 'Draft social media thread',
+      });
+    });
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({
+        phrase: 'Draft social media thread',
+        invite: { inviteId: 'invite-1', hasPreview: true },
+      }),
+    );
+
+    await act(async () => listeners.get('avatar-bubble-event')?.('help'));
+    await waitFor(() =>
+      expect(lastBubbleState(sendMessage)).toEqual(
+        expect.objectContaining({ suggestion }),
+      ),
+    );
+    expect(invoke).toHaveBeenCalledWith('get-instant-suggestion', {
+      observationId: 'invite-obs-1',
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-revealed', {
+      inviteId: 'invite-1',
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      'session-invite-response',
+      expect.anything(),
+    );
+
+    act(() => listeners.get('avatar-bubble-event')?.('chat'));
+    expect(sendMessage).toHaveBeenCalledWith(
+      'chat-about-suggestion',
+      expect.objectContaining({
+        observationId: 'invite-obs-1',
+        sessionInviteId: 'invite-1',
+        suggestion,
+      }),
+    );
   });
 });

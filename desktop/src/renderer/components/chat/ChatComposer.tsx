@@ -1,8 +1,10 @@
 import type React from 'react';
+import { useEffect, useRef } from 'react';
 import { S } from './styles';
 import ChatComposerActions from './ChatComposerActions';
 import './ChatComposer.css';
 import AgentWorkspace from './AgentWorkspace';
+import { ScreenContextChip } from './ScreenContext';
 import type { SavedConversation } from './types';
 import type { VoiceRecorderStatus } from '../../voice-recorder';
 
@@ -18,6 +20,13 @@ interface Props {
   pendingContextLabel: string | null;
   pendingContextRef: React.RefObject<string | null>;
   setPendingContextLabel: React.Dispatch<React.SetStateAction<string | null>>;
+  /** The user just opened the chat from a suggestion shown in the transcript. */
+  discussingSuggestion: boolean;
+  /** Incremented to move the keyboard focus to the message box. */
+  composerFocusRequest: number;
+  /** Screen context to send with the next message, if any. */
+  pendingScreenContext: string | null;
+  clearPendingScreenContext: () => void;
   pendingImages: string[];
   openImagePreview: (imageDataUrl: string) => void;
   pendingHotkeyImagesRef: React.RefObject<Set<string>>;
@@ -49,6 +58,10 @@ export default function ChatComposer({
   pendingContextLabel,
   pendingContextRef,
   setPendingContextLabel,
+  discussingSuggestion,
+  composerFocusRequest,
+  pendingScreenContext,
+  clearPendingScreenContext,
   pendingImages,
   openImagePreview,
   pendingHotkeyImagesRef,
@@ -72,6 +85,11 @@ export default function ChatComposer({
   voiceStatusText,
   voiceError,
 }: Props) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (composerFocusRequest > 0) textareaRef.current?.focus();
+  }, [composerFocusRequest]);
+
   return (
     <div style={S.composer}>
       <AgentWorkspace
@@ -100,6 +118,12 @@ export default function ChatComposer({
               ×
             </button>
           </div>
+        )}
+        {pendingScreenContext && (
+          <ScreenContextChip
+            text={pendingScreenContext}
+            onRemove={clearPendingScreenContext}
+          />
         )}
         {pendingImages.length > 0 && (
           <div style={S.pending}>
@@ -138,10 +162,14 @@ export default function ChatComposer({
           style={S.textarea}
           rows={2}
           aria-label="Message Coco"
+          ref={textareaRef}
           placeholder={
-            voiceState === 'idle'
-              ? 'Ask Coco… (paste an image to attach)'
-              : 'Listening to your voice…'
+            // eslint-disable-next-line no-nested-ternary
+            voiceState !== 'idle'
+              ? 'Listening to your voice…'
+              : discussingSuggestion
+                ? 'Ask about this suggestion…'
+                : 'Ask Coco… (paste an image to attach)'
           }
           value={input}
           disabled={voiceState !== 'idle'}

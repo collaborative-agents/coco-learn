@@ -37,6 +37,9 @@ import MemorySettings from './chat/MemorySettings';
 
 export { ToolCallCard } from './chat/ToolCallCard';
 
+// How close to the bottom of the transcript still counts as reading the latest.
+const FOLLOW_THRESHOLD_PX = 48;
+
 export default function SessionChatView() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -325,12 +328,35 @@ export default function SessionChatView() {
     });
   };
 
+  // New text follows the bottom of the transcript only while the user is
+  // there; scrolling up to read stops it until they return or jump back.
+  const followingRef = useRef(true);
+  const [following, setFollowing] = useState(true);
+  const setFollowingLatest = useCallback((value: boolean) => {
+    if (followingRef.current === value) return;
+    followingRef.current = value;
+    setFollowing(value);
+  }, []);
+  const handleTranscriptScroll = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    setFollowingLatest(
+      list.scrollHeight - list.scrollTop - list.clientHeight <=
+        FOLLOW_THRESHOLD_PX,
+    );
+  }, [setFollowingLatest]);
+  // Jump to the latest message, e.g. after the user sends one.
   const scrollToBottom = useCallback(() => {
+    setFollowingLatest(true);
     requestAnimationFrame(() => {
-      if (listRef.current)
+      // The user may have scrolled up again before this frame.
+      if (followingRef.current && listRef.current)
         listRef.current.scrollTop = listRef.current.scrollHeight;
     });
-  }, []);
+  }, [setFollowingLatest]);
+  const followLatest = useCallback(() => {
+    if (followingRef.current) scrollToBottom();
+  }, [scrollToBottom]);
 
   // Main relays SSE events from the tutor service. Keep one pending tutor
   // message and update it in place so text and tool activity appear in order.
@@ -430,13 +456,13 @@ export default function SessionChatView() {
           });
         });
         if (event.type === 'done' || event.type === 'error') setSending(false);
-        scrollToBottom();
+        followLatest();
       },
     );
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [scrollToBottom]);
+  }, [followLatest]);
 
   const submitTutorRequest = useCallback(
     async (
@@ -493,9 +519,9 @@ export default function SessionChatView() {
         );
         setSending(false);
       }
-      scrollToBottom();
+      followLatest();
     },
-    [scrollToBottom],
+    [scrollToBottom, followLatest],
   );
 
   const submitAudioRequest = useCallback(
@@ -529,9 +555,9 @@ export default function SessionChatView() {
         );
         setSending(false);
       }
-      scrollToBottom();
+      followLatest();
     },
-    [scrollToBottom],
+    [scrollToBottom, followLatest],
   );
 
   const sendVoiceMessage = useCallback(
@@ -995,7 +1021,7 @@ export default function SessionChatView() {
           ? current
           : [...current, suggestionMessage(suggestion, folded === true)],
       );
-      if (!folded) scrollToBottom();
+      if (!folded) followLatest();
     });
     const cleanupReveal = ipc?.on('reveal-chat-suggestion', (data: any) => {
       const { observationId, suggestion } = (data ?? {}) as {
@@ -1028,7 +1054,7 @@ export default function SessionChatView() {
       if (typeof cleanupAdd === 'function') cleanupAdd();
       if (typeof cleanupReveal === 'function') cleanupReveal();
     };
-  }, [scrollToBottom]);
+  }, [scrollToBottom, followLatest]);
 
   const toggleSuggestionFold = (target: ChatMessage) => {
     const flip = (list: ChatMessage[]) =>
@@ -1448,6 +1474,9 @@ export default function SessionChatView() {
                   ratings,
                   rateMessage,
                   hasRunningTool,
+                  following,
+                  onScroll: handleTranscriptScroll,
+                  onJumpToLatest: scrollToBottom,
                 }}
               />{' '}
               <ChatComposer

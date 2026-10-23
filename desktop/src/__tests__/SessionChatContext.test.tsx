@@ -743,6 +743,81 @@ describe('deferred suggestion context', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('lets the user scroll up while a reply streams and jump back to it', async () => {
+    const listeners = new Map<string, (data: any) => void>();
+    let requestId = '';
+    const invoke = jest.fn(async (channel: string, payload?: any) => {
+      if (channel === 'send-chat-message') {
+        requestId = payload.requestId;
+        return { streamed: true };
+      }
+      return null;
+    });
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: any) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+    render(<SessionChatView />);
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
+      target: { value: 'Explain the method section.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(requestId).not.toBe(''));
+
+    const progress = screen.getByRole('button', {
+      name: 'Coco is still writing…',
+    });
+    const list = progress.parentElement!;
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 2000,
+    });
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 500,
+    });
+    // Let the jump to the user's own message finish first.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+    // The user scrolls up to reread the start of the reply.
+    list.scrollTop = 200;
+    fireEvent.scroll(list);
+    expect(
+      screen.getByRole('button', {
+        name: 'Coco is still writing… Jump to latest',
+      }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      listeners.get('chat-stream-event')?.({
+        requestId,
+        type: 'text_delta',
+        delta: 'The method has three parts.',
+      });
+    });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+    expect(list.scrollTop).toBe(200);
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Coco is still writing… Jump to latest',
+      }),
+    );
+    await waitFor(() => expect(list.scrollTop).toBe(2000));
+    expect(
+      screen.getByRole('button', { name: 'Coco is still writing…' }),
+    ).toBeInTheDocument();
+  });
+
   it('renders streamed text and tool-call lifecycle events in one reply', async () => {
     const listeners = new Map<string, (data: any) => void>();
     let requestId = '';

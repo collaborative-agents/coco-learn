@@ -4,6 +4,7 @@ import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import type { BubbleState } from './components/ObservationBubble';
 import PetSprite from './components/PetSprite';
+import usePetPointer from './components/usePetPointer';
 import {
   InstantSuggestion,
   ObservationEvent,
@@ -45,6 +46,7 @@ const TIER2_STATUSES = new Set<ObservationStatus>([
 // ── Pet View ──────────────────────────────────────────────────────────────────
 
 function PetView() {
+  usePetPointer();
   // Start in `dormant` (static sleep1.png, no animation) until the first
   // observation event arrives. After that the state machine takes over and
   // dormant is never re-entered for the lifetime of the window.

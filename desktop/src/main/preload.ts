@@ -8,6 +8,9 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'avatar-pointer'
+  | 'avatar-pointer-position'
+  | 'avatar-pointer-drag'
   | 'avatar-bubble-state'
   | 'avatar-bubble-size'
   | 'avatar-bubble-painted'

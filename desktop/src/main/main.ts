@@ -1388,6 +1388,29 @@ ipcMain.on(
 
 // ── Avatar window ─────────────────────────────────────────────────────────────
 
+let avatarPointerDrag: { x: number; y: number; windowX: number; windowY: number } | null = null;
+ipcMain.on('avatar-pointer', (event, value: { inside?: boolean } = {}) => {
+  if (event.sender !== avatarWindow?.webContents || !avatarWindow) return;
+  if (!avatarPointerDrag) avatarWindow.setIgnoreMouseEvents(value.inside !== true, { forward: true });
+});
+ipcMain.on('avatar-pointer-drag', (event, value: { phase?: string } = {}) => {
+  if (event.sender !== avatarWindow?.webContents || !avatarWindow) return;
+  if (value.phase === 'start') {
+    const point = screen.getCursorScreenPoint();
+    const bounds = avatarWindow.getBounds();
+    avatarPointerDrag = { ...point, windowX: bounds.x, windowY: bounds.y };
+    avatarWindow.setIgnoreMouseEvents(false);
+  } else if (value.phase === 'move' && avatarPointerDrag) {
+    const point = screen.getCursorScreenPoint();
+    avatarWindow.setPosition(
+      avatarPointerDrag.windowX + point.x - avatarPointerDrag.x,
+      avatarPointerDrag.windowY + point.y - avatarPointerDrag.y,
+    );
+  } else if (value.phase === 'end') {
+    avatarPointerDrag = null;
+  }
+});
+
 const createAvatarWindow = () => {
   if (avatarWindow && !avatarWindow.isDestroyed()) return;
 
@@ -1413,6 +1436,19 @@ const createAvatarWindow = () => {
   configureFullscreenCompanionWindow(avatarWindow);
 
   avatarWindow.loadURL(resolveHtmlPath('index.html'));
+  avatarWindow.setIgnoreMouseEvents(true, { forward: true });
+  // Screen coordinates and content bounds are both DIP units. Polling also
+  // handles animation/scale changes when the pointer does not move.
+  const pointerTimer = setInterval(() => {
+    if (!avatarWindow || avatarWindow.isDestroyed() || !avatarWindow.isVisible()) return;
+    const point = screen.getCursorScreenPoint();
+    const bounds = avatarWindow.getContentBounds();
+    const zoom = avatarWindow.webContents.getZoomFactor();
+    avatarWindow.webContents.send('avatar-pointer-position', {
+      x: (point.x - bounds.x) / zoom,
+      y: (point.y - bounds.y) / zoom,
+    });
+  }, 33);
 
   avatarWindow.on('ready-to-show', () => {
     if (hideAvatarMode) {
@@ -1425,6 +1461,8 @@ const createAvatarWindow = () => {
   });
 
   avatarWindow.on('closed', () => {
+    clearInterval(pointerTimer);
+    avatarPointerDrag = null;
     avatarWindow = null;
     avatarMenuWindow?.destroy();
     avatarBubbleWindow?.destroy();
@@ -1469,6 +1507,7 @@ const createAvatarWindow = () => {
   avatarWindow.on('will-move', noteAvatarMove);
   avatarWindow.on('move', noteAvatarMove);
   avatarWindow.on('hide', () => {
+    avatarPointerDrag = null;
     hideAvatarBubble();
     closeAvatarHistory();
   });

@@ -1554,6 +1554,18 @@ const CHAT_PANEL_W = 520;
 const CHAT_EXPANDED_W = 1160;
 const CHAT_CONTENT_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 let chatContentZoomFactor = 1;
+let chatWindowPinned = false;
+
+ipcMain.on('get-chat-window-pin-state', (event) => {
+  if (event.sender !== chatWindow?.webContents) return;
+  event.sender.send('chat-window-pin-state', { pinned: chatWindowPinned });
+});
+ipcMain.on('set-chat-window-pinned', (event, value: { pinned?: boolean } = {}) => {
+  if (event.sender !== chatWindow?.webContents || !chatWindow || typeof value?.pinned !== 'boolean') return;
+  chatWindow.setAlwaysOnTop(value.pinned);
+  chatWindowPinned = chatWindow.isAlwaysOnTop();
+  event.sender.send('chat-window-pin-state', { pinned: chatWindowPinned });
+});
 
 const createChatWindow = () => {
   if (chatWindow && !chatWindow.isDestroyed()) return;
@@ -1583,6 +1595,7 @@ const createChatWindow = () => {
   });
 
   configureMainWindow(chatWindow);
+  chatWindow.setAlwaysOnTop(chatWindowPinned);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
 
   const reportLayout = () => {
@@ -1840,6 +1853,7 @@ const showChatPanel = (options: { expanded?: boolean } = {}) => {
     );
   }
   configureMainWindow(chatWindow);
+  chatWindow.setAlwaysOnTop(chatWindowPinned);
   chatWindow.show();
   chatWindow.focus();
   // The avatar stays visible alongside the chat panel — never hide it, so the

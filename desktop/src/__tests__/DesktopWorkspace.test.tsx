@@ -7,6 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import SessionChatView from '../renderer/components/SessionChatView';
+import WindowControls from '../renderer/components/chat/WindowControls';
 
 let mockStudyAccess = true;
 jest.mock('../renderer/useStudyAccess', () => ({
@@ -48,6 +49,25 @@ beforeEach(() => {
       }),
     },
   };
+});
+
+it('reflects native pin state and requests pin/unpin beside the expand control', async () => {
+  render(<WindowControls expanded onExpandedChange={jest.fn()} />);
+  await act(async () => {});
+  expect(sendMessage).toHaveBeenCalledWith('get-chat-window-pin-state');
+  const pin = screen.getByRole('button', { name: 'Pin window on top' });
+  expect(pin).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(pin);
+  expect(sendMessage).toHaveBeenCalledWith('set-chat-window-pinned', {
+    pinned: true,
+  });
+  act(() => listeners.get('chat-window-pin-state')?.({ pinned: true }));
+  const unpin = screen.getByRole('button', { name: 'Unpin window' });
+  expect(unpin).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(unpin);
+  expect(sendMessage).toHaveBeenCalledWith('set-chat-window-pinned', {
+    pinned: false,
+  });
 });
 
 it('activates Training only when opened and refreshes repeated menu requests', async () => {

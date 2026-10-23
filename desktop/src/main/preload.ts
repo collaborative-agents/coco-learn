@@ -8,6 +8,9 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'chat-window-pin-state'
+  | 'get-chat-window-pin-state'
+  | 'set-chat-window-pinned'
   | 'avatar-pointer'
   | 'avatar-pointer-position'
   | 'avatar-pointer-drag'

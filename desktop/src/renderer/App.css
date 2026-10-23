@@ -434,6 +434,9 @@
   right: 6px;
   width: 16px;
   height: 16px;
+  padding: 0;
+  background: none;
+  font-family: inherit;
   line-height: 16px;
   text-align: center;
   font-size: 11px;
@@ -444,31 +447,17 @@
   cursor: help;
   -webkit-app-region: no-drag;
 }
-.bubble-help-badge:hover {
+.bubble-help-badge:hover,
+.bubble-help-badge[aria-expanded='true'] {
   background: rgba(0, 0, 0, 0.05);
   color: var(--coco-color-text-secondary);
 }
+/* Opened by the "?" inside the card, so the bubble window grows to fit it. */
 .bubble-help-tip {
-  display: none;
-  position: absolute;
-  top: 22px;
-  right: 0;
-  width: 184px;
-  padding: 7px 9px;
-  z-index: 20;
-  background: var(--coco-color-text);
-  color: var(--coco-color-surface-subtle);
+  margin: 6px 0 0;
+  color: var(--coco-color-text-secondary);
   font-size: var(--coco-text-caption);
-  font-weight: 400;
   line-height: 1.4;
-  text-align: left;
-  white-space: normal;
-  border-radius: var(--coco-radius-control);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-}
-.bubble-help-badge:hover .bubble-help-tip,
-.bubble-help-badge:focus .bubble-help-tip {
-  display: block;
 }
 
 /* Tail pointing toward the pet (right side). Inherits parent's accent border. */

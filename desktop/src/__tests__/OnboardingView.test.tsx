@@ -24,8 +24,15 @@ function setup(
   };
   const invoke = jest.fn(async (channel: string) => responses[channel] ?? null);
   const sendMessage = jest.fn();
-  (window as any).electron = { ipcRenderer: { invoke, sendMessage } };
-  return { invoke, sendMessage, responses };
+  const listeners: Record<string, (...args: unknown[]) => void> = {};
+  const on = jest.fn(
+    (channel: string, listener: (...args: unknown[]) => void) => {
+      listeners[channel] = listener;
+      return () => delete listeners[channel];
+    },
+  );
+  (window as any).electron = { ipcRenderer: { invoke, sendMessage, on } };
+  return { invoke, sendMessage, responses, listeners };
 }
 async function next() {
   await act(async () => {
@@ -163,6 +170,23 @@ describe('onboarding window', () => {
       'Microphone access is required.',
     );
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+
+  it('confirms a wake phrase heard during setup instead of opening chat', async () => {
+    const { listeners } = setup();
+    await act(async () => {
+      render(<OnboardingView />);
+    });
+    await enterName();
+    await next();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch'));
+    });
+    expect(screen.getByText('Try it now: say “Hey Coco”.')).toBeVisible();
+    await act(async () => {
+      listeners['onboarding-wake-word-detected']();
+    });
+    expect(screen.getByText(/Coco heard you!/)).toBeVisible();
   });
 
   it.each([false, true])(

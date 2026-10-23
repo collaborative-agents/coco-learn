@@ -6,7 +6,7 @@
   height: 100%;
   overflow: auto;
   box-sizing: border-box;
-  padding: 20px 24px;
+  padding: 20px 24px 80px;
   background: var(--coco-color-surface);
   color: var(--coco-color-text);
   font: var(--coco-text-body) / var(--coco-leading-body) var(--coco-font-family);
@@ -219,10 +219,16 @@
   visibility: hidden;
 }
 .training-toolbar {
+  position: fixed;
+  right: 24px;
+  bottom: 20px;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 8px 0;
+  margin: 0;
+  border-radius: var(--coco-radius-control);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
 }
 .training-toolbar button[aria-pressed='true'] {
   background: var(--coco-color-accent-soft);
@@ -281,7 +287,7 @@
     font-size: 23px;
   }
   .training-page {
-    padding: 20px 16px;
+    padding: 20px 16px 80px;
   }
   .training-page .training-todo {
     gap: 10px;

@@ -290,7 +290,7 @@ it('starts with a compact checklist and opens assessments only on click', async 
   me.started_at = null;
   render(<TrainingView />);
   const starting = await screen.findByRole('button', {
-    name: /Starting assessment/,
+    name: /Start check-in/,
   });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(
@@ -302,7 +302,7 @@ it('starts with a compact checklist and opens assessments only on click', async 
   expect(invoke).not.toHaveBeenCalledWith('study-task-materials', 1);
   fireEvent.click(starting);
   expect(
-    await screen.findByRole('dialog', { name: 'Starting assessment' }),
+    await screen.findByRole('dialog', { name: 'Start check-in' }),
   ).toBeInTheDocument();
   expect(
     await screen.findByRole('tab', { name: /Challenge 1/ }),
@@ -316,11 +316,11 @@ it('opens completed assessments directly into their questions and saved answers'
   assessments = completedAssessments();
   render(<TrainingView />);
   const row = await screen.findByRole('button', {
-    name: 'Starting assessment — Complete',
+    name: 'Start check-in — Complete',
   });
-  expect(row).toHaveClass('training-todo--complete');
+  expect(row).toHaveClass('is-complete');
   fireEvent.click(row);
-  const dialog = screen.getByRole('dialog', { name: 'Starting assessment' });
+  const dialog = screen.getByRole('dialog', { name: 'Start check-in' });
   expect(
     within(dialog).queryByText('Complete both pre-assessment challenges'),
   ).not.toBeInTheDocument();
@@ -398,7 +398,7 @@ it('opens instructions and individual references without tutoring while locking 
   await waitFor(() => expect(firstTask).toBeEnabled());
   expect(
     screen.queryByRole('button', { name: /Day 2 Practice task/ }),
-  ).not.toBeInTheDocument();
+  ).toBeDisabled();
   expect(screen.getByText(/AI tutoring is disabled/)).toBeInTheDocument();
   expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   fireEvent.click(firstTask);
@@ -476,7 +476,7 @@ it('opens instructions and individual references without tutoring while locking 
 it('keeps Challenge 1 open to show its score after submission', async () => {
   render(<TrainingView />);
   fireEvent.click(
-    await screen.findByRole('button', { name: /Starting assessment/ }),
+    await screen.findByRole('button', { name: /Start check-in/ }),
   );
   const challenge = (
     await screen.findByRole('heading', {
@@ -502,60 +502,40 @@ it('keeps Challenge 1 open to show its score after submission', async () => {
   ).not.toBeInTheDocument();
 });
 
-it('shows learning progress and the original animation beneath the main heading, independent of the collapsible group', async () => {
+it('combines assessment and daily completion in the clickable progress path', async () => {
   me.days[0].completed_at = '2026-09-24T01:00:00Z';
   me.days[1].unlocked = true;
-  const { container } = render(<TrainingView />);
-  const toggle = await screen.findByRole('button', { name: 'Training tasks' });
-  expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.queryByText(/100 XP/)).not.toBeInTheDocument();
-  expect(
-    screen.getByRole('progressbar', { name: 'Learning progress' }),
-  ).toHaveAttribute('aria-valuenow', '14');
-  expect(screen.getByRole('progressbar')).toHaveAttribute(
-    'aria-valuetext',
-    '1 of 7 tasks complete',
+  assessments = completedAssessments();
+  render(<TrainingView />);
+  await waitFor(() =>
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '2',
+    ),
   );
   const progress = screen.getByRole('region', { name: 'Learning progress' });
-  expect(progress.previousElementSibling).toContainElement(
-    screen.getByRole('heading', { name: 'AI Literacy Challenge' }),
+  expect(screen.getByRole('progressbar')).toHaveAttribute(
+    'aria-valuemax',
+    '10',
   );
-  expect(within(progress).getByText('1/7')).toBeInTheDocument();
-  expect(within(progress).getByText('Learning progress')).toBeInTheDocument();
-  const progressHeader = container.querySelector('.training-progress-header');
-  expect(progressHeader).toContainElement(
-    within(progress).getByText('Learning progress'),
+  expect(screen.getByRole('progressbar')).toHaveAttribute(
+    'aria-valuetext',
+    '2 of 10 challenge items complete',
   );
-  expect(progressHeader).toContainElement(
-    container.querySelector('.training-progress-avatar'),
-  );
-  expect(toggle.closest('.training-group-header')).not.toContainElement(
-    screen.getByRole('progressbar'),
-  );
-  expect(container.querySelector('.training-progress-avatar')).toHaveAttribute(
-    'src',
-    'test-file-stub',
-  );
+  expect(within(progress).queryByText('2/10 complete')).not.toBeInTheDocument();
+  expect(within(progress).getAllByRole('button')).toHaveLength(10);
   expect(
-    screen.getByRole('button', { name: 'Day 1 Practice task — Complete' }),
-  ).toHaveClass('training-todo--complete');
-  expect(
-    screen.getByText('Camp awards · Three $50 awards'),
-  ).toBeInTheDocument();
-  fireEvent.click(toggle);
-  expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  expect(
-    screen.queryByRole('list', { name: 'Training tasks' }),
+    screen.queryByRole('list', { name: 'Practice checklist' }),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole('progressbar')).toBeVisible();
+  const next = within(progress).getByRole('button', {
+    name: 'Day 2 Practice task',
+  });
+  expect(next).toHaveAttribute('aria-current', 'step');
+  expect(next).toBeEnabled();
+  fireEvent.click(next);
   expect(
-    screen.getByRole('button', { name: /Starting assessment/ }),
-  ).toBeVisible();
-  fireEvent.click(toggle);
-  expect(screen.getByRole('list', { name: 'Training tasks' })).toBeVisible();
-  expect(
-    screen.getByRole('button', { name: 'Day 1 Practice task — Complete' }),
-  ).toBeVisible();
+    await screen.findByRole('dialog', { name: 'Day 2 Practice task' }),
+  ).toBeInTheDocument();
 });
 
 it('unlocks all three post-assessment sections only after day seven', async () => {
@@ -567,7 +547,7 @@ it('unlocks all three post-assessment sections only after day seven', async () =
 
   render(<TrainingView />);
   fireEvent.click(
-    await screen.findByRole('button', { name: /Final assessment/ }),
+    await screen.findByRole('button', { name: /Final check-in/ }),
   );
 
   const postAssessmentPanel = (
@@ -623,7 +603,7 @@ it('can start activity recording after the execution task is already running', a
 
   render(<TrainingView />);
   fireEvent.click(
-    await screen.findByRole('button', { name: /Final assessment/ }),
+    await screen.findByRole('button', { name: /Final check-in/ }),
   );
 
   fireEvent.click(await screen.findByRole('tab', { name: /Execution task/ }));
@@ -650,7 +630,7 @@ it('can start activity recording after the execution task is already running', a
 });
 
 it.each(['participant', 'admin', 'super_admin'] as const)(
-  'hides the final assessment until all seven days are complete in the %s student experience',
+  'locks the final assessment until all seven days are complete in the %s student experience',
   async (role) => {
     me.role = role;
     studentMode = role !== 'participant';
@@ -659,10 +639,10 @@ it.each(['participant', 'admin', 'super_admin'] as const)(
     });
     postAssessment.unlocked = true;
     render(<TrainingView />);
-    await screen.findByRole('list', { name: 'Practice checklist' });
+    await screen.findByRole('region', { name: 'Learning progress' });
     expect(
-      screen.queryByRole('button', { name: /Final assessment/ }),
-    ).not.toBeInTheDocument();
+      screen.queryByRole('button', { name: /Final check-in/ }),
+    ).toBeDisabled();
     expect(invoke).not.toHaveBeenCalledWith('post-assessment-state');
   },
 );
@@ -672,56 +652,69 @@ it.each(['admin', 'super_admin'] as const)(
   async (role) => {
     me.role = role;
     render(<TrainingView />);
-    await screen.findByRole('list', { name: 'Practice checklist' });
+    await screen.findByRole('region', { name: 'Learning progress' });
     expect(
       screen.getAllByRole('button', { name: /Day \d Practice task/ }),
     ).toHaveLength(7);
     expect(
-      screen.getByRole('button', { name: /Final assessment/ }),
+      screen.getByRole('button', { name: /Final check-in/ }),
     ).toBeInTheDocument();
   },
 );
 
-it('groups practice days beneath a concise training heading without row subtitles', async () => {
-  me.role = 'admin';
-  me.days[0].completed_at = '2026-10-07T12:00:00Z';
+it('shows four stages and seven day markers without a separate checklist', async () => {
   render(<TrainingView />);
-  const checklist = await screen.findByRole('list', {
-    name: 'Practice checklist',
+  const progress = await screen.findByRole('region', {
+    name: 'Learning progress',
   });
+  ['Start check-in', '7-day training', 'Final check-in', 'Follow-up'].forEach(
+    (label) => {
+      expect(within(progress).getByText(label)).toBeInTheDocument();
+    },
+  );
   expect(
-    screen.getByRole('heading', { level: 1, name: 'AI Literacy Challenge' }),
-  ).toBeInTheDocument();
+    within(progress).getAllByRole('button', { name: /Day \d Practice task/ }),
+  ).toHaveLength(7);
   expect(
-    screen.getByText(/Build your skills, one day at a time/),
-  ).toBeInTheDocument();
+    screen.queryByRole('list', { name: 'Practice checklist' }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByText('How it works').closest('details'),
   ).not.toHaveAttribute('open');
-  expect(
-    screen.getByText(/an assignment 14 days after your final assessment/),
-  ).toBeInTheDocument();
-  const training = within(checklist).getByRole('list', {
-    name: 'Training tasks',
-  });
-  expect(training.parentElement?.parentElement).toBe(checklist);
-  expect(checklist.children).toHaveLength(4);
-  expect(within(training).getAllByRole('listitem')).toHaveLength(7);
-  expect(
-    within(training).queryByRole('button', { name: /assessment/ }),
-  ).not.toBeInTheDocument();
-  expect(checklist.querySelector('small')).toBeNull();
-  expect(
-    within(checklist).queryByText(/Complete|Ready|Start here/),
-  ).not.toBeInTheDocument();
-  expect(
-    within(training).getByRole('button', {
-      name: 'Day 1 Practice task — Complete',
-    }),
-  ).toHaveClass('training-todo--complete');
 });
 
-it('reveals only the next unfinished practice day, even when it is locked', async () => {
+it('lets admins preview every Agent 101 level and hides locked details in student mode', async () => {
+  me.role = 'admin';
+  render(<TrainingView />);
+  const context = await screen.findByRole('button', {
+    name: 'Level 2: Context. Available',
+  });
+  expect(context).toBeEnabled();
+  expect(
+    screen.getByRole('button', {
+      name: 'Reward after level 2: Context button',
+    }),
+  ).toBeEnabled();
+  fireEvent.click(context);
+  expect(
+    screen.getByRole('dialog', { name: 'Level 2 · Context' }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Back to training' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Student mode' }));
+  await screen.findByRole('button', { name: 'Exit student mode' });
+  expect(
+    screen.getByRole('button', {
+      name: 'Level 2: Locked, complete level 1 first',
+    }),
+  ).toBeDisabled();
+  expect(
+    screen.queryByRole('button', {
+      name: 'Reward after level 2: Context button',
+    }),
+  ).not.toBeInTheDocument();
+});
+
+it('shows future practice days as locked markers', async () => {
   assessments = completedAssessments();
   me.days[0].completed_at = '2026-10-07T12:00:00Z';
   render(<TrainingView />);
@@ -731,9 +724,7 @@ it('reveals only the next unfinished practice day, even when it is locked', asyn
   expect(
     screen.getByRole('button', { name: /Day 2 Practice task/ }),
   ).toBeDisabled();
-  expect(
-    screen.queryByRole('button', { name: /Day 3/ }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Day 3/ })).toBeDisabled();
 });
 
 it('does not begin training while materials are missing', async () => {
@@ -752,7 +743,7 @@ it.each(['participant', 'admin', 'super_admin'] as const)(
     assessments = completedAssessments();
     render(<TrainingView />);
     expect(
-      await screen.findByRole('list', { name: 'Practice checklist' }),
+      await screen.findByRole('region', { name: 'Learning progress' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Administration' }),
@@ -788,10 +779,10 @@ it('lets an admin enter and exit the gated student experience', async () => {
   ).toBeDisabled();
   expect(
     screen.queryByRole('button', { name: /Day 2 Practice task/ }),
-  ).not.toBeInTheDocument();
+  ).toBeDisabled();
   expect(
-    screen.queryByRole('button', { name: /Final assessment/ }),
-  ).not.toBeInTheDocument();
+    screen.queryByRole('button', { name: /Final check-in/ }),
+  ).toBeDisabled();
 
   fireEvent.click(screen.getByRole('button', { name: 'Exit student mode' }));
   expect(
@@ -809,7 +800,7 @@ it('lets an admin enter and exit the gated student experience', async () => {
     screen.getAllByRole('button', { name: /Day \d Practice task/ }),
   ).toHaveLength(7);
   expect(
-    screen.getByRole('button', { name: /Final assessment/ }),
+    screen.getByRole('button', { name: /Final check-in/ }),
   ).toBeInTheDocument();
 });
 
@@ -824,7 +815,7 @@ it('shows a server-timed 14-day follow-up countdown after post-assessment comple
   };
   render(<TrainingView />);
   const followUp = await screen.findByRole('button', {
-    name: /Follow-up assignment — unlocks in 14d 0h 0m 0s/,
+    name: /Follow-up — unlocks in 14d 0h 0m 0s/,
   });
   expect(followUp).toBeDisabled();
   expect(invoke).not.toHaveBeenCalledWith(
@@ -863,9 +854,7 @@ it('opens the released staffing mission and uses the follow-up recorder channels
     return original(channel, ...args);
   });
   render(<TrainingView />);
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Follow-up assignment' }),
-  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Follow-up' }));
   expect(
     await screen.findByText('Decide Where the Risk Goes'),
   ).toBeInTheDocument();
@@ -890,13 +879,13 @@ it.each(['admin', 'super_admin'] as const)(
     };
     render(<TrainingView />);
     expect(
-      await screen.findByRole('button', { name: 'Follow-up assignment' }),
+      await screen.findByRole('button', { name: 'Follow-up' }),
     ).toBeEnabled();
   },
 );
 
 it.each(['admin', 'super_admin'] as const)(
-  'keeps the follow-up hidden in student mode for %s before post-assessment completion',
+  'keeps the follow-up locked in student mode for %s before post-assessment completion',
   async (role) => {
     me.role = role;
     studentMode = true;
@@ -909,8 +898,6 @@ it.each(['admin', 'super_admin'] as const)(
     };
     render(<TrainingView />);
     await screen.findByRole('button', { name: 'Exit student mode' });
-    expect(
-      screen.queryByRole('button', { name: /Follow-up assignment/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Follow-up/ })).toBeDisabled();
   },
 );

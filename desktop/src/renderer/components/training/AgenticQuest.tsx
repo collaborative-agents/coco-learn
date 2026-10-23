@@ -1,6 +1,6 @@
 import './AgenticQuest.css';
 
-const levels = [
+export const agentLevels = [
   {
     name: 'Tool',
     reward: 'Expand tool calls',
@@ -8,20 +8,30 @@ const levels = [
   },
   {
     name: 'Context',
+    summary:
+      'Context is the information available to a model when it responds: instructions, conversation history, documents, and tool results.',
     reward: 'Context button',
     detail: 'Explore the information Coco has available.',
   },
   {
     name: 'Token',
+    summary:
+      'Tokens are the chunks of text a model processes. Inputs and outputs both use tokens, and models have limits on how many they can handle at once.',
     reward: 'Token usage',
     detail: 'See how many tokens your conversation uses.',
   },
   {
     name: 'Models',
+    summary:
+      'Models power an agent’s reasoning and responses. Different models offer different capabilities, speed, and cost.',
     reward: 'Model picker',
     detail: 'Choose the model for your task.',
   },
-  { name: 'Workflow' },
+  {
+    name: 'Workflow',
+    summary:
+      'A workflow connects instructions, model decisions, and tool calls into a sequence that completes a task. Clear checkpoints help you review the results.',
+  },
 ];
 
 function GiftIcon() {
@@ -44,7 +54,13 @@ function GiftIcon() {
 }
 
 /** Initial quest design; completion and feature entitlements are not yet connected. */
-export default function AgenticQuest({ onOpen }: { onOpen: () => void }) {
+export default function AgenticQuest({
+  onOpen,
+  adminMode,
+}: {
+  onOpen: (level: number) => void;
+  adminMode: boolean;
+}) {
   // No rewards are unlocked in the initial design preview.
   const completedLevels: number[] = [];
   return (
@@ -52,44 +68,48 @@ export default function AgenticQuest({ onOpen }: { onOpen: () => void }) {
       <span className="agentic-quest-label">Agent 101</span>
       <ol
         className="agentic-quest-path"
-        aria-label="Five levels, Tool available"
+        aria-label={
+          adminMode
+            ? 'Five levels, admin preview'
+            : 'Five levels, Tool available'
+        }
       >
-        {levels.map((level, index) => (
+        {agentLevels.map((level, index) => (
           <li key={level.name} className="agentic-quest-stop">
             <button
               type="button"
               className={`agentic-quest-level${index === 0 ? ' agentic-quest-level--current' : ''}`}
-              disabled={index !== 0}
+              disabled={!adminMode && index !== 0}
               aria-current={index === 0 ? 'step' : undefined}
-              aria-label={`Level ${index + 1}: ${index === 0 ? `${level.name}. Available` : `Locked, complete level ${index} first`}`}
-              onClick={onOpen}
+              aria-label={`Level ${index + 1}: ${adminMode || index === 0 ? `${level.name}. Available` : `Locked, complete level ${index} first`}`}
+              onClick={() => onOpen(index)}
             >
               <span className="agentic-quest-number">{index + 1}</span>
-              <span>{index === 0 ? level.name : '??'}</span>
+              <span>{adminMode || index === 0 ? level.name : '??'}</span>
             </button>
             {level.reward && (
               <span className="agentic-quest-bridge">
                 <button
                   type="button"
                   className="agentic-quest-gift"
-                  disabled={!completedLevels.includes(index + 1)}
-                  aria-label={`Reward after level ${index + 1}: ${completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
+                  disabled={!(adminMode || completedLevels.includes(index + 1))}
+                  aria-label={`Reward after level ${index + 1}: ${adminMode || completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
                   aria-describedby={
-                    completedLevels.includes(index + 1)
+                    adminMode || completedLevels.includes(index + 1)
                       ? `quest-reward-${index}`
                       : undefined
                   }
                 >
                   <GiftIcon />
                 </button>
-                {completedLevels.includes(index + 1) && (
+                {(adminMode || completedLevels.includes(index + 1)) && (
                   <span
                     className="agentic-quest-tooltip"
                     role="tooltip"
                     id={`quest-reward-${index}`}
                   >
                     <span className="agentic-quest-tooltip-kicker">
-                      Unlocked by completing {level.name}
+                      Reward for completing {level.name}
                     </span>
                     <strong>{level.reward}</strong>
                     <span>{level.detail}</span>

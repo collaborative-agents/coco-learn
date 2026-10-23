@@ -8,10 +8,8 @@ import DailyReflectionForm from './training/DailyReflectionForm';
 import TrainingDialog from './training/TrainingDialog';
 import TrainingAnnouncement from './training/TrainingAnnouncement';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
-import TrainingTodo from './training/TrainingTodo';
-import TrainingTaskGroup from './training/TrainingTaskGroup';
 import TrainingProgress from './training/TrainingProgress';
-import AgenticQuest from './training/AgenticQuest';
+import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
 import './TrainingView.css';
@@ -45,6 +43,7 @@ export default function TrainingView({
   const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
   const [questOpen, setQuestOpen] = useState(false);
+  const [questLevel, setQuestLevel] = useState(0);
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -75,8 +74,6 @@ export default function TrainingView({
   const studentExperience = state?.role === 'participant' || studentMode;
   const adminMode =
     (state?.role === 'admin' || state?.role === 'super_admin') && !studentMode;
-  const followUpVisible =
-    adminMode || Boolean(followUp?.unlocks_at && followUp.visible);
   const followUpUnlocked =
     adminMode ||
     Boolean(
@@ -91,9 +88,6 @@ export default function TrainingView({
   const postAssessmentUnlocked = adminMode || trainingComplete;
   const orderedDays = [...(state?.days ?? [])].sort((a, b) => a.day - b.day);
   const nextDay = orderedDays.find((day) => !day.completed_at);
-  const visibleDays = orderedDays.filter(
-    (day) => adminMode || day.completed_at || day.day === nextDay?.day,
-  );
   const selectedDay = state?.days.find((day) => day.day === active);
   const reflectionDay = state?.days.find(
     (day) => day.day === reflectionDayNumber,
@@ -132,7 +126,13 @@ export default function TrainingView({
         className="training-home"
         inert={active !== null || reflectionDayNumber !== null || questOpen}
       >
-        <AgenticQuest onOpen={() => setQuestOpen(true)} />
+        <AgenticQuest
+          adminMode={adminMode}
+          onOpen={(level) => {
+            setQuestLevel(level);
+            setQuestOpen(true);
+          }}
+        />
         <section
           className="training-main-challenge"
           aria-labelledby="training-challenge-title"
@@ -147,15 +147,67 @@ export default function TrainingView({
               with AI.
             </p>
           </header>
-          {state && <TrainingProgress days={state.days} />}
+          {state && (
+            <TrainingProgress
+              steps={[
+                {
+                  id: 'pre',
+                  label: 'Start check-in',
+                  accessibleLabel: 'Start check-in',
+                  complete: preAssessmentComplete,
+                  available: true,
+                  onClick: () => setActive('pre'),
+                },
+                ...Array.from({ length: 7 }, (_, index) => {
+                  const day = orderedDays.find(
+                    (item) => item.day === index + 1,
+                  );
+                  return {
+                    id: `day-${index + 1}`,
+                    label: `${index + 1}`,
+                    accessibleLabel: `Day ${index + 1} Practice task`,
+                    complete: Boolean(day?.completed_at),
+                    available: Boolean(
+                      day &&
+                        dayCanOpen(day) &&
+                        (adminMode ||
+                          day.completed_at ||
+                          day.day === nextDay?.day),
+                    ),
+                    onClick: () => setActive(index + 1),
+                  };
+                }),
+                {
+                  id: 'post',
+                  label: 'Final check-in',
+                  accessibleLabel: 'Final check-in',
+                  complete: Boolean(state.post_assessment_complete),
+                  available: postAssessmentUnlocked,
+                  onClick: () => setActive('post'),
+                },
+                {
+                  id: 'follow-up',
+                  label: 'Follow-up',
+                  accessibleLabel: followUpUnlocked
+                    ? 'Follow-up'
+                    : `Follow-up${followUp?.unlocks_at ? ` — unlocks in ${countdown}` : ' — unlocks after final check-in'}`,
+                  complete: Boolean(followUp?.complete),
+                  available:
+                    followUpUnlocked &&
+                    (adminMode || Boolean(followUp?.visible)),
+                  onClick: () => setActive('follow-up'),
+                },
+              ]}
+            />
+          )}
           <div className="training-challenge-details">
             <details className="training-about">
               <summary>How it works</summary>
               <p>
                 During the three-week AI Literacy Camp, you’ll try a new AI
-                collaboration task each day in the first week. Starting and
-                final assessments, followed by an assignment 14 days after your
-                final assessment, help you track your progress.
+                collaboration task each day in the first week. Start and final
+                check-ins, followed by a follow-up 14 days after your final
+                check-in, help you see how your skills grow.
               </p>
             </details>
           </div>
@@ -199,79 +251,59 @@ export default function TrainingView({
               {!state.tutoring_allowed && (
                 <p className="training-info">
                   AI tutoring is disabled for your account. Your available
-                  assessments and tasks are still accessible.
+                  check-ins and tasks are still accessible.
                 </p>
               )}
-              <ol className="training-todos" aria-label="Practice checklist">
-                <TrainingTodo
-                  title="Starting assessment"
-                  complete={preAssessmentComplete}
-                  onClick={() => setActive('pre')}
-                />
-                <TrainingTaskGroup>
-                  {visibleDays.map((day) => (
-                    <TrainingTodo
-                      key={day.day}
-                      title={`Day ${day.day} Practice task`}
-                      complete={Boolean(day.completed_at)}
-                      disabled={!dayCanOpen(day)}
-                      onClick={() => setActive(day.day)}
-                    />
-                  ))}
-                </TrainingTaskGroup>
-                {postAssessmentUnlocked && (
-                  <TrainingTodo
-                    title="Final assessment"
-                    complete={state.post_assessment_complete}
-                    disabled={!postAssessmentUnlocked}
-                    onClick={() => setActive('post')}
-                  />
-                )}
-                {followUpVisible && (
-                  <TrainingTodo
-                    title={
-                      followUpUnlocked
-                        ? 'Follow-up assignment'
-                        : `Follow-up assignment — unlocks in ${countdown}`
-                    }
-                    complete={followUp?.complete}
-                    disabled={!followUpUnlocked}
-                    onClick={() => setActive('follow-up')}
-                  />
-                )}
-              </ol>
             </>
           )}
         </section>
       </div>
       <TrainingDialog
         open={questOpen}
-        title="Level 1 · Tool"
+        title={`Level ${questLevel + 1} · ${agentLevels[questLevel].name}`}
         onClose={() => setQuestOpen(false)}
       >
         <div className="agentic-quest-preview">
           <span className="training-eyebrow">AGENT 101</span>
-          <h3>Give AI a way to act</h3>
-          <p>
-            A tool lets an AI system do something beyond generating a reply,
-            such as searching for information, reading a file, or running code.
-            The model requests a tool call, then uses the result to continue.
-          </p>
-          <div className="agentic-quest-example">
-            <strong>Try thinking of it this way</strong>
-            <p>
-              Ask Coco to summarize a document. Reading the document is the tool
-              call; the document’s contents are the result; the summary is
-              Coco’s response.
-            </p>
-          </div>
-          <div className="agentic-quest-reward">
-            <strong>Your level reward · Expand tool calls</strong>
-            <p>
-              Completing this level will let you open tool calls in the main
-              panel to see what Coco did and what came back.
-            </p>
-          </div>
+          {questLevel === 0 ? (
+            <>
+              <h3>Give AI a way to act</h3>
+              <p>
+                A tool lets an AI system do something beyond generating a reply,
+                such as searching for information, reading a file, or running
+                code. The model requests a tool call, then uses the result to
+                continue.
+              </p>
+              <div className="agentic-quest-example">
+                <strong>Try thinking of it this way</strong>
+                <p>
+                  Ask Coco to summarize a document. Reading the document is the
+                  tool call; the document’s contents are the result; the summary
+                  is Coco’s response.
+                </p>
+              </div>
+              <div className="agentic-quest-reward">
+                <strong>Your level reward · Expand tool calls</strong>
+                <p>
+                  Completing this level will let you open tool calls in the main
+                  panel to see what Coco did and what came back.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3>{agentLevels[questLevel].name}</h3>
+              <p>{agentLevels[questLevel].summary}</p>
+              {agentLevels[questLevel].reward && (
+                <div className="agentic-quest-reward">
+                  <strong>
+                    Your level reward · {agentLevels[questLevel].reward}
+                  </strong>
+                  <p>{agentLevels[questLevel].detail}</p>
+                </div>
+              )}
+            </>
+          )}
           <p className="training-info">
             Lesson preview. Level completion and feature unlocks are coming
             next.
@@ -289,7 +321,7 @@ export default function TrainingView({
         <>
           <TrainingDialog
             open={active === 'pre'}
-            title="Starting assessment"
+            title="Start check-in"
             onClose={() => setActive(null)}
           >
             <PreAssessmentPanel
@@ -299,7 +331,7 @@ export default function TrainingView({
           </TrainingDialog>
           <TrainingDialog
             open={active === 'post'}
-            title="Final assessment"
+            title="Final check-in"
             onClose={() => setActive(null)}
           >
             <PostAssessmentPanel
@@ -310,7 +342,7 @@ export default function TrainingView({
           {followUpUnlocked && (
             <TrainingDialog
               open={active === 'follow-up'}
-              title="Follow-up assignment"
+              title="Follow-up"
               onClose={() => setActive(null)}
             >
               <FollowUpAssessmentPanel onSubmitted={refresh} />

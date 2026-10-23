@@ -36,7 +36,7 @@ export const AGENTS = Object.values(AI_TOOLS).filter(
 );
 export const MODE_OPTIONS = AGENT_MODES.filter(({ id }) => id !== 'custom');
 
-export const SCREEN_TASK_PROMPT = 'Help me with the current ask on my screen';
+export const SCREEN_TASK_PROMPT = 'Help me with the current task on my screen';
 
 export const SECONDARY_CHAT_PROMPTS = [
   'Review my recent work activity to find one part that AI could handle.',

@@ -502,7 +502,7 @@ it('keeps Challenge 1 open to show its score after submission', async () => {
   ).not.toBeInTheDocument();
 });
 
-it('shows learning progress and the original animation beneath awards, independent of the collapsible group', async () => {
+it('shows learning progress and the original animation beneath the main heading, independent of the collapsible group', async () => {
   me.days[0].completed_at = '2026-09-24T01:00:00Z';
   me.days[1].unlocked = true;
   const { container } = render(<TrainingView />);
@@ -517,8 +517,8 @@ it('shows learning progress and the original animation beneath awards, independe
     '1 of 7 tasks complete',
   );
   const progress = screen.getByRole('region', { name: 'Learning progress' });
-  expect(progress.previousElementSibling).toBe(
-    screen.getByRole('complementary', { name: 'Announcements' }),
+  expect(progress.previousElementSibling).toContainElement(
+    screen.getByRole('heading', { name: 'AI Literacy Challenge' }),
   );
   expect(within(progress).getByText('1/7')).toBeInTheDocument();
   expect(within(progress).getByText('Learning progress')).toBeInTheDocument();
@@ -693,8 +693,11 @@ it('groups practice days beneath a concise training heading without row subtitle
     screen.getByRole('heading', { level: 1, name: 'AI Literacy Challenge' }),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Coco helps you get work done faster/),
+    screen.getByText(/Build your skills, one day at a time/),
   ).toBeInTheDocument();
+  expect(
+    screen.getByText('How it works').closest('details'),
+  ).not.toHaveAttribute('open');
   expect(
     screen.getByText(/an assignment 14 days after your final assessment/),
   ).toBeInTheDocument();

@@ -15,6 +15,63 @@
   max-width: 860px;
   margin: 0 auto;
 }
+.training-main-challenge {
+  padding: 24px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 12px;
+  background: var(--coco-color-surface);
+}
+.training-main-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--coco-color-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.training-main-challenge .training-header h1 {
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  margin-bottom: 8px;
+}
+.training-challenge-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+  margin: 16px 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--coco-color-border);
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-control);
+}
+.training-about {
+  flex: 1;
+  min-width: 160px;
+}
+.training-about summary {
+  cursor: pointer;
+}
+.training-about p {
+  margin: 8px 0 0;
+}
+.training-header-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.training-main-challenge .training-header-topline h1 {
+  margin-bottom: 0;
+}
+.training-main-challenge summary:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 4px;
+}
 .training-page h1 {
   font-size: var(--coco-text-title);
   margin: 0 0 4px;
@@ -31,20 +88,41 @@
   margin-bottom: 4px;
 }
 .training-announcement {
-  margin: 8px 0;
-  padding: 8px 10px;
-  border-radius: var(--coco-radius-control);
+  position: relative;
+  margin-left: auto;
+}
+.training-page .training-award-tag {
+  padding: 8px 14px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 999px;
   background: var(--coco-color-accent-soft);
   color: var(--coco-color-primary);
-  font-size: var(--coco-text-control);
-}
-.training-announcement summary {
-  cursor: pointer;
+  font-size: 13px;
   font-weight: 600;
 }
-.training-announcement p {
-  margin: 8px 0 0;
+.training-award-tag:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+.training-announcement .training-award-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  width: min(300px, 65vw);
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 10px;
+  background: var(--coco-color-surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 8%);
   color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-control);
+}
+.training-announcement:hover .training-award-tooltip,
+.training-announcement:focus-within .training-award-tooltip {
+  display: block;
 }
 .training-page button,
 .training-page select,
@@ -196,6 +274,12 @@
   vertical-align: top;
 }
 @media (max-width: 600px) {
+  .training-main-challenge {
+    padding: 18px 16px;
+  }
+  .training-main-challenge .training-header h1 {
+    font-size: 23px;
+  }
   .training-page {
     padding: 20px 16px;
   }

@@ -11,6 +11,7 @@ import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingTodo from './training/TrainingTodo';
 import TrainingTaskGroup from './training/TrainingTaskGroup';
 import TrainingProgress from './training/TrainingProgress';
+import AgenticQuest from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
 import './TrainingView.css';
@@ -43,6 +44,7 @@ export default function TrainingView({
   }, [followUp]);
   const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
+  const [questOpen, setQuestOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -128,110 +130,161 @@ export default function TrainingView({
     <main className="training-page">
       <div
         className="training-home"
-        inert={active !== null || reflectionDayNumber !== null}
+        inert={active !== null || reflectionDayNumber !== null || questOpen}
       >
-        <header className="training-header">
-          <h1>AI Literacy Challenge</h1>
-          <p>
-            Coco helps you get work done faster—and work more thoughtfully with
-            AI. Build your skills, discover new possibilities, and strengthen
-            your own thinking.
-          </p>
-          <p>
-            During the three-week AI Literacy Camp, you’ll try a new AI
-            collaboration task each day in the first week. Starting and final
-            assessments, followed by an assignment 14 days after your final
-            assessment, help you track your progress.
-          </p>
-        </header>
-        {state && (
-          <>
-            <TrainingAnnouncement />
-            <TrainingProgress days={state.days} />
-          </>
-        )}
-        {error && (
-          <div role="alert" className="training-error">
-            {/fetch failed|network|timed? ?out|abort/i.test(error)
-              ? 'Unable to connect to the study server. Please check your connection and retry.'
-              : error}
-            <button type="button" onClick={() => act(refresh)}>
-              Retry
-            </button>
-          </div>
-        )}
-        {notice && (
-          <p role="status" className="training-notice">
-            {notice}
-          </p>
-        )}
-        {!state ? (
-          <p>
-            {error ? 'Training could not be loaded.' : 'Loading your training…'}
-          </p>
-        ) : (
-          <>
-            {state.role !== 'participant' && (
-              <div className="training-toolbar">
-                <button
-                  type="button"
-                  aria-pressed={studentMode}
-                  disabled={busy}
-                  onClick={() =>
-                    act(() => api('study-student-mode', !studentMode))
-                  }
-                >
-                  {studentMode ? 'Exit student mode' : 'Student mode'}
-                </button>
-              </div>
-            )}
-            {!state.tutoring_allowed && (
-              <p className="training-info">
-                AI tutoring is disabled for your account. Your available
-                assessments and tasks are still accessible.
+        <AgenticQuest onOpen={() => setQuestOpen(true)} />
+        <section
+          className="training-main-challenge"
+          aria-labelledby="training-challenge-title"
+        >
+          <header className="training-header">
+            <div className="training-header-topline">
+              <h1 id="training-challenge-title">AI Literacy Challenge</h1>
+              {state && <TrainingAnnouncement />}
+            </div>
+            <p>
+              Build your skills, one day at a time. Learn to work thoughtfully
+              with AI.
+            </p>
+          </header>
+          {state && <TrainingProgress days={state.days} />}
+          <div className="training-challenge-details">
+            <details className="training-about">
+              <summary>How it works</summary>
+              <p>
+                During the three-week AI Literacy Camp, you’ll try a new AI
+                collaboration task each day in the first week. Starting and
+                final assessments, followed by an assignment 14 days after your
+                final assessment, help you track your progress.
               </p>
-            )}
-            <ol className="training-todos" aria-label="Practice checklist">
-              <TrainingTodo
-                title="Starting assessment"
-                complete={preAssessmentComplete}
-                onClick={() => setActive('pre')}
-              />
-              <TrainingTaskGroup>
-                {visibleDays.map((day) => (
+            </details>
+          </div>
+          {error && (
+            <div role="alert" className="training-error">
+              {/fetch failed|network|timed? ?out|abort/i.test(error)
+                ? 'Unable to connect to the study server. Please check your connection and retry.'
+                : error}
+              <button type="button" onClick={() => act(refresh)}>
+                Retry
+              </button>
+            </div>
+          )}
+          {notice && (
+            <p role="status" className="training-notice">
+              {notice}
+            </p>
+          )}
+          {!state ? (
+            <p>
+              {error
+                ? 'Training could not be loaded.'
+                : 'Loading your training…'}
+            </p>
+          ) : (
+            <>
+              {state.role !== 'participant' && (
+                <div className="training-toolbar">
+                  <button
+                    type="button"
+                    aria-pressed={studentMode}
+                    disabled={busy}
+                    onClick={() =>
+                      act(() => api('study-student-mode', !studentMode))
+                    }
+                  >
+                    {studentMode ? 'Exit student mode' : 'Student mode'}
+                  </button>
+                </div>
+              )}
+              {!state.tutoring_allowed && (
+                <p className="training-info">
+                  AI tutoring is disabled for your account. Your available
+                  assessments and tasks are still accessible.
+                </p>
+              )}
+              <ol className="training-todos" aria-label="Practice checklist">
+                <TrainingTodo
+                  title="Starting assessment"
+                  complete={preAssessmentComplete}
+                  onClick={() => setActive('pre')}
+                />
+                <TrainingTaskGroup>
+                  {visibleDays.map((day) => (
+                    <TrainingTodo
+                      key={day.day}
+                      title={`Day ${day.day} Practice task`}
+                      complete={Boolean(day.completed_at)}
+                      disabled={!dayCanOpen(day)}
+                      onClick={() => setActive(day.day)}
+                    />
+                  ))}
+                </TrainingTaskGroup>
+                {postAssessmentUnlocked && (
                   <TrainingTodo
-                    key={day.day}
-                    title={`Day ${day.day} Practice task`}
-                    complete={Boolean(day.completed_at)}
-                    disabled={!dayCanOpen(day)}
-                    onClick={() => setActive(day.day)}
+                    title="Final assessment"
+                    complete={state.post_assessment_complete}
+                    disabled={!postAssessmentUnlocked}
+                    onClick={() => setActive('post')}
                   />
-                ))}
-              </TrainingTaskGroup>
-              {postAssessmentUnlocked && (
-                <TrainingTodo
-                  title="Final assessment"
-                  complete={state.post_assessment_complete}
-                  disabled={!postAssessmentUnlocked}
-                  onClick={() => setActive('post')}
-                />
-              )}
-              {followUpVisible && (
-                <TrainingTodo
-                  title={
-                    followUpUnlocked
-                      ? 'Follow-up assignment'
-                      : `Follow-up assignment — unlocks in ${countdown}`
-                  }
-                  complete={followUp?.complete}
-                  disabled={!followUpUnlocked}
-                  onClick={() => setActive('follow-up')}
-                />
-              )}
-            </ol>
-          </>
-        )}
+                )}
+                {followUpVisible && (
+                  <TrainingTodo
+                    title={
+                      followUpUnlocked
+                        ? 'Follow-up assignment'
+                        : `Follow-up assignment — unlocks in ${countdown}`
+                    }
+                    complete={followUp?.complete}
+                    disabled={!followUpUnlocked}
+                    onClick={() => setActive('follow-up')}
+                  />
+                )}
+              </ol>
+            </>
+          )}
+        </section>
       </div>
+      <TrainingDialog
+        open={questOpen}
+        title="Level 1 · Tool"
+        onClose={() => setQuestOpen(false)}
+      >
+        <div className="agentic-quest-preview">
+          <span className="training-eyebrow">AGENT 101</span>
+          <h3>Give AI a way to act</h3>
+          <p>
+            A tool lets an AI system do something beyond generating a reply,
+            such as searching for information, reading a file, or running code.
+            The model requests a tool call, then uses the result to continue.
+          </p>
+          <div className="agentic-quest-example">
+            <strong>Try thinking of it this way</strong>
+            <p>
+              Ask Coco to summarize a document. Reading the document is the tool
+              call; the document’s contents are the result; the summary is
+              Coco’s response.
+            </p>
+          </div>
+          <div className="agentic-quest-reward">
+            <strong>Your level reward · Expand tool calls</strong>
+            <p>
+              Completing this level will let you open tool calls in the main
+              panel to see what Coco did and what came back.
+            </p>
+          </div>
+          <p className="training-info">
+            Lesson preview. Level completion and feature unlocks are coming
+            next.
+          </p>
+          <button
+            type="button"
+            className="training-primary"
+            onClick={() => setQuestOpen(false)}
+          >
+            Back to training
+          </button>
+        </div>
+      </TrainingDialog>
       {state && (
         <>
           <TrainingDialog

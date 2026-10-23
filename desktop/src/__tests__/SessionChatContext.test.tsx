@@ -989,7 +989,7 @@ describe('deferred suggestion context', () => {
     render(<SessionChatView />);
 
     const starter = await screen.findByRole('button', {
-      name: 'Help me with the current ask on my screen',
+      name: 'Help me with the current task on my screen',
     });
     expect(starter).toHaveStyle({ fontWeight: 700 });
     expect(
@@ -1020,7 +1020,7 @@ describe('deferred suggestion context', () => {
   });
 
   it.each([
-    'Help me with the current ask on my screen',
+    'Help me with the current task on my screen',
     'Review my recent work activity to find one part that AI could handle.',
     'Suggest something useful to learn.',
   ])('sends the prompt "%s" as an ordinary chat request', async (prompt) => {

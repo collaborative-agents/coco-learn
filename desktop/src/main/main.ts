@@ -5252,7 +5252,7 @@ const ensureRouterManagedModels = (): void => {
     }
     saveModelConfiguration(normalized);
     log.info(
-      '[Models] Applied Router-managed defaults: tutor=gemini/gemini-3-flash-preview observer=gemini/gemini-2.5-pro',
+      `[Models] Applied Router-managed configuration: tutor=${normalized.defaultTutorId} observer=${normalized.sensing.model}`,
     );
   } catch (error) {
     log.error(`[Models] Could not apply Router-managed defaults: ${error}`);

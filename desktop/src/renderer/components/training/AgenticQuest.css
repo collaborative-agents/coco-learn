@@ -1,0 +1,166 @@
+.agentic-quest {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 12px;
+  background: var(--coco-color-surface-subtle);
+}
+.agentic-quest-label {
+  flex: none;
+  font-size: var(--coco-text-body);
+  font-weight: 600;
+  color: var(--coco-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.agentic-quest-path {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agentic-quest-stop {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.agentic-quest-stop:last-child {
+  flex: none;
+}
+.training-page .agentic-quest-level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--coco-text-body);
+  white-space: nowrap;
+}
+.training-page .agentic-quest-level:disabled {
+  opacity: 1;
+  color: var(--coco-color-text-muted);
+}
+.agentic-quest-number {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--coco-color-surface-muted);
+  border: 1px solid var(--coco-color-border);
+  font-size: var(--coco-text-body);
+  font-weight: 600;
+}
+.training-page .agentic-quest-level--current {
+  color: var(--coco-color-primary);
+  font-weight: 600;
+}
+.agentic-quest-level--current .agentic-quest-number {
+  background: var(--coco-color-primary);
+  border-color: var(--coco-color-primary);
+  color: white;
+  box-shadow: 0 0 0 3px var(--coco-color-accent-soft);
+}
+.agentic-quest-bridge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 35px;
+}
+.agentic-quest-bridge::before,
+.agentic-quest-bridge::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--coco-color-border);
+}
+.training-page .agentic-quest-gift {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 6px 3px;
+  background: transparent;
+  color: var(--coco-color-text-muted);
+}
+.training-page .agentic-quest-gift:not(:disabled):hover,
+.training-page .agentic-quest-gift:focus-visible {
+  color: var(--coco-color-primary);
+  background: var(--coco-color-accent-soft);
+}
+.agentic-quest button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+.agentic-quest-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 10px);
+  width: 210px;
+  padding: 12px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 10px;
+  background: var(--coco-color-surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 8%);
+  font-size: var(--coco-text-body);
+  color: var(--coco-color-text-secondary);
+  pointer-events: none;
+}
+.agentic-quest-tooltip strong {
+  color: var(--coco-color-text);
+}
+.agentic-quest-tooltip-kicker {
+  font-size: var(--coco-text-control);
+  color: var(--coco-color-text-muted);
+}
+.agentic-quest-bridge:hover .agentic-quest-tooltip,
+.agentic-quest-bridge:focus-within .agentic-quest-tooltip {
+  display: grid;
+  gap: 4px;
+}
+.agentic-quest-preview {
+  max-width: 560px;
+}
+.agentic-quest-example,
+.agentic-quest-reward {
+  padding: 16px;
+  margin: 16px 0;
+  border-radius: 10px;
+  background: var(--coco-color-surface-subtle);
+}
+.agentic-quest-reward {
+  background: var(--coco-color-accent-soft);
+}
+.agentic-quest-example p,
+.agentic-quest-reward p {
+  margin: 6px 0 0;
+}
+@media (max-width: 760px) {
+  .agentic-quest {
+    gap: 10px;
+    padding: 12px 10px;
+  }
+  .agentic-quest-path {
+    min-width: 570px;
+  }
+  .agentic-quest {
+    overflow-x: auto;
+  }
+  .agentic-quest-tooltip {
+    position: fixed;
+    top: auto;
+    margin-top: 128px;
+    left: 32px;
+  }
+  .agentic-quest-bridge {
+    position: static;
+  }
+}

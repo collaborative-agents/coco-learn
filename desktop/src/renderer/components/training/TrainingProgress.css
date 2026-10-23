@@ -3,13 +3,17 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin: 0 0 12px;
+  margin: 18px 0 0;
+  padding: 12px 16px 18px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 10px;
+  background: var(--coco-color-accent-soft);
 }
 .training-progress-header {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  padding: 0 42px;
+  padding: 0;
 }
 .training-progress-avatar-lane {
   position: relative;
@@ -30,16 +34,17 @@
 }
 .training-progress-label > span:last-child {
   font-variant-numeric: tabular-nums;
-  color: var(--coco-color-text-muted);
+  color: var(--coco-color-primary);
+  font-weight: 600;
 }
 .training-progress-path {
   min-width: 0;
-  padding: 0 42px;
+  padding: 0;
 }
 .training-progress-track {
   position: relative;
-  height: 10px;
-  background: var(--coco-color-surface-muted);
+  height: 12px;
+  background: var(--coco-color-surface);
   border-radius: 999px;
 }
 .training-progress-fill {
@@ -62,7 +67,7 @@
     --progress-avatar-half: 32px;
   }
   .training-progress-header {
-    padding: 0 32px;
+    padding: 0;
     gap: 8px;
   }
   .training-progress-avatar-lane {
@@ -74,7 +79,7 @@
     gap: 4px;
   }
   .training-progress-path {
-    padding: 0 32px;
+    padding: 0;
   }
   .training-progress-avatar {
     width: 64px;

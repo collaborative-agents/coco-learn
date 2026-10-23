@@ -1664,6 +1664,13 @@ interface ChatSeed {
   deferUntilUserMessage?: boolean;
   /** Text to prefill in the chat composer for the user to edit and send. */
   draft?: string;
+  /** The suggestion the user chose to chat about, shown as Coco's message. */
+  suggestion?: ChatSuggestion;
+  /**
+   * What the observer saw on screen. Sent with the user's next message as
+   * separate, removable context, never as part of what they wrote.
+   */
+  screenObservation?: string;
 }
 
 // Open the chat panel for a session, pushing the session context (and an
@@ -2216,9 +2223,10 @@ const acceptSessionInvite = async () => {
   const observation = pendingInviteObservation;
   pendingInviteObservation = '';
   const seed: ChatSeed = {
-    phrase: observation ? 'What Coco noticed' : '',
+    phrase: '',
     label: taskLabel,
-    rawObservation: observation,
+    rawObservation: '',
+    ...(observation && { screenObservation: observation }),
     deferUntilUserMessage: true,
     draft: `I'm working on: ${taskLabel.replace(/[.\s]+$/, '')}. Help me with this.`,
   };
@@ -2930,8 +2938,15 @@ ipcMain.on(
     _event,
     payload: { phrase: string; label: string; rawObservation: string },
   ) => {
+    const screenObservation = payload?.rawObservation?.trim() || undefined;
     if (isSessionActive && currentSessionId) {
-      openChatForSession(currentSessionId, pendingTaskLabel || '', payload);
+      // The observation goes along as screen context, not as the message.
+      openChatForSession(currentSessionId, pendingTaskLabel || '', {
+        phrase: payload?.phrase ?? '',
+        label: payload?.label ?? '',
+        rawObservation: 'Help me with this.',
+        screenObservation,
+      });
       return;
     }
 
@@ -2943,7 +2958,10 @@ ipcMain.on(
       pendingTaskLabel ||
       'General help session';
     openDraftChat(problemStatement, {
-      ...payload,
+      phrase: '',
+      label: payload?.label ?? '',
+      rawObservation: '',
+      screenObservation,
       deferUntilUserMessage: true,
     });
   },
@@ -2964,10 +2982,12 @@ ipcMain.on(
     const rawObservation = payload?.rawObservation?.trim() || '';
     const status = payload?.status || 'observing';
     const observationId = payload?.observationId;
-    const seed = {
-      phrase: rawObservation,
+    // The observation goes along as screen context, not as the message.
+    const seed: ChatSeed = {
+      phrase: '',
       label: status.replace(/_/g, ' '),
-      rawObservation,
+      rawObservation: 'Help me with this.',
+      ...(rawObservation && { screenObservation: rawObservation }),
     };
 
     if (observationId) {
@@ -2998,6 +3018,7 @@ ipcMain.on(
     } else {
       openDraftChat(rawObservation || 'General help session', {
         ...seed,
+        rawObservation: '',
         deferUntilUserMessage: true,
       });
     }
@@ -3802,11 +3823,15 @@ ipcMain.on(
           : 'I’d like to chat about this suggestion:',
         `**${suggestion.title}**`,
         suggestionText || suggestion.copyText,
-        rawObservation ? `Context that prompted it:\n${rawObservation}` : '',
       ]
         .filter(Boolean)
         .join('\n\n'),
+      ...(rawObservation && { screenObservation: rawObservation }),
       deferUntilUserMessage: !payload.execute,
+      // Keep what the user just read on screen in the chat they open.
+      ...(!payload.execute && {
+        suggestion: toChatSuggestion(suggestion, payload.observationId),
+      }),
     };
 
     if (payload.observationId) {
@@ -4312,6 +4337,7 @@ ipcMain.handle(
         images,
         requestKind,
         hotkeyImages,
+        screenContext,
       }: {
         requestId: string;
         userText: string;
@@ -4320,6 +4346,8 @@ ipcMain.handle(
         images?: string[];
         requestKind?: 'chat' | 'practice_suggestions';
         hotkeyImages?: string[];
+        /** Observer text the user chose to send along with this message. */
+        screenContext?: string;
       },
     ) => {
       if (piHarness.busy)
@@ -4367,18 +4395,27 @@ ipcMain.handle(
         hotkeyImageSet.has(image),
       ).length;
 
-      const contextualizedUserText =
-        hotkeyImageCount > 0
+      const contextualizedUserText = [
+        ...(hotkeyImageCount > 0
           ? [
               '<hotkey_screenshot_context>',
               `${hotkeyImageCount} attached image${hotkeyImageCount === 1 ? ' was' : 's were'} deliberately captured by the user with Coco's screenshot hotkey.`,
               'Treat the attached hotkey capture as the primary visual state the user chose for this request. Do not call observe_screen merely to capture or inspect the same screen again. Only request a new live-screen observation if the user explicitly asks for an updated view after this capture.',
               '</hotkey_screenshot_context>',
-              userText,
             ]
-              .filter(Boolean)
-              .join('\n')
-          : userText;
+          : []),
+        ...(screenContext?.trim()
+          ? [
+              '<screen_observation>',
+              "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
+              screenContext.trim(),
+              '</screen_observation>',
+            ]
+          : []),
+        userText,
+      ]
+        .filter(Boolean)
+        .join('\n');
       let streamedText = '';
       const settleReply = (reply: StoredReply) => {
         if (gatewaySessionId) {

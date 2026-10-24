@@ -31,6 +31,11 @@
   --coco-color-accent-soft: #e9efff;
   --coco-color-accent-border: #bcd0fc;
 
+  /* Coco avatar fur (assets/pet1.png), with companion UI shades. */
+  --coco-color-orange: #fc7632;
+  --coco-color-orange-soft: #fff1e9;
+  --coco-color-orange-text: #9a3e12;
+
   --coco-color-surface: #ffffff;
   --coco-color-surface-subtle: #f9fafb;
   --coco-color-surface-muted: #f3f4f6;

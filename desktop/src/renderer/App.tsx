@@ -83,6 +83,22 @@ function PetView() {
   // Once the user reveals a suggestion ("Help me with this"), the bubble is
   // pinned: it never auto-hides and can only be closed with the × button.
   const bubblePinnedRef = useRef(false);
+  // Status of the previous observation, to tell a calm status that just
+  // started from one that repeats on every observer tick.
+  const lastStatusRef = useRef<ObservationStatus | null>(null);
+  // A repeated calm status animates the fox without a bubble, for as long as a
+  // bubble would have stayed up.
+  const calmMoodTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bubbleShownRef = useRef(false);
+  useEffect(() => {
+    bubbleShownRef.current = bubble !== null;
+  }, [bubble]);
+  useEffect(
+    () => () => {
+      if (calmMoodTimer.current) clearTimeout(calmMoodTimer.current);
+    },
+    [],
+  );
 
   // Arm the bubble's auto-hide after `holdMs`. Skipped while the pointer is
   // over the bubble (handleBubbleLeave re-arms it on exit) so a suggestion the
@@ -213,10 +229,29 @@ function PetView() {
         // notification flow — they are not avatar states. Skip them here so
         // PetSprite never receives an unknown mood.
         if (!(incomingStatus in STATUS_TO_MOOD)) return;
+        // Calm statuses (progress / observing) arrive on every observer tick.
+        // Show their bubble only when Coco moves into them from another
+        // status; while they repeat, only the fox's animation follows them.
+        const previousStatus = lastStatusRef.current;
+        lastStatusRef.current = incomingStatus;
+        const repeatsCalm =
+          !TIER2_STATUSES.has(incomingStatus) &&
+          previousStatus !== null &&
+          !TIER2_STATUSES.has(previousStatus);
         // A revealed suggestion is pinned until the user closes it. Continue
         // recording new observations in main, but do not replace the accepted
         // suggestion on the avatar surface.
         if (bubblePinnedRef.current) return;
+        if (repeatsCalm) {
+          // Leave the fox alone while another bubble is on screen.
+          if (bubbleShownRef.current) return;
+          setMood(STATUS_TO_MOOD[incomingStatus]);
+          if (calmMoodTimer.current) clearTimeout(calmMoodTimer.current);
+          calmMoodTimer.current = setTimeout(() => {
+            if (!bubbleShownRef.current) setMood('idle');
+          }, HOLD_MS);
+          return;
+        }
         // Seed phrase choice on the event timestamp so re-renders are stable.
         const seed = Math.floor((event.ts ?? Date.now() / 1000) * 1000);
         const phrase = pickPhrase(incomingStatus, seed);

@@ -112,7 +112,7 @@ describe('deferred suggestion context', () => {
     expect(screen.queryByText(/permission required/i)).toBeNull();
   });
 
-  it('shows only the four requested settings sections, without model or toolkit controls', async () => {
+  it('keeps the model picker in chat and shows the four requested settings sections', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile')
         return { participantId: 'alex.user', userName: 'Alex' };
@@ -131,8 +131,8 @@ describe('deferred suggestion context', () => {
       expect(invoke).toHaveBeenCalledWith('get-model-configuration'),
     );
     expect(
-      screen.queryByRole('combobox', { name: 'Tutor model' }),
-    ).not.toBeInTheDocument();
+      screen.getByRole('combobox', { name: 'Tutor model' }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByTitle('Settings'));
 
     expect(await screen.findByText('alex.user')).toBeInTheDocument();
@@ -549,7 +549,7 @@ describe('deferred suggestion context', () => {
     await act(async () => listeners.get('session-init')?.({ sessionId: 'old' }));
     const imageDataUrl = 'data:image/png;base64,cHJldmlldw==';
     act(() => {
-      listeners.get('help-request')?.({ rawObservation: 'Compare the latest draft.', phrase: 'Review draft', deferUntilUserMessage: true });
+      listeners.get('help-request')?.({ rawObservation: 'Compare the latest draft.', screenObservation: 'The draft is open in the editor.', phrase: 'Review draft', deferUntilUserMessage: true });
       listeners.get('hotkey-capture')?.({ imageDataUrl });
     });
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'Use @"/tmp/report.csv"' } });
@@ -561,6 +561,7 @@ describe('deferred suggestion context', () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.objectContaining({
       userText: expect.stringContaining('Compare the latest draft.'),
       images: [imageDataUrl], hotkeyImages: [imageDataUrl],
+      screenContext: 'The draft is open in the editor.',
     })));
   });
 
@@ -817,6 +818,285 @@ describe('deferred suggestion context', () => {
     expect(
       screen.queryByText(/Suggestion context attached/),
     ).not.toBeInTheDocument();
+  });
+
+  it('continues from the suggestion the user chose to chat about', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async (channel: string, _payload?: unknown) => {
+      if (channel === 'send-chat-message') {
+        return { guidance: 'It keeps you in charge of the claims.' };
+      }
+      return null;
+    });
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+
+    render(<SessionChatView />);
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: 'Verify the claims before you paste',
+        label: 'suggestion',
+        rawObservation:
+          'I’d like to chat about this suggestion:\n\n**Verify the claims before you paste**',
+        deferUntilUserMessage: true,
+        suggestion: {
+          observationId: 'obs-1',
+          kind: 'content',
+          title: 'Verify the claims before you paste',
+          body: 'Run through three quick checks.',
+          copyText: 'Run through three quick checks.',
+        },
+        screenObservation:
+          'In Screenshot 1, the user is on an OpenReview form. The Questions field is empty.',
+      });
+    });
+
+    expect(
+      screen.getByText('Verify the claims before you paste'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Suggestion context attached/),
+    ).not.toBeInTheDocument();
+    const box = screen.getByPlaceholderText('Ask about this suggestion…');
+    expect(box).toHaveFocus();
+    expect(
+      screen.getByText('In Screenshot 1, the user is on an OpenReview form.'),
+    ).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.anything(),
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Why does this help?' }),
+    );
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        'send-chat-message',
+        expect.objectContaining({
+          userText: expect.stringContaining(
+            'The user now says:\nWhy does this help?',
+          ),
+        }),
+      );
+    });
+    const tutorPayload = invoke.mock.calls.find(
+      ([channel]) => channel === 'send-chat-message',
+    )?.[1] as { userText: string };
+    expect(tutorPayload.userText).toContain(
+      '**Verify the claims before you paste**',
+    );
+    // The observation goes along as screen context, not in the message.
+    expect(tutorPayload.userText).not.toContain('OpenReview');
+    expect(invoke).toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.objectContaining({
+        screenContext:
+          'In Screenshot 1, the user is on an OpenReview form. The Questions field is empty.',
+      }),
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Remove screen context' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Screen context/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Why does this help?' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toBeInTheDocument();
+  });
+
+  it('sends invite screen context with the staged draft', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async (channel: string, _payload?: unknown) => {
+      if (channel === 'get-profile') {
+        return { tutorScenario: 'ai_upskilling', aiTools: [] };
+      }
+      if (channel === 'get-supported-modes') return ['ai_upskilling'];
+      if (channel === 'send-chat-message') return { guidance: 'On it.' };
+      return null;
+    });
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+    render(<SessionChatView />);
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: '',
+        label: 'Reviewing a paper',
+        rawObservation: '',
+        screenObservation: 'The user is reviewing PRISM on OpenReview.',
+        deferUntilUserMessage: true,
+        draft: "I'm working on: Reviewing a paper. Help me with this.",
+      });
+    });
+    expect(
+      screen.getByText('The user is reviewing PRISM on OpenReview.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Suggestion context attached/),
+    ).not.toBeInTheDocument();
+
+    expect(screen.getByRole('textbox', { name: 'Message Coco' })).toHaveValue(
+      "I'm working on: Reviewing a paper. Help me with this.",
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        'send-chat-message',
+        expect.objectContaining({
+          userText: "I'm working on: Reviewing a paper. Help me with this.",
+          screenContext: 'The user is reviewing PRISM on OpenReview.',
+        }),
+      ),
+    );
+  });
+
+  it('leaves a request that arrives mid-reply in the message box', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async (channel: string, _payload?: unknown) =>
+      channel === 'send-chat-message' ? { streamed: true } : null,
+    );
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+    render(<SessionChatView />);
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
+      target: { value: 'Summarize the spec PDF.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        'send-chat-message',
+        expect.anything(),
+      ),
+    );
+
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: 'Tough moment. Take your time.',
+        label: 'Stuck?',
+        rawObservation: 'Help me with this.',
+        screenObservation: 'The user has been idle on the spec PDF.',
+      });
+    });
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue(
+      'Help me with this.',
+    );
+    expect(
+      screen.queryByText(/Suggestion context attached/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('The user has been idle on the spec PDF.'),
+    ).toBeInTheDocument();
+  });
+
+  it('lets the user remove screen context before sending', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async (channel: string, _payload?: unknown) =>
+      channel === 'send-chat-message' ? { guidance: 'Sure.' } : null,
+    );
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+    render(<SessionChatView />);
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: '',
+        label: 'stuck',
+        rawObservation: '',
+        screenObservation: 'The user is chatting privately in WeChat.',
+        deferUntilUserMessage: true,
+      });
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove screen context' }),
+    );
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
+      target: { value: 'What should I do next?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        'send-chat-message',
+        expect.objectContaining({ userText: 'What should I do next?' }),
+      ),
+    );
+    const payload = invoke.mock.calls.find(
+      ([channel]) => channel === 'send-chat-message',
+    )?.[1] as { screenContext?: string };
+    expect(payload.screenContext).toBeUndefined();
+    expect(
+      screen.queryByRole('button', { name: /Screen context/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('prefills an editable draft alongside the attached context', () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    const invoke = jest.fn(async () => null);
+    (window as any).electron = {
+      ipcRenderer: {
+        on: jest.fn((channel: string, callback: (data: unknown) => void) => {
+          listeners.set(channel, callback);
+          return jest.fn();
+        }),
+        sendMessage: jest.fn(),
+        invoke,
+      },
+    };
+
+    render(<SessionChatView />);
+    act(() => {
+      listeners.get('help-request')?.({
+        phrase: 'What Coco noticed',
+        label: 'Drafting a social media thread',
+        rawObservation: 'The user is drafting a thread in a notes app.',
+        deferUntilUserMessage: true,
+        draft:
+          "I'm working on: Drafting a social media thread. Help me with this.",
+      });
+    });
+
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue(
+      "I'm working on: Drafting a social media thread. Help me with this.",
+    );
+    expect(
+      screen.getByText('Suggestion context attached: What Coco noticed'),
+    ).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.anything(),
+    );
   });
 
   it('renders streamed text and tool-call lifecycle events in one reply', async () => {

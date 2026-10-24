@@ -42,6 +42,11 @@ export interface BubbleState {
   suggestion?: InstantSuggestion;
   /** Tutor mode active when the suggestion was generated. */
   scenario?: string;
+  /**
+   * Set when the bubble is a session invite. The phrase is the previewed
+   * suggestion's title, or the detected task when there is no preview.
+   */
+  invite?: { inviteId: string; hasPreview: boolean };
 }
 
 const PREVIEW_CHARS = 120;
@@ -168,7 +173,9 @@ export default function ObservationBubble({
       ? 'Reply ready'
       : isTier3
         ? 'AI Tutor'
-        : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
+        : bubble.invite
+          ? 'Support available'
+          : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
 
   // Rate the revealed suggestion. Logged into feedback.jsonl via the sensing
   // server so it joins observations by observation_id.

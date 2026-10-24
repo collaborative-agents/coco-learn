@@ -26,6 +26,7 @@ export default class ChatStreamStore {
     images: string[] = [],
     retry = false,
     tutorModelId?: string | null,
+    screenContext?: string,
   ) {
     const conversation = readConversations().find(
       (item) => item.sessionId === sessionId,
@@ -52,6 +53,7 @@ export default class ChatStreamStore {
           role: 'user',
           text: userText,
           images,
+          screenContext,
           requestId: `${requestId}:user`,
         });
       messages.push(message);

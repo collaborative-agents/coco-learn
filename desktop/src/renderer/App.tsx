@@ -375,6 +375,66 @@ function PetView() {
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
 
+  // ── Session invite: Coco offers a session for the task it detected ──────────
+  // It previews a suggestion's title, or shows the task when there is none.
+  // The invite is pinned so observations don't replace it. Main clears it when
+  // it is ignored or a session starts another way.
+  useEffect(() => {
+    const ipc = window.electron?.ipcRenderer;
+    const cleanupInvite = ipc?.on('session-invite', (data: any) => {
+      const {
+        inviteId,
+        taskLabel,
+        observationId,
+        rawObservation,
+        suggestionTitle,
+      } = (data ?? {}) as {
+        inviteId?: string;
+        taskLabel?: string;
+        observationId?: string;
+        rawObservation?: string;
+        suggestionTitle?: string;
+      };
+      if (!inviteId || !taskLabel) return;
+      // Don't replace a suggestion the user opened; main shows the invite as
+      // a pop-up instead.
+      if (bubblePinnedRef.current) {
+        ipc?.sendMessage('session-invite-busy', { inviteId });
+        return;
+      }
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      bubbleHoverRef.current = false;
+      bubblePinnedRef.current = true;
+      setBubble({
+        status: 'inefficient',
+        phrase: suggestionTitle || taskLabel,
+        fadingOut: false,
+        showHelpButton: true,
+        rawObservation,
+        observationId,
+        invite: { inviteId, hasPreview: Boolean(suggestionTitle) },
+      });
+      setMood(STATUS_TO_MOOD.inefficient);
+      pulseKeyRef.current += 1;
+      setPulse({ status: 'inefficient', key: pulseKeyRef.current });
+      pulseTimer.current = setTimeout(() => setPulse(null), PULSE_MS);
+      ipc?.sendMessage('session-invite-shown', { inviteId });
+    });
+    const cleanupClear = ipc?.on('session-invite-clear', (data: any) => {
+      const { inviteId } = (data ?? {}) as { inviteId?: string };
+      if (bubbleRef.current?.invite?.inviteId !== inviteId) return;
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+    });
+    return () => {
+      if (typeof cleanupInvite === 'function') cleanupInvite();
+      if (typeof cleanupClear === 'function') cleanupClear();
+    };
+  }, []);
+
   // Opening chat is an explicit menu action. If a Tier-1
   // ("progress"/"observing") bubble is showing — i.e. the system offered no
   // proactive suggestion — record the action as a false-negative signal.
@@ -398,6 +458,48 @@ function PetView() {
   const handleHelpMe = async () => {
     if (!bubble) return;
     const current = bubble;
+    if (current.invite) {
+      const { inviteId } = current.invite;
+      // A preview opens in place; starting the session waits for "Chat with
+      // Coco". Without one, or if it can't be loaded, this accepts the invite.
+      if (current.invite.hasPreview) {
+        const res = await window.electron?.ipcRenderer.invoke(
+          'get-instant-suggestion',
+          { observationId: current.observationId ?? null },
+        );
+        if (res?.status === 'ready' && res.suggestion) {
+          window.electron?.ipcRenderer.sendMessage('session-invite-revealed', {
+            inviteId,
+          });
+          window.electron?.ipcRenderer.sendMessage('training-feedback', {
+            kind: 'engage',
+            surface: 'bubble',
+            observation_id: current.observationId ?? null,
+            status: 'task_suggested',
+            text: current.rawObservation ?? null,
+          });
+          setBubble((b) =>
+            b
+              ? {
+                  ...b,
+                  suggestion: res.suggestion,
+                  scenario: res.scenario,
+                  fadingOut: false,
+                }
+              : null,
+          );
+          return;
+        }
+      }
+      window.electron?.ipcRenderer.sendMessage('session-invite-response', {
+        inviteId,
+        outcome: 'accepted',
+      });
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+      return;
+    }
     const engagedAt = Math.floor(Date.now() / 1000);
     const recordEngagement = (
       suggestion: InstantSuggestion | undefined,
@@ -470,13 +572,20 @@ function PetView() {
   const handleDismiss = () => {
     if (!bubble) return;
     bubblePinnedRef.current = false;
-    if (!bubble.agentReply && !bubble.agentWorking) window.electron?.ipcRenderer.sendMessage('training-feedback', {
-      kind: 'dismiss',
-      surface: 'bubble',
-      observation_id: bubble.observationId ?? null,
-      status: bubble.status,
-      text: bubble.rawObservation ?? null,
-    });
+    if (bubble.invite) {
+      window.electron?.ipcRenderer.sendMessage('session-invite-response', {
+        inviteId: bubble.invite.inviteId,
+        outcome: 'dismissed',
+      });
+    } else if (!bubble.agentReply && !bubble.agentWorking) {
+      window.electron?.ipcRenderer.sendMessage('training-feedback', {
+        kind: 'dismiss',
+        surface: 'bubble',
+        observation_id: bubble.observationId ?? null,
+        status: bubble.status,
+        text: bubble.rawObservation ?? null,
+      });
+    }
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
     setBubble((b) => (b ? { ...b, fadingOut: true } : null));
@@ -496,6 +605,7 @@ function PetView() {
       rawObservation: current.rawObservation ?? '',
       suggestion: current.suggestion,
       surface: 'bubble',
+      sessionInviteId: current.invite?.inviteId,
     });
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);

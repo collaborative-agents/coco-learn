@@ -6,7 +6,6 @@ import NotificationView from './components/NotificationView';
 import ImagePreviewView from './components/ImagePreviewView';
 import TrainingView from './components/TrainingView';
 import OnboardingView from './components/OnboardingView';
-import SessionSetupView from './components/SessionSetupView';
 import SessionChatView from './components/SessionChatView';
 import SessionRecapView from './components/SessionRecapView';
 import AuthView from './components/AuthView';
@@ -26,8 +25,6 @@ if (view === 'auth') {
   rendered = <OnboardingView />;
 } else if (view === 'notification') {
   rendered = <NotificationView />;
-} else if (view === 'session-setup') {
-  rendered = <SessionSetupView />;
 } else if (view === 'training') {
   rendered = <TrainingView />;
 } else if (view === 'session') {

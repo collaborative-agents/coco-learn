@@ -24,6 +24,7 @@ export interface StoredChatMessage {
   role: 'user' | 'tutor';
   text: string;
   images?: string[];
+  screenContext?: string;
   isError?: boolean;
   id?: string;
   ts?: number;
@@ -99,7 +100,15 @@ export function tutorRestoreMessage(message: StoredChatMessage): {
 } {
   return {
     role: message.suggestion ? 'suggestion' : message.role,
-    text: message.text,
+    text: message.role === 'user' && message.screenContext?.trim()
+      ? [
+          '<screen_observation>',
+          "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
+          message.screenContext.trim(),
+          '</screen_observation>',
+          message.text,
+        ].join('\n')
+      : message.text,
   };
 }
 
@@ -305,6 +314,9 @@ export function saveConversation(input: {
     return {
       role: message.role,
       text: message.text,
+      ...(typeof message.screenContext === 'string'
+        ? { screenContext: message.screenContext }
+        : {}),
       tutorMetrics: parseMetrics(message.tutorMetrics),
       observerMetrics: parseMetrics(message.observerMetrics),
       ...(message.activity

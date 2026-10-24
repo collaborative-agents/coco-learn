@@ -6,6 +6,16 @@ import type { AgentContextSnapshot } from '../../shared/agent-context';
 import PiEventTranslator from './pi-events';
 import type { TutorStreamEvent } from './tutor-stream';
 
+export interface SessionContextInput {
+  model: string;
+  scenario: string;
+  problem: string;
+  user_name: string;
+  ai_tools: string[];
+  memory: string;
+  messages: { role: string; text: string }[];
+}
+
 interface AgentContext {
   model: string;
   instructions: string;
@@ -74,6 +84,7 @@ export default class PiHarness {
     text: string;
     images: string[];
     audioData?: string;
+    context: SessionContextInput;
     emit: (event: TutorStreamEvent) => void;
   }) {
     if (this.active)
@@ -93,6 +104,7 @@ export default class PiHarness {
         headers: {
           Authorization: `Bearer ${options.token}`,
           'Content-Type': 'application/json',
+          'X-Coco-Session': options.sessionId,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: AbortSignal.any([
@@ -107,6 +119,10 @@ export default class PiHarness {
       return response.json();
     };
     try {
+      const context: AgentContext = await request(
+        `sessions/${encodeURIComponent(options.sessionId)}`,
+        options.context,
+      );
       let userText = options.text;
       if (options.audioData) {
         const transcription = await request('transcribe', {
@@ -118,7 +134,6 @@ export default class PiHarness {
       const cwd = fs.realpathSync(options.directory);
       if (!fs.statSync(cwd).isDirectory())
         throw new Error('Choose an existing working folder.');
-      const context: AgentContext = await request('context');
       const key = JSON.stringify([
         options.sessionId,
         cwd,

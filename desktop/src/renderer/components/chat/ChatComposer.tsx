@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type React from 'react';
 import { S } from './styles';
 import ChatComposerActions from './ChatComposerActions';
@@ -74,6 +75,34 @@ export default function ChatComposer({
   voiceStatusText,
   voiceError,
 }: Props) {
+  const [attachmentError, setAttachmentError] = useState('');
+  const attachmentDisabled =
+    sending ||
+    startingNewSession ||
+    checkingUnderstanding ||
+    voiceState !== 'idle';
+  const attachPaths = (paths: string[]) => {
+    const uniquePaths = [...new Set(paths.filter(Boolean))];
+    if (!uniquePaths.length) return;
+    setAttachmentError('');
+    // Keep references in the prompt so they also survive conversation saves and retries.
+    // JSON quoting preserves spaces, newlines, and Windows path separators.
+    const references = uniquePaths.map((path) => `@${JSON.stringify(path)}`);
+    setInput(
+      (previous) =>
+        `${previous}${previous && !previous.endsWith('\n') ? '\n' : ''}${references.join('\n')}\n`,
+    );
+  };
+  const attachFiles = async () => {
+    try {
+      const result =
+        await window.electron?.ipcRenderer.invoke('select-chat-files');
+      if (result && !result.canceled) attachPaths(result.filePaths);
+    } catch {
+      setAttachmentError('Could not select files. Please try again.');
+    }
+  };
+
   return (
     <div style={S.composer}>
       <AgentWorkspace
@@ -136,22 +165,57 @@ export default function ChatComposer({
         {understandingError && (
           <div style={S.understandingError}>{understandingError}</div>
         )}
+        {attachmentError && (
+          <div role="alert" style={S.understandingError}>
+            {attachmentError}
+          </div>
+        )}
         <textarea
           style={S.textarea}
           rows={2}
           aria-label="Message Coco"
           placeholder={
             voiceState === 'idle'
-              ? 'Ask Coco… (paste an image to attach)'
+              ? 'Ask Coco… (drop files or paste an image)'
               : 'Listening to your voice…'
           }
           value={input}
           disabled={voiceState !== 'idle'}
           onChange={(e) => setInput(e.target.value)}
           onPaste={onPaste}
+          onDragOver={(event) => {
+            if (event.dataTransfer.types.includes('Files')) {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = attachmentDisabled
+                ? 'none'
+                : 'copy';
+            }
+          }}
+          onDrop={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            if (attachmentDisabled) return;
+            try {
+              const paths = Array.from(event.dataTransfer.files).map(
+                (file) => window.electron?.webUtils.getPathForFile(file) || '',
+              );
+              attachPaths(paths);
+              if (paths.some((path) => !path)) {
+                setAttachmentError(
+                  'Some files have no local path. Save them to your computer first.',
+                );
+              }
+            } catch {
+              setAttachmentError(
+                'Could not attach files. Try the Attach files button.',
+              );
+            }
+          }}
           onKeyDown={onKeyDown}
         />
         <ChatComposerActions
+          onAttachFiles={attachFiles}
+          attachmentDisabled={attachmentDisabled}
           modelPicker={modelPicker}
           sessionId={workspaceSessionId}
           showUnderstandingCheck={profile.scenario === 'ai_upskilling'}

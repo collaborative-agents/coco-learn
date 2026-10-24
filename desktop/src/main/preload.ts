@@ -100,6 +100,7 @@ export type Channels =
   | 'download-benchmark-file'
   | 'get-benchmark-files'
   | 'select-directory'
+  | 'select-chat-files'
   | 'select-file-or-directory'
   | 'set-user-id'
   | 'auth-signup'
@@ -183,6 +184,11 @@ export type Channels =
   | 'activity-support-rated'
   // Renderer asks main to resize the avatar window to fit current content
   // Tier 3: tutor guidance routed to bubble when webapp is hidden
+  | 'agent-working'
+  | 'agent-work-ended'
+  | 'agent-reply-ready'
+  | 'view-agent-reply'
+  | 'reveal-agent-reply'
   | 'tutor-notification'
   // Tier 2: user clicked "Help me with this" in the bubble
   | 'help-me-with-this'

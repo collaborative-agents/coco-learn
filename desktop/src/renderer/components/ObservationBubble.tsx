@@ -31,6 +31,8 @@ export interface BubbleState {
    * "View conversation" button.
    */
   tutorMessage?: string;
+  agentReply?: { sessionId: string; requestId: string };
+  agentWorking?: { sessionId: string; requestId: string };
   /**
    * Instant suggestion revealed in-place after the user clicks "Help me with
    * this" (pre-computed while the bubble was on screen). When set, the bubble
@@ -160,9 +162,13 @@ export default function ObservationBubble({
         bubble.rawObservation,
       )
     : null;
-  const label = isTier3
-    ? 'AI Tutor'
-    : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
+  const label = bubble.agentWorking
+    ? 'Working'
+    : bubble.agentReply
+      ? 'Reply ready'
+      : isTier3
+        ? 'AI Tutor'
+        : (STATUS_LABEL[status] ?? STATUS_LABEL.observing);
 
   // Rate the revealed suggestion. Logged into feedback.jsonl via the sensing
   // server so it joins observations by observation_id.
@@ -203,44 +209,27 @@ export default function ObservationBubble({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Dismiss (×) on Tier-2 bubbles and on any revealed suggestion (which is
-          pinned open and can only be closed here). */}
-      {!isTier3 && (showHelpButton || suggestion) && onDismiss && (
-        <button
-          type="button"
-          className="bubble-dismiss-btn"
-          aria-label="Dismiss"
-          title="Dismiss"
-          onClick={onDismiss}
-        >
-          ×
-        </button>
-      )}
+      <div className="observation-bubble-header">
+        <div className="observation-bubble-label">
+          {/* eslint-disable-next-line no-nested-ternary */}
+          {isFrameworkOverview
+            ? (explanation?.competency ?? '4D framework')
+            : suggestion
+              ? suggestion.title
+              : label}
+        </div>
 
-      {/* Tier-1 (progress/observing): no suggestion. A passive "?" explains that
-          there's nothing proactive right now and points to clicking the pet. */}
-      {!isTier3 && !showHelpButton && !suggestion && (
-        <span
-          className="bubble-help-badge"
-          tabIndex={0}
-          role="img"
-          aria-label="Why no suggestion?"
-        >
-          ?
-          <span className="bubble-help-tip" role="tooltip">
-            No proactive suggestion right now. If you still need help, click me
-            (the fox) to open the chat.
-          </span>
-        </span>
-      )}
-
-      <div className="observation-bubble-label">
-        {/* eslint-disable-next-line no-nested-ternary */}
-        {isFrameworkOverview
-          ? (explanation?.competency ?? '4D framework')
-          : suggestion
-            ? suggestion.title
-            : label}
+        {onDismiss && (
+          <button
+            type="button"
+            className="bubble-dismiss-btn"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={onDismiss}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* eslint-disable-next-line no-nested-ternary */}
@@ -345,7 +334,11 @@ export default function ObservationBubble({
           className="bubble-action-btn"
           onClick={onViewConversation}
         >
-          View conversation →
+          {bubble.agentWorking
+            ? 'View progress →'
+            : bubble.agentReply
+              ? 'View reply →'
+              : 'View conversation →'}
         </button>
       )}
 

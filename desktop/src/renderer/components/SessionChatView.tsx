@@ -267,10 +267,11 @@ export default function SessionChatView() {
     messagesRef.current = messages;
     problemRef.current = problem;
     if (!sessionIdRef.current || messages.length === 0) return undefined;
+    const savedSessionId = sessionIdRef.current;
     const timeout = window.setTimeout(() => {
       window.electron?.ipcRenderer
         .invoke('save-chat-conversation', {
-          sessionId: sessionIdRef.current,
+          sessionId: savedSessionId,
           problem,
           messages,
         })
@@ -341,6 +342,7 @@ export default function SessionChatView() {
       (data: any) => {
         const event = (data ?? {}) as {
           requestId?: string;
+          sessionId?: string;
           type?: string;
           text?: string;
           call?: TutorToolCall;
@@ -353,6 +355,16 @@ export default function SessionChatView() {
           tool_calls?: TutorToolCall[];
         };
         if (!event.requestId) return;
+        if (event.sessionId && event.sessionId !== sessionIdRef.current) {
+          if (event.type === 'done' || event.type === 'error') {
+            setConversations((saved) => saved.map((conversation) => conversation.sessionId !== event.sessionId ? conversation : {
+              ...conversation, messages: conversation.messages.map((message) => message.requestId !== event.requestId ? message : {
+                ...message, isStreaming: false, text: event.guidance ?? event.error ?? message.text,
+              }),
+            }));
+          }
+          return;
+        }
         setMessages((current) => {
           if (event.type === 'transcription') {
             const tutorIndex = current.findIndex(
@@ -451,9 +463,11 @@ export default function SessionChatView() {
     ) => {
       setSending(true);
       scrollToBottom();
+      const requestSessionId = sessionIdRef.current;
       const res = await window.electron?.ipcRenderer
         .invoke('send-chat-message', {
           requestId,
+          sessionId: requestSessionId,
           userText,
           displayText,
           isRetry,
@@ -462,6 +476,7 @@ export default function SessionChatView() {
           hotkeyImages,
         })
         .catch((error: Error) => ({ error: error.message }));
+      if (sessionIdRef.current !== requestSessionId) return;
       const r = res as
         | {
             streamed?: boolean;
@@ -503,12 +518,15 @@ export default function SessionChatView() {
     async (requestId: string, audioData: string) => {
       setSending(true);
       scrollToBottom();
+      const requestSessionId = sessionIdRef.current;
       const res = await window.electron?.ipcRenderer
         .invoke('send-audio-message', {
           requestId,
+          sessionId: requestSessionId,
           audioData,
         })
         .catch((error: Error) => ({ error: error.message }));
+      if (sessionIdRef.current !== requestSessionId) return;
       const result = res as
         | {
             streamed?: boolean;
@@ -540,7 +558,7 @@ export default function SessionChatView() {
       const requestId = makeMessageId();
       setMessages((current) => [
         ...current,
-        { role: 'user', text: '🎤 Voice message' },
+        { role: 'user', text: '🎤 Voice message', requestId: `${requestId}:user` },
         {
           role: 'tutor',
           text: '',
@@ -573,7 +591,7 @@ export default function SessionChatView() {
         : trimmed;
       setMessages((m) => [
         ...m,
-        { role: 'user', text: trimmed, images },
+        { role: 'user', text: trimmed, images, requestId: `${requestId}:user` },
         {
           role: 'tutor',
           text: '',
@@ -645,13 +663,45 @@ export default function SessionChatView() {
     [sending, startingNewSession, submitTutorRequest],
   );
 
+  const [replyToReveal, setReplyToReveal] = useState<string | null>(null);
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('reveal-agent-reply', (data: any) => {
+      const conversation = data?.conversation as SavedConversation | undefined;
+      if (!conversation?.sessionId || !data?.requestId) return;
+      setActivePage('chat');
+      setShowSettings(false);
+      setShowHistory(false);
+      if (conversation.sessionId === sessionIdRef.current) {
+        setReviewing(null);
+        setReplyToReveal(data.requestId);
+      } else {
+        resumeConversation(conversation).then(() => setReplyToReveal(data.requestId))
+          .catch((error) => setUnderstandingError(error.message));
+      }
+    });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
+  useEffect(() => {
+    if (!replyToReveal) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const message = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-request-id]') ?? [])
+        .find((element) => element.dataset.requestId === replyToReveal);
+      if (message) {
+        message.scrollIntoView({ block: 'start' });
+        setReplyToReveal(null);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [replyToReveal, reviewing, messages]);
+
   // Session context from main. A new sessionId resets the conversation.
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on(
       'session-init',
       (data: any) => {
-        const { sessionId, problemStatement, tutorModelId } = (data ?? {}) as {
+        const { sessionId, problemStatement, tutorModelId, preserveDraft } = (data ?? {}) as {
           sessionId?: string;
+          preserveDraft?: boolean;
           problemStatement?: string;
           tutorModelId?: string;
         };
@@ -669,12 +719,14 @@ export default function SessionChatView() {
           sessionIdRef.current = sessionId;
           setMessages([]);
           setRatings({});
-          setInput('');
-          setPendingImages([]);
-          pendingHotkeyImagesRef.current.clear();
+          if (!preserveDraft) {
+            setInput('');
+            setPendingImages([]);
+            pendingHotkeyImagesRef.current.clear();
+            pendingContextRef.current = null;
+            setPendingContextLabel(null);
+          }
           setSending(false);
-          pendingContextRef.current = null;
-          setPendingContextLabel(null);
           window.electron?.ipcRenderer
             .invoke('get-chat-conversations')
             .then((saved: unknown) => {
@@ -1090,7 +1142,9 @@ export default function SessionChatView() {
     }
     sessionIdRef.current = conversation.sessionId;
     setProblem(conversation.problem);
-    setMessages(conversation.messages);
+    const restored = (result.conversation as SavedConversation | undefined) ?? conversation;
+    setMessages(restored.messages);
+    setSending(restored.messages.some((message) => message.isStreaming));
     setCurrentTutorModelId(
       result.tutorModelId || conversation.tutorModelId || currentTutorModelId,
     );
@@ -1215,12 +1269,15 @@ export default function SessionChatView() {
   };
 
   const handleNewSession = async () => {
-    if (sending || startingNewSession || checkingUnderstanding) return;
+    if (startingNewSession || checkingUnderstanding) return;
     setStartingNewSession(true);
     try {
-      await window.electron?.ipcRenderer.invoke('start-new-chat-session', {
+      const result = await window.electron?.ipcRenderer.invoke('start-new-chat-session', {
         problemStatement: problem,
       });
+      if (!result?.success) setUnderstandingError(result?.error || 'Could not start a new conversation.');
+    } catch (error) {
+      setUnderstandingError(error instanceof Error ? error.message : 'Could not start a new conversation.');
     } finally {
       setStartingNewSession(false);
     }
@@ -1348,7 +1405,9 @@ export default function SessionChatView() {
           onSelect={(conversation) => {
             if (checkingUnderstanding) return;
             setUnderstandingError('');
-            setReviewing(conversation);
+            if (sending || conversation.messages.some((message) => message.isStreaming)) {
+              resumeConversation(conversation).catch((error) => setUnderstandingError(error.message));
+            } else setReviewing(conversation);
             setShowHistory(false);
             setShowSettings(false);
             setActivePage('chat');

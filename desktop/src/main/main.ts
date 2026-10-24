@@ -85,7 +85,11 @@ import {
   TutorStreamTimeoutError,
 } from './services/tutor-stream';
 import type { TutorStreamEvent } from './services/tutor-stream';
-import PiHarness from './services/pi-harness';
+import AgentRuns from './services/agent-runs';
+import ChatStreamStore from './services/chat-stream-store';
+import type { SessionContextInput } from './services/pi-harness';
+import isChatOutOfView from './services/chat-visibility';
+import AgentProgressReminder from './services/agent-progress-reminder';
 import { CocoGatewayClient } from './services/gateway-client';
 import {
   clearAuthSession,
@@ -112,7 +116,7 @@ import {
 import {
   interruptStaleReplies,
   latestConversation,
-  readConversations,
+  readConversations as readStoredConversations,
   restorableMessages,
   saveConversation,
   saveConversationDirectory,
@@ -524,6 +528,8 @@ let resumableSessionId: string | null = null;
 // Tutor replies still streaming, so a reopened chat can tell a reply that is
 // still coming from one that was cut off.
 const activeChatRequests = new Set<string>();
+const readConversations = () => readStoredConversations((requestId) => activeChatRequests.has(requestId));
+const chatStreams = new ChatStreamStore();
 let pendingTaskLabel: string | null = null;
 // The struggle time chosen for the current session. Re-sent whenever sensing
 // is reconfigured mid-session so a settings change can't reset it.
@@ -546,24 +552,27 @@ const interactions = new InteractionTracker((source) => {
 });
 
 // Wrap a chat IPC handler so its turn is tracked as an interaction.
-let pendingChatRequest: { requestId: string; stopped: boolean } | null = null;
+const agentRuns = new AgentRuns();
 const withTutorTurn =
-  <Payload extends { requestId: string }, Result>(
+  <Payload extends { requestId: string; sessionId?: string; requestKind?: string }, Result>(
     handler: (event: IpcMainInvokeEvent, payload: Payload) => Promise<Result>,
   ) =>
-  (
-    event: IpcMainInvokeEvent,
-    payload: Payload,
-  ): Promise<Result | { error: string }> => {
-    if (pendingChatRequest)
-      return Promise.resolve({
-        error: 'Coco is already working. Stop the current run first.',
-      });
-    pendingChatRequest = { requestId: payload.requestId, stopped: false };
-    return interactions
-      .trackTurn(() => handler(event, payload))
+  (event: IpcMainInvokeEvent, payload: Payload): Promise<Result | { error: string }> => {
+    const sessionId = payload.sessionId || currentSessionId;
+    if (!sessionId) return Promise.resolve({ error: 'Open a conversation first.' });
+    try { agentRuns.begin(sessionId, payload.requestId, payload.requestKind === 'practice_suggestions'); }
+    catch (error) { return Promise.resolve({ error: (error as Error).message }); }
+    activeChatRequests.add(payload.requestId);
+    return interactions.trackTurn(() => handler(event, { ...payload, sessionId }))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        sendChatStreamEvent(event.sender, { sessionId, requestId: payload.requestId, type: 'error', error: message });
+        return { error: message };
+      })
       .finally(() => {
-        pendingChatRequest = null;
+        chatStreams.finish(payload.requestId);
+        activeChatRequests.delete(payload.requestId);
+        agentRuns.finish(payload.requestId);
       });
   };
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
@@ -606,8 +615,7 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
         await configureParticipantRouterCredential();
         if (!cocoSleeping && isOnboardingComplete()) startObserver();
       } catch (error) {
-        if (pendingChatRequest) pendingChatRequest.stopped = true;
-        void piHarness.abort();
+        void agentRuns.abort();
         studyAccessStatus = 'unavailable';
         setTutoringAllowed(false);
         await stopTutoringForAccess();
@@ -644,7 +652,6 @@ const showPreAssessmentLockedMessage = () => {
     });
 };
 let currentTutorModelId: string | null = null;
-const piHarness = new PiHarness();
 const piBridgeToken = randomUUID();
 
 function agentDirectory(sessionId: string | null = currentSessionId): string {
@@ -652,7 +659,7 @@ function agentDirectory(sessionId: string | null = currentSessionId): string {
     ? readConversations().find((item) => item.sessionId === sessionId)
     : undefined;
   if (conversation?.workingDirectory) return conversation.workingDirectory;
-  let directory = path.join(app.getPath('userData'), 'workspace');
+  let directory = path.join(app.getPath('userData'), 'workspace', sessionId ? `session-${encodeURIComponent(sessionId)}` : 'draft');
   // Older conversations used a single shared folder. Preserve that choice
   // when first opening them; new sessions start in Coco's default workspace.
   if (conversation?.messages.length) {
@@ -674,6 +681,21 @@ function agentDirectory(sessionId: string | null = currentSessionId): string {
   return directory;
 }
 
+function executionContext(sessionId: string, userText?: string): SessionContextInput {
+  const conversation = readConversations().find((item) => item.sessionId === sessionId);
+  const profile = readProfile();
+  const config = readModelConfiguration();
+  const selectedId = sessionId === currentSessionId ? currentTutorModelId : conversation?.tutorModelId;
+  const selected = config?.tutors.find((model) => model.id === selectedId) ?? (config ? defaultTutor(config) : null);
+  if (!selected) throw new Error('Choose a model before running Coco.');
+  return {
+    model: selected.model, scenario: profile.scenario,
+    problem: conversation?.problem || (sessionId === currentSessionId ? pendingTaskLabel : '') || '',
+    user_name: profile.userName, ai_tools: profile.aiTools, memory: readLocalMemory(),
+    messages: restorableMessages(conversation?.messages ?? [], userText),
+  };
+}
+
 ipcMain.handle(
   'get-agent-workspace',
   (_event, { sessionId }: { sessionId?: string | null } = {}) => ({
@@ -688,7 +710,7 @@ ipcMain.handle(
   ) => {
     if (!sessionId)
       throw new Error('Open a conversation before choosing a folder.');
-    if (pendingChatRequest)
+    if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const result = await dialog.showOpenDialog({
       title: 'Choose Coco’s working folder',
@@ -696,7 +718,7 @@ ipcMain.handle(
       properties: ['openDirectory', 'createDirectory'],
     });
     if (result.canceled || !result.filePaths[0]) return null;
-    if (pendingChatRequest)
+    if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const directory = fs.realpathSync(result.filePaths[0]);
     saveConversationDirectory(sessionId, directory);
@@ -704,17 +726,15 @@ ipcMain.handle(
   },
 );
 ipcMain.handle('get-agent-context', (_event, sessionId: string) =>
-  typeof sessionId === 'string' ? piHarness.getContextSnapshot(sessionId) : null,
+  typeof sessionId === 'string' ? agentRuns.get(sessionId).getContextSnapshot(sessionId) : null,
 );
 ipcMain.handle(
   'answer-agent-question',
-  (_event, toolCallId: string, response: unknown) =>
-    piHarness.answerQuestion(toolCallId, response),
+  (_event, toolCallId: string, response: unknown, requestId: string) =>
+    agentRuns.answer(requestId, toolCallId, response),
 );
 ipcMain.handle('stop-agent-run', (_event, requestId: string) => {
-  if (pendingChatRequest?.requestId === requestId)
-    pendingChatRequest.stopped = true;
-  return piHarness.abort(requestId);
+  return agentRuns.abort(requestId);
 });
 
 // Preserve the original Upskilling session invitation cadence even though the
@@ -1591,7 +1611,7 @@ const createChatWindow = () => {
     resizable: true,
     skipTaskbar: process.platform !== 'darwin',
     alwaysOnTop: false,
-    webPreferences: { preload: preloadPath(), backgroundThrottling: false },
+    webPreferences: { preload: preloadPath(), backgroundThrottling: true },
   });
 
   configureMainWindow(chatWindow);
@@ -1732,6 +1752,10 @@ const sendChatStreamEvent = (
   sender: WebContents,
   payload: Record<string, unknown>,
 ): void => {
+  if (typeof payload.requestId === 'string') {
+    chatStreams.accept(payload.requestId, payload as unknown as TutorStreamEvent);
+    if (payload.type === 'done' || payload.type === 'error') chatStreams.flush(payload.requestId);
+  }
   let target: WebContents | null = sender;
   if (target.isDestroyed()) {
     target =
@@ -1746,6 +1770,37 @@ const sendChatStreamEvent = (
     );
   }
 };
+
+// Completion reminders are one-shot; they do not track read/unread state.
+const remindAgentReply = async (sessionId: string | null, requestId: string) => {
+  if (!sessionId || hideAvatarMode || isCocoSleeping()) return;
+  if (!(await isChatOutOfView(chatWindow))) return;
+  if (hideAvatarMode || isCocoSleeping() || !avatarWindow || avatarWindow.isDestroyed()) return;
+  avatarWindow.webContents.send('agent-reply-ready', { sessionId, requestId });
+};
+
+const startAgentProgressReminder = (sessionId: string | null, requestId: string) =>
+  new AgentProgressReminder((text) => {
+    const publish = async () => {
+      if (!sessionId || !(await isChatOutOfView(chatWindow))) return;
+      if (!agentRuns.requests.has(requestId) || agentRuns.requests.get(requestId)?.stopped || hideAvatarMode || isCocoSleeping() ||
+          !avatarWindow || avatarWindow.isDestroyed()) return;
+      avatarWindow.webContents.send('agent-working', { sessionId, requestId, text });
+    };
+    publish().catch((error) => log.warn('[Chat] Could not show working update:', error));
+  });
+
+const clearAgentProgressReminder = (requestId: string) => {
+  if (avatarWindow && !avatarWindow.isDestroyed())
+    avatarWindow.webContents.send('agent-work-ended', { requestId });
+};
+
+ipcMain.on('view-agent-reply', (_event, target: { sessionId?: string; requestId?: string } = {}) => {
+  const conversation = readConversations().find((saved) => saved.sessionId === target.sessionId);
+  if (!conversation || !conversation.messages.some((message) => message.requestId === target.requestId)) return;
+  showChatPanel();
+  sendToChat('reveal-agent-reply', { conversation, requestId: target.requestId });
+});
 
 const toChatSuggestion = (
   suggestion: InstantSuggestion,
@@ -1854,6 +1909,7 @@ const showChatPanel = (options: { expanded?: boolean } = {}) => {
   }
   configureMainWindow(chatWindow);
   chatWindow.setAlwaysOnTop(chatWindowPinned);
+  if (chatWindow.isMinimized()) chatWindow.restore();
   chatWindow.show();
   chatWindow.focus();
   // The avatar stays visible alongside the chat panel — never hide it, so the
@@ -2297,6 +2353,13 @@ function applyAvatarVisibility(hidden: boolean): void {
   avatarWindow?.show();
 }
 
+const activateBridgeConversation = (sessionId: string) => {
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  axios.post(`http://127.0.0.1:${tutorPort}/agent/active/${encodeURIComponent(sessionId)}`, {}, {
+    headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000,
+  }).catch((error) => log.warn('[Chat] Could not sync foreground conversation:', error.message));
+};
+
 interface ChatSeed {
   phrase: string;
   label: string;
@@ -2311,7 +2374,9 @@ const openChatForSession = (
   sessionId: string,
   problemStatement: string,
   seed?: ChatSeed,
+  preserveDraft = false,
 ) => {
+  activateBridgeConversation(sessionId);
   const alreadyLoaded = chatWindow && !chatWindow.isDestroyed();
   showChatPanel();
   if (!chatWindow) return;
@@ -2321,6 +2386,7 @@ const openChatForSession = (
       sessionId,
       problemStatement,
       tutorModelId: currentTutorModelId,
+      preserveDraft,
     });
     if (seed) chatWindow?.webContents.send('help-request', seed);
   };
@@ -3496,8 +3562,7 @@ async function setCocoSleepMode(sleeping: boolean) {
   syncWakeWordService();
 
   if (sleeping) {
-    if (pendingChatRequest) pendingChatRequest.stopped = true;
-    await piHarness.abort();
+    await agentRuns.abort();
     if (isSessionActive) endCurrentSession();
     await Promise.all([
       serviceManager.stopService('sensing-server'),
@@ -4260,7 +4325,7 @@ async function createProactiveTutorSession(
   struggleSeconds: number,
   startTrigger: SessionStartTrigger,
   seed?: ChatSeed,
-  options: { sessionId?: string; openChat?: boolean } = {},
+  options: { sessionId?: string; openChat?: boolean; preserveDraft?: boolean } = {},
 ): Promise<string | null> {
   if (!tutoringAllowed) return null;
   // Read the user's onboarding profile to get their selected AI tools and mode.
@@ -4282,7 +4347,7 @@ async function createProactiveTutorSession(
   pendingTaskLabel = problemStatement;
   sessionStruggleSeconds = struggleSeconds;
   if (options.openChat !== false) {
-    openChatForSession(sessionId, problemStatement, seed);
+    openChatForSession(sessionId, problemStatement, seed, options.preserveDraft);
   }
   log.info(`[ProactiveSession] Local tutor session started: ${sessionId}`);
   const startedAt = new Date();
@@ -4303,7 +4368,7 @@ async function createProactiveTutorSession(
   const sessionStillActive = () =>
     isSessionActive &&
     currentSessionId === sessionId &&
-    !(options.openChat === false && pendingChatRequest?.stopped);
+    !([...agentRuns.requests.values()].some((request) => request.sessionId === sessionId && request.stopped));
   const retryLocalPost = async (
     label: string,
     url: string,
@@ -4403,6 +4468,7 @@ ipcMain.removeHandler('start-new-chat-session');
 ipcMain.handle(
   'start-new-chat-session',
   async (_event, { problemStatement }: { problemStatement?: string } = {}) => {
+    if (agentRuns.legacyBusy) return { success: false, error: 'Wait for the practice suggestion before switching conversations.' };
     const task =
       problemStatement?.trim() || pendingTaskLabel || 'General help session';
     try {
@@ -4410,6 +4476,8 @@ ipcMain.handle(
         task,
         120,
         'user_message',
+        undefined,
+        { preserveDraft: true },
       );
       return { success: Boolean(sessionId), sessionId };
     } catch (err) {
@@ -4436,7 +4504,7 @@ ipcMain.handle('get-chat-conversations', () =>
 
 ipcMain.removeHandler('save-chat-conversation');
 ipcMain.handle('save-chat-conversation', (_event, payload) => {
-  saveConversation({ ...(payload ?? {}), tutorModelId: currentTutorModelId });
+  saveConversation({ ...(payload ?? {}), messages: chatStreams.overlay(payload?.sessionId, payload?.messages ?? []), tutorModelId: payload?.sessionId === currentSessionId ? currentTutorModelId : undefined });
   return { success: true };
 });
 
@@ -4536,18 +4604,18 @@ ipcMain.removeHandler('resume-chat-conversation');
 ipcMain.handle(
   'resume-chat-conversation',
   async (_event, { sessionId }: { sessionId?: string } = {}) => {
-    if (pendingChatRequest)
-      return {
-        success: false,
-        error: 'Stop the current run before switching conversations.',
-      };
+    if (agentRuns.legacyBusy) return { success: false, error: 'Wait for the practice suggestion before switching conversations.' };
     const conversation = readConversations().find(
       (saved) => saved.sessionId === sessionId,
     );
     if (!conversation) {
       return { success: false, error: 'Conversation not found.' };
     }
-    return resumeSavedConversation(conversation);
+    const result = await resumeSavedConversation(conversation);
+    if (!result.success) return result;
+    activateBridgeConversation(conversation.sessionId);
+    const latest = readConversations().find((saved) => saved.sessionId === sessionId) ?? conversation;
+    return { ...result, conversation: interruptStaleReplies(latest, (id) => activeChatRequests.has(id)) };
   },
 );
 
@@ -4589,7 +4657,7 @@ ipcMain.removeHandler('check-understanding');
 ipcMain.handle(
   'check-understanding',
   (_event, { sessionId }: { sessionId?: string | null } = {}) => {
-    if (pendingChatRequest)
+    if (agentRuns.busy)
       return {
         success: false,
         error: 'Wait for Coco to finish before checking your understanding.',
@@ -4679,8 +4747,9 @@ ipcMain.on('session-recap-done', (event, payload?: unknown) => {
 // Ends the active session: mark inactive, close the chat panel, and tell the
 // sensing server to revert to pre-session observation mode.
 function endCurrentSession() {
-  if (pendingChatRequest) pendingChatRequest.stopped = true;
-  void piHarness.abort();
+  for (const [requestId, request] of agentRuns.requests) {
+    if (request.sessionId === currentSessionId) void agentRuns.abort(requestId);
+  }
   isSessionActive = false;
   currentSessionId = null;
   if (chatWindow && !chatWindow.isDestroyed()) {
@@ -4707,6 +4776,7 @@ ipcMain.handle(
       ipcEvent,
       {
         requestId,
+        sessionId,
         userText,
         displayText,
         isRetry,
@@ -4715,6 +4785,7 @@ ipcMain.handle(
         hotkeyImages,
       }: {
         requestId: string;
+        sessionId?: string;
         userText: string;
         displayText?: string;
         isRetry?: boolean;
@@ -4723,18 +4794,19 @@ ipcMain.handle(
         hotkeyImages?: string[];
       },
     ) => {
-      if (piHarness.busy)
-        return {
-          error: 'Coco is already working. Stop the current run first.',
-        };
+      const gatewaySessionId = sessionId!;
+      const piHarness = agentRuns.get(gatewaySessionId);
+      const context = executionContext(gatewaySessionId, displayText ?? userText);
+      const directory = agentDirectory(gatewaySessionId);
+      chatStreams.begin(gatewaySessionId, requestId, displayText ?? userText, images ?? [], isRetry, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined);
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const tutor = `http://127.0.0.1:${tutorPort}`;
       const sessionStartText = (displayText ?? userText).trim();
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
-      await resumeReopenedConversation(displayText ?? userText);
+      if (gatewaySessionId === currentSessionId) await resumeReopenedConversation(displayText ?? userText);
       if (
-        !isSessionActive &&
+        gatewaySessionId === currentSessionId && !isSessionActive &&
         shouldStartSessionFromUserMessage(
           sessionStartText,
           requestKind ?? 'chat',
@@ -4749,12 +4821,11 @@ ipcMain.handle(
           'user_message',
           undefined,
           {
-            sessionId: currentSessionId ?? undefined,
+            sessionId: gatewaySessionId,
             openChat: false,
           },
         );
       }
-      const gatewaySessionId = currentSessionId;
       if (!isRetry && gatewaySessionId) {
         gatewayClient?.addMessage(
           gatewaySessionId,
@@ -4787,10 +4858,12 @@ ipcMain.handle(
         }
       };
       activeChatRequests.add(requestId);
+      const progressReminder = requestKind === 'practice_suggestions' ? null : startAgentProgressReminder(gatewaySessionId, requestId);
       try {
         // A plain chat can be opened without creating a proactive session. Sync
         // the persisted profile on every turn so the tutor never falls back to
         // its default scenario or recommends tools the user did not select.
+        if (requestKind === 'practice_suggestions') {
         const { scenario, aiTools } = readProfile();
         await axios.post(
           `${tutor}/config/scenario`,
@@ -4802,8 +4875,10 @@ ipcMain.handle(
           { ai_tools: aiTools },
           { timeout: 8000 },
         );
+        }
         const turnTiming = new TutorTurnTiming();
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          progressReminder?.update(streamEvent);
           if (streamEvent.type === 'text_delta') {
             const delta = String(streamEvent.text ?? '');
             turnTiming.recordTextDelta(delta);
@@ -4819,6 +4894,11 @@ ipcMain.handle(
                 | LLMCallMetrics
                 | undefined,
             });
+          }
+          if (streamEvent.type === 'done' && !streamEvent.stopped && requestKind !== 'practice_suggestions') {
+            remindAgentReply(gatewaySessionId, requestId).catch((error) =>
+              log.warn('[Chat] Could not show reply reminder:', error),
+            );
           }
           if (streamEvent.type === 'error') {
             settleReply({
@@ -4852,6 +4932,7 @@ ipcMain.handle(
           }
           sendChatStreamEvent(ipcEvent.sender, {
             requestId,
+            sessionId: gatewaySessionId,
             ...streamEvent,
             ...(streamEvent.type === 'done'
               ? { observerMetrics: streamEvent.observer_metrics ?? null }
@@ -4866,13 +4947,14 @@ ipcMain.handle(
             undefined,
             { idleMs: 60_000, hardMs: 5 * 60_000 },
           );
-        } else if (pendingChatRequest?.stopped) {
+        } else if (agentRuns.requests.get(requestId)?.stopped) {
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
             requestId,
-            sessionId: currentSessionId ?? randomUUID(),
-            directory: agentDirectory(),
+            sessionId: gatewaySessionId,
+            context,
+            directory,
             tutorUrl: tutor,
             token: piBridgeToken,
             text: contextualizedUserText,
@@ -4896,11 +4978,14 @@ ipcMain.handle(
         settleReply({ text: error, isError: true });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
+          sessionId: gatewaySessionId,
           type: 'error',
           error,
         });
         return { error };
       } finally {
+        progressReminder?.dispose();
+        clearAgentProgressReminder(requestId);
         activeChatRequests.delete(requestId);
       }
     },
@@ -4960,19 +5045,26 @@ ipcMain.handle(
       ipcEvent,
       {
         requestId,
+        sessionId,
         audioData,
       }: {
         requestId: string;
+        sessionId?: string;
         audioData: string;
       },
     ) => {
+      const gatewaySessionId = sessionId!;
+      const piHarness = agentRuns.get(gatewaySessionId);
+      const context = executionContext(gatewaySessionId);
+      const directory = agentDirectory(gatewaySessionId);
+      chatStreams.begin(gatewaySessionId, requestId, '[Voice message]', [], false, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined);
       if (!audioData || audioData.length > 16_000_000) {
         return { error: 'The voice recording is empty or too large.' };
       }
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
-      await resumeReopenedConversation();
-      if (!isSessionActive) {
+      if (gatewaySessionId === currentSessionId) await resumeReopenedConversation();
+      if (gatewaySessionId === currentSessionId && !isSessionActive) {
         // A pre-session invite may already be visible from the last sensing tick.
         // Voice input is itself an explicit session start, so remove that stale UI.
         notificationWindow?.destroy();
@@ -4984,12 +5076,11 @@ ipcMain.handle(
           {
             // Reuse the draft already displayed by the wake-word/chat flow so
             // activating the session does not clear the visible conversation.
-            sessionId: currentSessionId ?? undefined,
+            sessionId: gatewaySessionId,
             openChat: false,
           },
         );
       }
-      const gatewaySessionId = currentSessionId;
       let storedTranscription = false;
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const turnTiming = new TutorTurnTiming();
@@ -5000,8 +5091,10 @@ ipcMain.handle(
         }
       };
       activeChatRequests.add(requestId);
+      const progressReminder = startAgentProgressReminder(gatewaySessionId, requestId);
       try {
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          progressReminder?.update(streamEvent);
           if (
             streamEvent.type === 'transcription' &&
             gatewaySessionId &&
@@ -5035,6 +5128,11 @@ ipcMain.handle(
                 | undefined,
             });
           }
+          if (streamEvent.type === 'done' && !streamEvent.stopped) {
+            remindAgentReply(gatewaySessionId, requestId).catch((error) =>
+              log.warn('[Chat] Could not show reply reminder:', error),
+            );
+          }
           if (streamEvent.type === 'error') {
             settleReply({
               text: String(
@@ -5064,16 +5162,18 @@ ipcMain.handle(
           }
           sendChatStreamEvent(ipcEvent.sender, {
             requestId,
+            sessionId: gatewaySessionId,
             ...streamEvent,
           });
         };
-        if (pendingChatRequest?.stopped) {
+        if (agentRuns.requests.get(requestId)?.stopped) {
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
             requestId,
-            sessionId: currentSessionId ?? randomUUID(),
-            directory: agentDirectory(),
+            sessionId: gatewaySessionId,
+            context,
+            directory,
             tutorUrl: `http://127.0.0.1:${tutorPort}`,
             token: piBridgeToken,
             text: '',
@@ -5095,11 +5195,14 @@ ipcMain.handle(
         settleReply({ text: error, isError: true });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
+          sessionId: gatewaySessionId,
           type: 'error',
           error,
         });
         return { error };
       } finally {
+        progressReminder?.dispose();
+        clearAgentProgressReminder(requestId);
         activeChatRequests.delete(requestId);
       }
     },
@@ -5136,6 +5239,14 @@ ipcMain.handle('select-directory', async () => {
     properties: ['openDirectory', 'createDirectory'],
   });
   return result;
+});
+
+// Select local file references for the chat prompt without reading their contents.
+ipcMain.handle('select-chat-files', async () => {
+  return dialog.showOpenDialog({
+    title: 'Attach files to your message',
+    properties: ['openFile', 'multiSelections'],
+  });
 });
 
 // IPC Handler for file/directory selection (for context)
@@ -5531,8 +5642,7 @@ function applyEffectiveStudyAccess(): void {
 }
 
 async function stopTutoringForAccess(): Promise<void> {
-  if (pendingChatRequest) pendingChatRequest.stopped = true;
-  await piHarness.abort();
+  await agentRuns.abort();
   delete process.env.LLM_ROUTER_API_KEY;
   notificationWindow?.destroy();
   sessionRecapWindow?.destroy();
@@ -5565,8 +5675,7 @@ async function refreshTutoringAccess() {
     }
   } catch (error) {
     studyAccessStatus = 'unavailable';
-    if (pendingChatRequest) pendingChatRequest.stopped = true;
-    void piHarness.abort();
+    void agentRuns.abort();
     setTutoringAllowed(false); // Fail closed when authorization cannot be checked.
     log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
   } finally {
@@ -5637,8 +5746,7 @@ const authenticate = async (
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
     studyAccessStatus = 'unavailable';
-    if (pendingChatRequest) pendingChatRequest.stopped = true;
-    void piHarness.abort();
+    void agentRuns.abort();
     setTutoringAllowed(false);
     return {
       success: false,
@@ -5736,7 +5844,7 @@ app.on('second-instance', () => {
 });
 
 app.on('will-quit', () => {
-  void piHarness.dispose();
+  void agentRuns.dispose();
   // Unregister all shortcuts
   globalShortcut.unregisterAll();
 });
@@ -6086,7 +6194,7 @@ const startObserver = () => {
         );
       }
       const offerSuggestion = instantSuggestionEligible && !suggestionDropped;
-      const surfaceObservation = shouldSurfaceObservation();
+      const surfaceObservation = shouldSurfaceObservation(event);
 
       // Tier-2 friction events from the struggle/pause path arrive without an
       // observation_id, but the precompute cache and the renderer bubble must
@@ -6097,8 +6205,8 @@ const startObserver = () => {
         event.observation_id = `synthetic-${Date.now()}-${syntheticObsSeq}`;
       }
 
-      // Match the monorepo's lightweight feedback: every observation status is
-      // forwarded to the avatar (including Stuck / AI could help). The separate
+      // Progress is kept in history without showing an avatar bubble. Other
+      // observation statuses retain their existing feedback. The separate
       // instantSuggestionEligible gate below ensures only Judge-approved events
       // generate a detailed proactive suggestion in AI Upskilling.
       if (

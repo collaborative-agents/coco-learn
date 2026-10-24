@@ -105,6 +105,111 @@ describe('App', () => {
     return { sendMessage, listeners, chooseMenuItem };
   };
 
+  it('shows working updates briefly and clears them as soon as the run ends', async () => {
+    jest.useFakeTimers();
+    try {
+      const { listeners, sendMessage } = setupMenuIpc();
+      render(<App />);
+      const target = {
+        sessionId: 's',
+        requestId: 'r',
+        text: 'Checking results.',
+      };
+      await act(async () => listeners.get('agent-working')?.(target));
+      expect(lastBubbleState(sendMessage)).toEqual(
+        expect.objectContaining({
+          tutorMessage: 'Checking results.',
+          agentWorking: { sessionId: 's', requestId: 'r' },
+        }),
+      );
+      expect(screen.getByAltText('Desktop Pet')).not.toHaveClass(
+        'pet-image-awake',
+      );
+      act(() => jest.advanceTimersByTime(6000));
+      expect(lastBubbleState(sendMessage)).toBeNull();
+      act(() => listeners.get('agent-working')?.(target));
+      act(() => listeners.get('agent-work-ended')?.({ requestId: 'r' }));
+      expect(lastBubbleState(sendMessage)).toBeNull();
+      // Final cleanup must not remove the completion reminder.
+      act(() => listeners.get('agent-reply-ready')?.(target));
+      act(() => listeners.get('agent-work-ended')?.({ requestId: 'r' }));
+      expect(lastBubbleState(sendMessage)?.agentReply).toEqual(target);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('opens the completed reply and clears its reminder', async () => {
+    const { listeners, sendMessage } = setupMenuIpc();
+    render(<App />);
+    const target = { sessionId: 'session-1', requestId: 'request-1' };
+    await act(async () => listeners.get('agent-reply-ready')?.(target));
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({
+        agentReply: target,
+        tutorMessage: 'Your reply is ready.',
+        status: 'progress',
+      }),
+    );
+    act(() => listeners.get('avatar-bubble-event')?.('view-conversation'));
+    expect(sendMessage).toHaveBeenCalledWith('view-agent-reply', target);
+    expect(lastBubbleState(sendMessage)).toBeNull();
+  });
+
+  it('expires ignored reply reminders without repeating or logging suggestion feedback', async () => {
+    jest.useFakeTimers();
+    try {
+      const { listeners, sendMessage } = setupMenuIpc();
+      render(<App />);
+      await act(async () =>
+        listeners.get('agent-reply-ready')?.({
+          sessionId: 's',
+          requestId: 'r',
+        }),
+      );
+      act(() => listeners.get('avatar-bubble-event')?.('enter'));
+      act(() => jest.advanceTimersByTime(3000));
+      expect(screen.getByAltText('Desktop Pet')).not.toHaveClass(
+        'pet-image-awake',
+      );
+      expect(lastBubbleState(sendMessage)).not.toBeNull();
+      act(() => jest.advanceTimersByTime(5000));
+      expect(screen.getByAltText('Desktop Pet')).toHaveClass('pet-image-awake');
+      expect(lastBubbleState(sendMessage)).toBeNull();
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        'training-feedback',
+        expect.anything(),
+      );
+      act(() => jest.advanceTimersByTime(30000));
+      expect(lastBubbleState(sendMessage)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('dismisses reply reminders without negative suggestion feedback', async () => {
+    jest.useFakeTimers();
+    try {
+      const { listeners, sendMessage } = setupMenuIpc();
+      render(<App />);
+      await act(async () =>
+        listeners.get('agent-reply-ready')?.({
+          sessionId: 's',
+          requestId: 'r',
+        }),
+      );
+      act(() => listeners.get('avatar-bubble-event')?.('dismiss'));
+      act(() => jest.advanceTimersByTime(400));
+      expect(lastBubbleState(sendMessage)).toBeNull();
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        'training-feedback',
+        expect.anything(),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('sends a new bubble to its own window without resizing the avatar', () => {
     const { listeners, sendMessage } = setupMenuIpc();
     const { invoke } = window.electron!.ipcRenderer as any;

@@ -133,8 +133,10 @@ function sameMessage(
 ): boolean {
   return (
     left.role === right.role &&
-    left.text === right.text &&
-    JSON.stringify(left.images ?? []) === JSON.stringify(right.images ?? [])
+    ((left.requestId && left.requestId === right.requestId) ||
+      (left.text === right.text &&
+        JSON.stringify(left.images ?? []) ===
+          JSON.stringify(right.images ?? [])))
   );
 }
 
@@ -191,7 +193,16 @@ export function mergeConversationMessages(
     // Conversations do not support deleting turns, so any shorter snapshot is
     // stale or only partially rehydrated.
     if (incoming.length < existing.length) return existing;
-    return incoming;
+    // Main may have settled a background run while this renderer still holds
+    // an older streaming snapshot. Never regress that completed reply.
+    return incoming.map((message) => {
+      const saved = message.requestId
+        ? existing.find((item) => item.requestId === message.requestId)
+        : undefined;
+      return saved && !saved.isStreaming && message.isStreaming
+        ? saved
+        : message;
+    });
   }
 
   const maxOverlap = Math.min(existing.length, incoming.length);
@@ -206,7 +217,9 @@ export function mergeConversationMessages(
   return [...existing, ...incoming];
 }
 
-export function readConversations(): StoredConversation[] {
+export function readConversations(
+  isActive?: (requestId: string) => boolean,
+): StoredConversation[] {
   try {
     const parsed = JSON.parse(fs.readFileSync(storePath(), 'utf8')) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -231,7 +244,10 @@ export function readConversations(): StoredConversation[] {
             : undefined,
         messages: conversation.messages.map((message) => ({
           ...message,
-          activity: parseAgentActivity(message.activity, true),
+          activity: parseAgentActivity(
+            message.activity,
+            isActive ? !(message.requestId && isActive(message.requestId)) : false,
+          ),
         })),
         title:
           typeof conversation.title === 'string' && conversation.title.trim()

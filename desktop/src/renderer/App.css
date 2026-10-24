@@ -101,18 +101,23 @@
   transition: opacity 400ms ease, transform 400ms ease;
 }
 
+.observation-bubble-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .bubble-dismiss-btn {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 18px;
-  height: 18px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--coco-color-text-subtle);
-  font-size: var(--coco-text-control);
-  line-height: 18px;
+  color: var(--coco-color-text-secondary);
+  font-size: 20px;
+  line-height: 24px;
   cursor: pointer;
   border-radius: 50%;
   -webkit-app-region: no-drag;
@@ -160,8 +165,9 @@
   text-transform: uppercase;
   color: var(--bubble-accent);
   margin-bottom: var(--coco-space-1);
-  /* Clear the × / ? in the top-right corner when a long label wraps. */
-  padding-right: 18px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   align-items: flex-start;
   gap: 5px;
@@ -424,51 +430,6 @@
 
 .bubble-pager-rating {
   display: flex;
-}
-
-/* Tier-1 (progress/observing) "?" badge: a passive explainer in the top-right
-   corner. No action — hovering reveals a tooltip that points to the pet. */
-.bubble-help-badge {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
-  line-height: 16px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--coco-color-text-subtle);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 50%;
-  cursor: help;
-  -webkit-app-region: no-drag;
-}
-.bubble-help-badge:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--coco-color-text-secondary);
-}
-.bubble-help-tip {
-  display: none;
-  position: absolute;
-  top: 22px;
-  right: 0;
-  width: 184px;
-  padding: 7px 9px;
-  z-index: 20;
-  background: var(--coco-color-text);
-  color: var(--coco-color-surface-subtle);
-  font-size: var(--coco-text-caption);
-  font-weight: 400;
-  line-height: 1.4;
-  text-align: left;
-  white-space: normal;
-  border-radius: var(--coco-radius-control);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-}
-.bubble-help-badge:hover .bubble-help-tip,
-.bubble-help-badge:focus .bubble-help-tip {
-  display: block;
 }
 
 /* Tail pointing toward the pet (right side). Inherits parent's accent border. */

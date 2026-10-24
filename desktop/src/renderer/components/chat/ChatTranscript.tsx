@@ -91,7 +91,11 @@ export default function ChatTranscript({
         ))}
       {visibleMessages.map((m, i) => (
         // eslint-disable-next-line react/no-array-index-key
-        <div key={i} style={m.role === 'user' ? S.userRow : S.tutorRow}>
+        <div
+          key={i}
+          data-request-id={m.requestId}
+          style={m.role === 'user' ? S.userRow : S.tutorRow}
+        >
           {m.role === 'user' ? (
             <>
               <div style={S.userBubble}>
@@ -146,6 +150,7 @@ export default function ChatTranscript({
                 {(m.activity && m.activity.length > 0) ||
                 (!m.activity && m.toolCalls?.length) ? (
                   <AgentActivityList
+                    requestId={m.requestId}
                     activity={
                       m.activity ??
                       m.toolCalls?.map((call) => ({

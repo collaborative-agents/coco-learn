@@ -1,5 +1,5 @@
 import subscribeCocoSleepMode from './services/coco-sleep-mode';
-import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import type { BubbleState } from './components/ObservationBubble';
@@ -152,7 +152,22 @@ function PetView() {
     };
   }, []);
 
-  useEffect(() => subscribeCocoSleepMode(setCocoSleeping), []);
+  const sleepingRef = useRef(false);
+  const applySleepMode = useCallback((sleeping: boolean) => {
+    sleepingRef.current = sleeping;
+    setCocoSleeping(sleeping);
+    if (!sleeping || bubbleRef.current?.agentReply || bubbleRef.current?.agentWorking) return;
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (fadeTimer.current) clearTimeout(fadeTimer.current);
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    bubbleHoverRef.current = false;
+    bubblePinnedRef.current = false;
+    setBubble(null);
+    setPulse(null);
+    setMood('idle');
+  }, []);
+
+  useEffect(() => subscribeCocoSleepMode(applySleepMode), [applySleepMode]);
 
   const setCocoSleepMode = async (sleeping: boolean) => {
     const result = (await window.electron?.ipcRenderer.invoke(
@@ -160,11 +175,7 @@ function PetView() {
       { sleeping },
     )) as { success?: boolean; sleeping?: boolean } | undefined;
     if (result?.success) {
-      setCocoSleeping(result.sleeping === true);
-      // A suggestion pinned before sleep must not block bubbles after waking.
-      bubblePinnedRef.current = false;
-      setBubble(null);
-      setMood(result.sleeping ? 'sleep' : 'idle');
+      applySleepMode(result.sleeping === true);
     }
   };
 
@@ -202,6 +213,7 @@ function PetView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'observation-update',
       (data: any) => {
+        if (sleepingRef.current) return;
         const event = data as ObservationEvent;
         // Skip the SSE handshake event ({type: "ready"}) and any payload
         // missing an actual observation string.
@@ -676,7 +688,7 @@ function PetView() {
           openActionsMenu();
         }}
       >
-        <PetSprite mood={cocoSleeping ? 'sleep' : mood} />
+        <PetSprite mood={cocoSleeping && !bubble?.agentReply && !bubble?.agentWorking ? 'sleep' : mood} />
         <span className="pet-drag-hint" aria-hidden>
           Right-click for menu
         </span>

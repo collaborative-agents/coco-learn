@@ -295,7 +295,7 @@ describe('deferred suggestion context', () => {
     fireEvent.click(screen.getByTitle('Settings'));
     expect(
       await screen.findByText(
-        'Sleeping intentionally stops the sensing server and tutor agent.',
+        'Sleep pauses observation and proactive suggestions. Chat and running tasks remain available.',
       ),
     ).toBeInTheDocument();
     expect(
@@ -565,7 +565,7 @@ describe('deferred suggestion context', () => {
     })));
   });
 
-  it('starts another conversation while a run is active and ignores its late completion', async () => {
+  it('keeps concurrent manual runs available during sleep and ignores background completion', async () => {
     const listeners = new Map<string, (data: any) => void>();
     const pending = new Map<string, (result: unknown) => void>();
     const invoke = jest.fn(async (channel: string, payload?: any) => {
@@ -586,6 +586,7 @@ describe('deferred suggestion context', () => {
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'Task A' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(pending.has('a')).toBe(true));
+    await act(async () => listeners.get('coco-sleep-mode-changed')?.({ sleeping: true }));
     expect(screen.getByRole('button', { name: 'Start a new session' })).toBeEnabled();
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Start a new session' })));
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'Task B' } });

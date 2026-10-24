@@ -1771,9 +1771,9 @@ const sendChatStreamEvent = (
 
 // Completion reminders are one-shot; they do not track read/unread state.
 const remindAgentReply = async (sessionId: string | null, requestId: string) => {
-  if (!sessionId || hideAvatarMode || isCocoSleeping()) return;
+  if (!sessionId || hideAvatarMode || !tutoringAllowed) return;
   if (!(await isChatOutOfView(chatWindow))) return;
-  if (hideAvatarMode || isCocoSleeping() || !avatarWindow || avatarWindow.isDestroyed()) return;
+  if (hideAvatarMode || !tutoringAllowed || !avatarWindow || avatarWindow.isDestroyed()) return;
   avatarWindow.webContents.send('agent-reply-ready', { sessionId, requestId });
 };
 
@@ -1781,7 +1781,7 @@ const startAgentProgressReminder = (sessionId: string | null, requestId: string)
   new AgentProgressReminder((text) => {
     const publish = async () => {
       if (!sessionId || !(await isChatOutOfView(chatWindow))) return;
-      if (!agentRuns.requests.has(requestId) || agentRuns.requests.get(requestId)?.stopped || hideAvatarMode || isCocoSleeping() ||
+      if (!agentRuns.requests.has(requestId) || agentRuns.requests.get(requestId)?.stopped || hideAvatarMode || !tutoringAllowed ||
           !avatarWindow || avatarWindow.isDestroyed()) return;
       avatarWindow.webContents.send('agent-working', { sessionId, requestId, text });
     };
@@ -2646,7 +2646,7 @@ const createNotificationRecord = (
 };
 
 const showNotification = (payload: NotificationPayload): boolean => {
-  if (!tutoringAllowed) return false;
+  if (!tutoringAllowed || (cocoSleeping && payload.category !== 'system')) return false;
   if (postAssessmentActive && payload.category !== 'system') {
     log.info(
       `[Post-assessment] Dropped proactive notification ${payload.notifType ?? payload.category ?? 'general'}`,
@@ -3109,8 +3109,8 @@ ipcMain.handle(
     _event,
     { forceModelTest = false }: { forceModelTest?: boolean } = {},
   ) => {
-    // Sleep mode intentionally stops the sensing and tutor services. Do not
-    // report their expected absence as a health failure.
+    // Combined health checks are paused while sensing is intentionally stopped.
+    // The tutor remains available for manual conversations.
     if (isCocoSleeping()) {
       return { checkedAt: Date.now(), sleeping: true };
     }
@@ -3415,7 +3415,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
     try {
       await Promise.all([
         axios.get(`${tutor}/health`, { timeout: 1000 }),
-        axios.get(`${sensing}/health`, { timeout: 1000 }),
+        ...(!isCocoSleeping() ? [axios.get(`${sensing}/health`, { timeout: 1000 })] : []),
       ]);
       break;
     } catch {
@@ -3450,7 +3450,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
       { timeout: 8000 },
     );
   }
-  await axios.post(
+  if (!isCocoSleeping()) await axios.post(
     `${sensing}/session`,
     {
       node_uuid: currentSessionId,
@@ -3506,7 +3506,7 @@ ipcMain.handle(
           runtime.config.sensing.model,
         );
         serviceManager.startService('tutor-server');
-        serviceManager.startService('sensing-server');
+        if (!isCocoSleeping()) serviceManager.startService('sensing-server');
         try {
           await restoreSessionAfterModelRestart();
         } catch (err) {
@@ -3772,6 +3772,32 @@ ipcMain.handle('get-coco-sleep-mode', () => ({
   sleeping: isCocoSleeping(),
 }));
 
+async function restoreSensingSession() {
+  const sessionId = currentSessionId;
+  if (!isSessionActive || !sessionId) return;
+  const { scenario, customObserverPrompt } = readProfile();
+  const sensingPort = process.env.SENSING_PORT || '8080';
+  try {
+    await retryOperation(() => axios.post(
+      `http://127.0.0.1:${sensingPort}/session`,
+      {
+        node_uuid: sessionId,
+        struggle_detection_seconds: sessionStruggleSeconds,
+        scenario,
+        config_source: 'settings',
+        preserve_tutor_context: true,
+        ...(customObserverPrompt && { custom_observer_prompt: customObserverPrompt }),
+      },
+      { timeout: 15000 },
+    ), {
+      shouldContinue: () => !isCocoSleeping() && isSessionActive && currentSessionId === sessionId,
+    });
+  } catch (error) {
+    if (!(error instanceof RetryCancelledError))
+      log.warn('[Sleep] Could not restore sensing session:', error);
+  }
+}
+
 async function setCocoSleepMode(sleeping: boolean) {
   if (!sleeping && !tutoringAllowed)
     return {
@@ -3783,23 +3809,27 @@ async function setCocoSleepMode(sleeping: boolean) {
     return { success: true, sleeping };
   }
 
-  // Make the requested state authoritative before service shutdown so health
-  // checks and wake-word callbacks cannot mistake an intentional pause for a
-  // failure or accept another interaction while shutdown is in progress.
+  // Suppress observation events before stopping sensing, including suggestions
+  // that were already being generated. Manual conversations keep running.
   cocoSleeping = sleeping;
   publishCocoSleepMode();
   syncWakeWordService();
 
   if (sleeping) {
     clearAvatarInvite('ignored');
-    await agentRuns.abort();
-    if (isSessionActive) endCurrentSession();
-    await Promise.all([
-      serviceManager.stopService('sensing-server'),
-      serviceManager.stopService('tutor-server'),
-    ]);
+    latestInviteObservationId = undefined;
+    latestHiddenSuggestionObservationId = undefined;
+    suggestionCache.clear();
+    notificationHovered = false;
+    notificationWindow?.destroy();
+    // Sensing may restart independently of the tutor, whose context must survive.
+    serviceManager.configureServiceEnv('sensing-server', {
+      COCO_RESET_TUTOR_ON_START: '0',
+    });
+    await serviceManager.stopService('sensing-server');
   } else if (observerStarted) {
-    await serviceManager.startAll();
+    serviceManager.startService('sensing-server');
+    await restoreSensingSession();
   } else if (isOnboardingComplete()) {
     startObserver();
   }
@@ -4312,7 +4342,7 @@ function precomputeSuggestion(event: {
   teaching_depth?: 'introduce' | 'reinforce' | 'deepen' | 'not_applicable';
 }): Promise<InstantSuggestion | null> | undefined {
   const id = event.observation_id;
-  if (!id) return undefined;
+  if (!id || isCocoSleeping()) return undefined;
   const cached = suggestionCache.get(id);
   if (cached) return cached.promise;
   pruneSuggestionCache();
@@ -4634,10 +4664,10 @@ async function createProactiveTutorSession(
       },
     });
 
-  // Register sensing first. Its /session handler resets TutorSystem, so doing
-  // this after tutor context setup would erase the current problem statement.
+  // Register sensing before configuring tutor context. During sleep only the
+  // manual tutor is configured; sensing catches up when Coco wakes.
   try {
-    await retryLocalPost(
+    if (!isCocoSleeping()) await retryLocalPost(
       'Sensing session setup',
       `${sensing}/session`,
       {
@@ -6296,7 +6326,8 @@ const startObserver = () => {
         true,
       );
     }
-    serviceManager.startAll();
+    serviceManager.startService('tutor-server');
+    if (!isCocoSleeping()) serviceManager.startService('sensing-server');
   } catch (e) {
     console.warn('Failed to start services:', e);
   }
@@ -6390,7 +6421,7 @@ const startObserver = () => {
     url: `http://127.0.0.1:${sensingPort}/observations/stream`,
     onEvent: (event) => {
       const receivedAt = Date.now();
-      if (!tutoringAllowed) return;
+      if (isCocoSleeping()) return;
       if (observationSleepGuard.shouldSuppress(event.ts)) {
         if (event.observation) {
           log.info(
@@ -6486,6 +6517,7 @@ const startObserver = () => {
             // rather than the observer diagnosis that led to it.
             if (
               !value ||
+              isCocoSleeping() ||
               !hideAvatarMode ||
               !shouldOfferInstantSuggestion(
                 readProfile().scenario,

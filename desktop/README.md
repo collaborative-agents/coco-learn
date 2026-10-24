@@ -42,6 +42,15 @@ desktop/
     └── build/                         # Packaged installers (DMG, NSIS, AppImage)
 ```
 
+### Sleep mode
+
+Sleep pauses sensing and proactive suggestions, including background wake-word
+listening. Manual chat, attachments, concurrent agent runs, and their progress
+and completion reminders remain available. Waking restarts sensing and restores
+its active session without resetting the tutor's conversation history. Live
+screen observation requires sensing to be awake; attached screenshots can still
+be used while sleeping.
+
 ### Multi-window design
 
 A single React bundle is loaded into several `BrowserWindow` instances, each routed by the `?view=` query parameter:

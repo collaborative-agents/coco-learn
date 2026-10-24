@@ -142,11 +142,13 @@ describe('App', () => {
     }
   });
 
-  it('opens the completed reply and clears its reminder', async () => {
+  it('opens the completed reply while asleep and clears its reminder', async () => {
     const { listeners, sendMessage } = setupMenuIpc();
     render(<App />);
     const target = { sessionId: 'session-1', requestId: 'request-1' };
+    await act(async () => listeners.get('coco-sleep-mode-changed')?.({ sleeping: true }));
     await act(async () => listeners.get('agent-reply-ready')?.(target));
+    await act(async () => listeners.get('coco-sleep-mode-changed')?.({ sleeping: true }));
     expect(lastBubbleState(sendMessage)).toEqual(
       expect.objectContaining({
         agentReply: target,
@@ -258,6 +260,8 @@ describe('App', () => {
     );
 
     await act(async () => chooseMenuItem('toggle-sleep'));
+    expect(lastBubbleState(sendMessage)).toBeNull();
+    act(() => listeners.get('observation-update')?.(mistakeEvent()));
     expect(lastBubbleState(sendMessage)).toBeNull();
     await act(async () => chooseMenuItem('toggle-sleep'));
 

@@ -1,0 +1,139 @@
+.tool-chapter {
+  max-width: 720px;
+}
+.tool-chapter-intro {
+  margin: 0 0 12px;
+  line-height: 1.6;
+  color: var(--coco-color-text-secondary);
+}
+.tool-diagram-scroll {
+  overflow-x: auto;
+  border-radius: 12px;
+  background: var(--coco-color-surface-subtle);
+}
+.tool-diagram {
+  position: relative;
+  width: 100%;
+  min-width: 440px;
+  aspect-ratio: 640 / 330;
+}
+.tool-diagram svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--coco-color-text-subtle);
+}
+.tool-diagram-boundary {
+  fill: none;
+  stroke: var(--coco-color-border);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.tool-diagram-path {
+  stroke: var(--coco-color-text-subtle);
+  stroke-width: 1.8;
+  opacity: 0.45;
+}
+.tool-diagram-path.is-active {
+  stroke: var(--coco-color-primary);
+  stroke-width: 3;
+  opacity: 1;
+  stroke-dasharray: 8 5;
+  animation: tool-flow 1.5s linear infinite;
+}
+.tool-diagram text {
+  fill: var(--coco-color-text-muted);
+  font: 14px var(--coco-font-family);
+}
+.training-page .tool-diagram-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  background: var(--coco-color-surface);
+  border: 1.5px solid var(--coco-color-border);
+  border-radius: 12px;
+  font-size: var(--coco-text-body);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 3%);
+}
+.tool-diagram-node span {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--coco-color-text-muted);
+}
+.training-page .tool-diagram-node[aria-pressed='true'] {
+  border-color: var(--coco-color-primary);
+  color: var(--coco-color-primary);
+  box-shadow: 0 0 0 3px var(--coco-color-accent-soft);
+}
+.tool-diagram-user {
+  left: 9.375%;
+  top: 53.03%;
+  width: 15.625%;
+  height: 18.18%;
+}
+.tool-diagram-coco {
+  left: 40.625%;
+  top: 53.03%;
+  width: 18.75%;
+  height: 18.18%;
+}
+.tool-diagram-bash {
+  left: 64.0625%;
+  top: 15.15%;
+  width: 21.875%;
+  height: 21.21%;
+}
+.tool-diagram-node .tool-diagram-terminal {
+  font-family: var(--coco-font-mono);
+  color: var(--coco-color-primary);
+  font-weight: 700;
+}
+.tool-diagram-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0;
+}
+.training-page .tool-diagram-controls button {
+  flex: 1;
+  white-space: nowrap;
+  border-color: transparent;
+  background: var(--coco-color-surface-subtle);
+}
+.training-page .tool-diagram-controls button[aria-pressed='true'] {
+  color: var(--coco-color-primary);
+  background: var(--coco-color-accent-soft);
+  border-color: var(--coco-color-accent-border);
+}
+.tool-diagram-caption {
+  min-height: 90px;
+}
+.tool-diagram-caption p {
+  margin: 6px 0 0;
+  line-height: 1.6;
+  color: var(--coco-color-text-secondary);
+}
+.tool-diagram-hint {
+  margin: 8px 0 20px;
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-caption);
+}
+.tool-chapter button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 4px;
+}
+@keyframes tool-flow {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-diagram-path.is-active {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}

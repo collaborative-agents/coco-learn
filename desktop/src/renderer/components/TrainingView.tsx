@@ -9,6 +9,7 @@ import TrainingDialog from './training/TrainingDialog';
 import TrainingAnnouncement from './training/TrainingAnnouncement';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingProgress from './training/TrainingProgress';
+import ToolChapter from './training/ToolChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
@@ -260,36 +261,15 @@ export default function TrainingView({
       </div>
       <TrainingDialog
         open={questOpen}
-        title={`Level ${questLevel + 1} · ${agentLevels[questLevel].name}`}
+        title={`Chapter ${questLevel + 1} · ${agentLevels[questLevel].name}`}
         onClose={() => setQuestOpen(false)}
       >
-        <div className="agentic-quest-preview">
-          <span className="training-eyebrow">AGENT 101</span>
+        <div className={questLevel === 0 ? undefined : 'agentic-quest-preview'}>
+          {questLevel !== 0 && (
+            <span className="training-eyebrow">AGENT 101</span>
+          )}
           {questLevel === 0 ? (
-            <>
-              <h3>Give AI a way to act</h3>
-              <p>
-                A tool lets an AI system do something beyond generating a reply,
-                such as searching for information, reading a file, or running
-                code. The model requests a tool call, then uses the result to
-                continue.
-              </p>
-              <div className="agentic-quest-example">
-                <strong>Try thinking of it this way</strong>
-                <p>
-                  Ask Coco to summarize a document. Reading the document is the
-                  tool call; the document’s contents are the result; the summary
-                  is Coco’s response.
-                </p>
-              </div>
-              <div className="agentic-quest-reward">
-                <strong>Your level reward · Expand tool calls</strong>
-                <p>
-                  Completing this level will let you open tool calls in the main
-                  panel to see what Coco did and what came back.
-                </p>
-              </div>
-            </>
+            <ToolChapter />
           ) : (
             <>
               <h3>{agentLevels[questLevel].name}</h3>
@@ -297,17 +277,19 @@ export default function TrainingView({
               {agentLevels[questLevel].reward && (
                 <div className="agentic-quest-reward">
                   <strong>
-                    Your level reward · {agentLevels[questLevel].reward}
+                    Your chapter reward · {agentLevels[questLevel].reward}
                   </strong>
                   <p>{agentLevels[questLevel].detail}</p>
                 </div>
               )}
             </>
           )}
-          <p className="training-info">
-            Lesson preview. Level completion and feature unlocks are coming
-            next.
-          </p>
+          {questLevel !== 0 && (
+            <p className="training-info">
+              Lesson preview. Chapter completion and feature unlocks are coming
+              next.
+            </p>
+          )}
           <button
             type="button"
             className="training-primary"

@@ -683,33 +683,33 @@ it('shows four stages and seven day markers without a separate checklist', async
   ).not.toHaveAttribute('open');
 });
 
-it('lets admins preview every Agent 101 level and hides locked details in student mode', async () => {
+it('lets admins preview every Agent 101 chapter and hides locked details in student mode', async () => {
   me.role = 'admin';
   render(<TrainingView />);
   const context = await screen.findByRole('button', {
-    name: 'Level 2: Context. Available',
+    name: 'Chapter 2: Context. Available',
   });
   expect(context).toBeEnabled();
   expect(
     screen.getByRole('button', {
-      name: 'Reward after level 2: Context button',
+      name: 'Reward after chapter 2: Context button',
     }),
   ).toBeEnabled();
   fireEvent.click(context);
   expect(
-    screen.getByRole('dialog', { name: 'Level 2 · Context' }),
+    screen.getByRole('dialog', { name: 'Chapter 2 · Context' }),
   ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back to training' }));
   fireEvent.click(screen.getByRole('button', { name: 'Student mode' }));
   await screen.findByRole('button', { name: 'Exit student mode' });
   expect(
     screen.getByRole('button', {
-      name: 'Level 2: Locked, complete level 1 first',
+      name: 'Chapter 2: Locked, complete chapter 1 first',
     }),
   ).toBeDisabled();
   expect(
     screen.queryByRole('button', {
-      name: 'Reward after level 2: Context button',
+      name: 'Reward after chapter 2: Context button',
     }),
   ).not.toBeInTheDocument();
 });

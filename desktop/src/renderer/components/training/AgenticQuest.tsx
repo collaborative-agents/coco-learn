@@ -70,8 +70,8 @@ export default function AgenticQuest({
         className="agentic-quest-path"
         aria-label={
           adminMode
-            ? 'Five levels, admin preview'
-            : 'Five levels, Tool available'
+            ? 'Five chapters, admin preview'
+            : 'Five chapters, Tool available'
         }
       >
         {agentLevels.map((level, index) => (
@@ -81,7 +81,7 @@ export default function AgenticQuest({
               className={`agentic-quest-level${index === 0 ? ' agentic-quest-level--current' : ''}`}
               disabled={!adminMode && index !== 0}
               aria-current={index === 0 ? 'step' : undefined}
-              aria-label={`Level ${index + 1}: ${adminMode || index === 0 ? `${level.name}. Available` : `Locked, complete level ${index} first`}`}
+              aria-label={`Chapter ${index + 1}: ${adminMode || index === 0 ? `${level.name}. Available` : `Locked, complete chapter ${index} first`}`}
               onClick={() => onOpen(index)}
             >
               <span className="agentic-quest-number">{index + 1}</span>
@@ -93,7 +93,7 @@ export default function AgenticQuest({
                   type="button"
                   className="agentic-quest-gift"
                   disabled={!(adminMode || completedLevels.includes(index + 1))}
-                  aria-label={`Reward after level ${index + 1}: ${adminMode || completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
+                  aria-label={`Reward after chapter ${index + 1}: ${adminMode || completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
                   aria-describedby={
                     adminMode || completedLevels.includes(index + 1)
                       ? `quest-reward-${index}`

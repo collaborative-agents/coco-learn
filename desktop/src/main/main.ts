@@ -86,6 +86,8 @@ import {
 } from './services/tutor-stream';
 import type { TutorStreamEvent } from './services/tutor-stream';
 import AgentRuns from './services/agent-runs';
+import registerContextTraining from './services/context-training';
+import registerToolExploration from './services/tool-exploration';
 import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
@@ -724,6 +726,7 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     saveConversationDirectory(sessionId, directory);
+    contextTraining.workspaceSelected(sessionId, currentUserId, directory);
     return { directory, accessGranted: false };
   },
 );
@@ -748,6 +751,92 @@ ipcMain.handle('answer-agent-permission', (event, requestId: string, id: string,
   if (!chatWindow || event.sender !== chatWindow.webContents)
     throw new Error('Permission decisions must come from the chat window.');
   return agentRuns.answerPermission(requestId, id, allow);
+});
+
+const contextTraining = registerContextTraining({
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  changed: () => sendToChat('context-chapter-progress-changed', null),
+  createConversation: (session) => {
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: 'Chapter 2 · Context',
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [{ role: 'tutor', text: 'Let’s explore what I can see. Choose a working folder below, then ask me about it.', id: randomUUID(), ts: Date.now() }],
+    });
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy) throw new Error('Wait for the practice suggestion to finish.');
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 2 · Context';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+});
+
+const toolTraining = registerToolExploration({
+  ipc: ipcMain,
+  runs: agentRuns,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  createConversation: (session) => {
+    const mode = session.mode === 'with' ? 'With tools' : 'Without tools';
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: `Chapter 1 · Tool · ${mode}`,
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [{
+        role: 'tutor',
+        text: session.mode === 'with'
+          ? 'In this session, Coco can make tool calls'
+          : 'In this session, Coco *cannot* make tool calls',
+        id: randomUUID(),
+        ts: Date.now(),
+      }],
+    });
+    saveConversationDirectory(session.sessionId, session.directory);
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the practice suggestion to finish.');
+    currentTutorModelId = readConversations().find((saved) => saved.sessionId === session.sessionId)?.tutorModelId ?? currentTutorModelId;
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = `Chapter 1 · Tool · ${session.mode === 'with' ? 'With tools' : 'Without tools'}`;
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+  connection: () => ({
+    tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
+    token: piBridgeToken,
+  }),
+  changed: () => sendToChat('tool-chapter-progress-changed', null),
 });
 
 // Preserve the original Upskilling session invitation cadence even though the
@@ -4791,7 +4880,7 @@ ipcMain.handle('get-chat-conversations', () =>
   readConversations()
     .filter((conversation) => conversation.messages.length > 0)
     .map((conversation) =>
-      interruptStaleReplies(conversation, (requestId) =>
+      interruptStaleReplies({ ...conversation, messages: chatStreams.overlay(conversation.sessionId, conversation.messages) }, (requestId) =>
         activeChatRequests.has(requestId),
       ),
     ),
@@ -5069,9 +5158,14 @@ ipcMain.handle(
       },
     ) => {
       const gatewaySessionId = sessionId!;
+      if (requestKind === 'practice_suggestions' && (toolTraining.training(gatewaySessionId, currentUserId) || contextTraining.get(gatewaySessionId, currentUserId)))
+        return { error: 'Ask your own question to explore this chapter.' };
       const piHarness = agentRuns.get(gatewaySessionId);
       const context = executionContext(gatewaySessionId, displayText ?? userText);
       const directory = agentDirectory(gatewaySessionId);
+      const training = toolTraining.training(gatewaySessionId, currentUserId) ?? contextTraining.training(gatewaySessionId, currentUserId, directory, userText);
+      const observeContextTraining = contextTraining.observe(gatewaySessionId, currentUserId);
+      const observeTraining = toolTraining.observe(gatewaySessionId, currentUserId, context, userText);
       chatStreams.begin(gatewaySessionId, requestId, displayText ?? userText, images ?? [], isRetry, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined, screenContext);
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const tutor = `http://127.0.0.1:${tutorPort}`;
@@ -5161,6 +5255,8 @@ ipcMain.handle(
         }
         const turnTiming = new TutorTurnTiming();
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          observeTraining(streamEvent);
+          observeContextTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (streamEvent.type === 'text_delta') {
             const delta = String(streamEvent.text ?? '');
@@ -5237,6 +5333,7 @@ ipcMain.handle(
             requestId,
             sessionId: gatewaySessionId,
             context,
+            training,
             directory,
             tutorUrl: tutor,
             token: piBridgeToken,
@@ -5340,6 +5437,9 @@ ipcMain.handle(
       const piHarness = agentRuns.get(gatewaySessionId);
       const context = executionContext(gatewaySessionId);
       const directory = agentDirectory(gatewaySessionId);
+      const training = toolTraining.training(gatewaySessionId, currentUserId) ?? contextTraining.training(gatewaySessionId, currentUserId, directory);
+      const observeContextTraining = contextTraining.observe(gatewaySessionId, currentUserId);
+      const observeTraining = toolTraining.observe(gatewaySessionId, currentUserId, context, '');
       chatStreams.begin(gatewaySessionId, requestId, '[Voice message]', [], false, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined);
       if (!audioData || audioData.length > 16_000_000) {
         return { error: 'The voice recording is empty or too large.' };
@@ -5377,6 +5477,8 @@ ipcMain.handle(
       const progressReminder = startAgentProgressReminder(gatewaySessionId, requestId);
       try {
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          observeTraining(streamEvent);
+          observeContextTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (
             streamEvent.type === 'transcription' &&
@@ -5456,6 +5558,7 @@ ipcMain.handle(
             requestId,
             sessionId: gatewaySessionId,
             context,
+            training,
             directory,
             tutorUrl: `http://127.0.0.1:${tutorPort}`,
             token: piBridgeToken,
@@ -6004,6 +6107,8 @@ const authenticate = async (
         : await gatewayClient.signIn(request);
     currentUserId = session.participantId;
     isAuthenticated = true;
+    sendToChat('tool-chapter-progress-changed', null);
+    sendToChat('context-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6024,6 +6129,8 @@ const authenticate = async (
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
     currentUserId = null;
     isAuthenticated = false;
+    sendToChat('tool-chapter-progress-changed', null);
+    sendToChat('context-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6698,6 +6805,8 @@ app
         );
         currentUserId = restored.participantId;
         isAuthenticated = true;
+        sendToChat('tool-chapter-progress-changed', null);
+        sendToChat('context-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;
@@ -6707,6 +6816,8 @@ app
         clearAuthSession(app.getPath('userData'));
         currentUserId = null;
         isAuthenticated = false;
+        sendToChat('tool-chapter-progress-changed', null);
+        sendToChat('context-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;

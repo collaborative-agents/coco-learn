@@ -45,6 +45,8 @@ export async function createRuntime({
   token,
   context,
   requestApproval,
+  toolMode,
+  persistTraining = false,
 }) {
   cwd = fs.realpathSync(cwd);
   const agentDir = path.join(dataDir, 'pi');
@@ -60,9 +62,11 @@ export async function createRuntime({
     /* new session */
   }
   const sessionManager =
-    saved?.file && fs.existsSync(saved.file)
-      ? SessionManager.open(saved.file, sessionDir, cwd)
-      : SessionManager.create(cwd, sessionDir);
+    toolMode && !persistTraining
+      ? SessionManager.inMemory(cwd)
+      : saved?.file && fs.existsSync(saved.file)
+        ? SessionManager.open(saved.file, sessionDir, cwd)
+        : SessionManager.create(cwd, sessionDir);
   const settingsManager = SettingsManager.inMemory({
     compaction: { enabled: true },
     retry: { enabled: true, maxRetries: 2 },
@@ -81,11 +85,17 @@ export async function createRuntime({
     noPromptTemplates: true,
     noThemes: true,
     eventBus,
-    additionalExtensionPaths: [
-      fileURLToPath(new URL('./ask-user-extension.ts', import.meta.url)),
-      fileURLToPath(new URL('./context-view-extension.ts', import.meta.url)),
-    ],
-    systemPrompt: `${context.instructions}\n\n${executionInstructions}`,
+    additionalExtensionPaths: toolMode
+      ? (toolMode === 'read' ? [fileURLToPath(new URL('./context-view-extension.ts', import.meta.url))] : [])
+      : [
+          fileURLToPath(new URL('./ask-user-extension.ts', import.meta.url)),
+          fileURLToPath(
+            new URL('./context-view-extension.ts', import.meta.url),
+          ),
+        ],
+    systemPrompt: toolMode
+      ? context.instructions
+      : `${context.instructions}\n\n${executionInstructions}`,
   });
   await resourceLoader.reload();
   const errors = resourceLoader.getExtensions().errors;
@@ -128,37 +138,39 @@ export async function createRuntime({
     ...guardedTools.map((tool) => tool.name),
     'ask_user_question',
   ]);
-  const customTools = context.tools.map(({ function: definition }) => {
-    if (reservedNames.has(definition.name))
-      throw new Error(`Reserved tool name: ${definition.name}`);
-    const tool = {
-      ...definition,
-      label: definition.name,
-      execute: async (_id, args, signal) => {
-        const response = await fetch(`${tutorUrl}/agent/tools/execute`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'X-Coco-Session': sessionId,
-          },
-          body: JSON.stringify({ name: definition.name, arguments: args }),
-          signal,
-        });
-        if (!response.ok)
-          throw new Error(`Coco tool failed (HTTP ${response.status})`);
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-          details: result,
-        };
-      },
-    };
-    return contextReadTools.has(tool.name)
-      ? tool
-      : requireApproval(tool, cwd, requestApproval);
-  });
+  const customTools = (toolMode ? [] : context.tools).map(
+    ({ function: definition }) => {
+      if (reservedNames.has(definition.name))
+        throw new Error(`Reserved tool name: ${definition.name}`);
+      const tool = {
+        ...definition,
+        label: definition.name,
+        execute: async (_id, args, signal) => {
+          const response = await fetch(`${tutorUrl}/agent/tools/execute`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-Coco-Session': sessionId,
+            },
+            body: JSON.stringify({ name: definition.name, arguments: args }),
+            signal,
+          });
+          if (!response.ok)
+            throw new Error(`Coco tool failed (HTTP ${response.status})`);
+          const result = await response.json();
+          if (result.error) throw new Error(result.error);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+            details: result,
+          };
+        },
+      };
+      return contextReadTools.has(tool.name)
+        ? tool
+        : requireApproval(tool, cwd, requestApproval);
+    },
+  );
   const { session } = await createAgentSession({
     cwd,
     agentDir,
@@ -168,18 +180,28 @@ export async function createRuntime({
     sessionManager,
     model: modelRuntime.getModel('coco', 'coco'),
     thinkingLevel: 'off',
-    customTools: [...guardedTools, ...customTools],
-    tools: [
-      'read',
-      'write',
-      'edit',
-      'bash',
-      'grep',
-      'find',
-      'ls',
-      'ask_user_question',
-      ...customTools.map((t) => t.name),
-    ],
+    customTools:
+      toolMode === 'none'
+        ? []
+        : (toolMode === 'bash' || toolMode === 'read')
+          ? guardedTools.filter((tool) => tool.name === toolMode)
+          : [...guardedTools, ...customTools],
+    tools:
+      toolMode === 'none'
+        ? []
+        : (toolMode === 'bash' || toolMode === 'read')
+          ? [toolMode]
+          : [
+              'read',
+              'write',
+              'edit',
+              'bash',
+              'grep',
+              'find',
+              'ls',
+              'ask_user_question',
+              ...customTools.map((t) => t.name),
+            ],
   });
   // Save the pointer before execution, so even an interrupted first turn can
   // resume the tool evidence already flushed by pi's session manager.

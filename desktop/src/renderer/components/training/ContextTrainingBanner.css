@@ -1,0 +1,52 @@
+.context-training-banner .tool-training-goals {
+  grid-template-columns: 1fr;
+}
+.context-training-banner .tool-training-goal {
+  display: block;
+  padding: 10px 12px;
+}
+.context-training-todo-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.context-training-banner .tool-training-goal[aria-current='step'] {
+  border-color: var(--coco-color-primary);
+}
+.context-training-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+}
+.context-training-prompt p {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+  font-weight: 400;
+}
+.context-training-preview {
+  padding: 16px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 12px;
+  background: var(--coco-color-surface);
+}
+.context-training-unlock .training-dialog-header button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 50%;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text);
+  font-size: 22px;
+  cursor: pointer;
+}
+.context-training-unlock .training-dialog-header button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+
+.context-training-unlock .context-training-unlock-intro {
+  margin-bottom: 20px;
+}

@@ -63,3 +63,12 @@
 .tool-activity-group > summary {
   cursor: pointer;
 }
+
+.tool-activity-locked-hint {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--coco-radius-control);
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-caption);
+}

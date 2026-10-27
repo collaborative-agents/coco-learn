@@ -83,6 +83,13 @@ export default class AgentRuns {
     this.get(request.sessionId).answerPermission(id, allow);
   }
 
+  async release(sessionId: string) {
+    const harness = this.harnesses.get(sessionId);
+    await harness?.dispose();
+    if (this.harnesses.get(sessionId) === harness)
+      this.harnesses.delete(sessionId);
+  }
+
   async dispose() {
     await this.abort();
     await Promise.all(

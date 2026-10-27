@@ -1,4 +1,6 @@
 import './AgenticQuest.css';
+import useToolChapterProgress from './useToolChapterProgress';
+import useContextChapterProgress from './useContextChapterProgress';
 
 export const agentLevels = [
   {
@@ -53,7 +55,7 @@ function GiftIcon() {
   );
 }
 
-/** Initial quest design; completion and feature entitlements are not yet connected. */
+/** Chapter rewards reflect saved learning progress. */
 export default function AgenticQuest({
   onOpen,
   adminMode,
@@ -61,8 +63,15 @@ export default function AgenticQuest({
   onOpen: (level: number) => void;
   adminMode: boolean;
 }) {
-  // No rewards are unlocked in the initial design preview.
-  const completedLevels: number[] = [];
+  const progress = useToolChapterProgress();
+  const contextProgress = useContextChapterProgress();
+  const completedLevels = [
+    ...(progress.completedAt ? [1] : []),
+    ...(contextProgress.completedAt ? [2] : []),
+  ];
+  const currentChapter = agentLevels.findIndex(
+    (_, index) => !completedLevels.includes(index + 1),
+  );
   return (
     <section className="agentic-quest" aria-label="Agent 101">
       <span className="agentic-quest-label">Agent 101</span>
@@ -71,54 +80,63 @@ export default function AgenticQuest({
         aria-label={
           adminMode
             ? 'Five chapters, admin preview'
-            : 'Five chapters, Tool available'
+            : `Five chapters, ${agentLevels[currentChapter]?.name ?? 'all chapters'} available`
         }
       >
-        {agentLevels.map((level, index) => (
-          <li key={level.name} className="agentic-quest-stop">
-            <button
-              type="button"
-              className={`agentic-quest-level${index === 0 ? ' agentic-quest-level--current' : ''}`}
-              disabled={!adminMode && index !== 0}
-              aria-current={index === 0 ? 'step' : undefined}
-              aria-label={`Chapter ${index + 1}: ${adminMode || index === 0 ? `${level.name}. Available` : `Locked, complete chapter ${index} first`}`}
-              onClick={() => onOpen(index)}
-            >
-              <span className="agentic-quest-number">{index + 1}</span>
-              <span>{adminMode || index === 0 ? level.name : '??'}</span>
-            </button>
-            {level.reward && (
-              <span className="agentic-quest-bridge">
-                <button
-                  type="button"
-                  className="agentic-quest-gift"
-                  disabled={!(adminMode || completedLevels.includes(index + 1))}
-                  aria-label={`Reward after chapter ${index + 1}: ${adminMode || completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
-                  aria-describedby={
-                    adminMode || completedLevels.includes(index + 1)
-                      ? `quest-reward-${index}`
-                      : undefined
-                  }
-                >
-                  <GiftIcon />
-                </button>
-                {(adminMode || completedLevels.includes(index + 1)) && (
-                  <span
-                    className="agentic-quest-tooltip"
-                    role="tooltip"
-                    id={`quest-reward-${index}`}
+        {agentLevels.map((level, index) => {
+          const completed = completedLevels.includes(index + 1);
+          const available =
+            adminMode ||
+            completed ||
+            index === 0 ||
+            completedLevels.includes(index);
+          return (
+            <li key={level.name} className="agentic-quest-stop">
+              <button
+                type="button"
+                className={`agentic-quest-level${index === currentChapter ? ' agentic-quest-level--current' : ''}`}
+                disabled={!available}
+                aria-current={index === currentChapter ? 'step' : undefined}
+                aria-label={`Chapter ${index + 1}: ${available ? `${level.name}. ${completed ? 'Complete' : 'Available'}` : `Locked, complete chapter ${index} first`}`}
+                onClick={() => onOpen(index)}
+              >
+                <span className="agentic-quest-number">
+                  {completedLevels.includes(index + 1) ? '✓' : index + 1}
+                </span>
+                <span>{available ? level.name : '??'}</span>
+              </button>
+              {level.reward && (
+                <span className="agentic-quest-bridge">
+                  <button
+                    type="button"
+                    className="agentic-quest-gift"
+                    disabled={
+                      !(adminMode || completedLevels.includes(index + 1))
+                    }
+                    aria-label={`Reward after chapter ${index + 1}: ${adminMode || completedLevels.includes(index + 1) ? level.reward : 'Locked'}`}
+                    aria-describedby={
+                      adminMode || completedLevels.includes(index + 1)
+                        ? `quest-reward-${index}`
+                        : undefined
+                    }
                   >
-                    <span className="agentic-quest-tooltip-kicker">
-                      Reward for completing {level.name}
+                    <GiftIcon />
+                  </button>
+                  {(adminMode || completedLevels.includes(index + 1)) && (
+                    <span
+                      className="agentic-quest-tooltip"
+                      role="tooltip"
+                      id={`quest-reward-${index}`}
+                    >
+                      <strong>{level.reward}</strong>
+                      <span>{level.detail}</span>
                     </span>
-                    <strong>{level.reward}</strong>
-                    <span>{level.detail}</span>
-                  </span>
-                )}
-              </span>
-            )}
-          </li>
-        ))}
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </section>
   );

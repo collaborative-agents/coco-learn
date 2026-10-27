@@ -30,6 +30,7 @@ function isWorkspaceDenial(message: ChatMessage) {
 }
 
 interface Props {
+  allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
   visibleMessages: ChatMessage[];
@@ -53,6 +54,7 @@ interface Props {
 }
 
 export default function ChatTranscript({
+  allowRatings = true,
   reviewing,
   listRef,
   visibleMessages,
@@ -286,7 +288,7 @@ export default function ChatTranscript({
                             : 'Copy'}
                         </button>
                       )}
-                      {!m.isError && m.id && (
+                      {allowRatings && !m.isError && m.id && (
                         <RatingButtons
                           value={ratings[m.id]}
                           onRate={(dir) => rateMessage(m, dir)}

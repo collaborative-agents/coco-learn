@@ -115,6 +115,11 @@ export default class PiHarness {
     text: string;
     images: string[];
     audioData?: string;
+    training?: {
+      tools: 'none' | 'bash' | 'read';
+      instructions: string;
+      persist?: boolean;
+    };
     context: SessionContextInput;
     emit: (event: TutorStreamEvent) => void;
   }) {
@@ -158,7 +163,7 @@ export default class PiHarness {
       const cwd = fs.realpathSync(options.directory);
       if (!fs.statSync(cwd).isDirectory())
         throw new Error('Choose an existing working folder.');
-      if (this.workspaceGrant !== cwd) {
+      if (options.training?.tools !== 'none' && this.workspaceGrant !== cwd) {
         this.workspaceGrant = undefined;
         if (
           !(await active.permissions.request(
@@ -182,6 +187,12 @@ export default class PiHarness {
         `sessions/${encodeURIComponent(options.sessionId)}`,
         options.context,
       );
+      if (options.training) {
+        context.instructions = options.training.instructions;
+        context.profile = '';
+        context.history = [];
+        context.tools = [];
+      }
       let userText = options.text;
       if (options.audioData) {
         const transcription = await request('transcribe', {
@@ -197,6 +208,7 @@ export default class PiHarness {
         context.instructions,
         context.tools,
         options.tutorUrl,
+        options.training,
       ]);
       if (!this.runtime || key !== this.key) {
         this.runtime?.dispose();
@@ -220,6 +232,8 @@ export default class PiHarness {
           tutorUrl: options.tutorUrl,
           token: options.token,
           context,
+          toolMode: options.training?.tools,
+          persistTraining: options.training?.persist,
           requestApproval: async (
             action: ActionApproval,
             signal?: AbortSignal,

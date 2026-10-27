@@ -1,3 +1,5 @@
+import { useContext } from 'react';
+import ToolViewerAccess from './ToolViewerAccess';
 import type {
   AgentActivity,
   PermissionRequest,
@@ -34,6 +36,15 @@ export function groupActivity(activity: AgentActivity[]) {
 }
 
 function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
+  const unlocked = useContext(ToolViewerAccess);
+  if (!unlocked)
+    return (
+      <>
+        {calls.map((call) => (
+          <ToolCallCard key={call.id} call={call} />
+        ))}
+      </>
+    );
   if (calls.length === 1) return <ToolCallCard call={calls[0]} />;
   const running = calls.find((call) => call.status === 'running');
   const failed = calls.filter((call) => call.status === 'error').length;

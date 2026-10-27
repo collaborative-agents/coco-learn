@@ -10,9 +10,12 @@ import TrainingAnnouncement from './training/TrainingAnnouncement';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingProgress from './training/TrainingProgress';
 import ToolChapter from './training/ToolChapter';
+import ContextChapter from './training/ContextChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
+import useToolChapterProgress from './training/useToolChapterProgress';
+import useContextChapterProgress from './training/useContextChapterProgress';
 import './TrainingView.css';
 
 export default function TrainingView({
@@ -44,7 +47,18 @@ export default function TrainingView({
   const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
   const [questOpen, setQuestOpen] = useState(false);
+  const [startingToolChat, setStartingToolChat] = useState(false);
+  const [toolChatError, setToolChatError] = useState('');
   const [questLevel, setQuestLevel] = useState(0);
+  const toolProgress = useToolChapterProgress();
+  const contextProgress = useContextChapterProgress();
+  const questComplete = Boolean(
+    [toolProgress.completedAt, contextProgress.completedAt][questLevel],
+  );
+  let questActionLabel = 'Start quest';
+  if (questLevel > 1) questActionLabel = 'Quest coming soon';
+  if (startingToolChat) questActionLabel = 'Opening quest…';
+  if (questComplete) questActionLabel = 'Completed ✓';
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -131,6 +145,7 @@ export default function TrainingView({
           adminMode={adminMode}
           onOpen={(level) => {
             setQuestLevel(level);
+            setToolChatError('');
             setQuestOpen(true);
           }}
         />
@@ -263,14 +278,43 @@ export default function TrainingView({
         open={questOpen}
         title={`Chapter ${questLevel + 1} · ${agentLevels[questLevel].name}`}
         onClose={() => setQuestOpen(false)}
+        busy={startingToolChat}
+        headerAction={
+          <button
+            type="button"
+            className="training-primary agentic-chapter-action"
+            disabled={startingToolChat || questComplete || questLevel > 1}
+            onClick={async () => {
+              if (questComplete || questLevel > 1 || startingToolChat) return;
+              setStartingToolChat(true);
+              setToolChatError('');
+              try {
+                await api(
+                  questLevel === 1
+                    ? 'context-chapter-start'
+                    : 'tool-chapter-start',
+                );
+                setQuestOpen(false);
+              } catch (reason) {
+                setToolChatError(
+                  reason instanceof Error ? reason.message : String(reason),
+                );
+              } finally {
+                setStartingToolChat(false);
+              }
+            }}
+          >
+            {questActionLabel}
+          </button>
+        }
       >
-        <div className={questLevel === 0 ? undefined : 'agentic-quest-preview'}>
-          {questLevel !== 0 && (
+        <div className={questLevel <= 1 ? undefined : 'agentic-quest-preview'}>
+          {questLevel > 1 && (
             <span className="training-eyebrow">AGENT 101</span>
           )}
-          {questLevel === 0 ? (
-            <ToolChapter />
-          ) : (
+          {questLevel === 0 && <ToolChapter />}
+          {questLevel === 1 && <ContextChapter />}
+          {questLevel > 1 && (
             <>
               <h3>{agentLevels[questLevel].name}</h3>
               <p>{agentLevels[questLevel].summary}</p>
@@ -284,19 +328,17 @@ export default function TrainingView({
               )}
             </>
           )}
-          {questLevel !== 0 && (
+          {questLevel > 1 && (
             <p className="training-info">
               Lesson preview. Chapter completion and feature unlocks are coming
               next.
             </p>
           )}
-          <button
-            type="button"
-            className="training-primary"
-            onClick={() => setQuestOpen(false)}
-          >
-            Back to training
-          </button>
+          {toolChatError && (
+            <p role="alert" className="training-error">
+              {toolChatError}
+            </p>
+          )}
         </div>
       </TrainingDialog>
       {state && (

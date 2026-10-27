@@ -359,3 +359,161 @@ test('two sessions overlap with independent routing and cancellation', async () 
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('training exposes no tools on the left and only approval-gated Bash on the right', async () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'coco-tool-training-'),
+  );
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    const sessionId = req.headers['x-coco-session'];
+    requests.push({ sessionId, body });
+    const first =
+      requests.filter((item) => item.sessionId === sessionId).length === 1;
+    const name = sessionId === 'without' ? 'write' : 'bash';
+    const args =
+      name === 'write'
+        ? { path: 'should-not-exist.txt', content: 'bad' }
+        : { command: 'echo approved > approved.txt' };
+    const delta = first
+      ? {
+          tool_calls: [
+            {
+              index: 0,
+              id: `${sessionId}-call`,
+              type: 'function',
+              function: { name, arguments: JSON.stringify(args) },
+            },
+          ],
+        }
+      : { content: 'Finished.' };
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(
+      `data: ${JSON.stringify({ id: 'reply', object: 'chat.completion.chunk', created: 1, model: 'coco', choices: [{ index: 0, delta, finish_reason: first ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const context = {
+    model: 'fake',
+    instructions: 'Answer honestly.',
+    profile: '',
+    history: [],
+    tools: [],
+  };
+  const runtimes = [];
+  try {
+    let approvals = 0;
+    for (const [sessionId, toolMode] of [
+      ['without', 'none'],
+      ['with', 'bash'],
+    ]) {
+      const runtime = await createRuntime({
+        cwd: directory,
+        sessionId,
+        dataDir: directory,
+        tutorUrl: `http://127.0.0.1:${server.address().port}`,
+        token: 'token',
+        context,
+        toolMode,
+        persistTraining: true,
+        requestApproval: async () => {
+          approvals += 1;
+          return false;
+        },
+      });
+      runtimes.push(runtime);
+      await runtime.prompt('Inspect the practice file.', [], context);
+    }
+    assert.deepEqual(
+      requests.find((entry) => entry.sessionId === 'without').body.tools ?? [],
+      [],
+    );
+    assert.deepEqual(
+      requests
+        .find((entry) => entry.sessionId === 'with')
+        .body.tools.map((tool) => tool.function.name),
+      ['bash'],
+    );
+    runtimes.splice(0).forEach((runtime) => runtime.dispose());
+    const reopened = await createRuntime({
+      cwd: directory,
+      sessionId: 'without',
+      dataDir: directory,
+      tutorUrl: `http://127.0.0.1:${server.address().port}`,
+      token: 'token',
+      context,
+      toolMode: 'none',
+      persistTraining: true,
+    });
+    runtimes.push(reopened);
+    await reopened.prompt('Continue my earlier question.', [], context);
+    const resumed = requests.at(-1).body;
+    assert.ok(
+      JSON.stringify(resumed.messages).includes('Inspect the practice file.'),
+    );
+    assert.deepEqual(resumed.tools ?? [], []);
+    assert.equal(approvals, 1);
+    assert.equal(
+      fs.existsSync(path.join(directory, 'should-not-exist.txt')),
+      false,
+    );
+    assert.equal(fs.existsSync(path.join(directory, 'approved.txt')), false);
+    assert.ok(
+      JSON.stringify(
+        requests.filter((entry) => entry.sessionId === 'with').at(-1).body
+          .messages,
+      ).includes('Permission denied by user'),
+    );
+  } finally {
+    runtimes.forEach((runtime) => runtime.dispose());
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Context practice exposes only guarded read and captures the file result in the context viewer', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-context-practice-'));
+  const workspace = path.join(directory, 'workspace');
+  fs.mkdirSync(workspace);
+  fs.writeFileSync(path.join(workspace, 'notes.txt'), 'Unique practice file contents');
+  fs.writeFileSync(path.join(directory, 'outside.txt'), 'Private outside contents');
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    requests.push(body);
+    const calling = requests.length === 2;
+    const delta = calling ? { tool_calls: [
+      { index: 0, id: 'read-1', type: 'function', function: { name: 'read', arguments: JSON.stringify({ path: 'notes.txt', limit: 40 }) } },
+      { index: 1, id: 'write-1', type: 'function', function: { name: 'write', arguments: JSON.stringify({ path: 'should-not-exist.txt', content: 'bad' }) } },
+      { index: 2, id: 'outside-1', type: 'function', function: { name: 'read', arguments: JSON.stringify({ path: '../outside.txt' }) } },
+    ] } : { content: requests.length === 1 ? 'I can see only the linked path.' : 'The file says: Unique practice file contents.' };
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(`data: ${JSON.stringify({ id: 'reply', object: 'chat.completion.chunk', created: 1, model: 'coco', choices: [{ index: 0, delta, finish_reason: calling ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const context = { model: 'fake', instructions: 'Explain access versus file contents honestly.', profile: '', history: [], tools: [] };
+  let runtime;
+  try {
+    runtime = await createRuntime({ cwd: workspace, sessionId: 'context-practice', dataDir: directory, tutorUrl: `http://127.0.0.1:${server.address().port}`, token: 'test', context, toolMode: 'read', persistTraining: true, requestApproval: async () => false });
+    await runtime.prompt('Without opening it, what does @"notes.txt" tell you?', [], context);
+    assert.ok(!JSON.stringify(runtime.getContextSnapshot()).includes('Unique practice file contents'));
+    await runtime.prompt('Read notes.txt and show me an excerpt.', [], context);
+    requests.forEach((body) => assert.deepEqual(body.tools.map((tool) => tool.function.name), ['read']));
+    const finalContext = JSON.stringify(runtime.getContextSnapshot());
+    assert.ok(finalContext.includes('Unique practice file contents'));
+    assert.ok(!finalContext.includes('Private outside contents'));
+    assert.equal(fs.existsSync(path.join(workspace, 'should-not-exist.txt')), false);
+    assert.ok(JSON.stringify(requests.at(-1).messages).includes('Unique practice file contents'));
+  } finally {
+    runtime?.dispose();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

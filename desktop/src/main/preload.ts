@@ -8,6 +8,11 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'tool-chapter-progress'
+  | 'tool-chapter-progress-changed'
+  | 'tool-chapter-start'
+  | 'tool-chapter-switch'
+  | 'tool-chapter-session'
   | 'chat-window-pin-state'
   | 'get-chat-window-pin-state'
   | 'set-chat-window-pinned'
@@ -142,6 +147,10 @@ export type Channels =
   | 'choose-agent-workspace'
   | 'revoke-agent-workspace'
   | 'stop-agent-run'
+  | 'context-chapter-progress'
+  | 'context-chapter-progress-changed'
+  | 'context-chapter-session'
+  | 'context-chapter-start'
   | 'get-agent-context'
   | 'answer-agent-question'
   | 'answer-agent-permission'

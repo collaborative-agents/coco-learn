@@ -14,7 +14,7 @@
 .tool-diagram {
   position: relative;
   width: 100%;
-  min-width: 440px;
+  min-width: 640px;
   aspect-ratio: 640 / 330;
 }
 .tool-diagram svg {
@@ -92,14 +92,25 @@
   color: var(--coco-color-primary);
   font-weight: 700;
 }
+.tool-diagram-note {
+  position: absolute;
+  top: 12px;
+  left: 20px;
+  width: 42%;
+  max-width: 280px;
+  font-size: var(--coco-text-secondary);
+}
 .tool-diagram-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 16px 0;
+  margin: 8px 0 0;
 }
 .training-page .tool-diagram-controls button {
-  flex: 1;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
   white-space: nowrap;
   border-color: transparent;
   background: var(--coco-color-surface-subtle);
@@ -114,13 +125,8 @@
 }
 .tool-diagram-caption p {
   margin: 6px 0 0;
-  line-height: 1.6;
+  line-height: 1.45;
   color: var(--coco-color-text-secondary);
-}
-.tool-diagram-hint {
-  margin: 8px 0 20px;
-  color: var(--coco-color-text-muted);
-  font-size: var(--coco-text-caption);
 }
 .tool-chapter button:focus-visible {
   outline: 2px solid var(--coco-color-primary);

@@ -30,11 +30,46 @@ export default function ToolChapter() {
   return (
     <section className="tool-chapter" aria-label="How Coco uses a tool">
       <p className="tool-chapter-intro">
-        A <strong>tool</strong> lets Coco do something beyond writing a
-        reply—like read a file, search, or run a command.
+        A <strong>tool</strong> lets an AI agent do something beyond writing a
+        reply, like read a file, search, or run a command.
+      </p>
+      <p className="tool-chapter-intro">
+        Many modern AI agents are equipped with <strong>Bash tools</strong>,
+        which let them use a computer by typing commands, with the access they
+        have been given. An agent can work with files, run programs, and connect
+        small actions into bigger tasks. This puts powerful tools in your hands.
+        Stay in control by checking what the AI does on your computer.
       </p>
       <div className="tool-diagram-scroll">
         <div className={`tool-diagram tool-diagram--step-${selected}`}>
+          <div className="tool-diagram-note">
+            <div
+              className="tool-diagram-caption"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <strong>{moments[selected].title}</strong>
+              <p>{moments[selected].text}</p>
+            </div>
+            <div
+              className="tool-diagram-controls"
+              role="group"
+              aria-label="Explore the tool loop"
+            >
+              {moments.map((moment, index) => (
+                <button
+                  key={moment.name}
+                  type="button"
+                  aria-label={`${index + 1}. ${moment.name}`}
+                  title={moment.name}
+                  aria-pressed={selected === index}
+                  onClick={() => setSelected(index)}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
           <svg viewBox="0 0 640 330" aria-hidden="true">
             <defs>
               <marker
@@ -125,33 +160,6 @@ export default function ToolChapter() {
           </button>
         </div>
       </div>
-      <div
-        className="tool-diagram-controls"
-        role="group"
-        aria-label="Explore the tool loop"
-      >
-        {moments.map((moment, index) => (
-          <button
-            key={moment.name}
-            type="button"
-            aria-pressed={selected === index}
-            onClick={() => setSelected(index)}
-          >
-            {index + 1}. {moment.name}
-          </button>
-        ))}
-      </div>
-      <div
-        className="tool-diagram-caption"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <strong>{moments[selected].title}</strong>
-        <p>{moments[selected].text}</p>
-      </div>
-      <p className="tool-diagram-hint">
-        Click a step to follow an example tool call.
-      </p>
     </section>
   );
 }

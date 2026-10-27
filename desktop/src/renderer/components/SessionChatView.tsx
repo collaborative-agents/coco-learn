@@ -1422,7 +1422,9 @@ export default function SessionChatView() {
       message.role === 'tutor' &&
       (message.toolCalls?.some((call) => call.status === 'running') ||
         message.activity?.some(
-          (item) => item.kind === 'tool' && item.call.status === 'running',
+          (item) =>
+            (item.kind === 'tool' && item.call.status === 'running') ||
+            (item.kind === 'permission' && item.request.status === 'pending'),
         )),
   );
 

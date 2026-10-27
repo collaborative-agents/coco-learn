@@ -5,6 +5,7 @@ import { app } from 'electron';
 import type { AgentContextSnapshot } from '../../shared/agent-context';
 import PiEventTranslator from './pi-events';
 import type { TutorStreamEvent } from './tutor-stream';
+import AgentPermissions, { type ActionApproval } from './agent-permissions';
 
 export interface SessionContextInput {
   model: string;
@@ -38,10 +39,33 @@ export default class PiHarness {
 
   private key = '';
 
+  private workspaceGrant?: string;
+
+  private revokingWorkspace = false;
+
+  hasWorkspaceAccess(directory: string) {
+    try {
+      return this.workspaceGrant === fs.realpathSync(directory);
+    } catch {
+      return false;
+    }
+  }
+
+  async revokeWorkspaceAccess() {
+    this.revokingWorkspace = true;
+    try {
+      this.workspaceGrant = undefined;
+      await this.dispose();
+    } finally {
+      this.revokingWorkspace = false;
+    }
+  }
+
   private active?: {
     requestId: string;
     stopped: boolean;
     controller: AbortController;
+    permissions: AgentPermissions;
   };
 
   getContextSnapshot(sessionId: string) {
@@ -60,6 +84,12 @@ export default class PiHarness {
     this.runtime?.answerQuestion(toolCallId, response);
   }
 
+  answerPermission(id: string, allow: unknown) {
+    if (!this.active || this.active.stopped)
+      throw new Error('This run is no longer active.');
+    this.active.permissions.answer(id, allow);
+  }
+
   async abort(requestId?: string) {
     if (!this.active || (requestId && requestId !== this.active.requestId))
       return;
@@ -69,6 +99,7 @@ export default class PiHarness {
   }
 
   async dispose() {
+    this.workspaceGrant = undefined;
     await this.abort();
     this.runtime?.dispose();
     this.runtime = undefined;
@@ -87,15 +118,20 @@ export default class PiHarness {
     context: SessionContextInput;
     emit: (event: TutorStreamEvent) => void;
   }) {
+    if (this.revokingWorkspace)
+      throw new Error('Workspace access is changing. Please try again.');
     if (this.active)
       throw new Error('Coco is already working. Stop the current run first.');
+    const translator = new PiEventTranslator(options.emit);
     const active = {
       requestId: options.requestId,
       stopped: false,
       controller: new AbortController(),
+      permissions: new AgentPermissions((request) =>
+        translator.permission(request),
+      ),
     };
     this.active = active;
-    const translator = new PiEventTranslator(options.emit);
     let unsubscribe: (() => void) | undefined;
     const timer = setTimeout(() => this.abort(options.requestId), 30 * 60_000);
     const request = async (route: string, body?: unknown) => {
@@ -119,6 +155,29 @@ export default class PiHarness {
       return response.json();
     };
     try {
+      const cwd = fs.realpathSync(options.directory);
+      if (!fs.statSync(cwd).isDirectory())
+        throw new Error('Choose an existing working folder.');
+      if (this.workspaceGrant !== cwd) {
+        this.workspaceGrant = undefined;
+        if (
+          !(await active.permissions.request(
+            { kind: 'workspace', directory: cwd },
+            active.controller.signal,
+          ))
+        ) {
+          options.emit({
+            type: 'done',
+            guidance: '',
+            stopped: active.stopped,
+            tool_calls: [],
+            activity: translator.activity,
+          });
+          return;
+        }
+        if (active.stopped) throw new Error('Operation aborted');
+        this.workspaceGrant = cwd;
+      }
       const context: AgentContext = await request(
         `sessions/${encodeURIComponent(options.sessionId)}`,
         options.context,
@@ -131,9 +190,6 @@ export default class PiHarness {
         userText = transcription.text;
         options.emit({ type: 'transcription', text: userText });
       }
-      const cwd = fs.realpathSync(options.directory);
-      if (!fs.statSync(cwd).isDirectory())
-        throw new Error('Choose an existing working folder.');
       const key = JSON.stringify([
         options.sessionId,
         cwd,
@@ -164,6 +220,34 @@ export default class PiHarness {
           tutorUrl: options.tutorUrl,
           token: options.token,
           context,
+          requestApproval: async (
+            action: ActionApproval,
+            signal?: AbortSignal,
+          ) => {
+            // Runtime instances survive turns: always bind approval to the
+            // currently active run, never the run that created the runtime.
+            const run = this.active;
+            if (!run || run.stopped || this.workspaceGrant !== cwd)
+              return false;
+            const approvalSignal = signal
+              ? AbortSignal.any([signal, run.controller.signal])
+              : run.controller.signal;
+            const allowed = await run.permissions.request(
+              {
+                kind: 'action',
+                directory: action.directory,
+                tool: action.tool,
+                arguments: action.arguments,
+              },
+              approvalSignal,
+            );
+            return (
+              allowed &&
+              this.active === run &&
+              !run.stopped &&
+              !approvalSignal.aborted
+            );
+          },
         });
         this.key = key;
       }
@@ -207,6 +291,7 @@ export default class PiHarness {
         throw error;
       }
     } finally {
+      active.permissions.cancel();
       clearTimeout(timer);
       unsubscribe?.();
       if (this.active === active) this.active = undefined;

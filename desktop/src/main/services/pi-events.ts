@@ -1,4 +1,7 @@
-import type { AgentActivity } from '../../shared/agent-execution';
+import type {
+  AgentActivity,
+  PermissionRequest,
+} from '../../shared/agent-execution';
 import type { TutorToolCall } from '../../renderer/components/observation-types';
 import type { TutorStreamEvent } from './tutor-stream';
 
@@ -42,6 +45,16 @@ export default class PiEventTranslator {
       activity: [...this.activity],
       text: this.text,
     });
+  }
+
+  permission(request: PermissionRequest) {
+    const index = this.activity.findIndex(
+      (item) => item.kind === 'permission' && item.request.id === request.id,
+    );
+    const item: AgentActivity = { kind: 'permission', request };
+    if (index < 0) this.activity.push(item);
+    else this.activity[index] = item;
+    this.publish();
   }
 
   handle(event: any) {

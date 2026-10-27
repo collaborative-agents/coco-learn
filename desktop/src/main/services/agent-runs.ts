@@ -3,12 +3,17 @@ import PiHarness from './pi-harness';
 /** One runtime per conversation; request IDs scope stop and answer actions. */
 export default class AgentRuns {
   private readonly harnesses = new Map<string, PiHarness>();
+
   readonly requests = new Map<
     string,
     { sessionId: string; stopped: boolean; legacy: boolean }
   >();
 
-  constructor(private readonly createHarness = () => new PiHarness()) {}
+  private readonly createHarness: () => PiHarness;
+
+  constructor(createHarness = () => new PiHarness()) {
+    this.createHarness = createHarness;
+  }
 
   begin(sessionId: string, requestId: string, legacy = false) {
     if (this.requests.has(requestId) || this.has(sessionId))
@@ -69,6 +74,13 @@ export default class AgentRuns {
     if (!request || request.stopped)
       throw new Error('This run is no longer active.');
     this.get(request.sessionId).answerQuestion(toolCallId, response);
+  }
+
+  answerPermission(requestId: string, id: string, allow: unknown) {
+    const request = this.requests.get(requestId);
+    if (!request || request.stopped)
+      throw new Error('This run is no longer active.');
+    this.get(request.sessionId).answerPermission(id, allow);
   }
 
   async dispose() {

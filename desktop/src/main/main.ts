@@ -698,6 +698,7 @@ ipcMain.handle(
   'get-agent-workspace',
   (_event, { sessionId }: { sessionId?: string | null } = {}) => ({
     directory: agentDirectory(sessionId),
+    accessGranted: Boolean(sessionId && agentRuns.get(sessionId).hasWorkspaceAccess(agentDirectory(sessionId))),
   }),
 );
 ipcMain.handle(
@@ -711,7 +712,7 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const result = await dialog.showOpenDialog({
-      title: 'Choose Coco’s working folder',
+      title: 'Choose a folder for Coco to read and edit',
       defaultPath: agentDirectory(sessionId),
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -719,10 +720,19 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const directory = fs.realpathSync(result.filePaths[0]);
+    await agentRuns.get(sessionId).revokeWorkspaceAccess();
+    if (agentRuns.has(sessionId))
+      throw new Error('Stop the current run before changing folders.');
     saveConversationDirectory(sessionId, directory);
-    return { directory };
+    return { directory, accessGranted: false };
   },
 );
+ipcMain.handle('revoke-agent-workspace', async (_event, sessionId: string) => {
+  if (typeof sessionId !== 'string' || !sessionId) throw new Error('Open a conversation first.');
+  if (agentRuns.has(sessionId)) throw new Error('Stop the current run before revoking access.');
+  await agentRuns.get(sessionId).revokeWorkspaceAccess();
+  return { directory: agentDirectory(sessionId), accessGranted: false };
+});
 ipcMain.handle('get-agent-context', (_event, sessionId: string) =>
   typeof sessionId === 'string' ? agentRuns.get(sessionId).getContextSnapshot(sessionId) : null,
 );
@@ -733,6 +743,11 @@ ipcMain.handle(
 );
 ipcMain.handle('stop-agent-run', (_event, requestId: string) => {
   return agentRuns.abort(requestId);
+});
+ipcMain.handle('answer-agent-permission', (event, requestId: string, id: string, allow: unknown) => {
+  if (!chatWindow || event.sender !== chatWindow.webContents)
+    throw new Error('Permission decisions must come from the chat window.');
+  return agentRuns.answerPermission(requestId, id, allow);
 });
 
 // Preserve the original Upskilling session invitation cadence even though the

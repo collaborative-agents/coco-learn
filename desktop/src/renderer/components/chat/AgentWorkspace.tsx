@@ -14,15 +14,22 @@ export default function AgentWorkspace({
   onStop: () => Promise<void>;
 }) {
   const [directory, setDirectory] = useState('');
+  const [accessGranted, setAccessGranted] = useState(false);
   const [error, setError] = useState('');
   const [choosing, setChoosing] = useState(false);
   const [stopping, setStopping] = useState(false);
+  let accessHint = 'Folder access requires approval';
+  if (accessGranted) accessHint = 'Folder access granted';
+  if (running) accessHint = 'Coco is working';
   useEffect(() => {
     let active = true;
     window.electron?.ipcRenderer
       .invoke('get-agent-workspace', { sessionId })
       .then((value) => {
-        if (active) setDirectory((value as Workspace)?.directory ?? '');
+        if (active) {
+          setDirectory((value as Workspace)?.directory ?? '');
+          setAccessGranted((value as Workspace)?.accessGranted === true);
+        }
         return undefined;
       })
       .catch(() => {
@@ -31,7 +38,7 @@ export default function AgentWorkspace({
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [sessionId, running]);
   useEffect(() => {
     if (!running) setStopping(false);
   }, [running]);
@@ -43,7 +50,10 @@ export default function AgentWorkspace({
         'choose-agent-workspace',
         { sessionId },
       )) as Workspace | null;
-      if (value) setDirectory(value.directory);
+      if (value) {
+        setDirectory(value.directory);
+        setAccessGranted(value.accessGranted);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Could not choose a folder.',
@@ -82,9 +92,32 @@ export default function AgentWorkspace({
           </span>
           <span aria-hidden="true">⌄</span>
         </button>
-        <span className="agent-workspace-hint">
-          {running ? 'Coco is working' : 'Files & commands run here'}
-        </span>
+        <span className="agent-workspace-hint">{accessHint}</span>
+        {accessGranted && !running && (
+          <button
+            type="button"
+            className="agent-stop"
+            disabled={disabled || choosing}
+            onClick={async () => {
+              try {
+                await window.electron?.ipcRenderer.invoke(
+                  'revoke-agent-workspace',
+                  sessionId,
+                );
+                setAccessGranted(false);
+                setError('');
+              } catch (err) {
+                setError(
+                  err instanceof Error
+                    ? err.message
+                    : 'Could not revoke access.',
+                );
+              }
+            }}
+          >
+            Revoke access
+          </button>
+        )}
         {running && (
           <button
             type="button"

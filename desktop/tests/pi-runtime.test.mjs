@@ -118,6 +118,26 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
               arguments: '{"query":"preferences"}',
             },
           },
+          {
+            index: 3,
+            id: 'denied-shell',
+            type: 'function',
+            function: {
+              name: 'bash',
+              arguments: JSON.stringify({
+                command: 'touch shell-should-not-run',
+              }),
+            },
+          },
+          {
+            index: 4,
+            id: 'denied-file',
+            type: 'function',
+            function: {
+              name: 'read',
+              arguments: JSON.stringify({ path: '../outside.txt' }),
+            },
+          },
         ],
       });
       emit({}, 'tool_calls');
@@ -142,6 +162,11 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
     tutorUrl: `http://127.0.0.1:${server.address().port}`,
     token: 'test-token',
     context,
+    requestApproval: async (action) => {
+      assert.equal(action.tool, 'bash');
+      assert.equal(action.arguments.command, 'touch shell-should-not-run');
+      return false;
+    },
   };
   let runtime;
   try {
@@ -168,6 +193,21 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
       }
     });
     await runtime.prompt('Create the file.', [], context);
+    assert.equal(
+      fs.existsSync(path.join(directory, 'shell-should-not-run')),
+      false,
+    );
+    for (const id of ['denied-shell', 'denied-file']) {
+      assert.ok(
+        events.some(
+          (event) =>
+            event.type === 'tool_execution_end' &&
+            event.toolCallId === id &&
+            event.isError &&
+            JSON.stringify(event.result).includes('Permission denied'),
+        ),
+      );
+    }
     const requestsBeforeInspect = requestCount;
     const inspected = runtime.getContextSnapshot();
     assert.ok(inspected.estimatedTokens > 0);

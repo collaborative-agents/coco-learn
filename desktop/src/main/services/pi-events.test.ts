@@ -1,6 +1,34 @@
 import PiEventTranslator from './pi-events';
 import { parseAgentActivity } from '../../shared/agent-execution';
 
+test('permission cards survive tool updates and serialize with their latest decision', () => {
+  const emit = jest.fn();
+  const translator = new PiEventTranslator(emit);
+  const request = {
+    id: 'permission',
+    kind: 'workspace' as const,
+    directory: '/work',
+    status: 'pending' as const,
+  };
+  translator.permission(request);
+  expect(parseAgentActivity(emit.mock.calls.at(-1)?.[0].activity)).toEqual([
+    { kind: 'permission', request },
+  ]);
+  translator.permission({ ...request, status: 'allowed' });
+  translator.handle({
+    type: 'tool_execution_start',
+    toolCallId: 'tool',
+    toolName: 'read',
+    args: { path: 'file' },
+  });
+  translator.finish(true);
+  expect(translator.activity[0]).toEqual({
+    kind: 'permission',
+    request: { ...request, status: 'allowed' },
+  });
+  expect(translator.activity).toHaveLength(2);
+});
+
 test('keeps intermediate text, live output, and final answer in execution order', () => {
   const emit = jest.fn();
   const translator = new PiEventTranslator(emit);

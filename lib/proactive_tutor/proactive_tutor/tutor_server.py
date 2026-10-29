@@ -91,6 +91,15 @@ class LearningRecapInput(BaseModel):
     bullets: list[str]
 
 
+class ToolCommandExplanationRequest(BaseModel):
+    tool: str = Field(min_length=1, max_length=200)
+    source: str = Field(min_length=1, max_length=10000)
+
+
+class ToolCommandExplanationResponse(BaseModel):
+    explanation: str
+
+
 class DailyLearningReviewRequest(BaseModel):
     recaps: list[LearningRecapInput]
 
@@ -839,6 +848,21 @@ async def generate_recap(req: RecapRequest | None = None):
     except Exception as e:
         logger.error(f"Recap generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/explain-tool-command", response_model=ToolCommandExplanationResponse)
+async def explain_tool_command(req: ToolCommandExplanationRequest):
+    """Explain source text without executing tools or updating the conversation."""
+    if tutor is None:
+        raise HTTPException(status_code=503, detail="TutorSystem not initialized")
+    try:
+        explanation, _metrics = await asyncio.to_thread(
+            tutor.explain_tool_command, req.tool, req.source
+        )
+        return ToolCommandExplanationResponse(explanation=explanation)
+    except Exception as exc:
+        logger.error("Command explanation failed", exc_info=True)
+        raise HTTPException(status_code=502, detail="Could not explain command") from exc
 
 
 @app.post("/daily-learning-review", response_model=DailyLearningReviewResponse)

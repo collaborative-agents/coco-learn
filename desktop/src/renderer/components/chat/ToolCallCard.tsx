@@ -1,5 +1,6 @@
 import React, { useContext, useId, useState } from 'react';
 import ToolViewerAccess from './ToolViewerAccess';
+import ToolCallDetails from './ToolCallDetails';
 import type { TutorToolCall } from '../observation-types';
 import toolSummary from './tool-summary';
 import './ToolActivity.css';
@@ -62,12 +63,7 @@ export function ToolCallCard({
         )}
       </div>
     );
-  const rawDetails = (
-    <div className="tool-activity-details">
-      <div className="tool-activity-caption">Full tool call · JSON</div>
-      <pre className="agent-tool-output">{JSON.stringify(call, null, 2)}</pre>
-    </div>
-  );
+  const callDetails = <ToolCallDetails call={call} />;
   const status = (
     <span className={`tool-activity-status ${call.status}`}>{statusLabel}</span>
   );
@@ -79,7 +75,7 @@ export function ToolCallCard({
           {status}
           <span className="tool-activity-detail-label">Details</span>
         </summary>
-        {rawDetails}
+        {callDetails}
       </details>
     );
   }
@@ -95,7 +91,7 @@ export function ToolCallCard({
           {status}
           <span className="tool-activity-detail-label">Details</span>
         </summary>
-        {rawDetails}
+        {callDetails}
       </details>
     );
   }

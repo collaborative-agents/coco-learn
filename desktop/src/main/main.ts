@@ -736,6 +736,25 @@ ipcMain.handle('revoke-agent-workspace', async (_event, sessionId: string) => {
   await agentRuns.get(sessionId).revokeWorkspaceAccess();
   return { directory: agentDirectory(sessionId), accessGranted: false };
 });
+// Explain supplied text without starting an agent run or changing a conversation.
+ipcMain.handle('explain-tool-command', async (_event, payload: unknown) => {
+  const { tool, source } = (payload ?? {}) as { tool?: unknown; source?: unknown };
+  if (typeof tool !== 'string' || !tool.trim() || tool.length > 200 ||
+      typeof source !== 'string' || !source.trim() || source.length > 10000) {
+    throw new Error('Invalid command explanation request.');
+  }
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  const response = await axios.post(
+    `http://127.0.0.1:${tutorPort}/explain-tool-command`,
+    { tool, source },
+    { timeout: 45_000 },
+  );
+  if (typeof response.data?.explanation !== 'string' || !response.data.explanation.trim()) {
+    throw new Error('No explanation returned.');
+  }
+  return { explanation: response.data.explanation.trim() };
+});
+
 ipcMain.handle('get-agent-context', (_event, sessionId: string) =>
   typeof sessionId === 'string' ? agentRuns.get(sessionId).getContextSnapshot(sessionId) : null,
 );

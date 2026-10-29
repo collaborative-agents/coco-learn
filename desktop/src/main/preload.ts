@@ -8,6 +8,7 @@ import {
 } from 'electron';
 
 export type Channels =
+  | 'explain-tool-command'
   | 'tool-chapter-progress'
   | 'tool-chapter-progress-changed'
   | 'tool-chapter-start'

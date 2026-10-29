@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { currencySafeMarkdown } from '../currency-markdown';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
@@ -11,9 +12,11 @@ import type { ChatMessage } from './types';
 import { parseGuidance, makeMessageId } from './message-format';
 import { S } from './styles';
 import './MessageContent.css';
+import ResponseCodeBlock from './ResponseCodeBlock';
 
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
   {
+    pre: ResponseCodeBlock,
     a({ href, children, ...props }: any) {
       return (
         <a href={href} target="_blank" rel="noreferrer" {...props}>
@@ -52,7 +55,7 @@ export function TutorMessage({ text }: { text: string }) {
             rehypePlugins={[rehypeKatex]}
             components={markdownComponents}
           >
-            {g.mainText ?? g.text}
+            {currencySafeMarkdown(g.mainText ?? g.text)}
           </Markdown>
         </div>
       )}
@@ -130,7 +133,7 @@ export function TutorMessage({ text }: { text: string }) {
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {g.coaching}
+              {currencySafeMarkdown(g.coaching)}
             </Markdown>
           </div>
         </aside>
@@ -227,7 +230,7 @@ export function SuggestionMessage({
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {detail}
+              {currencySafeMarkdown(detail)}
             </Markdown>
           </div>
         ))}

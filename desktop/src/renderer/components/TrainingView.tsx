@@ -1,5 +1,7 @@
 /* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import { useCallback, useEffect, useState } from 'react';
+import useTokenChapter from './training/useTokenChapter';
+import useModelChapter from './training/useModelChapter';
 import type { StudyState } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
 import FollowUpAssessmentPanel from './FollowUpAssessmentPanel';
@@ -11,6 +13,8 @@ import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingProgress from './training/TrainingProgress';
 import ToolChapter from './training/ToolChapter';
 import ContextChapter from './training/ContextChapter';
+import TokenChapter from './training/TokenChapter';
+import ModelChapter from './training/ModelChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
@@ -52,11 +56,18 @@ export default function TrainingView({
   const [questLevel, setQuestLevel] = useState(0);
   const toolProgress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
+  const tokenProgress = useTokenChapter();
+  const modelProgress = useModelChapter();
   const questComplete = Boolean(
-    [toolProgress.completedAt, contextProgress.completedAt][questLevel],
+    [
+      toolProgress.completedAt,
+      contextProgress.completedAt,
+      tokenProgress.completedAt,
+      modelProgress.completedAt,
+    ][questLevel],
   );
   let questActionLabel = 'Start quest';
-  if (questLevel > 1) questActionLabel = 'Quest coming soon';
+  if (questLevel > 3) questActionLabel = 'Quest coming soon';
   if (startingToolChat) questActionLabel = 'Opening quest…';
   if (questComplete) questActionLabel = 'Completed ✓';
   const [busy, setBusy] = useState(false);
@@ -283,17 +294,19 @@ export default function TrainingView({
           <button
             type="button"
             className="training-primary agentic-chapter-action"
-            disabled={startingToolChat || questComplete || questLevel > 1}
+            disabled={startingToolChat || questComplete || questLevel > 3}
             onClick={async () => {
-              if (questComplete || questLevel > 1 || startingToolChat) return;
+              if (questComplete || questLevel > 3 || startingToolChat) return;
               setStartingToolChat(true);
               setToolChatError('');
               try {
-                await api(
-                  questLevel === 1
-                    ? 'context-chapter-start'
-                    : 'tool-chapter-start',
-                );
+                const channels = [
+                  'tool-chapter-start',
+                  'context-chapter-start',
+                  'token-chapter-start',
+                  'model-chapter-start',
+                ] as const;
+                await api(channels[questLevel]);
                 setQuestOpen(false);
               } catch (reason) {
                 setToolChatError(
@@ -308,13 +321,15 @@ export default function TrainingView({
           </button>
         }
       >
-        <div className={questLevel <= 1 ? undefined : 'agentic-quest-preview'}>
-          {questLevel > 1 && (
+        <div className={questLevel <= 3 ? undefined : 'agentic-quest-preview'}>
+          {questLevel > 3 && (
             <span className="training-eyebrow">AGENT 101</span>
           )}
           {questLevel === 0 && <ToolChapter />}
           {questLevel === 1 && <ContextChapter />}
-          {questLevel > 1 && (
+          {questLevel === 2 && <TokenChapter />}
+          {questLevel === 3 && <ModelChapter />}
+          {questLevel > 3 && (
             <>
               <h3>{agentLevels[questLevel].name}</h3>
               <p>{agentLevels[questLevel].summary}</p>
@@ -328,7 +343,7 @@ export default function TrainingView({
               )}
             </>
           )}
-          {questLevel > 1 && (
+          {questLevel > 3 && (
             <p className="training-info">
               Lesson preview. Chapter completion and feature unlocks are coming
               next.

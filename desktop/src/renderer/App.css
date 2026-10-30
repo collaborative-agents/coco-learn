@@ -1001,7 +1001,7 @@
   box-shadow:
     0 0 0 1px rgba(15, 23, 42, 0.08),
     0 2px 6px rgba(0, 0, 0, 0.14);
-  /* Match SessionChatView exactly. PT Sans is the product font; the system
+  /* Match SessionChatView exactly. Noto Sans is the product font; the system
      fallbacks keep every window consistent if the web font is unavailable. */
   font-family: var(--coco-font-family);
   overflow: hidden;

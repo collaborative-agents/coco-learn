@@ -90,6 +90,7 @@ export function applyConversationEvent(
       return {
         ...message,
         text: event.error ?? 'The tutor could not generate a response.',
+        tutorMetrics: event.llm_metrics ?? null,
         isError: true,
         isStreaming: false,
       };

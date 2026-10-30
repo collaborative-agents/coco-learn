@@ -1,3 +1,5 @@
+import useModelChapter from './useModelChapter';
+import useTokenChapter from './useTokenChapter';
 import './AgenticQuest.css';
 import useToolChapterProgress from './useToolChapterProgress';
 import useContextChapterProgress from './useContextChapterProgress';
@@ -18,14 +20,14 @@ export const agentLevels = [
   {
     name: 'Token',
     summary:
-      'Tokens are the chunks of text a model processes. Inputs and outputs both use tokens, and models have limits on how many they can handle at once.',
+      'Tokens measure the information a model processes, including text and images. Learn how input and output tokens contribute to AI cost.',
     reward: 'Token usage',
-    detail: 'See how many tokens your conversation uses.',
+    detail: 'See usage for each request and track your totals in Settings.',
   },
   {
     name: 'Models',
     summary:
-      'Models power an agent’s reasoning and responses. Different models offer different capabilities, speed, and cost.',
+      'Choose models by capability, speed, and cost, and compare their perspectives for brainstorming and decisions.',
     reward: 'Model picker',
     detail: 'Choose the model for your task.',
   },
@@ -65,9 +67,13 @@ export default function AgenticQuest({
 }) {
   const progress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
+  const tokenProgress = useTokenChapter();
+  const modelProgress = useModelChapter();
   const completedLevels = [
     ...(progress.completedAt ? [1] : []),
     ...(contextProgress.completedAt ? [2] : []),
+    ...(tokenProgress.completedAt ? [3] : []),
+    ...(modelProgress.completedAt ? [4] : []),
   ];
   const currentChapter = agentLevels.findIndex(
     (_, index) => !completedLevels.includes(index + 1),

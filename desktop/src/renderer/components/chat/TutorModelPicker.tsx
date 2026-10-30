@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { TutorModelOption } from './types';
 import './TutorModelPicker.css';
+import useModelChapter from '../training/useModelChapter';
 
 export default function TutorModelPicker({
   modelId,
@@ -11,6 +12,7 @@ export default function TutorModelPicker({
   onChange: (modelId: string) => void;
   disabled: boolean;
 }) {
+  const { completedAt, loading: progressLoading } = useModelChapter();
   const [models, setModels] = useState<TutorModelOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -37,6 +39,7 @@ export default function TutorModelPicker({
     };
   }, []);
   const select = async (nextId: string) => {
+    if (!completedAt) return;
     setSwitching(true);
     setError('');
     try {
@@ -53,6 +56,27 @@ export default function TutorModelPicker({
       setSwitching(false);
     }
   };
+  if (!completedAt)
+    return (
+      <div className="tutor-model-picker">
+        <span>
+          {models.find((model) => model.id === modelId)?.label ??
+            'Current model'}{' '}
+          · Locked
+        </span>
+        {!progressLoading && (
+          <a
+            href="#agent-101"
+            onClick={(event) => {
+              event.preventDefault();
+              window.electron.ipcRenderer.sendMessage('open-training');
+            }}
+          >
+            Unlock in Agent 101 Chapter 4
+          </a>
+        )}
+      </div>
+    );
   return (
     <div className="tutor-model-picker">
       <select

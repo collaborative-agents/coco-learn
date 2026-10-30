@@ -119,3 +119,26 @@ test('restored activity never leaves tools looking like they are still running',
     },
   ]);
 });
+
+test('totals all calls including cached input, without treating absent usage as zero', () => {
+  const translator = new PiEventTranslator(jest.fn());
+  expect(translator.metrics('model').prompt_tokens).toBeUndefined();
+  translator.handle({
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      usage: { input: 10, cacheRead: 20, cacheWrite: 5, output: 2 },
+    },
+  });
+  translator.handle({
+    type: 'message_end',
+    message: { role: 'assistant', usage: { input: 40, output: 6 } },
+  });
+  expect(translator.metrics('model')).toMatchObject({
+    prompt_tokens: 75,
+    completion_tokens: 8,
+    total_tokens: 83,
+  });
+  translator.handle({ type: 'message_end', message: { role: 'assistant' } });
+  expect(translator.metrics('model').prompt_tokens).toBeUndefined();
+});

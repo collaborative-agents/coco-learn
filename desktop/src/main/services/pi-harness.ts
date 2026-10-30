@@ -138,6 +138,7 @@ export default class PiHarness {
     };
     this.active = active;
     let unsubscribe: (() => void) | undefined;
+    let usageModel = 'Unknown model';
     const timer = setTimeout(() => this.abort(options.requestId), 30 * 60_000);
     const request = async (route: string, body?: unknown) => {
       const response = await fetch(`${options.tutorUrl}/agent/${route}`, {
@@ -187,6 +188,7 @@ export default class PiHarness {
         `sessions/${encodeURIComponent(options.sessionId)}`,
         options.context,
       );
+      usageModel = context.model;
       if (options.training) {
         context.instructions = options.training.instructions;
         context.profile = '';
@@ -284,7 +286,7 @@ export default class PiHarness {
         stopped: active.stopped,
         tool_calls: [...translator.calls.values()],
         activity: translator.activity,
-        llm_metrics: translator.metrics(context.model),
+        llm_metrics: translator.metrics(usageModel),
       });
     } catch (error) {
       if (active.stopped) {
@@ -292,6 +294,7 @@ export default class PiHarness {
           type: 'done',
           guidance: translator.finish(true),
           stopped: true,
+          llm_metrics: translator.metrics(usageModel),
           tool_calls: [...translator.calls.values()],
           activity: translator.activity,
         });
@@ -302,6 +305,8 @@ export default class PiHarness {
         } catch {
           /* original error below */
         }
+        if (error instanceof Error)
+          Object.assign(error, { llm_metrics: translator.metrics(usageModel) });
         throw error;
       }
     } finally {

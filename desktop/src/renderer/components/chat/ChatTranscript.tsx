@@ -259,7 +259,7 @@ export default function ChatTranscript({
                     Run stopped · completed changes remain
                   </div>
                 )}
-                {!m.isError && (
+                {!m.isStreaming && (
                   <ChatMetrics
                     observerMetrics={m.observerMetrics}
                     tutorMetrics={m.tutorMetrics}

@@ -32,13 +32,27 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
-.training-page .training-dialog-header .training-dialog-close {
+.training-dialog-header .training-dialog-close {
   width: 34px;
   height: 34px;
   padding: 0;
   flex: none;
   border-radius: 50%;
   font-size: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--coco-color-border);
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text);
+  cursor: pointer;
+}
+.training-dialog-close:hover {
+  background: var(--coco-color-surface-subtle);
+}
+.training-dialog-close:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
 }
 .training-dialog-content {
   overflow: auto;

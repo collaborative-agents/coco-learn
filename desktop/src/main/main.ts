@@ -87,6 +87,8 @@ import {
 import type { TutorStreamEvent } from './services/tutor-stream';
 import AgentRuns from './services/agent-runs';
 import registerContextTraining from './services/context-training';
+import registerTokenTraining from './services/token-training';
+import registerModelTraining from './services/model-training';
 import registerToolExploration from './services/tool-exploration';
 import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
@@ -773,6 +775,9 @@ ipcMain.handle('answer-agent-permission', (event, requestId: string, id: string,
 });
 
 const contextTraining = registerContextTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
   ipc: ipcMain,
   root: () => app.getPath('userData'),
   user: (event, run = false) => {
@@ -804,6 +809,150 @@ const contextTraining = registerContextTraining({
     resumableSessionId = session.sessionId;
     pendingTaskLabel = 'Chapter 2 · Context';
     openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+});
+
+const tokenTraining = registerTokenTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+  changed: () => sendToChat('token-chapter-progress-changed', null),
+  createConversation: (session) => {
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: 'Chapter 3 · Token',
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [
+        {
+          role: 'tutor',
+          text: 'Let’s see what a request uses. Send the one-sentence question below, then compare it with a more detailed follow-up.',
+          id: randomUUID(),
+          ts: Date.now(),
+        },
+      ],
+    });
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the practice suggestion to finish.');
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 3 · Token';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+});
+
+const modelTraining = registerModelTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  models: () => readModelConfiguration()?.tutors ?? [],
+  changed: (completion) => {
+    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+    sendToChat('model-chapter-session-changed', null);
+    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+    if (completion) sendToChat('model-chapter-progress-changed', null);
+  },
+  open: (session, created) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the current practice suggestion to finish.');
+    if (created)
+      saveConversation({
+        sessionId: session.sessionId,
+        problem: 'Chapter 4 · Models',
+        messages: [],
+      });
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 4 · Models';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+  stop: (id) => agentRuns.abort(id),
+  run: async (request) => {
+    if (currentUserId !== request.user || !isAuthenticated || !tutoringAllowed)
+      throw new Error('Your account changed. Reopen the quest to continue.');
+    agentRuns.begin(request.sessionId, request.requestId);
+    activeChatRequests.add(request.requestId);
+    const recordUsage = tokenTraining.observe(
+      request.questSessionId,
+      request.requestId,
+      request.user,
+    );
+    const emit = (event: TutorStreamEvent) => {
+      recordUsage(event);
+      request.emit(event);
+    };
+    try {
+      await interactions.trackTurn(() =>
+        agentRuns.get(request.sessionId).run({
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          directory: agentDirectory(request.questSessionId),
+          tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
+          token: piBridgeToken,
+          text: request.prompt,
+          images: [],
+          context: {
+            model: request.model,
+            scenario: '',
+            problem: 'Model comparison',
+            user_name: '',
+            ai_tools: [],
+            memory: '',
+            messages: [],
+          },
+          training: {
+            tools: 'none',
+            instructions:
+              'Answer the user’s request directly. Follow the requested format. Keep prose concise, at most 160 words; code is exempt from this limit. Do not add a quiz or claim quest completion. No tools are available.',
+          },
+          emit,
+        }),
+      );
+    } catch (error) {
+      recordUsage({
+        type: 'error',
+        llm_metrics: (error as { llm_metrics?: LLMCallMetrics })?.llm_metrics,
+      });
+      throw error;
+    } finally {
+      activeChatRequests.delete(request.requestId);
+      agentRuns.finish(request.requestId);
+      await agentRuns.release(request.sessionId);
+    }
   },
 });
 
@@ -3650,7 +3799,27 @@ ipcMain.handle(
 
 ipcMain.handle(
   'set-chat-model',
-  async (_event, { modelId }: { modelId?: string } = {}) => {
+  async (event, { modelId }: { modelId?: string } = {}) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !modelTraining.canPick(currentUserId)
+    )
+      return {
+        success: false,
+        error:
+          'Complete Agent 101 Chapter 4 · Models to unlock the model picker.',
+      };
+    if (
+      agentRuns.has(currentSessionId) ||
+      modelTraining.get(currentSessionId, currentUserId)
+    )
+      return {
+        success: false,
+        error:
+          'Finish this comparison and open a regular chat to choose a model.',
+      };
     const config = readModelConfiguration();
     const selected = config?.tutors.find((item) => item.id === modelId);
     if (!selected) return { success: false, error: 'Tutor model not found.' };
@@ -5177,13 +5346,36 @@ ipcMain.handle(
       },
     ) => {
       const gatewaySessionId = sessionId!;
-      if (requestKind === 'practice_suggestions' && (toolTraining.training(gatewaySessionId, currentUserId) || contextTraining.get(gatewaySessionId, currentUserId)))
+      if (modelTraining.get(gatewaySessionId, currentUserId))
+        return {
+          error:
+            'Use Send to both in the Model quest to compare the fixed model pair.',
+        };
+      if (
+        requestKind === 'practice_suggestions' &&
+        (toolTraining.training(gatewaySessionId, currentUserId) ||
+          contextTraining.get(gatewaySessionId, currentUserId) ||
+          tokenTraining.get(gatewaySessionId, currentUserId))
+      )
         return { error: 'Ask your own question to explore this chapter.' };
       const piHarness = agentRuns.get(gatewaySessionId);
       const context = executionContext(gatewaySessionId, displayText ?? userText);
       const directory = agentDirectory(gatewaySessionId);
-      const training = toolTraining.training(gatewaySessionId, currentUserId) ?? contextTraining.training(gatewaySessionId, currentUserId, directory, userText);
+      const training =
+        toolTraining.training(gatewaySessionId, currentUserId) ??
+        contextTraining.training(
+          gatewaySessionId,
+          currentUserId,
+          directory,
+          userText,
+        ) ??
+        tokenTraining.training(gatewaySessionId, currentUserId);
       const observeContextTraining = contextTraining.observe(gatewaySessionId, currentUserId);
+      const observeTokenTraining = tokenTraining.observe(
+        gatewaySessionId,
+        requestId,
+        currentUserId,
+      );
       const observeTraining = toolTraining.observe(gatewaySessionId, currentUserId, context, userText);
       chatStreams.begin(gatewaySessionId, requestId, displayText ?? userText, images ?? [], isRetry, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined, screenContext);
       const tutorPort = process.env.TUTOR_PORT || '8081';
@@ -5276,6 +5468,7 @@ ipcMain.handle(
         const onEvent = (streamEvent: TutorStreamEvent) => {
           observeTraining(streamEvent);
           observeContextTraining(streamEvent);
+          observeTokenTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (streamEvent.type === 'text_delta') {
             const delta = String(streamEvent.text ?? '');
@@ -5374,12 +5567,24 @@ ipcMain.handle(
             : err instanceof Error
               ? err.message
               : 'Coco could not complete this request.';
-        settleReply({ text: error, isError: true });
+        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
+          ?.llm_metrics;
+        observeTokenTraining({
+          type: 'error',
+          error,
+          llm_metrics: failedMetrics,
+        });
+        settleReply({
+          text: error,
+          isError: true,
+          tutorMetrics: failedMetrics,
+        });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           sessionId: gatewaySessionId,
           type: 'error',
           error,
+          llm_metrics: failedMetrics,
         });
         return { error };
       } finally {
@@ -5453,11 +5658,24 @@ ipcMain.handle(
       },
     ) => {
       const gatewaySessionId = sessionId!;
+      if (modelTraining.get(gatewaySessionId, currentUserId))
+        return {
+          error:
+            'Use Send to both in the Model quest to compare the fixed model pair.',
+        };
       const piHarness = agentRuns.get(gatewaySessionId);
       const context = executionContext(gatewaySessionId);
       const directory = agentDirectory(gatewaySessionId);
-      const training = toolTraining.training(gatewaySessionId, currentUserId) ?? contextTraining.training(gatewaySessionId, currentUserId, directory);
+      const training =
+        toolTraining.training(gatewaySessionId, currentUserId) ??
+        contextTraining.training(gatewaySessionId, currentUserId, directory) ??
+        tokenTraining.training(gatewaySessionId, currentUserId);
       const observeContextTraining = contextTraining.observe(gatewaySessionId, currentUserId);
+      const observeTokenTraining = tokenTraining.observe(
+        gatewaySessionId,
+        requestId,
+        currentUserId,
+      );
       const observeTraining = toolTraining.observe(gatewaySessionId, currentUserId, context, '');
       chatStreams.begin(gatewaySessionId, requestId, '[Voice message]', [], false, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined);
       if (!audioData || audioData.length > 16_000_000) {
@@ -5498,6 +5716,7 @@ ipcMain.handle(
         const onEvent = (streamEvent: TutorStreamEvent) => {
           observeTraining(streamEvent);
           observeContextTraining(streamEvent);
+          observeTokenTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (
             streamEvent.type === 'transcription' &&
@@ -5597,12 +5816,24 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond to the voice message. Please retry.'
             : 'The tutor could not process the voice message. Please try again.';
-        settleReply({ text: error, isError: true });
+        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
+          ?.llm_metrics;
+        observeTokenTraining({
+          type: 'error',
+          error,
+          llm_metrics: failedMetrics,
+        });
+        settleReply({
+          text: error,
+          isError: true,
+          tutorMetrics: failedMetrics,
+        });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           sessionId: gatewaySessionId,
           type: 'error',
           error,
+          llm_metrics: failedMetrics,
         });
         return { error };
       } finally {
@@ -6128,6 +6359,8 @@ const authenticate = async (
     isAuthenticated = true;
     sendToChat('tool-chapter-progress-changed', null);
     sendToChat('context-chapter-progress-changed', null);
+    sendToChat('token-chapter-progress-changed', null);
+    sendToChat('model-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6150,6 +6383,8 @@ const authenticate = async (
     isAuthenticated = false;
     sendToChat('tool-chapter-progress-changed', null);
     sendToChat('context-chapter-progress-changed', null);
+    sendToChat('token-chapter-progress-changed', null);
+    sendToChat('model-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6826,6 +7061,8 @@ app
         isAuthenticated = true;
         sendToChat('tool-chapter-progress-changed', null);
         sendToChat('context-chapter-progress-changed', null);
+        sendToChat('token-chapter-progress-changed', null);
+        sendToChat('model-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;
@@ -6837,6 +7074,8 @@ app
         isAuthenticated = false;
         sendToChat('tool-chapter-progress-changed', null);
         sendToChat('context-chapter-progress-changed', null);
+        sendToChat('token-chapter-progress-changed', null);
+        sendToChat('model-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;

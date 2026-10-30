@@ -1,0 +1,158 @@
+.token-chapter {
+  line-height: 1.6;
+}
+.token-lesson-card {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 14px;
+  background: var(--coco-color-surface-subtle);
+}
+.token-lesson-card h3 {
+  margin: 0 0 8px;
+}
+.token-lesson-card p {
+  margin: 10px 0;
+}
+.token-note,
+.token-text-example figcaption,
+.token-image-example figcaption {
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-caption);
+}
+.token-text-example {
+  margin: 16px 0;
+}
+.token-text-example blockquote {
+  margin: 0;
+  font-size: 22px;
+}
+.token-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.token-pieces code {
+  padding: 7px 10px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 6px;
+  background: var(--coco-color-accent-soft);
+  font-size: 20px;
+}
+.token-pieces code:nth-child(even) {
+  background: var(--coco-color-surface);
+}
+.token-image-example {
+  margin: 16px 0 0;
+}
+.token-flow-source > svg {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  margin: 0;
+}
+.token-patch-sequence {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+.token-patch-sequence svg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.token-patch-sequence span {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: var(--coco-color-text-muted);
+}
+.token-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1.5fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.token-flow-source,
+.token-flow-result {
+  min-width: 0;
+}
+.token-flow-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: var(--coco-text-caption);
+  color: var(--coco-color-text-muted);
+}
+.token-flow-arrow {
+  text-align: center;
+  color: var(--coco-color-primary);
+  font-size: 28px;
+}
+.token-pieces code,
+.token-patch-sequence > div {
+  animation: token-arrive 600ms ease-out both;
+}
+.token-flow-image {
+  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+}
+@keyframes token-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+@media (max-width: 540px) {
+  .token-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .token-flow-arrow {
+    transform: rotate(90deg);
+  }
+  .token-flow-image .token-flow-source,
+  .token-flow-image .token-flow-result {
+    width: min(100%, 240px);
+    justify-self: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .token-pieces code,
+  .token-patch-sequence > div {
+    animation: none;
+  }
+}
+.token-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: var(--coco-text-caption);
+}
+.token-usage-table th,
+.token-usage-table td {
+  text-align: left;
+  padding: 6px;
+  border-bottom: 1px solid var(--coco-color-border);
+  overflow-wrap: anywhere;
+}
+.token-usage-table caption {
+  text-align: left;
+  color: var(--coco-color-text-muted);
+}
+.token-quiz {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.token-quiz button {
+  white-space: normal;
+  text-align: left;
+}

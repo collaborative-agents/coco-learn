@@ -88,6 +88,7 @@ export default function registerContextTraining(options: {
   root: () => string;
   user: (event: IpcMainInvokeEvent, run?: boolean) => string;
   currentUser: () => string | null;
+  canSkipPrerequisites?: () => boolean;
   changed: () => void;
   createConversation: (session: ContextTrainingSession) => void;
   openConversation: (session: ContextTrainingSession) => void;
@@ -150,6 +151,7 @@ export default function registerContextTraining(options: {
   options.ipc.handle('context-chapter-start', (event) => {
     const user = options.user(event, true);
     if (
+      !options.canSkipPrerequisites?.() &&
       !new ToolChapterStore(path.join(options.root(), 'tool-chapter')).read(
         user,
       ).completedAt

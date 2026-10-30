@@ -1,5 +1,10 @@
-import subscribeCocoSleepMode from '../services/coco-sleep-mode';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import TokenUsageAccess from './chat/TokenUsageAccess';
+import TokenTrainingBanner from './training/TokenTrainingBanner';
+import useTokenChapter from './training/useTokenChapter';
+import useModelChapter from './training/useModelChapter';
+import ModelQuest from './training/ModelQuest';
+import subscribeCocoSleepMode from '../services/coco-sleep-mode';
 import ChatComparisonLayout from './chat/ChatComparisonLayout';
 import useParallelConversation from './chat/useParallelConversation';
 import useToolTrainingSession from './training/useToolTrainingSession';
@@ -495,6 +500,7 @@ function SessionChatContent() {
               return {
                 ...message,
                 text: event.error ?? 'The tutor could not generate a response.',
+                tutorMetrics: event.llm_metrics ?? null,
                 isError: true,
                 isStreaming: false,
               };
@@ -1526,354 +1532,408 @@ function SessionChatContent() {
         )),
   );
 
+  const tokenChapter = useTokenChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
+  const modelChapter = useModelChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
   return (
-    <DesktopWorkspace
-      expanded={expanded}
-      onExpandedChange={changeExpanded}
-      active={
-        showSettings
-          ? 'settings'
-          : activePage === 'settings'
-            ? 'chat'
-            : activePage
-      }
-      historyOpen={showHistory}
-      onHistoryOpen={() => void openHistory()}
-      onHistoryClose={() => setShowHistory(false)}
-      onNavigate={(page) => {
-        if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
-        setActivePage(page);
-        setShowSettings(page === 'settings');
-        if (page !== 'chat') {
-          setShowHistory(false);
-          changeExpanded(true);
+    <TokenUsageAccess.Provider
+      value={Boolean(tokenChapter.completedAt || tokenChapter.session)}
+    >
+      <DesktopWorkspace
+        expanded={expanded}
+        onExpandedChange={changeExpanded}
+        active={
+          showSettings
+            ? 'settings'
+            : activePage === 'settings'
+              ? 'chat'
+              : activePage
         }
-      }}
-      history={
-        <ConversationSidebar
-          conversations={conversations}
-          loading={historyLoading}
-          error={historyError}
-          selectedId={reviewing?.sessionId}
-          onRetry={() => {
+        historyOpen={showHistory}
+        onHistoryOpen={() => void openHistory()}
+        onHistoryClose={() => setShowHistory(false)}
+        onNavigate={(page) => {
+          if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
+          setActivePage(page);
+          setShowSettings(page === 'settings');
+          if (page !== 'chat') {
             setShowHistory(false);
-            void openHistory();
-          }}
-          onCurrent={() => {
-            if (checkingUnderstanding) return;
-            setReviewing(null);
-            setShowHistory(false);
-            setShowSettings(false);
-            setActivePage('chat');
-          }}
-          onSelect={(conversation) => {
-            if (checkingUnderstanding) return;
-            setUnderstandingError('');
-            if (
-              sending ||
-              conversation.messages.some((message) => message.isStreaming)
-            ) {
-              resumeConversation(conversation).catch((error) =>
-                setUnderstandingError(error.message),
-              );
-            } else setReviewing(conversation);
-            setShowHistory(false);
-            setShowSettings(false);
-            setActivePage('chat');
+            changeExpanded(true);
+          }
+        }}
+        history={
+          <ConversationSidebar
+            conversations={conversations}
+            loading={historyLoading}
+            error={historyError}
+            selectedId={reviewing?.sessionId}
+            onRetry={() => {
+              setShowHistory(false);
+              void openHistory();
+            }}
+            onCurrent={() => {
+              if (checkingUnderstanding) return;
+              setReviewing(null);
+              setShowHistory(false);
+              setShowSettings(false);
+              setActivePage('chat');
+            }}
+            onSelect={(conversation) => {
+              if (checkingUnderstanding) return;
+              setUnderstandingError('');
+              if (
+                sending ||
+                conversation.messages.some((message) => message.isStreaming)
+              ) {
+                resumeConversation(conversation).catch((error) =>
+                  setUnderstandingError(error.message),
+                );
+              } else setReviewing(conversation);
+              setShowHistory(false);
+              setShowSettings(false);
+              setActivePage('chat');
+            }}
+          />
+        }
+        details={
+          <>
+            <div className="workspace-training" hidden={showSettings}>
+              <TrainingView
+                visible={activePage === 'tasks' && !showSettings}
+                refreshKey={trainingRefreshKey}
+              />
+            </div>
+            {showSettings && (
+              <div className="workspace-settings">
+                <h1>Settings</h1>
+                <AccountSettings />
+                <HealthSettings
+                  {...{
+                    cocoSleeping,
+                    systemPermissionHealth,
+                    permissionOpening,
+                    openSystemPermission,
+                    permissionError,
+                    serviceHealth,
+                    healthLoading,
+                    refreshServiceHealth,
+                    healthError,
+                  }}
+                >
+                  <PreferencesSettings
+                    {...{
+                      editHideAvatar,
+                      avatarSaving,
+                      updateAvatarVisibility,
+                      avatarSaveError,
+                      wakeWordSaving,
+                      wakeWordEnabled,
+                      updateWakeWordEnabled,
+                      wakeWordCaptureError,
+                      wakeWordStatus,
+                      wakeWordDetail,
+                      cocoSleeping,
+                    }}
+                  />
+                  <MemorySettings
+                    {...{
+                      memoryDraft,
+                      setMemoryDraft,
+                      memoryDirty,
+                      saveMemory,
+                      memoryFlash,
+                    }}
+                  />
+                </HealthSettings>
+              </div>
+            )}
+          </>
+        }
+      >
+        <ChatHeader
+          chatEnabled={studyAccess === true}
+          {...{
+            sending,
+            startingNewSession,
+            handleNewSession,
+            expanded,
+            changeExpanded,
           }}
         />
-      }
-      details={
-        <>
-          <div className="workspace-training" hidden={showSettings}>
-            <TrainingView
-              visible={activePage === 'tasks' && !showSettings}
-              refreshKey={trainingRefreshKey}
-            />
-          </div>
-          {showSettings && (
-            <div className="workspace-settings">
-              <h1>Settings</h1>
-              <AccountSettings />
-              <HealthSettings
-                {...{
-                  cocoSleeping,
-                  systemPermissionHealth,
-                  permissionOpening,
-                  openSystemPermission,
-                  permissionError,
-                  serviceHealth,
-                  healthLoading,
-                  refreshServiceHealth,
-                  healthError,
-                }}
-              />
-              <PreferencesSettings
-                {...{
-                  editHideAvatar,
-                  avatarSaving,
-                  updateAvatarVisibility,
-                  avatarSaveError,
-                  wakeWordSaving,
-                  wakeWordEnabled,
-                  updateWakeWordEnabled,
-                  wakeWordCaptureError,
-                  wakeWordStatus,
-                  wakeWordDetail,
-                  cocoSleeping,
-                }}
-              />
-              <MemorySettings
-                {...{
-                  memoryDraft,
-                  setMemoryDraft,
-                  memoryDirty,
-                  saveMemory,
-                  memoryFlash,
-                }}
-              />
-            </div>
-          )}
-        </>
-      }
-    >
-      <ChatHeader
-        chatEnabled={studyAccess === true}
-        {...{
-          sending,
-          startingNewSession,
-          handleNewSession,
-          expanded,
-          changeExpanded,
-        }}
-      />
 
-      <div style={S.contentViewport}>
-        <div
-          data-testid="chat-scalable-content"
-          style={{
-            ...S.scalableContent,
-            transform: `scale(${contentZoomFactor})`,
-            width: `${100 / contentZoomFactor}%`,
-            height: `${100 / contentZoomFactor}%`,
-          }}
-        >
-          {studyAccess === true ? (
-            <>
-              <ContextTrainingBanner
-                sessionId={reviewing?.sessionId ?? sessionIdRef.current}
-                busy={
-                  sending ||
-                  startingNewSession ||
-                  checkingUnderstanding ||
-                  voiceState !== 'idle'
-                }
-                onPrompt={(prompt) => {
-                  setInput((previous) =>
-                    previous.trim()
-                      ? `${previous.trim()}\n\n${prompt}`
-                      : prompt,
-                  );
-                  setComposerFocusRequest((value) => value + 1);
-                }}
-              />
-              <ToolTrainingBanner
-                comparison={Boolean(toolSession)}
-                sessionId={reviewing?.sessionId ?? sessionIdRef.current}
-              />
-              {toolSession ? (
-                <ChatComparisonLayout
-                  panes={[
-                    {
-                      id: toolSession.sessionId,
-                      title:
-                        toolSession.mode === 'with'
-                          ? 'With tools'
-                          : 'Without tools',
-                      content: (
-                        <ChatTranscript
-                          {...{
-                            reviewing,
-                            listRef,
-                            visibleMessages,
-                            sending,
-                            profile,
-                            startingNewSession,
-                            sendMessage,
-                            openImagePreview,
-                            copiedMessageKey,
-                            copyMessage,
-                            toggleSuggestionFold,
-                            retryMessage,
-                            ratings,
-                            rateMessage,
-                            hasRunningTool,
-                          }}
-                        />
-                      ),
-                      actions: sending && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const pending = messages.find((m) => m.isStreaming);
-                            if (pending?.requestId)
-                              void window.electron.ipcRenderer.invoke(
-                                'stop-agent-run',
-                                pending.requestId,
-                              );
-                          }}
-                        >
-                          Stop
-                        </button>
-                      ),
-                    },
-                    {
-                      id: toolSession.peerSessionId,
-                      title:
-                        toolSession.mode === 'with'
-                          ? 'Without tools'
-                          : 'With tools',
-                      actions: peer.busy && (
-                        <button type="button" onClick={() => void peer.stop()}>
-                          Stop
-                        </button>
-                      ),
-                      content: (
-                        <>
-                          {peer.loading && (
-                            <p role="status">Loading conversation…</p>
-                          )}
-                          {peer.error && <p role="alert">{peer.error}</p>}
-                          <ChatTranscript
-                            reviewing={null}
-                            listRef={peerListRef}
-                            visibleMessages={peer.messages}
-                            sending={peer.busy}
-                            profile={profile}
-                            startingNewSession={startingNewSession}
-                            sendMessage={sendMessage}
-                            openImagePreview={openImagePreview}
-                            copiedMessageKey={copiedMessageKey}
-                            copyMessage={copyMessage}
-                            toggleSuggestionFold={peer.toggleFold}
-                            retryMessage={peer.retry}
-                            ratings={{}}
-                            rateMessage={() => {}}
-                            allowRatings={false}
-                            hasRunningTool={peer.messages.some((m) =>
-                              m.activity?.some(
-                                (item) =>
-                                  item.kind === 'permission' &&
-                                  item.request.status === 'pending',
-                              ),
-                            )}
-                          />
-                        </>
-                      ),
-                    },
-                  ].sort((a, b) => a.title.localeCompare(b.title))}
-                />
-              ) : (
-                <ChatTranscript
-                  {...{
-                    reviewing,
-                    listRef,
-                    visibleMessages,
-                    sending,
-                    profile,
-                    startingNewSession,
-                    sendMessage,
-                    openImagePreview,
-                    copiedMessageKey,
-                    copyMessage,
-                    toggleSuggestionFold,
-                    retryMessage,
-                    ratings,
-                    rateMessage,
-                    hasRunningTool,
-                  }}
-                />
-              )}
-              <ChatComposer
-                modelPicker={
-                  <TutorModelPicker
-                    modelId={currentTutorModelId}
-                    onChange={setCurrentTutorModelId}
-                    disabled={
-                      Boolean(toolSession) ||
-                      sending ||
-                      peer.busy ||
-                      hasRunningTool ||
-                      startingNewSession ||
-                      checkingUnderstanding ||
-                      Boolean(reviewing)
-                    }
+        <div style={S.contentViewport}>
+          <div
+            data-testid="chat-scalable-content"
+            style={{
+              ...S.scalableContent,
+              transform: `scale(${contentZoomFactor})`,
+              width: `${100 / contentZoomFactor}%`,
+              height: `${100 / contentZoomFactor}%`,
+            }}
+          >
+            {studyAccess === true ? (
+              <>
+                {modelChapter.session && (
+                  <ModelQuest
+                    key={modelChapter.session.sessionId}
+                    session={modelChapter.session}
+                    completedAt={modelChapter.completedAt}
+                    onNewChat={() => {
+                      handleNewSession();
+                    }}
                   />
-                }
-                workspaceSessionId={
-                  reviewing?.sessionId ?? sessionIdRef.current
-                }
-                agentRunning={
-                  peer.busy ||
-                  (sending &&
-                    messages.some(
-                      (m) => m.isStreaming && m.retryRequestKind === 'chat',
-                    ))
-                }
-                stopAgent={async () => {
-                  await peer.stop();
-                  const pending = messages.find((m) => m.isStreaming);
-                  if (pending?.requestId)
-                    await window.electron?.ipcRenderer.invoke(
-                      'stop-agent-run',
-                      pending.requestId,
-                    );
-                }}
-                {...{
-                  pendingContextLabel,
-                  pendingContextRef,
-                  setPendingContextLabel,
-                  discussingSuggestion,
-                  composerFocusRequest,
-                  pendingScreenContext,
-                  clearPendingScreenContext: () =>
-                    setPendingScreenContext(null),
-                  pendingImages,
-                  openImagePreview,
-                  pendingHotkeyImagesRef,
-                  setPendingImages,
-                  understandingError,
-                  sending,
-                  voiceState,
-                  input,
-                  setInput,
-                  onPaste,
-                  onKeyDown,
-                  voiceActive,
-                  startingNewSession,
-                  reviewing,
-                  handleVoiceClick,
-                  profile,
-                  checkingUnderstanding,
-                  handleCheckUnderstanding,
-                  canSend,
-                  handleSend,
-                  voiceStatusText,
-                  voiceError,
-                }}
-                sending={sending || peer.busy || peer.loading}
-              />
-            </>
-          ) : (
-            <div className="workspace-locked">
-              {studyAccess === null
-                ? 'Checking study access…'
-                : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}
-            </div>
-          )}
+                )}
+                {!modelChapter.session && (
+                  <>
+                    <TokenTrainingBanner
+                      session={tokenChapter.session}
+                      completedAt={tokenChapter.completedAt}
+                      onSettings={() => {
+                        setActivePage('settings');
+                        setShowSettings(true);
+                      }}
+                      busy={
+                        sending ||
+                        startingNewSession ||
+                        checkingUnderstanding ||
+                        voiceState !== 'idle'
+                      }
+                      onPrompt={(prompt) => {
+                        setInput((previous) =>
+                          previous.trim()
+                            ? `${previous.trim()}\n\n${prompt}`
+                            : prompt,
+                        );
+                        setComposerFocusRequest((value) => value + 1);
+                      }}
+                    />
+                    <ContextTrainingBanner
+                      sessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                      busy={
+                        sending ||
+                        startingNewSession ||
+                        checkingUnderstanding ||
+                        voiceState !== 'idle'
+                      }
+                      onPrompt={(prompt) => {
+                        setInput((previous) =>
+                          previous.trim()
+                            ? `${previous.trim()}\n\n${prompt}`
+                            : prompt,
+                        );
+                        setComposerFocusRequest((value) => value + 1);
+                      }}
+                    />
+                    <ToolTrainingBanner
+                      comparison={Boolean(toolSession)}
+                      sessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                    />
+                    {toolSession ? (
+                      <ChatComparisonLayout
+                        panes={[
+                          {
+                            id: toolSession.sessionId,
+                            title:
+                              toolSession.mode === 'with'
+                                ? 'With tools'
+                                : 'Without tools',
+                            content: (
+                              <ChatTranscript
+                                {...{
+                                  reviewing,
+                                  listRef,
+                                  visibleMessages,
+                                  sending,
+                                  profile,
+                                  startingNewSession,
+                                  sendMessage,
+                                  openImagePreview,
+                                  copiedMessageKey,
+                                  copyMessage,
+                                  toggleSuggestionFold,
+                                  retryMessage,
+                                  ratings,
+                                  rateMessage,
+                                  hasRunningTool,
+                                }}
+                              />
+                            ),
+                            actions: sending && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const pending = messages.find(
+                                    (m) => m.isStreaming,
+                                  );
+                                  if (pending?.requestId)
+                                    void window.electron.ipcRenderer.invoke(
+                                      'stop-agent-run',
+                                      pending.requestId,
+                                    );
+                                }}
+                              >
+                                Stop
+                              </button>
+                            ),
+                          },
+                          {
+                            id: toolSession.peerSessionId,
+                            title:
+                              toolSession.mode === 'with'
+                                ? 'Without tools'
+                                : 'With tools',
+                            actions: peer.busy && (
+                              <button
+                                type="button"
+                                onClick={() => void peer.stop()}
+                              >
+                                Stop
+                              </button>
+                            ),
+                            content: (
+                              <>
+                                {peer.loading && (
+                                  <p role="status">Loading conversation…</p>
+                                )}
+                                {peer.error && <p role="alert">{peer.error}</p>}
+                                <ChatTranscript
+                                  reviewing={null}
+                                  listRef={peerListRef}
+                                  visibleMessages={peer.messages}
+                                  sending={peer.busy}
+                                  profile={profile}
+                                  startingNewSession={startingNewSession}
+                                  sendMessage={sendMessage}
+                                  openImagePreview={openImagePreview}
+                                  copiedMessageKey={copiedMessageKey}
+                                  copyMessage={copyMessage}
+                                  toggleSuggestionFold={peer.toggleFold}
+                                  retryMessage={peer.retry}
+                                  ratings={{}}
+                                  rateMessage={() => {}}
+                                  allowRatings={false}
+                                  hasRunningTool={peer.messages.some((m) =>
+                                    m.activity?.some(
+                                      (item) =>
+                                        item.kind === 'permission' &&
+                                        item.request.status === 'pending',
+                                    ),
+                                  )}
+                                />
+                              </>
+                            ),
+                          },
+                        ].sort((a, b) => a.title.localeCompare(b.title))}
+                      />
+                    ) : (
+                      <ChatTranscript
+                        {...{
+                          reviewing,
+                          listRef,
+                          visibleMessages,
+                          sending,
+                          profile,
+                          startingNewSession,
+                          sendMessage,
+                          openImagePreview,
+                          copiedMessageKey,
+                          copyMessage,
+                          toggleSuggestionFold,
+                          retryMessage,
+                          ratings,
+                          rateMessage,
+                          hasRunningTool,
+                        }}
+                      />
+                    )}
+                    <ChatComposer
+                      modelPicker={
+                        <TutorModelPicker
+                          modelId={currentTutorModelId}
+                          onChange={setCurrentTutorModelId}
+                          disabled={
+                            Boolean(toolSession) ||
+                            Boolean(tokenChapter.session) ||
+                            sending ||
+                            peer.busy ||
+                            hasRunningTool ||
+                            startingNewSession ||
+                            checkingUnderstanding ||
+                            Boolean(reviewing)
+                          }
+                        />
+                      }
+                      workspaceSessionId={
+                        reviewing?.sessionId ?? sessionIdRef.current
+                      }
+                      agentRunning={
+                        peer.busy ||
+                        (sending &&
+                          messages.some(
+                            (m) =>
+                              m.isStreaming && m.retryRequestKind === 'chat',
+                          ))
+                      }
+                      stopAgent={async () => {
+                        await peer.stop();
+                        const pending = messages.find((m) => m.isStreaming);
+                        if (pending?.requestId)
+                          await window.electron?.ipcRenderer.invoke(
+                            'stop-agent-run',
+                            pending.requestId,
+                          );
+                      }}
+                      {...{
+                        pendingContextLabel,
+                        pendingContextRef,
+                        setPendingContextLabel,
+                        discussingSuggestion,
+                        composerFocusRequest,
+                        pendingScreenContext,
+                        clearPendingScreenContext: () =>
+                          setPendingScreenContext(null),
+                        pendingImages,
+                        openImagePreview,
+                        pendingHotkeyImagesRef,
+                        setPendingImages,
+                        understandingError,
+                        sending,
+                        voiceState,
+                        input,
+                        setInput,
+                        onPaste,
+                        onKeyDown,
+                        voiceActive,
+                        startingNewSession,
+                        reviewing,
+                        handleVoiceClick,
+                        profile,
+                        checkingUnderstanding,
+                        handleCheckUnderstanding,
+                        canSend,
+                        handleSend,
+                        voiceStatusText,
+                        voiceError,
+                      }}
+                      sending={sending || peer.busy || peer.loading}
+                    />
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="workspace-locked">
+                {studyAccess === null
+                  ? 'Checking study access…'
+                  : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </DesktopWorkspace>
+      </DesktopWorkspace>
+    </TokenUsageAccess.Provider>
   );
 }
 

@@ -19,6 +19,8 @@ import type {
 
 let toolProgress = emptyToolProgress();
 let contextProgress = emptyContextProgress();
+let tokenProgress: { completedAt: string | null } = { completedAt: null };
+let modelProgress: { completedAt: string | null } = { completedAt: null };
 let me: StudyState;
 let invoke: jest.Mock;
 let assessments: PreAssessmentState;
@@ -47,6 +49,8 @@ const completedAssessments = (): PreAssessmentState => ({
 beforeEach(() => {
   toolProgress = emptyToolProgress();
   contextProgress = emptyContextProgress();
+  tokenProgress = { completedAt: null };
+  modelProgress = { completedAt: null };
   me = {
     user_id: 'alice',
     role: 'participant',
@@ -109,6 +113,8 @@ beforeEach(() => {
       };
     if (channel === 'tool-chapter-progress') return toolProgress;
     if (channel === 'context-chapter-progress') return contextProgress;
+    if (channel === 'token-chapter-progress') return tokenProgress;
+    if (channel === 'model-chapter-progress') return modelProgress;
     if (channel === 'pre-assessment-state') return assessments;
     if (channel === 'pre-assessment-submit') {
       const set = args[0] as 'A' | 'E';
@@ -1076,3 +1082,48 @@ it.each([0, 1])(
     ).not.toBeInTheDocument();
   },
 );
+
+it('starts the Token quest from Chapter 3 and unlocks Models after completion', async () => {
+  me.role = 'admin';
+  const view = render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Chapter 3: Token. Available' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('token-chapter-start'),
+  );
+  view.unmount();
+  tokenProgress = { completedAt: '2026-10-29T00:00:00Z' };
+  render(<TrainingView />);
+  expect(
+    await screen.findByRole('button', { name: 'Chapter 3: Token. Complete' }),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Chapter 3: Token. Complete' }),
+  );
+  expect(screen.getByRole('button', { name: 'Completed ✓' })).toBeDisabled();
+});
+
+it('starts the Models comparison and reflects the saved picker reward', async () => {
+  me.role = 'admin';
+  const view = render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Chapter 4: Models. Available' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('model-chapter-start'),
+  );
+  view.unmount();
+  modelProgress = { completedAt: '2026-10-29T00:00:00Z' };
+  render(<TrainingView />);
+  expect(
+    await screen.findByRole('button', { name: 'Chapter 4: Models. Complete' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {
+      name: 'Reward after chapter 4: Model picker',
+    }),
+  ).toBeEnabled();
+});

@@ -7,6 +7,7 @@ import type {
 } from './types';
 
 interface Props {
+  children: React.ReactNode;
   cocoSleeping: boolean;
   systemPermissionHealth: SystemPermissionHealth;
   permissionOpening: SystemPermissionTarget | null;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function HealthSettings({
+  children,
   cocoSleeping,
   systemPermissionHealth,
   permissionOpening,
@@ -85,7 +87,8 @@ export default function HealthSettings({
       )}
       {cocoSleeping && (
         <div role="status" style={S.healthDetail}>
-          Sleep pauses observation and proactive suggestions. Chat and running tasks remain available.
+          Sleep pauses observation and proactive suggestions. Chat and running
+          tasks remain available.
         </div>
       )}
       {!cocoSleeping && (
@@ -192,6 +195,7 @@ export default function HealthSettings({
           Health check failed: {healthError}
         </div>
       )}
+      {children}
     </section>
   );
 }

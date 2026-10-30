@@ -25,6 +25,7 @@ function setup() {
   const createConversation = jest.fn();
   const openConversation = jest.fn();
   const options = {
+    canSkipPrerequisites: jest.fn(() => false),
     ipc: {
       handle: (name: string, handler: any) => {
         handlers[name] = handler;
@@ -213,5 +214,18 @@ it('rejects outside references and symlink escapes and does not reuse links afte
     );
   } finally {
     fs.rmSync(test.root, { recursive: true, force: true });
+  }
+});
+
+test('admin mode can start without prerequisites, while student mode still requires them', () => {
+  const t = setup();
+  try {
+    expect(() => t.start()).toThrow('first');
+    t.options.canSkipPrerequisites.mockReturnValue(true);
+    expect(t.start().sessionId).toBeTruthy();
+    t.options.canSkipPrerequisites.mockReturnValue(false);
+    expect(() => t.start()).toThrow('first');
+  } finally {
+    fs.rmSync(t.root, { recursive: true, force: true });
   }
 });

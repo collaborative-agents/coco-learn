@@ -10,10 +10,13 @@ separately and are not included here.
 ```bash
 # 1. Clone the repo and cd into the repo
 
-# 2. Install packages for the Python services
+# 2. Copy .env.example into .env
+# Fill in the required fields
+
+# 3. Install packages for the Python services
 uv sync
 
-# 3. Launch the desktop app
+# 4. Launch the desktop app
 cd desktop
 npm install
 npm start

@@ -8,9 +8,7 @@ separately and are not included here.
 ## Quickstart
 
 ```bash
-# 1. Clone
-git clone https://github.com/collaborative-agents/coco.git
-cd coco
+# 1. Clone the repo and cd into the repo
 
 # 2. Install packages for the Python services
 uv sync

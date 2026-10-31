@@ -30,6 +30,7 @@ function isWorkspaceDenial(message: ChatMessage) {
 }
 
 interface Props {
+  children?: React.ReactNode;
   allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
@@ -54,6 +55,7 @@ interface Props {
 }
 
 export default function ChatTranscript({
+  children = null,
   allowRatings = true,
   reviewing,
   listRef,
@@ -302,6 +304,7 @@ export default function ChatTranscript({
           )}
         </div>
       ))}
+      {children}
       {sending && !hasRunningTool && (
         <div style={S.typing}>Coco is thinking…</div>
       )}

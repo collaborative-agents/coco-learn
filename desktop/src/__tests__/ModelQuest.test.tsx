@@ -11,6 +11,7 @@ const models = [
   { id: 'sol', model: 'openai/gpt-5.6-sol', label: 'GPT-5.6 Sol' },
 ];
 test('sends one shared prompt, displays measured times, and finishes without a reflection', async () => {
+  localStorage.clear();
   const invoke = jest.fn(async () => ({}));
   Object.defineProperty(window, 'electron', {
     configurable: true,
@@ -58,13 +59,30 @@ test('sends one shared prompt, displays measured times, and finishes without a r
   expect(
     screen.getByRole('button', { name: /2. Compare ideas/ }),
   ).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByLabelText('Try drawing with HTML')).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: /2. Compare ideas/ }),
+  ).toBeDisabled();
+  expect(
+    screen.queryByRole('button', { name: 'Send' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Which model finished faster? Click its output to choose.',
+    ),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Choose GPT-5.6 Luna output' }),
+  );
+  expect(
+    screen.getByRole('button', { name: /2. Compare ideas/ }),
+  ).toBeEnabled();
   expect(screen.getByRole('button', { name: /2. Compare ideas/ })).toHaveClass(
     'model-quest-next-step',
   );
   expect(screen.getByText('1.0s')).toBeInTheDocument();
   expect(screen.getByText('5.0s')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /2. Compare ideas/ }));
+  expect(screen.getByLabelText('Try drawing with HTML')).toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: /2. Compare ideas/ }),
   ).not.toHaveClass('model-quest-next-step');
@@ -123,8 +141,8 @@ test('sends one shared prompt, displays measured times, and finishes without a r
   view.rerender(
     <ModelQuest session={session} completedAt="today" onNewChat={onNewChat} />,
   );
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Try the model picker in a new chat' }),
-  );
-  expect(onNewChat).toHaveBeenCalled();
+  expect(
+    screen.queryByRole('button', { name: 'Try the model picker in a new chat' }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('Model picker unlocked!')).not.toBeInTheDocument();
 });

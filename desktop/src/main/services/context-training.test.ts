@@ -176,7 +176,46 @@ it('requires a successful linked-file read and a completed reply, not claims, er
   }
 });
 
-it('rejects outside references and symlink escapes and does not reuse links after changing workspace', () => {
+it('accepts a later attachment outside the workspace, then completes after choosing its folder and reading it', () => {
+  const test = setup();
+  try {
+    test.finishTool();
+    const session = test.start();
+    test.service.workspaceSelected(session.sessionId, 'alice', test.workspace);
+    test.service.training(
+      session.sessionId,
+      'alice',
+      test.workspace,
+      'What does a link add?',
+    );
+    expect(test.progress().fileLinked).toBe(false);
+    const outside = path.join(test.root, 'outside.txt');
+    const training = test.service.training(
+      session.sessionId,
+      'alice',
+      test.workspace,
+      `@${JSON.stringify(outside)}`,
+    );
+    expect(test.progress().fileLinked).toBe(true);
+    expect(training?.instructions).toContain('filesOutsideWorkspace');
+    const blocked = test.service.observe(session.sessionId, 'alice');
+    blocked(readEvent(outside));
+    blocked({ type: 'done', guidance: 'Done' });
+    expect(test.progress().fileRead).toBe(false);
+    test.service.workspaceSelected(session.sessionId, 'alice', test.root);
+    expect(test.service.get(session.sessionId, 'alice')?.linkedFiles).toEqual([
+      outside,
+    ]);
+    const permitted = test.service.observe(session.sessionId, 'alice');
+    permitted(readEvent(outside));
+    permitted({ type: 'done', guidance: 'Here is the excerpt.' });
+    expect(test.progress().completedAt).toEqual(expect.any(String));
+  } finally {
+    fs.rmSync(test.root, { recursive: true, force: true });
+  }
+});
+
+it('remembers attachments before workspace selection but does not accept missing files or grant reads through symlinks', () => {
   const test = setup();
   try {
     test.finishTool();
@@ -185,33 +224,31 @@ it('rejects outside references and symlink escapes and does not reuse links afte
       session.sessionId,
       'alice',
       test.workspace,
-      `@${JSON.stringify(test.file)}`,
+      '@"missing.txt"',
     );
     expect(test.progress().fileLinked).toBe(false);
-    test.service.workspaceSelected(session.sessionId, 'alice', test.workspace);
-    for (const file of ['../outside.txt', 'escape.txt', 'missing.txt']) {
-      test.service.training(
-        session.sessionId,
-        'alice',
-        test.workspace,
-        `@${JSON.stringify(file)}`,
-      );
-      expect(test.progress().fileLinked).toBe(false);
-    }
     test.service.training(
       session.sessionId,
       'alice',
       test.workspace,
       `@${JSON.stringify(test.file)}`,
     );
-    test.service.workspaceSelected(session.sessionId, 'alice', test.root);
+    expect(test.progress().fileLinked).toBe(true);
+    expect(test.progress().workspaceSet).toBe(false);
+    test.service.workspaceSelected(session.sessionId, 'alice', test.workspace);
+    expect(test.service.get(session.sessionId, 'alice')?.linkedFiles).toEqual([
+      test.file,
+    ]);
+    test.service.training(
+      session.sessionId,
+      'alice',
+      test.workspace,
+      '@"escape.txt"',
+    );
     const observer = test.service.observe(session.sessionId, 'alice');
-    observer(readEvent(test.file));
+    observer(readEvent('escape.txt'));
     observer({ type: 'done', guidance: 'Done' });
     expect(test.progress().fileRead).toBe(false);
-    expect(test.service.get(session.sessionId, 'alice')?.linkedFiles).toEqual(
-      [],
-    );
   } finally {
     fs.rmSync(test.root, { recursive: true, force: true });
   }
@@ -227,5 +264,24 @@ test('admin mode can start without prerequisites, while student mode still requi
     expect(() => t.start()).toThrow('first');
   } finally {
     fs.rmSync(t.root, { recursive: true, force: true });
+  }
+});
+
+it('resumes an existing context quest without replacing its linked workspace', () => {
+  const test = setup();
+  try {
+    test.finishTool();
+    const first = test.start();
+    test.service.workspaceSelected(first.sessionId, 'alice', test.workspace);
+    const resumed = test.start();
+    expect(resumed.sessionId).toBe(first.sessionId);
+    expect(resumed.directory).toBe(test.workspace);
+    expect(test.options.createConversation).toHaveBeenCalledTimes(1);
+    expect(test.options.openConversation).toHaveBeenLastCalledWith(resumed);
+    test.setUser('bob');
+    test.finishTool();
+    expect(test.start().sessionId).not.toBe(first.sessionId);
+  } finally {
+    fs.rmSync(test.root, { recursive: true, force: true });
   }
 });

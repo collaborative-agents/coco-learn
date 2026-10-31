@@ -4,6 +4,7 @@ import WorkflowTrainingBanner from './training/WorkflowTrainingBanner';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import TokenUsageAccess from './chat/TokenUsageAccess';
 import TokenTrainingBanner from './training/TokenTrainingBanner';
+import TokenTrainingQuestion from './training/TokenTrainingQuestion';
 import useTokenChapter from './training/useTokenChapter';
 import useModelChapter from './training/useModelChapter';
 import ModelQuest from './training/ModelQuest';
@@ -834,7 +835,7 @@ function SessionChatContent() {
           }
           setSending(false);
           window.electron?.ipcRenderer
-            .invoke('get-chat-conversations')
+            .invoke('get-chat-conversations', { includeQuests: true })
             .then((saved: unknown) => {
               if (sessionIdRef.current !== sessionId || !Array.isArray(saved)) {
                 return;
@@ -1745,102 +1746,106 @@ function SessionChatContent() {
                       sessionId={reviewing?.sessionId ?? sessionIdRef.current}
                     />
                     {toolSession ? (
-                      <ChatComparisonLayout
-                        panes={[
-                          {
-                            id: toolSession.sessionId,
-                            title:
-                              toolSession.mode === 'with'
-                                ? 'With tools'
-                                : 'Without tools',
-                            content: (
-                              <ChatTranscript
-                                {...{
-                                  reviewing,
-                                  listRef,
-                                  visibleMessages,
-                                  sending,
-                                  profile,
-                                  startingNewSession,
-                                  sendMessage,
-                                  openImagePreview,
-                                  copiedMessageKey,
-                                  copyMessage,
-                                  toggleSuggestionFold,
-                                  retryMessage,
-                                  ratings,
-                                  rateMessage,
-                                  hasRunningTool,
-                                }}
-                              />
-                            ),
-                            actions: sending && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const pending = messages.find(
-                                    (m) => m.isStreaming,
-                                  );
-                                  if (pending?.requestId)
-                                    void window.electron.ipcRenderer.invoke(
-                                      'stop-agent-run',
-                                      pending.requestId,
-                                    );
-                                }}
-                              >
-                                Stop
-                              </button>
-                            ),
-                          },
-                          {
-                            id: toolSession.peerSessionId,
-                            title:
-                              toolSession.mode === 'with'
-                                ? 'Without tools'
-                                : 'With tools',
-                            actions: peer.busy && (
-                              <button
-                                type="button"
-                                onClick={() => void peer.stop()}
-                              >
-                                Stop
-                              </button>
-                            ),
-                            content: (
-                              <>
-                                {peer.loading && (
-                                  <p role="status">Loading conversation…</p>
-                                )}
-                                {peer.error && <p role="alert">{peer.error}</p>}
+                      <ToolViewerAccess.Provider value>
+                        <ChatComparisonLayout
+                          panes={[
+                            {
+                              id: toolSession.sessionId,
+                              title:
+                                toolSession.mode === 'with'
+                                  ? 'With tools'
+                                  : 'Without tools',
+                              content: (
                                 <ChatTranscript
-                                  reviewing={null}
-                                  listRef={peerListRef}
-                                  visibleMessages={peer.messages}
-                                  sending={peer.busy}
-                                  profile={profile}
-                                  startingNewSession={startingNewSession}
-                                  sendMessage={sendMessage}
-                                  openImagePreview={openImagePreview}
-                                  copiedMessageKey={copiedMessageKey}
-                                  copyMessage={copyMessage}
-                                  toggleSuggestionFold={peer.toggleFold}
-                                  retryMessage={peer.retry}
-                                  ratings={{}}
-                                  rateMessage={() => {}}
-                                  allowRatings={false}
-                                  hasRunningTool={peer.messages.some((m) =>
-                                    m.activity?.some(
-                                      (item) =>
-                                        item.kind === 'permission' &&
-                                        item.request.status === 'pending',
-                                    ),
-                                  )}
+                                  {...{
+                                    reviewing,
+                                    listRef,
+                                    visibleMessages,
+                                    sending,
+                                    profile,
+                                    startingNewSession,
+                                    sendMessage,
+                                    openImagePreview,
+                                    copiedMessageKey,
+                                    copyMessage,
+                                    toggleSuggestionFold,
+                                    retryMessage,
+                                    ratings,
+                                    rateMessage,
+                                    hasRunningTool,
+                                  }}
                                 />
-                              </>
-                            ),
-                          },
-                        ].sort((a, b) => a.title.localeCompare(b.title))}
-                      />
+                              ),
+                              actions: sending && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const pending = messages.find(
+                                      (m) => m.isStreaming,
+                                    );
+                                    if (pending?.requestId)
+                                      void window.electron.ipcRenderer.invoke(
+                                        'stop-agent-run',
+                                        pending.requestId,
+                                      );
+                                  }}
+                                >
+                                  Stop
+                                </button>
+                              ),
+                            },
+                            {
+                              id: toolSession.peerSessionId,
+                              title:
+                                toolSession.mode === 'with'
+                                  ? 'Without tools'
+                                  : 'With tools',
+                              actions: peer.busy && (
+                                <button
+                                  type="button"
+                                  onClick={() => void peer.stop()}
+                                >
+                                  Stop
+                                </button>
+                              ),
+                              content: (
+                                <>
+                                  {peer.loading && (
+                                    <p role="status">Loading conversation…</p>
+                                  )}
+                                  {peer.error && (
+                                    <p role="alert">{peer.error}</p>
+                                  )}
+                                  <ChatTranscript
+                                    reviewing={null}
+                                    listRef={peerListRef}
+                                    visibleMessages={peer.messages}
+                                    sending={peer.busy}
+                                    profile={profile}
+                                    startingNewSession={startingNewSession}
+                                    sendMessage={sendMessage}
+                                    openImagePreview={openImagePreview}
+                                    copiedMessageKey={copiedMessageKey}
+                                    copyMessage={copyMessage}
+                                    toggleSuggestionFold={peer.toggleFold}
+                                    retryMessage={peer.retry}
+                                    ratings={{}}
+                                    rateMessage={() => {}}
+                                    allowRatings={false}
+                                    hasRunningTool={peer.messages.some((m) =>
+                                      m.activity?.some(
+                                        (item) =>
+                                          item.kind === 'permission' &&
+                                          item.request.status === 'pending',
+                                      ),
+                                    )}
+                                  />
+                                </>
+                              ),
+                            },
+                          ].sort((a, b) => a.title.localeCompare(b.title))}
+                        />
+                      </ToolViewerAccess.Provider>
                     ) : (
                       <ChatTranscript
                         {...{
@@ -1860,7 +1865,19 @@ function SessionChatContent() {
                           rateMessage,
                           hasRunningTool,
                         }}
-                      />
+                      >
+                        <TokenTrainingQuestion
+                          key={tokenChapter.session?.sessionId}
+                          session={tokenChapter.session}
+                          completedAt={tokenChapter.completedAt}
+                          busy={
+                            sending ||
+                            startingNewSession ||
+                            checkingUnderstanding ||
+                            voiceState !== 'idle'
+                          }
+                        />
+                      </ChatTranscript>
                     )}
                     <ChatComposer
                       modelPicker={

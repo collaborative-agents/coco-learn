@@ -17,7 +17,7 @@ export default function ChatMetrics({
   const metrics = [observerMetrics, tutorMetrics].filter(
     (m): m is LLMCallMetrics => Boolean(m),
   );
-  if (!unlocked) return null;
+  if (!unlocked || !metrics.length) return null;
 
   const { input: inputTokens, output: outputTokens } = tokenCounts(
     observerMetrics,

@@ -16,6 +16,8 @@ function mockIpc(invoke: jest.Mock) {
   (window as any).electron = {
     ipcRenderer: {
       invoke: (channel: string, ...args: unknown[]) => {
+        if (channel === 'context-chapter-progress')
+          return Promise.resolve({ completedAt: null, workspaceSet: false });
         if (channel === 'token-chapter-progress')
           return Promise.resolve({ completedAt: null });
         if (channel === 'curated-skills-list') return Promise.resolve([]);

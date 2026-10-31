@@ -139,6 +139,7 @@ export default function useParallelConversation(sessionId: string | null) {
           // eslint-disable-next-line no-await-in-loop -- Each snapshot depends on events received during the previous one.
           saved = await window.electron.ipcRenderer.invoke(
             'get-chat-conversations',
+            { includeQuests: true },
           );
           if (!active) return;
         } while (snapshotRevision !== revision);

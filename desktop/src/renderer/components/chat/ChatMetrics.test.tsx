@@ -40,3 +40,12 @@ test('missing usage is unavailable, while an actual zero is preserved', () => {
   );
   expect(screen.getByText(/Input Unavailable \/ Output 0/)).toBeInTheDocument();
 });
+
+test('scripted messages without model calls have no usage label', () => {
+  const { container } = render(
+    <TokenUsageAccess.Provider value>
+      <ChatMetrics />
+    </TokenUsageAccess.Provider>,
+  );
+  expect(container).toBeEmptyDOMElement();
+});

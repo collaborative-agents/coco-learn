@@ -14,13 +14,16 @@ import { TutorMessage } from '../chat/MessageContent';
 import ChatMetrics from '../chat/ChatMetrics';
 import ActionTooltip from '../chat/ActionTooltip';
 import { S } from '../chat/styles';
+import './ToolTrainingBanner.css';
 import './ModelQuest.css';
 import '../chat/TutorModelPicker.css';
 
 function ModelResponse({
   response,
   onSelect,
+  chosen,
 }: {
+  chosen: boolean;
   response: ModelQuestResponse;
   onSelect: (() => void) | null;
 }) {
@@ -49,6 +52,7 @@ function ModelResponse({
           className="model-quest-output-select"
           aria-label={`Choose ${response.model.label} output`}
           onClick={onSelect}
+          aria-pressed={chosen}
         />
       )}
       <div
@@ -120,6 +124,17 @@ export default function ModelQuest({
   const [ideasVisited, setIdeasVisited] = useState(
     session.rounds.some((item) => item.kind === 'ideas'),
   );
+  const speedChoiceKey = `model-quest-speed:${session.user}:${session.sessionId}`;
+  const [speedChoice, setSpeedChoice] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem(speedChoiceKey);
+      return session.models.some((model) => model.id === saved) ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+  const canCompareIdeas =
+    rewriteDone && Boolean(speedChoice || ideasVisited || completedAt);
   const [prompt, setPrompt] = useState<string>(modelQuestPrompts[stage]);
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -143,6 +158,7 @@ export default function ModelQuest({
     );
   }, [stage, ideasDone]);
   const send = async () => {
+    if (stage === 'ideas' && !canCompareIdeas) return;
     setSending(true);
     setError('');
     setKind(stage);
@@ -240,57 +256,68 @@ export default function ModelQuest({
           </TrainingDialog>,
           document.body,
         )}
-      <div className="model-quest-content">
-        <header>
-          <h2>Chapter 4 · Models</h2>
-          <p>
-            Model providers often release models in different sizes. Here, we’ll
-            use models from OpenAI as an example to compare speed and ideas.
-            Both models receive the same prompt and instructions in a fresh
-            conversation.
-          </p>
-        </header>
-        <div
-          className="model-quest-steps"
-          role="group"
-          aria-label="Comparison rounds"
-        >
-          <button
-            type="button"
-            aria-pressed={kind === 'rewrite'}
-            onClick={() => setKind('rewrite')}
-          >
-            1. Simple rewrite {rewriteDone && '✓'}
-          </button>
-          <button
-            type="button"
-            disabled={!rewriteDone}
-            aria-pressed={kind === 'ideas'}
-            className={
-              rewriteDone && !ideasVisited && kind === 'rewrite'
-                ? 'model-quest-next-step'
-                : undefined
-            }
-            onClick={() => {
-              setKind('ideas');
-              setIdeasVisited(true);
-            }}
-          >
-            2. Compare ideas {ideasDone && '✓'}
-          </button>
+      <aside
+        className="tool-training-banner model-training-banner"
+        aria-label="Chapter 4 training"
+      >
+        <div className="tool-training-heading">
+          <strong>Chapter 4 · Models: Compare speed and ideas</strong>
         </div>
+        <ul className="tool-training-goals" aria-label="Chapter goals">
+          <li
+            className={`tool-training-goal${canCompareIdeas ? ' is-complete' : ''}`}
+          >
+            <button
+              type="button"
+              aria-label="1. Simple rewrite"
+              aria-pressed={kind === 'rewrite'}
+              onClick={() => setKind('rewrite')}
+            >
+              <span className="tool-training-goal-icon" aria-hidden="true">
+                {canCompareIdeas ? '✓' : '1'}
+              </span>
+              <span>Simple query · Compare speed</span>
+            </button>
+          </li>
+          <li
+            className={`tool-training-goal${completedAt || selected ? ' is-complete' : ''}`}
+          >
+            <button
+              type="button"
+              aria-label="2. Compare ideas"
+              disabled={!canCompareIdeas}
+              aria-pressed={kind === 'ideas'}
+              className={
+                canCompareIdeas && !ideasVisited && kind === 'rewrite'
+                  ? 'model-quest-next-step'
+                  : undefined
+              }
+              onClick={() => {
+                setKind('ideas');
+                setIdeasVisited(true);
+              }}
+            >
+              <span className="tool-training-goal-icon" aria-hidden="true">
+                {completedAt || selected ? '✓' : '2'}
+              </span>
+              <span>Compare ideas · Choose an output</span>
+            </button>
+          </li>
+        </ul>
+        <p>
+          Model providers often release models in different sizes. Here, we’ll
+          use OpenAI models to compare speed and ideas. Both receive the same
+          prompt and instructions in a fresh conversation.
+        </p>
+      </aside>
+      <div className="model-quest-content">
         <p>
           {kind === 'rewrite'
             ? 'Is either answer good enough? Was the extra wait useful?'
             : 'Which drawing do you like more? Click an output to choose it and finish the quest.'}
         </p>
         {round && (
-          <details className="model-quest-prompt-details">
-            <summary>View prompt</summary>
-            <blockquote className="model-quest-prompt">
-              {round.prompt}
-            </blockquote>
-          </details>
+          <blockquote className="model-quest-prompt">{round.prompt}</blockquote>
         )}
         <ChatComparisonLayout
           panes={session.models.map((model, index) => ({
@@ -299,15 +326,28 @@ export default function ModelQuest({
             content: round?.responses[index] ? (
               <ModelResponse
                 response={round.responses[index]}
+                chosen={
+                  kind === 'rewrite'
+                    ? speedChoice === model.id
+                    : selected === model.id
+                }
                 onSelect={
-                  kind === 'ideas' &&
                   rewriteDone &&
                   completedModelRound(round) &&
                   !completedAt &&
                   !selected &&
                   !busy
                     ? () => {
-                        selectOutput(model.id);
+                        if (kind === 'rewrite') {
+                          setSpeedChoice(model.id);
+                          try {
+                            localStorage.setItem(speedChoiceKey, model.id);
+                          } catch {
+                            // The choice still works when storage is unavailable.
+                          }
+                        } else {
+                          selectOutput(model.id);
+                        }
                       }
                     : null
                 }
@@ -319,76 +359,86 @@ export default function ModelQuest({
             ),
           }))}
         />
-        {completedAt && (
-          <div className="model-quest-unlocked" role="status">
-            <strong>Model picker unlocked!</strong>
-            <p>You can now choose the model for each conversation.</p>
-            <button type="button" onClick={onNewChat}>
-              Try the model picker in a new chat
-            </button>
-          </div>
-        )}
       </div>
-      {!completedAt && !ideasDone && (
-        <form
-          className="model-quest-composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            send();
-          }}
-        >
-          <label htmlFor="model-quest-prompt">{promptLabel}</label>
-          <textarea
-            id="model-quest-prompt"
-            value={prompt}
-            maxLength={12000}
-            disabled={busy}
-            onChange={(event) => setPrompt(event.target.value)}
-          />
-          <div>
-            <ActionTooltip label={running ? 'Stop generating' : 'Send message'}>
-              <button
-                type={running ? 'button' : 'submit'}
-                aria-label={running ? 'Stop' : 'Send'}
-                style={{
-                  ...S.sendBtn,
-                  ...(!running && (busy || !prompt.trim())
-                    ? S.sendBtnDisabled
-                    : {}),
-                }}
-                disabled={!running && (busy || !prompt.trim())}
-                onClick={running ? stop : undefined}
-              >
-                {running ? (
-                  <svg
-                    aria-hidden="true"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <rect x="4" y="4" width="12" height="12" rx="2" />
-                  </svg>
-                ) : (
-                  <svg
-                    aria-hidden="true"
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 19V5M5 12l7-7 7 7" />
-                  </svg>
-                )}
-              </button>
-            </ActionTooltip>
-          </div>
-        </form>
+      {kind === 'rewrite' && rewriteDone && !completedAt && (
+        <div className="model-quest-speed">
+          <p>Which model finished faster? Click its output to choose.</p>
+          {speedChoice && (
+            <p role="status">Ready for step 2 · Compare ideas.</p>
+          )}
+        </div>
       )}
+
+      {!completedAt &&
+        !ideasDone &&
+        (!rewriteDone || (kind === 'ideas' && canCompareIdeas)) && (
+          <form
+            className="model-quest-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              send();
+            }}
+          >
+            <label htmlFor="model-quest-prompt">{promptLabel}</label>
+            <div className="chat-composer-surface" style={S.composerSurface}>
+              <textarea
+                style={S.textarea}
+                rows={2}
+                id="model-quest-prompt"
+                value={prompt}
+                maxLength={12000}
+                disabled={busy}
+                onChange={(event) => setPrompt(event.target.value)}
+              />
+              <div style={S.composerActions}>
+                <div style={S.composerSendActions}>
+                  <ActionTooltip
+                    label={running ? 'Stop generating' : 'Send message'}
+                  >
+                    <button
+                      type={running ? 'button' : 'submit'}
+                      aria-label={running ? 'Stop' : 'Send'}
+                      style={{
+                        ...S.sendBtn,
+                        ...(!running && (busy || !prompt.trim())
+                          ? S.sendBtnDisabled
+                          : {}),
+                      }}
+                      disabled={!running && (busy || !prompt.trim())}
+                      onClick={running ? stop : undefined}
+                    >
+                      {running ? (
+                        <svg
+                          aria-hidden="true"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <rect x="4" y="4" width="12" height="12" rx="2" />
+                        </svg>
+                      ) : (
+                        <svg
+                          aria-hidden="true"
+                          width="22"
+                          height="22"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                      )}
+                    </button>
+                  </ActionTooltip>
+                </div>
+              </div>
+            </div>
+          </form>
+        )}
       {error && <p role="alert">{error}</p>}
     </section>
   );

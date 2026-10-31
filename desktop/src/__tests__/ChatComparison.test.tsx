@@ -117,6 +117,29 @@ it.each(['with', 'without'])(
       });
     });
     expect(within(withTools).getByText('Reading the file')).toBeInTheDocument();
+    await act(async () =>
+      emit('chat-stream-event', {
+        ...primary,
+        type: 'tool_call_completed',
+        call: {
+          id: 'read-notes',
+          name: 'bash',
+          status: 'completed',
+          arguments: { command: 'cat notes.txt' },
+          result: { output: 'Quest tool result' },
+        },
+      }),
+    );
+    expect(
+      within(withTools).queryByText('Details · Locked'),
+    ).not.toBeInTheDocument();
+    expect(
+      within(withTools).getByText('Quest tool result'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Context' }),
+    ).not.toBeInTheDocument();
+
     expect(
       within(withTools).queryByText('I cannot read files'),
     ).not.toBeInTheDocument();
@@ -292,6 +315,7 @@ it('selects a curated skill from the normal input bar and sends it with the requ
   const original = invoke.getMockImplementation()!;
   invoke.mockImplementation(async (channel, payload) => {
     if (channel === 'tool-chapter-session') return null;
+    if (channel === 'model-chapter-progress') return { completedAt: 'today' };
     if (channel === 'curated-skills-list')
       return [
         {

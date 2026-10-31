@@ -1,3 +1,4 @@
+import useContextChapterProgress from '../training/useContextChapterProgress';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TokenUsageRecord } from '../../../shared/token-training';
 import useTokenChapter from '../training/useTokenChapter';
@@ -42,6 +43,7 @@ export function summarizeTokenUsage(
 
 export default function TokenUsageSettings() {
   const { completedAt } = useTokenChapter();
+  const contextProgress = useContextChapterProgress();
   const [data, setData] = useState<{
     requests: TokenUsageRecord[];
     trackingSince: string;
@@ -81,6 +83,7 @@ export default function TokenUsageSettings() {
       unsubscribe?.();
     };
   }, [completedAt, load]);
+  if (!completedAt && !contextProgress.completedAt) return null;
   if (!completedAt)
     return (
       <section
@@ -139,9 +142,6 @@ export default function TokenUsageSettings() {
     return selectedDay ? day === selectedDay : visibleDays.has(day);
   });
   const rows = summarizeTokenUsage(visibleRequests, 'all');
-  const input = rows.reduce((total, row) => total + row.input, 0);
-  const output = rows.reduce((total, row) => total + row.output, 0);
-  const unavailable = rows.reduce((total, row) => total + row.unavailable, 0);
   return (
     <section
       className="settings-token-usage"
@@ -166,19 +166,6 @@ export default function TokenUsageSettings() {
             selected={selectedDay}
             onSelect={setSelectedDay}
           />
-          <p>
-            Input <strong>{input.toLocaleString()}</strong> · Output{' '}
-            <strong>{output.toLocaleString()}</strong> · Total{' '}
-            <strong>{(input + output).toLocaleString()}</strong>
-            {unavailable > 0 ? ' (known tokens only)' : ''}
-          </p>
-          {unavailable > 0 && (
-            <p role="status">
-              Usage unavailable for all or part of {unavailable} model usage
-              record
-              {unavailable === 1 ? '' : 's'}; those missing counts are excluded.
-            </p>
-          )}
           {rows.length ? (
             <table className="token-usage-table">
               <caption>

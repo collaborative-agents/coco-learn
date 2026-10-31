@@ -8,6 +8,7 @@ import { S } from './styles';
 import './ContextViewer.css';
 import ActionTooltip from './ActionTooltip';
 import ContextViewerAccess from './ContextViewerAccess';
+import ToolViewerAccess from './ToolViewerAccess';
 import ContextComposition from './ContextComposition';
 
 const number = (value: number) => Math.round(value).toLocaleString();
@@ -115,7 +116,37 @@ export default function ContextViewer({
   const [open, setOpen] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const unlocked = useContext(ContextViewerAccess);
+  const toolsUnlocked = useContext(ToolViewerAccess);
+  const [questSessionId, setQuestSessionId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setQuestSessionId(null);
+    if (sessionId && !unlocked) {
+      window.electron?.ipcRenderer
+        .invoke('context-chapter-session', sessionId)
+        .then((value) => {
+          if (active && value?.sessionId === sessionId)
+            setQuestSessionId(sessionId);
+          return undefined;
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [sessionId, unlocked]);
+  const canInspect =
+    unlocked || Boolean(sessionId && questSessionId === sessionId);
+  useEffect(() => {
+    const inspect = (event: Event) => {
+      if (canInspect && (event as CustomEvent).detail === sessionId)
+        setOpen(true);
+    };
+    window.addEventListener('coco:inspect-context', inspect);
+    return () => window.removeEventListener('coco:inspect-context', inspect);
+  }, [canInspect, sessionId]);
   const button = useRef<HTMLButtonElement>(null);
+  if (!canInspect && !toolsUnlocked) return null;
   return (
     <>
       <ActionTooltip label="View conversation context">
@@ -129,7 +160,7 @@ export default function ContextViewer({
             background: 'var(--coco-color-surface-subtle)',
             color: 'var(--coco-color-text-secondary)',
           }}
-          onClick={() => (unlocked ? setOpen(true) : setShowHint(true))}
+          onClick={() => (canInspect ? setOpen(true) : setShowHint(true))}
           aria-haspopup="dialog"
         >
           <svg
@@ -149,12 +180,12 @@ export default function ContextViewer({
           <span className="chat-composer-action-label">Context</span>
         </button>
       </ActionTooltip>
-      {!unlocked && showHint && (
+      {!canInspect && showHint && (
         <span className="context-viewer-locked-hint" role="status">
           Complete Chapter 2 · Context to unlock this viewer.
         </span>
       )}
-      {unlocked && open && (
+      {canInspect && open && (
         <ContextDialog
           key={sessionId}
           sessionId={sessionId}

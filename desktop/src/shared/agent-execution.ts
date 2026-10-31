@@ -1,6 +1,14 @@
 import type { TutorToolCall } from '../renderer/components/observation-types';
 
+export interface CommandApprovalRule {
+  id: string;
+  directory: string;
+  prefix: string[];
+}
+
 export interface PermissionRequest {
+  suggestedPrefix?: string[];
+  approvalSource?: 'saved-rule';
   id: string;
   kind: 'workspace' | 'action';
   directory: string;

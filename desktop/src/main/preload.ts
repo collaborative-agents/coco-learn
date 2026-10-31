@@ -179,6 +179,8 @@ export type Channels =
   | 'model-chapter-complete'
   | 'get-agent-context'
   | 'answer-agent-question'
+  | 'list-command-approvals'
+  | 'revoke-command-approval'
   | 'answer-agent-permission'
   | 'send-chat-message'
   | 'send-audio-message'

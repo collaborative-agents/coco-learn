@@ -114,3 +114,38 @@ test('denied commands retain the exact request and working folder', () => {
   expect(screen.getByText('/work')).toBeTruthy();
   expect(screen.queryByRole('button')).toBeNull();
 });
+
+test('offers the trusted prefix and submits a reusable decision without sending its own rule', async () => {
+  render(
+    <PermissionCard
+      request={{ ...request, suggestedPrefix: ['git', 'push'] }}
+      requestId="run-1"
+      interactive
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Always allow git push … in this workspace',
+    }),
+  );
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith(
+      'answer-agent-permission',
+      'run-1',
+      'approval-1',
+      'always',
+    ),
+  );
+});
+
+test('identifies commands automatically allowed by a saved workspace rule', () => {
+  render(
+    <PermissionCard
+      request={{ ...request, status: 'allowed', approvalSource: 'saved-rule' }}
+      requestId="run-1"
+      interactive
+    />,
+  );
+  expect(screen.getByText('Allowed by your saved workspace rule')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Allow once' })).toBeNull();
+});

@@ -1052,7 +1052,7 @@ it('unlocks Token and the Context reward after completing Context in student mod
 });
 
 it.each([0, 1])(
-  'shows chapter %i completion beside the close button',
+  'allows revisiting completed chapter %i from its content panel',
   async (chapter) => {
     toolProgress = {
       externalInformation: true,
@@ -1072,11 +1072,21 @@ it.each([0, 1])(
         ? 'Chapter 1: Tool. Complete'
         : 'Chapter 2: Context. Complete';
     fireEvent.click(await screen.findByRole('button', { name }));
-    const completed = screen.getByRole('button', { name: 'Completed ✓' });
-    expect(completed).toBeDisabled();
+    const completed = screen.getByRole('button', { name: 'revisit quest' });
+    expect(completed).toBeEnabled();
+    expect(completed).toHaveAttribute('title', 'revisit quest');
+    expect(completed).not.toHaveClass('training-primary');
+    expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(completed.closest('.training-dialog-actions')).toContainElement(
       screen.getByRole('button', { name: 'Close task details' }),
     );
+    fireEvent.click(completed);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        chapter === 0 ? 'tool-chapter-start' : 'context-chapter-start',
+      ),
+    );
+
     expect(
       screen.queryByRole('button', { name: 'Start quest' }),
     ).not.toBeInTheDocument();
@@ -1102,7 +1112,7 @@ it('starts the Token quest from Chapter 3 and unlocks Models after completion', 
   fireEvent.click(
     screen.getByRole('button', { name: 'Chapter 3: Token. Complete' }),
   );
-  expect(screen.getByRole('button', { name: 'Completed ✓' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'revisit quest' })).toBeEnabled();
 });
 
 it('starts the Models comparison and reflects the saved picker reward', async () => {

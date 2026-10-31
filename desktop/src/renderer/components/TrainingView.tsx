@@ -72,7 +72,6 @@ export default function TrainingView({
   );
   let questActionLabel = 'Start quest';
   if (startingToolChat) questActionLabel = 'Opening quest…';
-  if (questComplete) questActionLabel = 'Completed ✓';
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -294,35 +293,64 @@ export default function TrainingView({
         onClose={() => setQuestOpen(false)}
         busy={startingToolChat}
         headerAction={
-          <button
-            type="button"
-            className="training-primary agentic-chapter-action"
-            disabled={startingToolChat || questComplete}
-            onClick={async () => {
-              if (questComplete || startingToolChat) return;
-              setStartingToolChat(true);
-              setToolChatError('');
-              try {
-                const channels = [
-                  'tool-chapter-start',
-                  'context-chapter-start',
-                  'token-chapter-start',
-                  'model-chapter-start',
-                  'workflow-chapter-start',
-                ] as const;
-                await api(channels[questLevel]);
-                setQuestOpen(false);
-              } catch (reason) {
-                setToolChatError(
-                  reason instanceof Error ? reason.message : String(reason),
-                );
-              } finally {
-                setStartingToolChat(false);
+          <>
+            {questComplete && (
+              <span className="agentic-quest-completed">Completed</span>
+            )}
+            <button
+              type="button"
+              className={
+                questComplete
+                  ? 'agentic-quest-retry'
+                  : 'training-primary agentic-chapter-action'
               }
-            }}
-          >
-            {questActionLabel}
-          </button>
+              title={questComplete ? 'revisit quest' : undefined}
+              aria-label={questComplete ? 'revisit quest' : undefined}
+              aria-busy={startingToolChat}
+              disabled={startingToolChat}
+              onClick={async () => {
+                if (startingToolChat) return;
+                setStartingToolChat(true);
+                setToolChatError('');
+                try {
+                  const channels = [
+                    'tool-chapter-start',
+                    'context-chapter-start',
+                    'token-chapter-start',
+                    'model-chapter-start',
+                    'workflow-chapter-start',
+                  ] as const;
+                  await api(channels[questLevel]);
+                  setQuestOpen(false);
+                } catch (reason) {
+                  setToolChatError(
+                    reason instanceof Error ? reason.message : String(reason),
+                  );
+                } finally {
+                  setStartingToolChat(false);
+                }
+              }}
+            >
+              {questComplete ? (
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 11a9 9 0 1 1 2.6 7.4" />
+                  <path d="M3 4v7h7" />
+                </svg>
+              ) : (
+                questActionLabel
+              )}
+            </button>
+          </>
         }
       >
         <div>

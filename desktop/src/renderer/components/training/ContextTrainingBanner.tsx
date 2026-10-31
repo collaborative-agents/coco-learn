@@ -94,14 +94,14 @@ const steps = [
     key: 'fileLinked',
     label: 'Link a file',
     instruction:
-      'Attach a text file from that folder with the paperclip, then ask what the link adds.',
+      'Attach a text file with the paperclip, then ask what the link adds. You can attach it in any message.',
     action: 'Ask about the file link',
   },
   {
     key: 'fileRead',
     label: 'Read the file',
     instruction:
-      'Ask Coco to read the linked file and explain what it can now see.',
+      'Make sure your workspace contains the linked file, then ask Coco to read it and explain what it can now see.',
     action: 'Ask Coco to read it',
   },
 ] as const;
@@ -163,6 +163,26 @@ export default function ContextTrainingBanner({
                 </span>
                 <strong>{step.label}</strong>
               </div>
+              {complete &&
+                (step.key === 'fileLinked' || step.key === 'fileRead') && (
+                  <p className="context-training-inspect">
+                    {step.key === 'fileLinked'
+                      ? 'Inspect Context: the link adds a file path, not its contents.'
+                      : 'Inspect Context again: the read result now includes file contents.'}{' '}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent('coco:inspect-context', {
+                            detail: sessionId,
+                          }),
+                        )
+                      }
+                    >
+                      Open Context
+                    </button>
+                  </p>
+                )}
               {!complete && (
                 <div className="context-training-prompt">
                   <p>{step.instruction}</p>

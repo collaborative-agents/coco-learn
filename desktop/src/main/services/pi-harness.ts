@@ -1,3 +1,4 @@
+import type CommandApprovalRules from './command-approval-rules';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -115,6 +116,7 @@ export default class PiHarness {
     text: string;
     images: string[];
     audioData?: string;
+    approvalRules?: CommandApprovalRules;
     curatedSkills?: { paths: string[]; revision: string };
     training?: {
       tools: 'none' | 'bash' | 'read';
@@ -133,8 +135,9 @@ export default class PiHarness {
       requestId: options.requestId,
       stopped: false,
       controller: new AbortController(),
-      permissions: new AgentPermissions((request) =>
-        translator.permission(request),
+      permissions: new AgentPermissions(
+        (request) => translator.permission(request),
+        options.training ? undefined : options.approvalRules,
       ),
     };
     this.active = active;

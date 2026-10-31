@@ -1,3 +1,4 @@
+import questSessionIds from './quest-session-files';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -53,16 +54,34 @@ export default function registerToolExploration(options: {
   );
   options.ipc.handle('tool-chapter-start', (event) => {
     const user = options.user(event, true);
+    const previous = questSessionIds(
+      path.join(options.root(), 'tool-training-sessions'),
+    )
+      .map((id) => get(id, user))
+      .find(
+        (session) =>
+          session?.mode === 'with' &&
+          get(session.peerSessionId, user)?.peerSessionId === session.sessionId,
+      );
+    if (previous) {
+      options.openConversation(previous);
+      return previous;
+    }
     const withId = randomUUID();
     const withoutId = randomUUID();
-    const directory = path.join(options.root(), 'tool-practice', withId);
+    const directory = path.join(options.root(), 'workspace');
     fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(
-      path.join(directory, 'notes.txt'),
-      ['Read the article', 'Draft an outline', 'Check the sources']
-        .map((task) => `${Math.random() < 0.5 ? 'TODO' : 'DONE'}: ${task}`)
-        .join('\n'),
-    );
+    try {
+      fs.writeFileSync(
+        path.join(directory, 'notes.txt'),
+        ['Read the article', 'Draft an outline', 'Check the sources']
+          .map((task) => `${Math.random() < 0.5 ? 'TODO' : 'DONE'}: ${task}`)
+          .join('\n'),
+        { flag: 'wx' },
+      );
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'EEXIST') throw error;
+    }
     const sessions: ToolTrainingSession[] = [
       {
         user,

@@ -1,3 +1,4 @@
+import aggregateCallMetrics from '../shared/aggregate-call-metrics';
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -9,6 +10,8 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
+import isQuestConversation from '../shared/quest-conversations';
+import CommandApprovalRules from './services/command-approval-rules';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
@@ -724,6 +727,27 @@ function executionContext(
   };
 }
 
+function commandApprovalRules() {
+  const user = currentUserId;
+  if (!user || !isAuthenticated) throw new Error('Sign in to manage permissions.');
+  return new CommandApprovalRules(app.getPath('userData'), user, () => {
+    if (currentUserId !== user || !isAuthenticated) throw new Error('Your account changed.');
+  });
+}
+for (const channel of ['list-command-approvals', 'revoke-command-approval']) {
+  ipcMain.handle(channel, (event, sessionId: string | null, ruleId?: string) => {
+    if (!chatWindow || event.sender !== chatWindow.webContents) throw new Error('Open permissions from the chat window.');
+    if (sessionId !== null && typeof sessionId !== 'string') throw new Error('Invalid conversation.');
+    const rules = commandApprovalRules();
+    const directory = agentDirectory(sessionId);
+    if (channel === 'revoke-command-approval') {
+      if (typeof ruleId !== 'string') throw new Error('Invalid permission rule.');
+      rules.revoke(directory, ruleId);
+    }
+    return { directory, rules: rules.list(directory) };
+  });
+}
+
 ipcMain.handle(
   'get-agent-workspace',
   (_event, { sessionId }: { sessionId?: string | null } = {}) => ({
@@ -1014,7 +1038,7 @@ const modelTraining = registerModelTraining({
 
 const workflowChatTurns = new Map<
   string,
-  { requestId: string; images: string[] }
+  { requestId: string; images: string[]; metrics: LLMCallMetrics[] }
 >();
 const workflowTraining = registerWorkflowTraining({
   ipc: ipcMain,
@@ -1115,6 +1139,13 @@ const workflowTraining = registerWorkflowTraining({
             if (event.type === 'text_delta' && typeof event.text === 'string')
               output += event.text;
             if (event.type === 'done') {
+              if (turn) {
+                turn.metrics.push(
+                  (event.llm_metrics as LLMCallMetrics | undefined) ?? {},
+                );
+                if (event.observer_metrics)
+                  turn.metrics.push(event.observer_metrics as LLMCallMetrics);
+              }
               if (!output && typeof event.guidance === 'string')
                 output = event.guidance;
               if (event.stopped) failure = 'Request stopped. Please try again.';
@@ -2663,7 +2694,7 @@ async function openCoco(): Promise<void> {
   }
   // Return to the most recent conversation rather than a blank chat. Like a
   // draft, it becomes a live session again only once the user sends.
-  const latest = latestConversation(readConversations());
+  const latest = latestConversation(readConversations().filter(conversation => !isQuestConversation(conversation)));
   if (latest) {
     currentSessionId = latest.sessionId;
     resumableSessionId = latest.sessionId;
@@ -5352,8 +5383,9 @@ ipcMain.handle(
 // Chat history is local-only: the renderer persists completed turns here and
 // asks main to rebuild tutor context before continuing an older conversation.
 ipcMain.removeHandler('get-chat-conversations');
-ipcMain.handle('get-chat-conversations', () =>
+ipcMain.handle('get-chat-conversations', (_event, options?: { includeQuests?: boolean }) =>
   readConversations()
+    .filter(conversation => options?.includeQuests === true || !isQuestConversation(conversation))
     .filter((conversation) => conversation.messages.length > 0)
     .map((conversation) =>
       interruptStaleReplies(
@@ -5635,7 +5667,8 @@ async function runWorkflowChatTurn(
   text: string,
   images: string[] = [],
 ) {
-  workflowChatTurns.set(sessionId, { requestId, images });
+  const metrics: LLMCallMetrics[] = [];
+  workflowChatTurns.set(sessionId, { requestId, images, metrics });
   try {
     const result = await workflowTraining.chat(event, sessionId, text);
     const guidance = result.messages?.at(-1)?.text ?? '';
@@ -5644,6 +5677,7 @@ async function runWorkflowChatTurn(
       requestId,
       type: 'done',
       guidance,
+      llm_metrics: aggregateCallMetrics(metrics),
     });
     gatewayClient?.addMessage(sessionId, 'coco', guidance);
     return { streamed: true };
@@ -5655,6 +5689,7 @@ async function runWorkflowChatTurn(
         type: 'done',
         guidance: 'Stopped.',
         stopped: true,
+        llm_metrics: aggregateCallMetrics(metrics),
       });
       return { streamed: true };
     }
@@ -5945,6 +5980,7 @@ ipcMain.handle(
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
+            approvalRules: training ? undefined : commandApprovalRules(),
             curatedSkills: training
               ? undefined
               : workflowTraining.runtimeSkills(currentUserId),
@@ -6249,6 +6285,7 @@ ipcMain.handle(
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
+            approvalRules: training ? undefined : commandApprovalRules(),
             curatedSkills: training
               ? undefined
               : workflowTraining.runtimeSkills(currentUserId),

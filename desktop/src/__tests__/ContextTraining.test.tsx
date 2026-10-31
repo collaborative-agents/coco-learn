@@ -19,6 +19,9 @@ jest.mock('../renderer/components/TrainingView', () => ({
 }));
 
 it('guides normal chat, keeps file references when adding prompts, and unlocks the viewer on completion', async () => {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute('open', '');
+  };
   localStorage.clear();
   let progress = emptyContextProgress();
   const listeners = new Map<string, Set<(data: any) => void>>();
@@ -31,6 +34,13 @@ it('guides normal chat, keeps file references when adding prompts, and unlocks t
         sessionId: payload,
         directory: null,
         linkedFiles: [],
+      };
+    if (channel === 'tool-chapter-progress')
+      return {
+        externalInformation: true,
+        approved: true,
+        denied: true,
+        completedAt: 'done',
       };
     if (channel === 'context-chapter-progress') return progress;
     if (channel === 'get-agent-context')
@@ -79,11 +89,9 @@ it('guides normal chat, keeps file references when adding prompts, and unlocks t
     screen.queryByRole('region', { name: 'With tools' }),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Context' }));
-  expect(screen.getByRole('status')).toHaveTextContent('Complete Chapter 2');
-  expect(invoke).not.toHaveBeenCalledWith(
-    'get-agent-context',
-    expect.anything(),
-  );
+  await screen.findByRole('dialog', { name: 'What Coco Has as Context' });
+  expect(invoke).toHaveBeenCalledWith('get-agent-context', 'practice');
+  fireEvent.click(screen.getByRole('button', { name: 'Close context' }));
   fireEvent.click(
     screen.getByRole('button', { name: 'Ask about the workspace' }),
   );
@@ -132,6 +140,13 @@ it('guides normal chat, keeps file references when adding prompts, and unlocks t
     screen.getByRole('listitem', { name: 'Link a file: Complete' }),
   ).toHaveClass('is-complete');
   expect(
+    screen.getByText(/the link adds a file path, not its contents/),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Context' }));
+  await screen.findByRole('dialog', { name: 'What Coco Has as Context' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close context' }));
+
+  expect(
     screen.getByRole('listitem', { name: 'Read the file: Not yet' }),
   ).toHaveAttribute('aria-current', 'step');
   expect(
@@ -144,6 +159,9 @@ it('guides normal chat, keeps file references when adding prompts, and unlocks t
     completedAt: '2026-10-28T00:00:00Z',
   };
   await act(async () => emit('context-chapter-progress-changed'));
+  expect(
+    screen.getByText(/the read result now includes file contents/),
+  ).toBeInTheDocument();
   await screen.findByRole('dialog', { name: 'Chapter 2 passed! 🎉' });
   await screen.findByText('≈ 1,200 tokens');
   expect(invoke).toHaveBeenCalledWith('get-agent-context', 'practice');

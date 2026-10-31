@@ -228,3 +228,12 @@
   cursor: wait;
   opacity: 0.65;
 }
+
+.tool-activity-locked-hint a {
+  color: var(--coco-color-primary);
+  text-underline-offset: 3px;
+}
+.tool-activity-locked-hint a:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}

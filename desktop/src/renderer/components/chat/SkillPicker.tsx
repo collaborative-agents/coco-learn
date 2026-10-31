@@ -1,3 +1,5 @@
+import useModelChapter from '../training/useModelChapter';
+import useWorkflowChapter from '../training/useWorkflowChapter';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import CuratedSkills from '../training/CuratedSkills';
@@ -6,6 +8,7 @@ import '../training/TrainingDialog.css';
 import ActionTooltip from './ActionTooltip';
 import { S } from './styles';
 import SkillIcon from './SkillIcon';
+import './SkillPicker.css';
 
 export default function SkillPicker({
   disabled,
@@ -14,27 +17,61 @@ export default function SkillPicker({
   disabled: boolean;
   onSelect: (name: string) => void;
 }) {
+  const models = useModelChapter();
+  const workflow = useWorkflowChapter();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const show = () => setOpen(true);
     window.addEventListener('coco:open-skills', show);
     return () => window.removeEventListener('coco:open-skills', show);
   }, []);
+  if (!models.completedAt && !workflow.completedAt) return null;
   return (
     <>
-      <ActionTooltip label="Skills">
-        <button
-          type="button"
-          style={S.micBtn}
-          disabled={disabled}
-          aria-label="Skills"
-          aria-haspopup="dialog"
-          onClick={() => setOpen(true)}
-        >
-          <SkillIcon />
-        </button>
-      </ActionTooltip>
+      <div
+        className="skill-picker-trigger"
+        onBlur={(event) => {
+          if (
+            !workflow.completedAt &&
+            !event.currentTarget.contains(event.relatedTarget)
+          )
+            setOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (!workflow.completedAt && event.key === 'Escape') setOpen(false);
+        }}
+      >
+        <ActionTooltip label="Skills">
+          <button
+            type="button"
+            style={S.micBtn}
+            disabled={disabled}
+            aria-label="Skills"
+            aria-haspopup={workflow.completedAt ? 'dialog' : undefined}
+            aria-expanded={open}
+            onClick={() => setOpen((shown) => !shown)}
+          >
+            <SkillIcon />
+          </button>
+        </ActionTooltip>
+        {open && !workflow.completedAt && (
+          <div className="skill-picker-unlock-hint" role="status">
+            Unlock Skills in{' '}
+            <a
+              href="#agent-101"
+              onClick={(event) => {
+                event.preventDefault();
+                setOpen(false);
+                window.electron.ipcRenderer.sendMessage('open-training');
+              }}
+            >
+              Agent 101 Chapter 5
+            </a>
+          </div>
+        )}
+      </div>
       {open &&
+        workflow.completedAt &&
         createPortal(
           <TrainingDialog
             open

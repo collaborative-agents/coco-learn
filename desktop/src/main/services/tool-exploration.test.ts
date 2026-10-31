@@ -55,7 +55,15 @@ it('opens paired normal conversations, restores their policy, and saves actual l
   };
   try {
     const session = handlers['tool-chapter-start'](event);
+    expect(session.directory).toBe(path.join(root, 'workspace'));
+    expect(fs.existsSync(path.join(root, 'tool-practice'))).toBe(false);
+    const notes = path.join(session.directory, 'notes.txt');
+    expect(fs.readFileSync(notes, 'utf8')).toContain('Read the article');
     expect(created.map((item) => item.mode)).toEqual(['with', 'without']);
+    expect(handlers['tool-chapter-start'](event).sessionId).toBe(
+      session.sessionId,
+    );
+    expect(created).toHaveLength(2);
     expect(openConversation).toHaveBeenCalledWith(session);
     expect(service.training(session.sessionId, user)).toMatchObject({
       tools: 'bash',
@@ -131,6 +139,10 @@ it('opens paired normal conversations, restores their policy, and saves actual l
     expect(handlers['tool-chapter-progress'](event).completedAt).toEqual(
       expect.any(String),
     );
+    expect(handlers['tool-chapter-start'](event).sessionId).toBe(
+      session.sessionId,
+    );
+    expect(created).toHaveLength(2);
     user = 'bob';
     expect(
       handlers['tool-chapter-session'](event, session.sessionId),
@@ -139,6 +151,10 @@ it('opens paired normal conversations, restores their policy, and saves actual l
       handlers['tool-chapter-switch'](event, session.sessionId),
     ).toThrow('not found');
     expect(handlers['tool-chapter-progress'](event).completedAt).toBeNull();
+    fs.writeFileSync(notes, 'My own notes');
+    const restarted = handlers['tool-chapter-start'](event);
+    expect(restarted.directory).toBe(session.directory);
+    expect(fs.readFileSync(notes, 'utf8')).toBe('My own notes');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

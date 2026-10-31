@@ -58,7 +58,17 @@ export function ToolCallCard({
         </details>
         {showLockedHint && (
           <p id={hintId} className="tool-activity-locked-hint" role="status">
-            Complete Chapter 1 · Tool in Training to unlock tool details.
+            Complete{' '}
+            <a
+              href="#agent-101"
+              onClick={(event) => {
+                event.preventDefault();
+                window.electron.ipcRenderer.sendMessage('open-training');
+              }}
+            >
+              Agent 101 Chapter 1 · Tool
+            </a>{' '}
+            to unlock tool details.
           </p>
         )}
       </div>

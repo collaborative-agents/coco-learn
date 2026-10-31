@@ -26,7 +26,10 @@ test('opens session-scoped analysis on demand and restores focus on close', asyn
   });
   (window as any).electron = { ipcRenderer: { invoke } };
   render(<ContextViewer sessionId="saved-session" />);
-  expect(invoke).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith(
+    'get-agent-context',
+    expect.anything(),
+  );
   const button = screen.getByRole('button', { name: 'Context' });
   fireEvent.click(button);
   expect(await screen.findByText('Tool schema content')).toBeInTheDocument();
@@ -67,7 +70,10 @@ test('hints at Chapter 2 while locked and opens only after completion', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Context' }));
   expect(screen.getByRole('status')).toHaveTextContent('Complete Chapter 2');
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  expect(invoke).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith(
+    'get-agent-context',
+    expect.anything(),
+  );
   rerender(
     <ContextViewerAccess.Provider value>
       <ContextViewer sessionId="practice" />

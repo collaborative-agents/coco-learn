@@ -30,7 +30,15 @@ export default function PermissionCard({
     ? 'Allow folder access?'
     : `Allow ${shell ? 'this command' : request.tool}?`;
 
-  const answer = async (allow: boolean) => {
+  let scopeHint = 'Approval applies to this action only.';
+  if (request.suggestedPrefix)
+    scopeHint =
+      'Allow once, or save the displayed command rule for this workspace.';
+  if (workspace)
+    scopeHint =
+      'Coco can read, create, and edit files in this folder for this conversation until you revoke access or quit Coco.';
+
+  const answer = async (allow: boolean | 'always') => {
     if (!pending || submitting) return;
     setSubmitting(true);
     setError('');
@@ -42,7 +50,7 @@ export default function PermissionCard({
         request.id,
         allow,
       );
-      setDecision(allow);
+      setDecision(allow !== false);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Could not submit approval.',
@@ -58,7 +66,11 @@ export default function PermissionCard({
     else if (shell) subject = 'Run command';
     let outcome = 'Cancelled';
     if (status === 'denied') outcome = 'Denied by the user';
-    if (status === 'allowed') outcome = 'Allowed by the user';
+    if (status === 'allowed')
+      outcome =
+        request.approvalSource === 'saved-rule'
+          ? 'Allowed by your saved workspace rule'
+          : 'Allowed by the user';
     return (
       <div className="agent-permission-log">
         <div className="agent-permission-heading">
@@ -93,11 +105,7 @@ export default function PermissionCard({
             : JSON.stringify(request.arguments, null, 2)}
         </pre>
       )}
-      <p>
-        {workspace
-          ? 'Coco can read, create, and edit files in this folder for this conversation until you revoke access or quit Coco.'
-          : 'Approval applies to this action only.'}
-      </p>
+      <p>{scopeHint}</p>
       {!workspace && (
         <p className="agent-permission-note">
           {shell
@@ -114,6 +122,16 @@ export default function PermissionCard({
           >
             Deny
           </button>
+          {shell && request.suggestedPrefix && (
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => answer('always')}
+            >
+              Always allow <code>{request.suggestedPrefix.join(' ')} …</code> in
+              this workspace
+            </button>
+          )}
           <button
             type="button"
             className="agent-permission-allow"

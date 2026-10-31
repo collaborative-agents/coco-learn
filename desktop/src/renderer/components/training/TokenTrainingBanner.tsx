@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import {
   tokenPracticePrompts,
   type TokenTrainingSession,
 } from '../../../shared/token-training';
 import './ToolTrainingBanner.css';
 import './TokenChapter.css';
+import TokenUsageUnlock from './TokenUsageUnlock';
 
 export default function TokenTrainingBanner({
   session,
@@ -19,42 +19,46 @@ export default function TokenTrainingBanner({
   onSettings: () => void;
   busy: boolean;
 }) {
-  const [feedback, setFeedback] = useState('');
-  const [saving, setSaving] = useState(false);
   if (!session) return null;
   const step = session.requests.length;
-  const answer = async (choice: string) => {
-    setSaving(true);
-    setFeedback('');
-    try {
-      const result = await window.electron.ipcRenderer.invoke(
-        'token-chapter-answer',
-        session.sessionId,
-        choice,
-      );
-      setFeedback(
-        result?.correct
-          ? 'Correct! Input includes earlier conversation and other context sent to the model.'
-          : 'Try again: input is everything sent to the model, including earlier conversation and instructions.',
-      );
-    } catch (error) {
-      setFeedback(
-        error instanceof Error
-          ? error.message
-          : 'Could not save your answer. Please retry.',
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+  const goals = [
+    { label: 'Send a request', complete: step >= 1 || Boolean(completedAt) },
+    { label: 'Ask a follow-up', complete: step >= 2 || Boolean(completedAt) },
+    { label: 'Understand token usage', complete: Boolean(completedAt) },
+  ];
   return (
-    <aside className="tool-training-banner" aria-label="Chapter 3 training">
-      <strong>Chapter 3 · Token: See what your request uses</strong>
+    <aside
+      className="tool-training-banner token-training-banner"
+      aria-label="Chapter 3 training"
+    >
+      <div className="tool-training-heading">
+        <strong>Chapter 3 · Token: See what your request uses</strong>
+      </div>
+      <ul className="tool-training-goals" aria-label="Chapter goals">
+        {goals.map(({ label, complete }, index) => (
+          <li
+            key={label}
+            className={`tool-training-goal${complete ? ' is-complete' : ''}`}
+            aria-label={`${label}: ${complete ? 'Complete' : 'Not yet'}`}
+          >
+            <span className="tool-training-goal-icon" aria-hidden="true">
+              {complete ? '✓' : index + 1}
+            </span>
+            <span>{label}</span>
+          </li>
+        ))}
+      </ul>
       {completedAt ? (
         <>
+          <TokenUsageUnlock
+            key={`${session.user}:${completedAt}`}
+            user={session.user}
+            completedAt={completedAt}
+            onSettings={onSettings}
+          />
           <p>
             <strong>Token tracking unlocked!</strong> See usage beneath each
-            response and track it in Settings → Token usage.
+            response and track it in Settings → Account → Token usage.
           </p>
           <button type="button" onClick={onSettings}>
             View token usage in Settings
@@ -62,25 +66,19 @@ export default function TokenTrainingBanner({
         </>
       ) : (
         <>
-          <p>
-            {step === 0
-              ? '1. Send a request. Ask for a one-sentence answer and inspect its input and output tokens.'
-              : '✓ First request recorded.'}
-          </p>
-          {step >= 1 && (
+          {step === 0 && (
             <p>
-              {step === 1
-                ? '2. Ask a follow-up. Request more detail, then compare both requests below.'
-                : '✓ Follow-up recorded.'}
+              Ask for a one-sentence answer and inspect its input and output
+              tokens.
             </p>
           )}
-          {step < 2 && (
+          {step === 0 && (
             <button
               type="button"
               disabled={busy}
               onClick={() => onPrompt(tokenPracticePrompts[step])}
             >
-              {step === 0 ? 'Use one-sentence prompt' : 'Use follow-up prompt'}
+              Use one-sentence prompt
             </button>
           )}
           {step > 0 && (
@@ -106,39 +104,8 @@ export default function TokenTrainingBanner({
               </tbody>
             </table>
           )}
-          {step < 2 && (
-            <p className="token-note">
-              Usage is previewed during this quest. If a reply has unavailable
-              usage or is stopped, send another request to continue.
-            </p>
-          )}
-          {step >= 2 && (
-            <>
-              <p>
-                Compare the output counts: a more detailed answer often uses
-                more output tokens. Input includes the context sent to the
-                model, not just your latest prompt.
-              </p>
-              <fieldset className="token-quiz" disabled={saving || busy}>
-                <legend>
-                  3. Why can a short follow-up use many input tokens?
-                </legend>
-                <button type="button" onClick={() => answer('words')}>
-                  Each word always counts as many tokens.
-                </button>
-                <button type="button" onClick={() => answer('context')}>
-                  The model also receives earlier conversation and other
-                  context.
-                </button>
-                <button type="button" onClick={() => answer('answer')}>
-                  Input tokens measure the length of the answer.
-                </button>
-              </fieldset>
-            </>
-          )}
         </>
       )}
-      {feedback && <p role="status">{feedback}</p>}
     </aside>
   );
 }

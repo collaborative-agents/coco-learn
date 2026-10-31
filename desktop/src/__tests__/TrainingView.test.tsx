@@ -159,6 +159,22 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+const answerConversation = (
+  container: HTMLElement,
+  answerFor: (index: number) => string,
+) => {
+  let index = 0;
+  let textbox = within(container).queryByRole('textbox');
+  while (textbox) {
+    fireEvent.change(textbox, { target: { value: answerFor(index) } });
+    fireEvent.click(
+      within(container).getByRole('button', { name: 'Send answer' }),
+    );
+    index += 1;
+    textbox = within(container).queryByRole('textbox');
+  }
+};
+
 it('preserves reflection drafts when Training becomes inactive and is reopened', async () => {
   assessments = completedAssessments();
   const { rerender } = render(<TrainingView />);
@@ -258,11 +274,7 @@ it.each(['cancel', 'error'])(
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Next: written reflection' }),
     );
-    within(dialog)
-      .getAllByRole('textbox')
-      .forEach((textbox) =>
-        fireEvent.change(textbox, { target: { value: 'Keep my answer' } }),
-      );
+    answerConversation(dialog, () => 'Keep my answer');
     const submit = within(dialog).getByRole('button', {
       name: 'Submit reflection & add screenshot',
     });
@@ -276,9 +288,7 @@ it.each(['cancel', 'error'])(
       ),
     );
     await waitFor(() => expect(submit).toBeEnabled());
-    expect(within(dialog).getAllByRole('textbox')[0]).toHaveValue(
-      'Keep my answer',
-    );
+    expect(within(dialog).getAllByText('Keep my answer')).toHaveLength(3);
     expect(within(dialog).queryByRole('alert')?.textContent ?? '').toBe(
       outcome === 'error' ? 'Submission failed' : '',
     );
@@ -329,8 +339,39 @@ it('opens completed assessments directly into their questions and saved answers'
     await within(dialog).findByRole('tab', { name: /Challenge 1/ }),
   ).toBeInTheDocument();
   fireEvent.click(within(dialog).getByRole('tab', { name: /Challenge 2/ }));
-  expect(within(dialog).getAllByRole('textbox')[0]).toHaveValue('answer');
-  expect(within(dialog).getAllByRole('textbox')[0]).toBeDisabled();
+  ['answer', 'source', 'risk'].forEach((saved) => {
+    expect(within(dialog).getByText(saved)).toBeInTheDocument();
+  });
+  expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+});
+
+it('keeps an unsent reflection answer when going back to the ratings', async () => {
+  assessments = completedAssessments();
+  render(<TrainingView />);
+  const task = await screen.findByRole('button', {
+    name: /Day 1 Practice task/,
+  });
+  await waitFor(() => expect(task).toBeEnabled());
+  fireEvent.click(task);
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
+  const dialog = screen.getByRole('dialog', {
+    name: 'Tell us about your practice',
+  });
+  const ratings = within(dialog).getAllByRole('radio');
+  for (let index = 0; index < ratings.length; index += 5)
+    fireEvent.click(ratings[index]);
+  const next = () =>
+    within(dialog).getByRole('button', { name: 'Next: written reflection' });
+  fireEvent.click(next());
+  fireEvent.change(within(dialog).getByRole('textbox'), {
+    target: { value: 'Not sent yet' },
+  });
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Back to ratings' }),
+  );
+  expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+  fireEvent.click(next());
+  expect(within(dialog).getByRole('textbox')).toHaveValue('Not sent yet');
 });
 
 it('opens completed practice tasks with saved reflections and a screenshot', async () => {
@@ -444,13 +485,8 @@ it('opens instructions and individual references without tutoring while locking 
     name: 'Submit reflection & add screenshot',
   });
   expect(submit).toBeDisabled();
-  within(reflection)
-    .getAllByRole('textbox')
-    .forEach((textbox, index) =>
-      fireEvent.change(textbox, {
-        target: { value: `Reflection answer ${index + 1}` },
-      }),
-    );
+  expect(within(reflection).getAllByRole('textbox')).toHaveLength(1);
+  answerConversation(reflection, (index) => `Reflection answer ${index + 1}`);
   expect(submit).toBeEnabled();
   fireEvent.click(submit);
   await waitFor(() =>

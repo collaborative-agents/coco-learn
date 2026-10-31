@@ -272,38 +272,6 @@
   border-left: 3px solid var(--coco-color-primary);
 }
 
-.pre-assessment-writing-question {
-  display: grid;
-  gap: var(--coco-space-2);
-  color: var(--coco-color-text);
-  font-size: var(--coco-text-secondary);
-  line-height: var(--coco-leading-body);
-}
-
-.pre-assessment-writing-question textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: var(--coco-space-3);
-  border: 1px solid var(--coco-color-border);
-  border-radius: var(--coco-radius-control);
-  background: var(--coco-color-surface);
-  color: var(--coco-color-text);
-  font: inherit;
-  line-height: var(--coco-leading-body);
-}
-
-.pre-assessment-writing-question textarea:focus {
-  outline: none;
-  border-color: var(--coco-color-primary);
-  box-shadow: var(--coco-focus-ring);
-}
-
-.pre-assessment-writing-question textarea:disabled {
-  background: var(--coco-color-surface-muted);
-  opacity: 1;
-}
-
 .pre-assessment-model-answer {
   margin-top: 20px;
   padding: var(--coco-space-4);

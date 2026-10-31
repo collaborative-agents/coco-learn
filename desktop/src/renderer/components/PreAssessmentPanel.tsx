@@ -11,6 +11,13 @@ import {
   type SetAAnswers,
   type SetEAnswers,
 } from '../../shared/pre-assessment';
+import QuestionConversation from './training/QuestionConversation';
+
+const SET_E_CONVERSATION = SET_E_QUESTIONS.map(({ id, question }, index) => ({
+  id,
+  label: `E${index + 1}.`,
+  text: question,
+}));
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
@@ -198,35 +205,17 @@ function SetEChallenge({
 
       {complete && result && <ScoreCard result={result} />}
 
-      <div className="pre-assessment-questions">
-        {SET_E_QUESTIONS.map((question, index) => (
-          <label
-            key={question.id}
-            htmlFor={`set-e-${question.id}`}
-            className="pre-assessment-writing-question"
-          >
-            <strong>
-              E{index + 1}. {question.question}
-            </strong>
-            <textarea
-              id={`set-e-${question.id}`}
-              value={
-                result
-                  ? (result.answers as SetEAnswers)[question.id]
-                  : answers[question.id]
-              }
-              disabled={complete || busy}
-              rows={question.id === 'e1' ? 7 : 5}
-              onChange={(event) =>
-                setAnswers((current) => ({
-                  ...current,
-                  [question.id]: event.target.value,
-                }))
-              }
-            />
-          </label>
-        ))}
-      </div>
+      <QuestionConversation
+        idPrefix="set-e"
+        questions={SET_E_CONVERSATION}
+        answers={result ? (result.answers as SetEAnswers) : answers}
+        minLength={3}
+        disabled={busy}
+        readOnly={complete}
+        onAnswerChange={(id, value) =>
+          setAnswers((current) => ({ ...current, [id]: value }))
+        }
+      />
 
       {complete && (
         <div className="pre-assessment-model-answer">

@@ -7,8 +7,19 @@ import {
 } from '../../../shared/study';
 import TrainingDialog from './TrainingDialog';
 import LikertQuestions from './LikertQuestions';
+import QuestionConversation from './QuestionConversation';
 import { SELF_EFFICACY_SCALE } from '../../../shared/post-assessment';
 import './DailyReflectionForm.css';
+
+const responseKeys = ['q6', 'q7', 'q8'] as const;
+
+const REFLECTION_CONVERSATION = DAILY_REFLECTION_OPEN_QUESTIONS.map(
+  (text, index) => ({
+    id: responseKeys[index],
+    label: `${index + 6}.`,
+    text,
+  }),
+);
 
 const emptyReflection = (): DailyReflection => ({
   q1: 0,
@@ -37,7 +48,6 @@ export default function DailyReflectionForm({
   const [answers, setAnswers] = useState<DailyReflection>(emptyReflection);
   const [step, setStep] = useState<'ratings' | 'writing'>('ratings');
   const ratingKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
-  const responseKeys = ['q6', 'q7', 'q8'] as const;
   const ratingsReady = ratingKeys.every(
     (key) => answers[key] >= 1 && answers[key] <= 5,
   );
@@ -92,60 +102,45 @@ export default function DailyReflectionForm({
             </button>
           </>
         ) : (
-          <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setStep('ratings')}
+          >
+            Back to ratings
+          </button>
+        )}
+        {/* Stays mounted during the ratings step so unsent text is kept. */}
+        <div hidden={step !== 'writing'}>
+          <QuestionConversation
+            idPrefix={`day-${day}`}
+            questions={REFLECTION_CONVERSATION}
+            answers={answers}
+            maxLength={5000}
+            disabled={busy}
+            onAnswerChange={(id, value) =>
+              setAnswers((current) => ({ ...current, [id]: value }))
+            }
+          />
+        </div>
+        {step === 'writing' && (
+          <div className="training-reflection-submit">
+            <div>
+              <strong>One last step</strong>
+              <span>
+                After submitting your reflection, choose a screenshot of your
+                favorite moment.
+              </span>
+            </div>
             <button
               type="button"
-              disabled={busy}
-              onClick={() => setStep('ratings')}
+              className="training-proof-action"
+              disabled={busy || !ready}
+              onClick={() => onSubmit(answers)}
             >
-              Back to ratings
+              Submit reflection &amp; add screenshot
             </button>
-            <div className="training-reflection-writing">
-              {DAILY_REFLECTION_OPEN_QUESTIONS.map(
-                (question, questionIndex) => {
-                  const key = responseKeys[questionIndex];
-                  return (
-                    <label key={key} htmlFor={`day-${day}-${key}`}>
-                      <strong>
-                        {questionIndex + 6}. {question}
-                      </strong>
-                      <textarea
-                        id={`day-${day}-${key}`}
-                        rows={4}
-                        maxLength={5000}
-                        value={answers[key]}
-                        disabled={busy}
-                        onChange={(event) =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  );
-                },
-              )}
-            </div>
-
-            <div className="training-reflection-submit">
-              <div>
-                <strong>One last step</strong>
-                <span>
-                  After submitting your reflection, choose a screenshot of your
-                  favorite moment.
-                </span>
-              </div>
-              <button
-                type="button"
-                className="training-proof-action"
-                disabled={busy || !ready}
-                onClick={() => onSubmit(answers)}
-              >
-                Submit reflection &amp; add screenshot
-              </button>
-            </div>
-          </>
+          </div>
         )}
       </section>
     </TrainingDialog>

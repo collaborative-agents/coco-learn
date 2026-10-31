@@ -15,7 +15,16 @@ import {
 import FollowUpBriefing, {
   FOLLOW_UP_TOOLKIT,
 } from './training/FollowUpBriefing';
+import QuestionConversation from './training/QuestionConversation';
 import SelfEfficacySection from './training/SelfEfficacySection';
+
+const EXECUTION_CONVERSATION = EXECUTION_QUESTIONNAIRE_QUESTIONS.map(
+  ({ key, question }, index) => ({
+    id: key,
+    label: `${index + 1}.`,
+    text: question,
+  }),
+);
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
@@ -600,28 +609,16 @@ export function ExecutionSection({
 
           <div className="post-assessment-questionnaire">
             <h4>Tell us about your approach</h4>
-            {EXECUTION_QUESTIONNAIRE_QUESTIONS.map(
-              ({ key, question }, index) => (
-                <label key={key} htmlFor={`execution-${key}`}>
-                  <strong>
-                    {index + 1}. {question}
-                  </strong>
-                  <textarea
-                    id={`execution-${key}`}
-                    rows={4}
-                    maxLength={5000}
-                    value={questionnaire[key]}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setQuestionnaire((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              ),
-            )}
+            <QuestionConversation
+              idPrefix="execution"
+              questions={EXECUTION_CONVERSATION}
+              answers={questionnaire}
+              maxLength={5000}
+              disabled={busy}
+              onAnswerChange={(id, value) =>
+                setQuestionnaire((current) => ({ ...current, [id]: value }))
+              }
+            />
             <fieldset>
               <legend>
                 6. To what extent do you feel the final work is your own?

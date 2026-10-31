@@ -1,0 +1,133 @@
+.workflow-unlock-dialog .training-dialog-header h2 {
+  font-size: var(--coco-text-lead);
+}
+.workflow-unlock-dialog .training-dialog-content {
+  font-size: var(--coco-text-control);
+  line-height: 1.6;
+}
+.workflow-unlock-intro {
+  margin: 0 0 24px;
+  color: var(--coco-color-text-muted);
+}
+.workflow-unlock-skill {
+  border: 1px solid var(--coco-color-border);
+  border-radius: 14px;
+  padding: 20px;
+  background: var(--coco-color-surface-subtle);
+}
+.workflow-unlock-skill-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--coco-color-primary);
+}
+.workflow-unlock-skill h3 {
+  margin: 0;
+  font-size: var(--coco-text-body);
+  overflow-wrap: anywhere;
+  color: var(--coco-color-text);
+}
+.workflow-unlock-saved {
+  font-size: var(--coco-text-secondary);
+  color: var(--coco-color-text-muted);
+}
+.workflow-unlock-skill p {
+  margin: 12px 0;
+}
+.workflow-unlock-skill details {
+  margin-top: 12px;
+}
+.workflow-unlock-skill summary {
+  color: var(--coco-color-primary);
+  cursor: pointer;
+}
+.workflow-unlock-tip {
+  margin-top: 24px;
+}
+.workflow-unlock-tip h3 {
+  font-size: var(--coco-text-control);
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.workflow-unlock-tip p {
+  color: var(--coco-color-text-muted);
+  margin: 0 0 16px;
+}
+.workflow-composer-preview {
+  padding: 14px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 16px;
+}
+.workflow-composer-placeholder {
+  color: var(--coco-color-text-muted);
+}
+.workflow-composer-preview-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+  color: var(--coco-color-text-muted);
+}
+.workflow-composer-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-primary);
+  outline: 1px solid var(--coco-color-accent-border);
+}
+.workflow-composer-send {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--coco-color-surface-subtle);
+}
+
+.workflow-skill-disclosure > summary {
+  padding: 8px 0;
+  font-size: var(--coco-text-control);
+  font-weight: 500;
+}
+.workflow-skill-document {
+  max-height: min(300px, 35dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  margin-top: 8px;
+  padding: 20px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 10px;
+  background: var(--coco-color-surface);
+  overflow-wrap: anywhere;
+}
+.workflow-skill-document:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 2px;
+}
+.workflow-skill-document .chat-markdown {
+  font-size: var(--coco-text-control);
+  line-height: 1.65;
+}
+.workflow-skill-document .chat-markdown :is(h1, h2, h3, h4) {
+  font-size: var(--coco-text-control);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 24px 0 8px;
+}
+.workflow-skill-document .chat-markdown > :first-child {
+  margin-top: 0;
+}
+.workflow-skill-document .chat-markdown :is(p, ul, ol) {
+  margin: 8px 0 12px;
+}
+.workflow-skill-document .chat-markdown :is(ul, ol) {
+  padding-left: 22px;
+}
+.workflow-skill-document .chat-markdown li + li {
+  margin-top: 6px;
+}

@@ -138,3 +138,61 @@ test('approval snapshots arguments and a late approval cannot execute an aborted
   await assert.rejects(stopped, /aborted/);
   assert.equal(executed, undefined);
 });
+
+test('curated packages are readable outside the workspace but never writable and cannot escape through symlinks', async () => {
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'coco-skill-permissions-')),
+  );
+  try {
+    const cwd = path.join(root, 'workspace');
+    const skill = path.join(root, 'skills', 'alice', 'weekly-update');
+    fs.mkdirSync(cwd);
+    fs.mkdirSync(skill, { recursive: true });
+    fs.writeFileSync(path.join(skill, 'SKILL.md'), 'Instructions');
+    fs.writeFileSync(path.join(skill, 'template.md'), 'Template');
+    fs.writeFileSync(path.join(root, 'secret.txt'), 'Secret');
+    fs.symlinkSync(
+      path.join(root, 'secret.txt'),
+      path.join(skill, 'escape.md'),
+    );
+    const tools = new Map(
+      createPermissionTools(cwd, undefined, [skill]).map((tool) => [
+        tool.name,
+        tool,
+      ]),
+    );
+    const run = (name, args) =>
+      Promise.resolve().then(() => tools.get(name).execute('test', args));
+    assert.match(
+      JSON.stringify(await run('read', { path: path.join(skill, 'SKILL.md') })),
+      /Instructions/,
+    );
+    assert.match(
+      JSON.stringify(
+        await run('read', { path: path.join(skill, 'template.md') }),
+      ),
+      /Template/,
+    );
+    await assert.rejects(
+      run('read', { path: path.join(skill, 'escape.md') }),
+      /Permission denied/,
+    );
+    await assert.rejects(
+      run('read', { path: path.join(root, 'secret.txt') }),
+      /Permission denied/,
+    );
+    await assert.rejects(
+      run('write', { path: path.join(skill, 'SKILL.md'), content: 'bad' }),
+      /Permission denied/,
+    );
+    await assert.rejects(
+      run('edit', {
+        path: path.join(skill, 'SKILL.md'),
+        edits: [{ oldText: 'Instructions', newText: 'bad' }],
+      }),
+      /Permission denied/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,6 @@
-/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import { useCallback, useEffect, useState } from 'react';
+import useWorkflowChapter from './training/useWorkflowChapter';
+/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import useTokenChapter from './training/useTokenChapter';
 import useModelChapter from './training/useModelChapter';
 import type { StudyState } from '../../shared/study';
@@ -15,6 +16,7 @@ import ToolChapter from './training/ToolChapter';
 import ContextChapter from './training/ContextChapter';
 import TokenChapter from './training/TokenChapter';
 import ModelChapter from './training/ModelChapter';
+import WorkflowChapter from './training/WorkflowChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
@@ -58,16 +60,17 @@ export default function TrainingView({
   const contextProgress = useContextChapterProgress();
   const tokenProgress = useTokenChapter();
   const modelProgress = useModelChapter();
+  const workflowProgress = useWorkflowChapter();
   const questComplete = Boolean(
     [
       toolProgress.completedAt,
       contextProgress.completedAt,
       tokenProgress.completedAt,
       modelProgress.completedAt,
+      workflowProgress.completedAt,
     ][questLevel],
   );
   let questActionLabel = 'Start quest';
-  if (questLevel > 3) questActionLabel = 'Quest coming soon';
   if (startingToolChat) questActionLabel = 'Opening quest…';
   if (questComplete) questActionLabel = 'Completed ✓';
   const [busy, setBusy] = useState(false);
@@ -294,9 +297,9 @@ export default function TrainingView({
           <button
             type="button"
             className="training-primary agentic-chapter-action"
-            disabled={startingToolChat || questComplete || questLevel > 3}
+            disabled={startingToolChat || questComplete}
             onClick={async () => {
-              if (questComplete || questLevel > 3 || startingToolChat) return;
+              if (questComplete || startingToolChat) return;
               setStartingToolChat(true);
               setToolChatError('');
               try {
@@ -305,6 +308,7 @@ export default function TrainingView({
                   'context-chapter-start',
                   'token-chapter-start',
                   'model-chapter-start',
+                  'workflow-chapter-start',
                 ] as const;
                 await api(channels[questLevel]);
                 setQuestOpen(false);
@@ -321,34 +325,12 @@ export default function TrainingView({
           </button>
         }
       >
-        <div className={questLevel <= 3 ? undefined : 'agentic-quest-preview'}>
-          {questLevel > 3 && (
-            <span className="training-eyebrow">AGENT 101</span>
-          )}
+        <div>
           {questLevel === 0 && <ToolChapter />}
           {questLevel === 1 && <ContextChapter />}
           {questLevel === 2 && <TokenChapter />}
           {questLevel === 3 && <ModelChapter />}
-          {questLevel > 3 && (
-            <>
-              <h3>{agentLevels[questLevel].name}</h3>
-              <p>{agentLevels[questLevel].summary}</p>
-              {agentLevels[questLevel].reward && (
-                <div className="agentic-quest-reward">
-                  <strong>
-                    Your chapter reward · {agentLevels[questLevel].reward}
-                  </strong>
-                  <p>{agentLevels[questLevel].detail}</p>
-                </div>
-              )}
-            </>
-          )}
-          {questLevel > 3 && (
-            <p className="training-info">
-              Lesson preview. Chapter completion and feature unlocks are coming
-              next.
-            </p>
-          )}
+          {questLevel === 4 && <WorkflowChapter />}
           {toolChatError && (
             <p role="alert" className="training-error">
               {toolChatError}

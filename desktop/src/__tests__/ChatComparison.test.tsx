@@ -211,3 +211,125 @@ it('keeps a failed peer request local and ignores stale history after changing c
   );
   expect(result.current.messages).toEqual([]);
 });
+
+it('uses the normal chat transcript and composer for the Workflow quest', async () => {
+  const { invoke, emit } = setup();
+  const original = invoke.getMockImplementation()!;
+  invoke.mockImplementation(async (channel: string, payload?: any) => {
+    if (channel === 'tool-chapter-session') return null;
+    if (channel === 'workflow-chapter-session')
+      return {
+        user: 'alice',
+        sessionId: 'workflow',
+        brief: '',
+        draft: null,
+        version: 0,
+        trials: [],
+        feedback: '',
+        savedSkillId: null,
+      };
+    if (channel === 'get-chat-conversations')
+      return [
+        {
+          sessionId: 'workflow',
+          problem: 'Chapter 5 · Build your own skill',
+          messages: [
+            { role: 'tutor', text: 'What task would you like help with?' },
+          ],
+        },
+      ];
+    return original(channel, payload);
+  });
+  render(<SessionChatView />);
+  await act(async () =>
+    emit('session-init', {
+      sessionId: 'workflow',
+      problemStatement: 'Chapter 5 · Build your own skill',
+    }),
+  );
+  expect(
+    await screen.findByText('What task would you like help with?'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('complementary', { name: 'Chapter 5 training' }),
+  ).toHaveTextContent('Build your own skill');
+  const composer = screen.getByPlaceholderText(/Ask Coco/);
+  fireEvent.change(composer, {
+    target: { value: 'Help me create a weekly update skill.' },
+  });
+  fireEvent.keyDown(composer, { key: 'Enter', code: 'Enter' });
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.objectContaining({
+        sessionId: 'workflow',
+        userText: 'Help me create a weekly update skill.',
+      }),
+    ),
+  );
+  expect(
+    invoke.mock.calls.some(([channel]) => channel === 'workflow-chapter-chat'),
+  ).toBe(false);
+  expect(
+    screen.queryByRole('region', { name: 'Workflow quest chat' }),
+  ).not.toBeInTheDocument();
+  const request = invoke.mock.calls.find(
+    ([channel]) => channel === 'send-chat-message',
+  )![1];
+  await act(async () =>
+    emit('chat-stream-event', {
+      sessionId: 'workflow',
+      requestId: request.requestId,
+      type: 'done',
+      guidance: 'Who is the update for?',
+    }),
+  );
+  expect(await screen.findByText('Who is the update for?')).toBeInTheDocument();
+});
+
+it('selects a curated skill from the normal input bar and sends it with the request', async () => {
+  const { invoke, emit } = setup();
+  const original = invoke.getMockImplementation()!;
+  invoke.mockImplementation(async (channel, payload) => {
+    if (channel === 'tool-chapter-session') return null;
+    if (channel === 'curated-skills-list')
+      return [
+        {
+          id: 'weekly',
+          name: 'weekly-update',
+          description: 'Prepare advisor notes.',
+          markdown: '# Instructions',
+          instructions: '# Instructions',
+          files: [],
+          savedAt: 'today',
+        },
+      ];
+    return original(channel, payload);
+  });
+  render(<SessionChatView />);
+  await act(async () =>
+    emit('session-init', { sessionId: 'normal', problemStatement: '' }),
+  );
+  const composer = screen.getByRole('textbox', { name: 'Message Coco' });
+  fireEvent.change(composer, { target: { value: 'Here are my notes.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: /weekly-update Prepare advisor notes/,
+    }),
+  );
+  expect(composer).toHaveValue('/skill:weekly-update Here are my notes.');
+  expect(
+    screen.queryByRole('dialog', { name: 'Your skills' }),
+  ).not.toBeInTheDocument();
+  fireEvent.keyDown(composer, { key: 'Enter', code: 'Enter' });
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith(
+      'send-chat-message',
+      expect.objectContaining({
+        sessionId: 'normal',
+        userText: '/skill:weekly-update Here are my notes.',
+      }),
+    ),
+  );
+});

@@ -1127,3 +1127,17 @@ it('starts the Models comparison and reflects the saved picker reward', async ()
     }),
   ).toBeEnabled();
 });
+
+it('starts the Workflow skill workshop from Chapter 5 in admin mode', async () => {
+  me.role = 'admin';
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: 'Chapter 5: Workflow. Available',
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('workflow-chapter-start'),
+  );
+});

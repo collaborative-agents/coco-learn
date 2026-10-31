@@ -115,6 +115,7 @@ export default class PiHarness {
     text: string;
     images: string[];
     audioData?: string;
+    curatedSkills?: { paths: string[]; revision: string };
     training?: {
       tools: 'none' | 'bash' | 'read';
       instructions: string;
@@ -211,6 +212,7 @@ export default class PiHarness {
         context.tools,
         options.tutorUrl,
         options.training,
+        options.curatedSkills,
       ]);
       if (!this.runtime || key !== this.key) {
         this.runtime?.dispose();
@@ -235,6 +237,9 @@ export default class PiHarness {
           token: options.token,
           context,
           toolMode: options.training?.tools,
+          skillPaths: options.training
+            ? []
+            : (options.curatedSkills?.paths ?? []),
           persistTraining: options.training?.persist,
           requestApproval: async (
             action: ActionApproval,

@@ -52,8 +52,19 @@ export function workspacePath(cwd, input = '.') {
   return resolved;
 }
 
-export function createPermissionTools(cwd, requestApproval) {
+export function createPermissionTools(cwd, requestApproval, skillPaths = []) {
+  const readableSkills = skillPaths.map((root) => fs.realpathSync(root));
   const check = (target) => workspacePath(cwd, target);
+  const checkRead = (target) => {
+    for (const root of readableSkills) {
+      try {
+        return workspacePath(root, path.resolve(cwd, target));
+      } catch {
+        /* Try the workspace next. */
+      }
+    }
+    return check(target);
+  };
   const readFile = async (target) => fs.promises.readFile(check(target));
   const writeFile = async (target, content) =>
     fs.promises.writeFile(check(target), content);
@@ -61,10 +72,10 @@ export function createPermissionTools(cwd, requestApproval) {
   const tools = [
     createReadTool(cwd, {
       operations: {
-        readFile,
-        access,
+        readFile: async (target) => fs.promises.readFile(checkRead(target)),
+        access: async (target) => fs.promises.access(checkRead(target)),
         detectImageMimeType: (target) =>
-          detectSupportedImageMimeTypeFromFile(check(target)),
+          detectSupportedImageMimeTypeFromFile(checkRead(target)),
       },
     }),
     createWriteTool(cwd, {
@@ -98,17 +109,13 @@ export function createPermissionTools(cwd, requestApproval) {
       ...tool,
       execute(id, args, signal, update) {
         if (signal?.aborted) throw new Error('Operation aborted');
-        const target = check(args.path ?? '.');
+        const checkTarget = tool.name === 'read' ? checkRead : check;
+        const target = checkTarget(args.path ?? '.');
         // SDK tools normalize paths again. Refuse aliases whose normalization
         // changes a canonical path (for example a directory with Unicode spaces).
-        if (check(target) !== target)
+        if (checkTarget(target) !== target)
           throw new Error('Permission denied: ambiguous normalized path.');
-        return tool.execute(
-          id,
-          { ...args, path: target },
-          signal,
-          update,
-        );
+        return tool.execute(id, { ...args, path: target }, signal, update);
       },
     })),
     requireApproval(createBashTool(cwd), cwd, requestApproval),

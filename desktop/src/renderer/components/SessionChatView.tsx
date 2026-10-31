@@ -1,3 +1,6 @@
+import useWorkflowChapter from './training/useWorkflowChapter';
+import WorkflowUnlock from './training/WorkflowUnlock';
+import WorkflowTrainingBanner from './training/WorkflowTrainingBanner';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import TokenUsageAccess from './chat/TokenUsageAccess';
 import TokenTrainingBanner from './training/TokenTrainingBanner';
@@ -1535,6 +1538,9 @@ function SessionChatContent() {
   const tokenChapter = useTokenChapter(
     reviewing?.sessionId ?? sessionIdRef.current,
   );
+  const workflowChapter = useWorkflowChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
   const modelChapter = useModelChapter(
     reviewing?.sessionId ?? sessionIdRef.current,
   );
@@ -1676,6 +1682,12 @@ function SessionChatContent() {
           >
             {studyAccess === true ? (
               <>
+                {workflowChapter.session?.savedSkillId && (
+                  <WorkflowUnlock
+                    key={workflowChapter.session.savedSkillId}
+                    session={workflowChapter.session}
+                  />
+                )}
                 {modelChapter.session && (
                   <ModelQuest
                     key={modelChapter.session.sessionId}
@@ -1688,13 +1700,14 @@ function SessionChatContent() {
                 )}
                 {!modelChapter.session && (
                   <>
+                    <WorkflowTrainingBanner session={workflowChapter.session} />
                     <TokenTrainingBanner
-                      session={tokenChapter.session}
-                      completedAt={tokenChapter.completedAt}
                       onSettings={() => {
                         setActivePage('settings');
                         setShowSettings(true);
                       }}
+                      session={tokenChapter.session}
+                      completedAt={tokenChapter.completedAt}
                       busy={
                         sending ||
                         startingNewSession ||

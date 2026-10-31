@@ -257,7 +257,7 @@ describe('onboarding window', () => {
       expect.objectContaining({
         sensing: expect.any(Object),
         tutors: expect.any(Array),
-        defaultTutorId: 'tutor-1',
+        defaultTutorId: 'deepseek-v4-pro',
         credentials: {},
       }),
     );

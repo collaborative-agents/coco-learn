@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  GEMINI_TUTOR_MODEL,
+  DEFAULT_TUTOR_MODEL,
   OBSERVER_MODEL,
 } from '../../../shared/model-catalog';
 import type { ModelDraft, ConnectionTestStatus } from './ModelsStep';
@@ -16,12 +16,14 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
   });
   const [tutorModels, setTutorModels] = useState<ModelDraft[]>([
     {
-      ...GEMINI_TUTOR_MODEL,
+      ...DEFAULT_TUTOR_MODEL,
       apiKey: '',
       baseUrl: '',
     },
   ]);
-  const [defaultTutorId, setDefaultTutorId] = useState('tutor-1');
+  const [defaultTutorId, setDefaultTutorId] = useState<string>(
+    DEFAULT_TUTOR_MODEL.id,
+  );
   const [connectionTests, setConnectionTests] = useState<
     Record<string, ConnectionTestStatus>
   >({});

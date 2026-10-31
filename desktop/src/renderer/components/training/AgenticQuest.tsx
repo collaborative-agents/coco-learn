@@ -1,3 +1,4 @@
+import useWorkflowChapter from './useWorkflowChapter';
 import useModelChapter from './useModelChapter';
 import useTokenChapter from './useTokenChapter';
 import './AgenticQuest.css';
@@ -33,8 +34,10 @@ export const agentLevels = [
   },
   {
     name: 'Workflow',
+    reward: 'Curated skills',
+    detail: 'Browse and reuse your saved workflows in Settings.',
     summary:
-      'A workflow connects instructions, model decisions, and tool calls into a sequence that completes a task. Clear checkpoints help you review the results.',
+      'Explore ways to collaborate with agents, then turn your preferred workflow into a reusable skill.',
   },
 ];
 
@@ -69,11 +72,13 @@ export default function AgenticQuest({
   const contextProgress = useContextChapterProgress();
   const tokenProgress = useTokenChapter();
   const modelProgress = useModelChapter();
+  const workflowProgress = useWorkflowChapter();
   const completedLevels = [
     ...(progress.completedAt ? [1] : []),
     ...(contextProgress.completedAt ? [2] : []),
     ...(tokenProgress.completedAt ? [3] : []),
     ...(modelProgress.completedAt ? [4] : []),
+    ...(workflowProgress.completedAt ? [5] : []),
   ];
   const currentChapter = agentLevels.findIndex(
     (_, index) => !completedLevels.includes(index + 1),

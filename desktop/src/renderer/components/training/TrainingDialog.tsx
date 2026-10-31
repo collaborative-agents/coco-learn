@@ -8,6 +8,7 @@ export default function TrainingDialog({
   onClose,
   busy = false,
   headerAction = null,
+  className = '',
 }: {
   open: boolean;
   title: string;
@@ -15,6 +16,7 @@ export default function TrainingDialog({
   onClose: () => void;
   busy?: boolean;
   headerAction?: ReactNode;
+  className?: string;
 }) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -72,7 +74,7 @@ export default function TrainingDialog({
   return (
     <div className="training-dialog-backdrop" hidden={!open}>
       <div
-        className="training-dialog"
+        className={`training-dialog ${className}`}
         ref={ref}
         role="dialog"
         aria-modal={open || undefined}

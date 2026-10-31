@@ -1,0 +1,20 @@
+.workflow-training-banner .tool-training-goals {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.workflow-training-banner .tool-training-goal[aria-current='step'] {
+  border-color: var(--coco-color-primary);
+}
+.workflow-training-banner > p,
+.workflow-training-banner > button {
+  margin-top: 8px;
+}
+@media (max-width: 900px) {
+  .workflow-training-banner .tool-training-goals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 500px) {
+  .workflow-training-banner .tool-training-goals {
+    grid-template-columns: 1fr;
+  }
+}

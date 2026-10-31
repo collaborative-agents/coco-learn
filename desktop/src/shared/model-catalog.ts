@@ -13,7 +13,21 @@ export const GEMINI_TUTOR_MODEL = {
   model: 'gemini/gemini-4-argon',
 };
 
+export const DEFAULT_TUTOR_MODEL = {
+  id: 'deepseek-v4-pro',
+  label: 'DeepSeek V4 Pro',
+  provider: 'deepseek-ai' as const,
+  model: 'deepseek-ai/deepseek-v4-pro',
+};
+
 export const TUTOR_MODEL_PRESETS = [
+  DEFAULT_TUTOR_MODEL,
+  {
+    id: 'deepseek-v4.1-flash-1017',
+    label: 'DeepSeek V4.1 Flash',
+    provider: 'deepseek-ai' as const,
+    model: 'deepseek-ai/deepseek-v4.1-flash-1017',
+  },
   GEMINI_TUTOR_MODEL,
   {
     id: 'gpt-5.6-sol',

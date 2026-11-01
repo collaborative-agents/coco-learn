@@ -1038,7 +1038,12 @@ const modelTraining = registerModelTraining({
 
 const workflowChatTurns = new Map<
   string,
-  { requestId: string; images: string[]; metrics: LLMCallMetrics[] }
+  {
+    requestId: string;
+    images: string[];
+    metrics: LLMCallMetrics[];
+    sender: WebContents;
+  }
 >();
 const workflowTraining = registerWorkflowTraining({
   ipc: ipcMain,
@@ -1097,7 +1102,7 @@ const workflowTraining = registerWorkflowTraining({
     pendingTaskLabel = 'Chapter 5 · Build your own skill';
     openChatForSession(session.sessionId, pendingTaskLabel);
   },
-  run: async (user, questId, prompt, instructions) => {
+  run: async (user, questId, prompt, instructions, mode) => {
     if (currentUserId !== user || !isAuthenticated || !tutoringAllowed)
       throw new Error('Reopen the quest with your current account.');
     const turn = workflowChatTurns.get(questId);
@@ -1122,7 +1127,11 @@ const workflowTraining = registerWorkflowTraining({
           directory: agentDirectory(questId),
           tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
           token: piBridgeToken,
-          text: prompt,
+          text:
+            mode === 'execute'
+              ? `${instructions}\n\nUser example:\n${prompt}`
+              : prompt,
+          approvalRules: mode === 'execute' ? commandApprovalRules() : undefined,
           images: turn?.images ?? [],
           context: {
             model: model.model,
@@ -1133,9 +1142,23 @@ const workflowTraining = registerWorkflowTraining({
             memory: '',
             messages: [],
           },
-          training: { tools: 'none', instructions, persist: false },
+          training:
+            mode === 'execute'
+              ? undefined
+              : { tools: 'none', instructions, persist: false },
           emit: (event) => {
             record(event);
+            if (
+              turn &&
+              mode === 'execute' &&
+              ['agent_activity', 'tool_call_started', 'tool_call_completed'].includes(event.type)
+            ) {
+              sendChatStreamEvent(turn.sender, {
+                ...event,
+                sessionId: questId,
+                requestId,
+              });
+            }
             if (event.type === 'text_delta' && typeof event.text === 'string')
               output += event.text;
             if (event.type === 'done') {
@@ -5668,7 +5691,12 @@ async function runWorkflowChatTurn(
   images: string[] = [],
 ) {
   const metrics: LLMCallMetrics[] = [];
-  workflowChatTurns.set(sessionId, { requestId, images, metrics });
+  workflowChatTurns.set(sessionId, {
+    requestId,
+    images,
+    metrics,
+    sender: event.sender,
+  });
   try {
     const result = await workflowTraining.chat(event, sessionId, text);
     const guidance = result.messages?.at(-1)?.text ?? '';

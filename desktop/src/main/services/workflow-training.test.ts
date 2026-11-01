@@ -224,6 +224,13 @@ test('chat clarifies, drafts, runs a real trial, and requires confirmation befor
     expect(
       t.call('workflow-chapter-session', session.sessionId).trials[0].output,
     ).toBe('Team update: we shipped a feature.');
+    expect(t.options.run).toHaveBeenLastCalledWith(
+      'alice',
+      session.sessionId,
+      'Notes: we shipped a feature.',
+      expect.stringContaining('Verify created files before reporting success'),
+      'execute',
+    );
     t.options.run.mockResolvedValueOnce(reply('save'));
     await t.call(
       'workflow-chapter-chat',

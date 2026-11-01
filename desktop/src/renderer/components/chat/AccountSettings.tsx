@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { S } from './styles';
-import TokenUsageSettings from './TokenUsageSettings';
 import './Settings.css';
 
 type Profile = Record<string, unknown> & {
@@ -141,7 +140,6 @@ export default function AccountSettings() {
           Try again
         </button>
       )}
-      <TokenUsageSettings />
     </section>
   );
 }

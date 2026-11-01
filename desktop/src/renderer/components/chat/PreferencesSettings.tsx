@@ -19,12 +19,12 @@ export default function PreferencesSettings({
 }: Props) {
   return (
     <section
-      className="settings-subsection"
+      className="workspace-settings-section"
       aria-labelledby="preferences-heading"
     >
-      <h3 id="preferences-heading" className="settings-heading">
+      <h2 id="preferences-heading" className="settings-heading">
         Voice &amp; desktop avatar
-      </h3>
+      </h2>
       <VoiceSettings
         wakeWordEnabled={voice.wakeWordEnabled}
         wakeWordSaving={voice.wakeWordSaving}

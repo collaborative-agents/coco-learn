@@ -74,7 +74,8 @@ describe('deferred suggestion context', () => {
     render(<SessionChatView />);
     fireEvent.click(screen.getByTitle('Settings'));
 
-    expect(await screen.findByText('Coco Health')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }));
+    expect(await screen.findByText('Coco Health')).toBeVisible();
     expect(
       await screen.findByText('Accessibility permission required'),
     ).toBeInTheDocument();
@@ -112,10 +113,12 @@ describe('deferred suggestion context', () => {
     expect(screen.queryByText(/permission required/i)).toBeNull();
   });
 
-  it('keeps the model picker in chat and shows the four requested settings sections', async () => {
+  it('keeps the unlocked model picker in chat and organizes settings by category', async () => {
     const invoke = jest.fn(async (channel: string) => {
       if (channel === 'get-profile')
         return { participantId: 'alex.user', userName: 'Alex' };
+      if (channel === 'model-chapter-progress')
+        return { completedAt: '2026-11-01T00:00:00Z' };
       return null;
     });
     (window as any).electron = {
@@ -143,7 +146,11 @@ describe('deferred suggestion context', () => {
       screen
         .getAllByRole('heading', { level: 2 })
         .map((heading) => heading.textContent),
-    ).toEqual(['Account', 'Coco Health', 'Voice & desktop avatar', 'Memory']);
+    ).toEqual(['Account', 'Voice & desktop avatar']);
+    fireEvent.click(screen.getByRole('button', { name: 'Memory' }));
+    expect(screen.getByRole('heading', { name: 'Memory' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }));
+    expect(screen.getByRole('heading', { name: 'Coco Health' })).toBeVisible();
     [
       'Models & providers',
       'Agent mode',
@@ -232,9 +239,8 @@ describe('deferred suggestion context', () => {
     };
 
     render(<SessionChatView />);
-    fireEvent.click(
-      screen.getByTitle('Settings'),
-    );
+    fireEvent.click(screen.getByTitle('Settings'));
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }));
 
     expect(
       await screen.findByLabelText(

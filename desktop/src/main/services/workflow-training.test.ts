@@ -112,6 +112,7 @@ test('requires a tested current version, saves a complete package, resumes, and 
     const second = t.call('workflow-chapter-start', true);
     expect(second.sessionId).not.toBe(session.sessionId);
     expect(t.call('curated-skills-list')).toHaveLength(1);
+    expect(t.call('workflow-chapter-progress').completedAt).toBe(skill.savedAt);
     t.setUser('bob');
     expect(t.call('curated-skills-list')).toEqual([]);
     expect(t.call('workflow-chapter-session', second.sessionId)).toBeNull();
@@ -163,6 +164,7 @@ test('does not mark failed or stale requests as successful, and blocks concurren
       t.call('workflow-chapter-generate', session.sessionId, 'Again'),
     ).rejects.toThrow('Wait');
     expect(() => t.call('workflow-chapter-start')).toThrow('Wait');
+    expect(() => t.call('workflow-chapter-start', true)).toThrow('Wait');
     t.setUser('bob');
     finish(JSON.stringify(draft));
     await expect(pending).rejects.toThrow('account changed');
@@ -170,6 +172,42 @@ test('does not mark failed or stale requests as successful, and blocks concurren
     expect(
       t.call('workflow-chapter-session', session.sessionId).draft,
     ).toBeNull();
+  } finally {
+    fs.rmSync(t.root, { recursive: true, force: true });
+  }
+});
+
+test('restarts an unfinished quest with a fresh conversation and empty goals', async () => {
+  const t = setup();
+  try {
+    const session = t.call('workflow-chapter-start');
+    t.options.run.mockResolvedValueOnce(
+      JSON.stringify({ action: 'draft', message: 'Try this skill.', draft }),
+    );
+    await t.call('workflow-chapter-chat', session.sessionId, 'Weekly updates');
+    t.options.run.mockResolvedValueOnce('A tested update.');
+    await t.call('workflow-chapter-test', session.sessionId, 'Meeting notes');
+    expect(
+      t.call('workflow-chapter-session', session.sessionId).trials,
+    ).toHaveLength(1);
+
+    const restarted = t.call('workflow-chapter-start', true);
+    expect(restarted.sessionId).not.toBe(session.sessionId);
+    expect(restarted).toMatchObject({
+      brief: '',
+      draft: null,
+      version: 0,
+      trials: [],
+      feedback: '',
+      savedSkillId: null,
+    });
+    expect(restarted.messages ?? []).toEqual([]);
+    expect(restarted.awaitingSave).toBeFalsy();
+    expect(t.options.open).toHaveBeenLastCalledWith(restarted, true);
+    expect(t.call('workflow-chapter-progress').completedAt).toBeNull();
+    expect(t.call('workflow-chapter-session', session.sessionId)).toBeNull();
+    registerWorkflowTraining(t.options);
+    expect(t.call('workflow-chapter-start')).toEqual(restarted);
   } finally {
     fs.rmSync(t.root, { recursive: true, force: true });
   }

@@ -157,8 +157,7 @@ export default function registerWorkflowTraining(options: {
     if (!options.canStart(user))
       throw new Error('Complete Agent 101 Chapter 4 · Models first.');
     const state = read(user);
-    const created =
-      !state.session || (fresh === true && Boolean(state.session.savedSkillId));
+    const created = !state.session || fresh === true;
     if (created)
       state.session = {
         user,

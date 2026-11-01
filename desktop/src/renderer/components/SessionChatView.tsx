@@ -1743,7 +1743,15 @@ function SessionChatContent() {
                 )}
                 {!modelChapter.session && (
                   <>
-                    <WorkflowTrainingBanner session={workflowChapter.session} />
+                    <WorkflowTrainingBanner
+                      session={workflowChapter.session}
+                      busy={
+                        sending ||
+                        startingNewSession ||
+                        checkingUnderstanding ||
+                        voiceState !== 'idle'
+                      }
+                    />
                     <TokenTrainingBanner
                       onSettings={() => {
                         setActivePage('settings');

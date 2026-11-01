@@ -74,7 +74,6 @@
 }
 
 .skill-picker-dialog {
-  width: min(480px, 100%);
   border-radius: 20px;
 }
 .skill-picker-dialog .training-dialog-header {
@@ -153,7 +152,6 @@
 
 /* Quiet surfaces and compact rows, using Coco's existing theme. */
 .skill-picker-dialog {
-  width: min(540px, 100%);
   border-radius: 16px;
 }
 .skill-picker-dialog .training-dialog-header {

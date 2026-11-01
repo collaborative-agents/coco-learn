@@ -89,3 +89,23 @@ test('never hides a question inside a tool group or moves commentary out of orde
     'tools',
   ]);
 });
+
+test('hides blank saved messages and groups tools across whitespace', () => {
+  const activity = [
+    { kind: 'message' as const, text: '' },
+    { kind: 'tool' as const, call: call('1', 'ls') },
+    { kind: 'message' as const, text: ' \n\t' },
+    { kind: 'tool' as const, call: call('2', 'cat README.md') },
+    { kind: 'message' as const, text: '\n' },
+  ];
+  expect(groupActivity(activity)).toEqual([
+    { kind: 'tools', key: '1', calls: [activity[1].call, activity[3].call] },
+  ]);
+  const { container } = render(
+    <AgentActivityList activity={activity} interactive={false} />,
+  );
+  expect(container.querySelector('.tutor-response')).toBeNull();
+  expect(container.querySelector('.tool-activity-group')).toHaveTextContent(
+    '2 steps · Done',
+  );
+});

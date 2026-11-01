@@ -1,12 +1,32 @@
+import { useRef, useState } from 'react';
 import type { WorkflowSession } from '../../../shared/workflow-training';
 import './ToolTrainingBanner.css';
 import './WorkflowTrainingBanner.css';
 
 export default function WorkflowTrainingBanner({
   session,
+  busy = false,
 }: {
   session: WorkflowSession | null;
+  busy?: boolean;
 }) {
+  const [restarting, setRestarting] = useState(false);
+  const restartPending = useRef(false);
+  const [error, setError] = useState('');
+  const restart = async () => {
+    if (busy || restartPending.current) return;
+    restartPending.current = true;
+    setRestarting(true);
+    setError('');
+    try {
+      await window.electron.ipcRenderer.invoke('workflow-chapter-start', true);
+    } catch {
+      setError('Could not restart the quest. Please try again.');
+    } finally {
+      restartPending.current = false;
+      setRestarting(false);
+    }
+  };
   if (!session) return null;
   const tested = session.trials.some(
     (trial) => trial.draftVersion === session.version,
@@ -34,7 +54,18 @@ export default function WorkflowTrainingBanner({
       className="tool-training-banner workflow-training-banner"
       aria-label="Chapter 5 training"
     >
-      <strong>Chapter 5 · Workflow: Build your own skill</strong>
+      <div className="tool-training-heading workflow-training-heading">
+        <strong>Chapter 5 · Workflow: Build your own skill</strong>
+        <button
+          type="button"
+          disabled={busy || restarting}
+          title="Start over in a new conversation. Your saved skills are kept."
+          onClick={restart}
+        >
+          {restarting ? 'Restarting…' : 'Restart conversation'}
+        </button>
+      </div>
+      {error && <p role="alert">{error}</p>}
       <ul
         className="tool-training-goals"
         aria-label="Chapter 5 goals"

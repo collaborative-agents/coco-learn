@@ -397,6 +397,10 @@ export default function TrainingView({
             dayCanOpen(reflectionDay) && (
               <DailyReflectionForm
                 day={reflectionDay.day}
+                deliverableRequired={
+                  reflectionDay.deliverable_required === true
+                }
+                submittedFiles={reflectionDay.submitted_files ?? []}
                 busy={busy}
                 error={error}
                 onClose={() => setReflectionDayNumber(null)}
@@ -412,7 +416,9 @@ export default function TrainingView({
                     if (!result.canceled) {
                       completed = true;
                       setNotice(
-                        `Day ${reflectionDay.day} complete — reflection and screenshot saved locally.`,
+                        reflectionDay.deliverable_required
+                          ? `Day ${reflectionDay.day} complete — your results will appear on this task once grading finishes.`
+                          : `Day ${reflectionDay.day} complete — reflection and screenshot saved locally.`,
                       );
                     }
                   });

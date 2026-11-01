@@ -1,0 +1,59 @@
+.grade-result {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.3));
+  border-radius: 12px;
+}
+
+.grade-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grade-result-header h3 {
+  margin: 0;
+}
+
+.grade-band {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.grade-sections > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.grade-sections dd {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.grade-disclaimer {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.grade-report {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grade-report textarea {
+  min-height: 72px;
+}
+
+.training-deliverable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}

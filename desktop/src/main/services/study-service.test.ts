@@ -521,3 +521,87 @@ it('rejects an incomplete post-assessment submission before reading files', asyn
   expect(fs.stat).not.toHaveBeenCalled();
   expect(requestJson).not.toHaveBeenCalled();
 });
+
+describe('deliverable uploads', () => {
+  const chooseFiles = (...filePaths: string[]) =>
+    (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+      canceled: false,
+      filePaths,
+    });
+
+  it('sends the chosen files to the server for that day', async () => {
+    const { invoke, requestJson } = fixture({ filenames: ['memo.docx'] });
+    chooseFiles('/work/memo.docx', '/work/notes.txt');
+    (fs.stat as jest.Mock).mockResolvedValue({ size: 10 });
+    (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('work'));
+    await expect(invoke('study-submit-deliverable', 3)).resolves.toEqual({
+      filenames: ['memo.docx'],
+    });
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/days/3/submission',
+      'POST',
+      {
+        files: [
+          { filename: 'memo.docx', data: 'd29yaw==' },
+          { filename: 'notes.txt', data: 'd29yaw==' },
+        ],
+      },
+      120000,
+    );
+  });
+
+  it('does nothing when the picker is cancelled', async () => {
+    const { invoke, requestJson } = fixture({});
+    (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+      canceled: true,
+      filePaths: [],
+    });
+    await expect(invoke('study-submit-deliverable', 1)).resolves.toEqual({
+      canceled: true,
+    });
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized and excess selections before uploading', async () => {
+    const { invoke, requestJson } = fixture({});
+    chooseFiles('/a.pdf', '/b.pdf');
+    (fs.stat as jest.Mock).mockResolvedValue({ size: 11 * 1024 * 1024 });
+    await expect(invoke('study-submit-deliverable', 1)).rejects.toThrow(
+      '20 MiB',
+    );
+    chooseFiles('/1', '/2', '/3', '/4', '/5', '/6');
+    await expect(invoke('study-submit-deliverable', 1)).rejects.toThrow(
+      'up to 5 files',
+    );
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid training day', async () => {
+    const { invoke } = fixture({});
+    await expect(() => invoke('study-submit-deliverable', 9)).rejects.toThrow(
+      'Invalid training day',
+    );
+  });
+});
+
+describe('grades', () => {
+  it('reads and reports grades only for valid task ids', async () => {
+    const { invoke, requestJson } = fixture({ status: 'pending' });
+    await invoke('study-grade', 'day-1');
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/grades/day-1',
+      'GET',
+      undefined,
+    );
+    await invoke('study-grade-report', 'set-e', '  Looks wrong  ');
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/grades/set-e/report',
+      'POST',
+      { message: 'Looks wrong' },
+    );
+    expect(() => invoke('study-grade', '../admin')).toThrow('Invalid task');
+    expect(() => invoke('study-grade-report', 'day-1', '  ')).toThrow(
+      'Describe the problem',
+    );
+  });
+});

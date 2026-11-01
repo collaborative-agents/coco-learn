@@ -5,6 +5,7 @@ import {
 } from '../../../shared/study';
 import { SELF_EFFICACY_SCALE } from '../../../shared/post-assessment';
 import type { TrainingSubmission } from '../../../shared/training-submission';
+import GradeResultView from './GradeResultView';
 import { api } from './training-api';
 import './TrainingSubmissionView.css';
 
@@ -38,6 +39,7 @@ export default function TrainingSubmissionView({ day }: { day: number }) {
   const writingKeys = ['q6', 'q7', 'q8'] as const;
   return (
     <section className="training-submission" aria-label="Your submission">
+      <GradeResultView taskId={`day-${day}`} />
       <h3>Your submission</h3>
       {loading && <p role="status">Loading your submission…</p>}
       {error && (

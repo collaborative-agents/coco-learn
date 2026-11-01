@@ -31,6 +31,8 @@ type StudyActivityRecorder = Pick<
 
 const MAX_POST_ASSESSMENT_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_POST_ASSESSMENT_TOTAL_BYTES = 72 * 1024 * 1024;
+const MAX_DELIVERABLE_BYTES = 20 * 1024 * 1024;
+const MAX_DELIVERABLE_FILES = 5;
 
 function validReflection(raw: unknown): DailyReflection {
   if (!raw || typeof raw !== 'object')
@@ -202,6 +204,54 @@ export function registerStudyIpc(
       });
     },
   );
+  ipc.handle('study-submit-deliverable', async (_event, day: unknown) => {
+    const validDay = dayNumber(day);
+    const selected = await dialog.showOpenDialog({
+      title: 'Choose your finished work',
+      buttonLabel: 'Submit files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        {
+          name: 'Your work',
+          extensions: ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'md'],
+        },
+      ],
+    });
+    if (selected.canceled || !selected.filePaths.length)
+      return { canceled: true };
+    if (selected.filePaths.length > MAX_DELIVERABLE_FILES)
+      throw new Error(`Choose up to ${MAX_DELIVERABLE_FILES} files.`);
+    const sizes = await Promise.all(
+      selected.filePaths.map(async (file) => (await fs.stat(file)).size),
+    );
+    if (sizes.reduce((total, size) => total + size, 0) > MAX_DELIVERABLE_BYTES)
+      throw new Error('Your files must total 20 MiB or less.');
+    const files = await Promise.all(
+      selected.filePaths.map(async (file) => ({
+        filename: path.basename(file),
+        data: (await fs.readFile(file)).toString('base64'),
+      })),
+    );
+    return request(`/days/${validDay}/submission`, 'POST', { files }, 120000);
+  });
+  const gradeTask = (taskId: unknown) => {
+    if (typeof taskId !== 'string' || !/^[a-z0-9-]{1,40}$/.test(taskId))
+      throw new Error('Invalid task.');
+    return taskId;
+  };
+  ipc.handle('study-grade', (_event, taskId: unknown) =>
+    request(`/grades/${gradeTask(taskId)}`),
+  );
+  ipc.handle(
+    'study-grade-report',
+    (_event, taskId: unknown, message: unknown) => {
+      if (typeof message !== 'string' || !message.trim())
+        throw new Error('Describe the problem before sending.');
+      return request(`/grades/${gradeTask(taskId)}/report`, 'POST', {
+        message: message.trim().slice(0, 2000),
+      });
+    },
+  );
   ipc.handle('study-admin-users', (_event, after = '') =>
     request(`/admin/users?after=${encodeURIComponent(after)}`),
   );
@@ -261,7 +311,7 @@ export function registerStudyIpc(
       const recorder =
         assessment === 'post-assessment'
           ? activityRecorder
-          : createPostAssessmentActivityRecorder('follow-up-assessment');
+          : createPostAssessmentActivityRecorder(assessment);
       const setActive = (active: boolean) => {
         if (active) activeAssessments.add(assessment);
         else activeAssessments.delete(assessment);

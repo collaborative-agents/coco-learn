@@ -187,7 +187,8 @@ export interface SetEAnswers {
 
 export interface PreAssessmentResult {
   set: PreAssessmentSet;
-  score: number;
+  /** Null while the server is still grading Set E. */
+  score: number | null;
   maxScore: number;
   completedAt: string;
   answers: SetAAnswers | SetEAnswers;

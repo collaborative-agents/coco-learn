@@ -15,6 +15,7 @@ import {
 import FollowUpBriefing, {
   FOLLOW_UP_TOOLKIT,
 } from './training/FollowUpBriefing';
+import GradeResultView from './training/GradeResultView';
 import QuestionConversation from './training/QuestionConversation';
 import SelfEfficacySection from './training/SelfEfficacySection';
 
@@ -200,6 +201,7 @@ export function ExecutionSection({
   onChooseAnswerSheet: () => Promise<string | null>;
   onSubmit: (questionnaire: ExecutionQuestionnaire) => Promise<void>;
 }) {
+  const route = followUp ? 'follow-up-assessment' : 'post-assessment';
   const invokeTask = useCallback(
     (channel: Parameters<typeof invoke>[0], ...args: unknown[]) =>
       invoke(
@@ -357,6 +359,7 @@ export function ExecutionSection({
           <strong>Mission submitted</strong>
         </div>
       )}
+      {complete && <GradeResultView taskId={route} />}
       {!complete && !startedAt && (
         <div className="post-assessment-start">
           <div>
@@ -841,6 +844,13 @@ export default function PostAssessmentPanel({
                 }
               />
             )}
+            {activeSection === 'ai_literacy' &&
+              typeof state.sections.ai_literacy?.score === 'number' && (
+                <p className="training-notice" role="status">
+                  Your score: {state.sections.ai_literacy.score} /{' '}
+                  {state.sections.ai_literacy.max_score}
+                </p>
+              )}
             {activeSection === 'ai_literacy' && (
               <AiLiteracySection
                 complete={Boolean(state.sections.ai_literacy)}

@@ -9,6 +9,7 @@ import TrainingDialog from './TrainingDialog';
 import LikertQuestions from './LikertQuestions';
 import QuestionConversation from './QuestionConversation';
 import { SELF_EFFICACY_SCALE } from '../../../shared/post-assessment';
+import { api } from './training-api';
 import './DailyReflectionForm.css';
 
 const responseKeys = ['q6', 'q7', 'q8'] as const;
@@ -34,19 +35,43 @@ const emptyReflection = (): DailyReflection => ({
 
 export default function DailyReflectionForm({
   day,
+  deliverableRequired = false,
+  submittedFiles = [],
   busy,
   error = '',
   onClose,
   onSubmit,
 }: {
   day: number;
+  deliverableRequired?: boolean;
+  submittedFiles?: string[];
   busy: boolean;
   error?: string;
   onClose: () => void;
   onSubmit: (answers: DailyReflection) => Promise<void>;
 }) {
   const [answers, setAnswers] = useState<DailyReflection>(emptyReflection);
-  const [step, setStep] = useState<'ratings' | 'writing'>('ratings');
+  const [files, setFiles] = useState<string[]>(submittedFiles);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [step, setStep] = useState<'deliverable' | 'ratings' | 'writing'>(
+    deliverableRequired ? 'deliverable' : 'ratings',
+  );
+  const chooseFiles = async () => {
+    setUploading(true);
+    setUploadError('');
+    try {
+      const result = (await api('study-submit-deliverable', day)) as {
+        canceled?: boolean;
+        filenames?: string[];
+      };
+      if (!result.canceled) setFiles(result.filenames ?? []);
+    } catch (reason) {
+      setUploadError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setUploading(false);
+    }
+  };
   const ratingKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
   const ratingsReady = ratingKeys.every(
     (key) => answers[key] >= 1 && answers[key] <= 5,
@@ -77,7 +102,42 @@ export default function DailyReflectionForm({
           </div>
         </div>
 
-        {step === 'ratings' ? (
+        {step === 'deliverable' && (
+          <div className="training-deliverable">
+            <h4>Submit your finished work</h4>
+            <p>
+              Upload everything the task asks you to submit, as PDF, Word,
+              Excel, CSV, or text files. You’ll get a score and feedback after
+              you finish this reflection, and you can replace your files until
+              then.
+            </p>
+            {uploadError && (
+              <p role="alert" className="training-error">
+                {uploadError}
+              </p>
+            )}
+            {files.length > 0 && (
+              <ul aria-label="Files submitted">
+                {files.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            )}
+            <button type="button" disabled={uploading} onClick={chooseFiles}>
+              {uploading && 'Checking your files…'}
+              {!uploading && (files.length ? 'Replace files' : 'Choose files')}
+            </button>
+            <button
+              type="button"
+              className="training-primary"
+              disabled={uploading || !files.length}
+              onClick={() => setStep('ratings')}
+            >
+              Next: ratings
+            </button>
+          </div>
+        )}
+        {step === 'ratings' && (
           <>
             <LikertQuestions
               questions={DAILY_REFLECTION_RATING_QUESTIONS.map(
@@ -101,7 +161,8 @@ export default function DailyReflectionForm({
               Next: written reflection
             </button>
           </>
-        ) : (
+        )}
+        {step === 'writing' && (
           <button
             type="button"
             disabled={busy}

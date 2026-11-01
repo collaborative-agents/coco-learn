@@ -70,10 +70,10 @@ function resultFromServer(
   if (!raw || typeof raw !== 'object')
     throw new Error('The study server returned an invalid assessment result.');
   const candidate = raw as Record<string, unknown>;
-  const responses = candidate.responses;
+  const { responses } = candidate;
   if (
     candidate.set !== expectedSet ||
-    !Number.isInteger(candidate.score) ||
+    !(candidate.score === null || Number.isInteger(candidate.score)) ||
     !Number.isInteger(candidate.max_score) ||
     typeof candidate.completed_at !== 'string' ||
     !responses ||
@@ -82,7 +82,7 @@ function resultFromServer(
     throw new Error('The study server returned an invalid assessment result.');
   return {
     set: expectedSet,
-    score: Number(candidate.score),
+    score: candidate.score === null ? null : Number(candidate.score),
     maxScore: Number(candidate.max_score),
     completedAt: candidate.completed_at,
     answers: responses as SetAAnswers | SetEAnswers,
@@ -107,11 +107,15 @@ function stateFromServer(raw: unknown): PreAssessmentState {
   return state;
 }
 
-const submissionBody = (result: PreAssessmentResult) => ({
-  responses: result.answers,
-  score: result.score,
-  max_score: result.maxScore,
-});
+// Set A is scored in the app. Set E is graded on the server.
+const submissionBody = (result: PreAssessmentResult) =>
+  result.set === 'A'
+    ? {
+        responses: result.answers,
+        score: result.score,
+        max_score: result.maxScore,
+      }
+    : { responses: result.answers };
 
 export async function syncPreAssessmentState(
   userDataPath: string,
@@ -182,7 +186,7 @@ function scoreSetA(raw: unknown): { answers: SetAAnswers; score: number } {
   };
 }
 
-function scoreSetE(raw: unknown): { answers: SetEAnswers; score: number } {
+function validSetE(raw: unknown): SetEAnswers {
   if (!raw || typeof raw !== 'object')
     throw new Error('Please answer every question.');
   const candidate = raw as Partial<SetEAnswers>;
@@ -193,23 +197,7 @@ function scoreSetE(raw: unknown): { answers: SetEAnswers; score: number } {
   };
   if (Object.values(answers).some((answer) => answer.length < 3))
     throw new Error('Please answer every question before finishing.');
-
-  const all = Object.values(answers).join(' ').toLowerCase();
-  const source = answers.e2.toLowerCase();
-  const points = [
-    /state|local|jurisdiction/.test(all) &&
-      /require|law|rule|differ|specific|department/.test(all),
-    /minimum wage|\$?7\.25|wage/.test(all) &&
-      /current|federal|state|local|department of labor|\bdol\b/.test(all),
-    /benefit|health insurance|healthcare/.test(all) &&
-      /state|employer size|number of employees|employee count|hours|threshold|aca/.test(
-        all,
-      ),
-    /irs(?:\.gov)?|department of labor|dol(?:\.gov)?|state.{0,30}(?:labor|workforce|government|\.gov)|employment attorney|employment lawyer|official government/.test(
-      source,
-    ),
-  ];
-  return { answers, score: points.filter(Boolean).length };
+  return answers;
 }
 
 export function registerPreAssessmentIpc(
@@ -241,7 +229,9 @@ export function registerPreAssessmentIpc(
       let proposed = state.sets[set];
       if (!proposed) {
         const scored =
-          set === 'A' ? scoreSetA(rawAnswers) : scoreSetE(rawAnswers);
+          set === 'A'
+            ? scoreSetA(rawAnswers)
+            : { answers: validSetE(rawAnswers), score: null };
         proposed = {
           set,
           score: scored.score,

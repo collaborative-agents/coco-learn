@@ -11,6 +11,7 @@ import {
   type SetAAnswers,
   type SetEAnswers,
 } from '../../shared/pre-assessment';
+import GradeResultView from './training/GradeResultView';
 import QuestionConversation from './training/QuestionConversation';
 
 const SET_E_CONVERSATION = SET_E_QUESTIONS.map(({ id, question }, index) => ({
@@ -27,6 +28,18 @@ const invoke = (
 const emptyEAnswers: SetEAnswers = { e1: '', e2: '', e3: '' };
 
 function ScoreCard({ result }: { result: PreAssessmentResult }) {
+  if (result.score === null)
+    return (
+      <div className="pre-assessment-score pre-assessment-score--growing">
+        <span className="pre-assessment-score-icon" aria-hidden>
+          ✦
+        </span>
+        <div>
+          <h3>Grading your answers…</h3>
+          <p>Your score will appear here when grading finishes.</p>
+        </div>
+      </div>
+    );
   const strong = result.score / result.maxScore >= 0.75;
   return (
     <div
@@ -204,6 +217,7 @@ function SetEChallenge({
       </div>
 
       {complete && result && <ScoreCard result={result} />}
+      {complete && <GradeResultView taskId="set-e" />}
 
       <QuestionConversation
         idPrefix="set-e"

@@ -1,3 +1,4 @@
+import isQuestConversation from '../shared/quest-conversations';
 /**
  * Local, cross-session storage for conversations shown in the chat panel.
  *
@@ -24,6 +25,7 @@ export interface StoredChatMessage {
   role: 'user' | 'tutor';
   text: string;
   images?: string[];
+  screenContext?: string;
   isError?: boolean;
   id?: string;
   ts?: number;
@@ -80,6 +82,7 @@ export const INTERRUPTED_REPLY_TEXT =
   "Coco's reply was interrupted before it finished. Please retry.";
 
 export interface StoredConversation {
+  agent101Quest?: boolean;
   sessionId: string;
   title?: string;
   problem: string;
@@ -99,7 +102,16 @@ export function tutorRestoreMessage(message: StoredChatMessage): {
 } {
   return {
     role: message.suggestion ? 'suggestion' : message.role,
-    text: message.text,
+    text:
+      message.role === 'user' && message.screenContext?.trim()
+        ? [
+            '<screen_observation>',
+            "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
+            message.screenContext.trim(),
+            '</screen_observation>',
+            message.text,
+          ].join('\n')
+        : message.text,
   };
 }
 
@@ -133,8 +145,10 @@ function sameMessage(
 ): boolean {
   return (
     left.role === right.role &&
-    left.text === right.text &&
-    JSON.stringify(left.images ?? []) === JSON.stringify(right.images ?? [])
+    ((left.requestId && left.requestId === right.requestId) ||
+      (left.text === right.text &&
+        JSON.stringify(left.images ?? []) ===
+          JSON.stringify(right.images ?? [])))
   );
 }
 
@@ -191,7 +205,16 @@ export function mergeConversationMessages(
     // Conversations do not support deleting turns, so any shorter snapshot is
     // stale or only partially rehydrated.
     if (incoming.length < existing.length) return existing;
-    return incoming;
+    // Main may have settled a background run while this renderer still holds
+    // an older streaming snapshot. Never regress that completed reply.
+    return incoming.map((message) => {
+      const saved = message.requestId
+        ? existing.find((item) => item.requestId === message.requestId)
+        : undefined;
+      return saved && !saved.isStreaming && message.isStreaming
+        ? saved
+        : message;
+    });
   }
 
   const maxOverlap = Math.min(existing.length, incoming.length);
@@ -206,7 +229,9 @@ export function mergeConversationMessages(
   return [...existing, ...incoming];
 }
 
-export function readConversations(): StoredConversation[] {
+export function readConversations(
+  isActive?: (requestId: string) => boolean,
+): StoredConversation[] {
   try {
     const parsed = JSON.parse(fs.readFileSync(storePath(), 'utf8')) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -231,7 +256,12 @@ export function readConversations(): StoredConversation[] {
             : undefined,
         messages: conversation.messages.map((message) => ({
           ...message,
-          activity: parseAgentActivity(message.activity, true),
+          activity: parseAgentActivity(
+            message.activity,
+            isActive
+              ? !(message.requestId && isActive(message.requestId))
+              : false,
+          ),
         })),
         title:
           typeof conversation.title === 'string' && conversation.title.trim()
@@ -289,6 +319,9 @@ export function saveConversation(input: {
     return {
       role: message.role,
       text: message.text,
+      ...(typeof message.screenContext === 'string'
+        ? { screenContext: message.screenContext }
+        : {}),
       tutorMetrics: parseMetrics(message.tutorMetrics),
       observerMetrics: parseMetrics(message.observerMetrics),
       ...(message.activity
@@ -335,6 +368,10 @@ export function saveConversation(input: {
       : existing?.tutorModelId;
   const next: StoredConversation = {
     sessionId: input.sessionId,
+    ...(isQuestConversation(existing ?? {}) ||
+    isQuestConversation({ problem: requestedProblem })
+      ? { agent101Quest: true }
+      : {}),
     title:
       (existing?.messages.length ? existing.title : undefined) ||
       deriveConversationTitle(

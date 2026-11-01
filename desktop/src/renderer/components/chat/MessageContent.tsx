@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { currencySafeMarkdown } from '../currency-markdown';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
@@ -11,16 +12,19 @@ import type { ChatMessage } from './types';
 import { parseGuidance, makeMessageId } from './message-format';
 import { S } from './styles';
 import './MessageContent.css';
+import ResponseCodeBlock from './ResponseCodeBlock';
 
 // A fenced code block with a Copy button that stays put while the code
 // scrolls sideways.
 function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
-  const preRef = useRef<HTMLPreElement>(null);
+  const code = React.isValidElement<{ children?: unknown }>(children)
+    ? children.props.children
+    : null;
   const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(
-        (preRef.current?.textContent ?? '').replace(/\n$/, ''),
+        (typeof code === 'string' ? code : '').replace(/\n$/, ''),
       );
       setStatus('copied');
     } catch {
@@ -28,14 +32,14 @@ function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
     }
     setTimeout(() => setStatus('idle'), 2000);
   };
+  if (typeof code !== 'string')
+    return <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>;
   let label = 'Copy';
   if (status === 'copied') label = 'Copied ✓';
   if (status === 'failed') label = 'Copy failed';
   return (
     <div className="chat-code-block">
-      <pre ref={preRef} {...props}>
-        {children}
-      </pre>
+      <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>
       <button
         type="button"
         className="chat-code-copy"
@@ -91,7 +95,7 @@ export function TutorMessage({ text }: { text: string }) {
             rehypePlugins={[rehypeKatex]}
             components={markdownComponents}
           >
-            {g.mainText ?? g.text}
+            {currencySafeMarkdown(g.mainText ?? g.text)}
           </Markdown>
         </div>
       )}
@@ -131,10 +135,7 @@ export function TutorMessage({ text }: { text: string }) {
         </figure>
       )}
       {g.coaching && (
-        <aside
-          className="tutor-literacy-card"
-          aria-label="Suggestion"
-        >
+        <aside className="tutor-literacy-card" aria-label="Suggestion">
           <div className="tutor-literacy-header">
             <span className="tutor-literacy-title">
               <svg
@@ -169,7 +170,7 @@ export function TutorMessage({ text }: { text: string }) {
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {g.coaching}
+              {currencySafeMarkdown(g.coaching)}
             </Markdown>
           </div>
         </aside>
@@ -266,7 +267,7 @@ export function SuggestionMessage({
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {detail}
+              {currencySafeMarkdown(detail)}
             </Markdown>
           </div>
         ))}

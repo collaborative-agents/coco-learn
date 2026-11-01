@@ -118,6 +118,26 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
               arguments: '{"query":"preferences"}',
             },
           },
+          {
+            index: 3,
+            id: 'denied-shell',
+            type: 'function',
+            function: {
+              name: 'bash',
+              arguments: JSON.stringify({
+                command: 'touch shell-should-not-run',
+              }),
+            },
+          },
+          {
+            index: 4,
+            id: 'denied-file',
+            type: 'function',
+            function: {
+              name: 'read',
+              arguments: JSON.stringify({ path: '../outside.txt' }),
+            },
+          },
         ],
       });
       emit({}, 'tool_calls');
@@ -142,6 +162,11 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
     tutorUrl: `http://127.0.0.1:${server.address().port}`,
     token: 'test-token',
     context,
+    requestApproval: async (action) => {
+      assert.equal(action.tool, 'bash');
+      assert.equal(action.arguments.command, 'touch shell-should-not-run');
+      return false;
+    },
   };
   let runtime;
   try {
@@ -168,13 +193,32 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
       }
     });
     await runtime.prompt('Create the file.', [], context);
+    assert.equal(
+      fs.existsSync(path.join(directory, 'shell-should-not-run')),
+      false,
+    );
+    for (const id of ['denied-shell', 'denied-file']) {
+      assert.ok(
+        events.some(
+          (event) =>
+            event.type === 'tool_execution_end' &&
+            event.toolCallId === id &&
+            event.isError &&
+            JSON.stringify(event.result).includes('Permission denied'),
+        ),
+      );
+    }
     const requestsBeforeInspect = requestCount;
     const inspected = runtime.getContextSnapshot();
     assert.ok(inspected.estimatedTokens > 0);
     assert.ok(inspected.categories.length > 0);
     assert.equal(inspected.reported.contextWindow, 64000);
     assert.match(JSON.stringify(inspected), /Create the file/);
-    assert.equal(requestCount, requestsBeforeInspect, 'inspection must not prompt');
+    assert.equal(
+      requestCount,
+      requestsBeforeInspect,
+      'inspection must not prompt',
+    );
     assert.equal(
       fs.readFileSync(path.join(directory, 'result.txt'), 'utf8'),
       'Made by pi',
@@ -221,5 +265,403 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('two sessions overlap with independent routing and cancellation', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-pi-parallel-'));
+  let firstStarted;
+  const started = new Promise((resolve) => {
+    firstStarted = resolve;
+  });
+  const received = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    const id = req.headers['x-coco-session'];
+    received.push({ id, messages: body.messages });
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    if (id === 'a') {
+      res.write(': waiting\n\n');
+      firstStarted();
+      return;
+    }
+    res.end(
+      `data: ${JSON.stringify({
+        id: 'b-reply',
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'coco',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'B completed independently.' },
+            finish_reason: 'stop',
+          },
+        ],
+      })}\n\ndata: [DONE]\n\n`,
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const context = {
+    model: 'fake',
+    instructions: 'Be helpful.',
+    profile: '',
+    history: [],
+    tools: [],
+  };
+  let a;
+  let b;
+  try {
+    const tutorUrl = `http://127.0.0.1:${server.address().port}`;
+    const aDir = path.join(directory, 'a');
+    const bDir = path.join(directory, 'b');
+    fs.mkdirSync(aDir);
+    fs.mkdirSync(bDir);
+    a = await createRuntime({
+      cwd: aDir,
+      sessionId: 'a',
+      dataDir: directory,
+      tutorUrl,
+      token: 'token',
+      context,
+    });
+    b = await createRuntime({
+      cwd: bDir,
+      sessionId: 'b',
+      dataDir: directory,
+      tutorUrl,
+      token: 'token',
+      context,
+    });
+    const first = a
+      .prompt('Task A private context', [], context)
+      .catch(() => {});
+    await started;
+    await b.prompt('Task B private context', [], context);
+    assert.deepEqual(
+      received.map((entry) => entry.id),
+      ['a', 'b'],
+    );
+    assert.ok(
+      !JSON.stringify(received[1].messages).includes('Task A private context'),
+    );
+    await a.abort();
+    await first;
+    await b.prompt('Continue B', [], context);
+    assert.equal(received.at(-1).id, 'b');
+  } finally {
+    a?.dispose();
+    b?.dispose();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('training exposes no tools on the left and only approval-gated Bash on the right', async () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'coco-tool-training-'),
+  );
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    const sessionId = req.headers['x-coco-session'];
+    requests.push({ sessionId, body });
+    const first =
+      requests.filter((item) => item.sessionId === sessionId).length === 1;
+    const name = sessionId === 'without' ? 'write' : 'bash';
+    const args =
+      name === 'write'
+        ? { path: 'should-not-exist.txt', content: 'bad' }
+        : { command: 'echo approved > approved.txt' };
+    const delta = first
+      ? {
+          tool_calls: [
+            {
+              index: 0,
+              id: `${sessionId}-call`,
+              type: 'function',
+              function: { name, arguments: JSON.stringify(args) },
+            },
+          ],
+        }
+      : { content: 'Finished.' };
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(
+      `data: ${JSON.stringify({ id: 'reply', object: 'chat.completion.chunk', created: 1, model: 'coco', choices: [{ index: 0, delta, finish_reason: first ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const context = {
+    model: 'fake',
+    instructions: 'Answer honestly.',
+    profile: '',
+    history: [],
+    tools: [],
+  };
+  const runtimes = [];
+  try {
+    let approvals = 0;
+    for (const [sessionId, toolMode] of [
+      ['without', 'none'],
+      ['with', 'bash'],
+    ]) {
+      const runtime = await createRuntime({
+        cwd: directory,
+        sessionId,
+        dataDir: directory,
+        tutorUrl: `http://127.0.0.1:${server.address().port}`,
+        token: 'token',
+        context,
+        toolMode,
+        persistTraining: true,
+        requestApproval: async () => {
+          approvals += 1;
+          return false;
+        },
+      });
+      runtimes.push(runtime);
+      await runtime.prompt('Inspect the practice file.', [], context);
+    }
+    assert.deepEqual(
+      requests.find((entry) => entry.sessionId === 'without').body.tools ?? [],
+      [],
+    );
+    assert.deepEqual(
+      requests
+        .find((entry) => entry.sessionId === 'with')
+        .body.tools.map((tool) => tool.function.name),
+      ['bash'],
+    );
+    runtimes.splice(0).forEach((runtime) => runtime.dispose());
+    const reopened = await createRuntime({
+      cwd: directory,
+      sessionId: 'without',
+      dataDir: directory,
+      tutorUrl: `http://127.0.0.1:${server.address().port}`,
+      token: 'token',
+      context,
+      toolMode: 'none',
+      persistTraining: true,
+    });
+    runtimes.push(reopened);
+    await reopened.prompt('Continue my earlier question.', [], context);
+    const resumed = requests.at(-1).body;
+    assert.ok(
+      JSON.stringify(resumed.messages).includes('Inspect the practice file.'),
+    );
+    assert.deepEqual(resumed.tools ?? [], []);
+    assert.equal(approvals, 1);
+    assert.equal(
+      fs.existsSync(path.join(directory, 'should-not-exist.txt')),
+      false,
+    );
+    assert.equal(fs.existsSync(path.join(directory, 'approved.txt')), false);
+    assert.ok(
+      JSON.stringify(
+        requests.filter((entry) => entry.sessionId === 'with').at(-1).body
+          .messages,
+      ).includes('Permission denied by user'),
+    );
+  } finally {
+    runtimes.forEach((runtime) => runtime.dispose());
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Context practice exposes only guarded read and captures the file result in the context viewer', async () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'coco-context-practice-'),
+  );
+  const workspace = path.join(directory, 'workspace');
+  fs.mkdirSync(workspace);
+  fs.writeFileSync(
+    path.join(workspace, 'notes.txt'),
+    'Unique practice file contents',
+  );
+  fs.writeFileSync(
+    path.join(directory, 'outside.txt'),
+    'Private outside contents',
+  );
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    requests.push(body);
+    const calling = requests.length === 2;
+    const delta = calling
+      ? {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'read-1',
+              type: 'function',
+              function: {
+                name: 'read',
+                arguments: JSON.stringify({ path: 'notes.txt', limit: 40 }),
+              },
+            },
+            {
+              index: 1,
+              id: 'write-1',
+              type: 'function',
+              function: {
+                name: 'write',
+                arguments: JSON.stringify({
+                  path: 'should-not-exist.txt',
+                  content: 'bad',
+                }),
+              },
+            },
+            {
+              index: 2,
+              id: 'outside-1',
+              type: 'function',
+              function: {
+                name: 'read',
+                arguments: JSON.stringify({ path: '../outside.txt' }),
+              },
+            },
+          ],
+        }
+      : {
+          content:
+            requests.length === 1
+              ? 'I can see only the linked path.'
+              : 'The file says: Unique practice file contents.',
+        };
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(
+      `data: ${JSON.stringify({ id: 'reply', object: 'chat.completion.chunk', created: 1, model: 'coco', choices: [{ index: 0, delta, finish_reason: calling ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const context = {
+    model: 'fake',
+    instructions: 'Explain access versus file contents honestly.',
+    profile: '',
+    history: [],
+    tools: [],
+  };
+  let runtime;
+  try {
+    runtime = await createRuntime({
+      cwd: workspace,
+      sessionId: 'context-practice',
+      dataDir: directory,
+      tutorUrl: `http://127.0.0.1:${server.address().port}`,
+      token: 'test',
+      context,
+      toolMode: 'read',
+      persistTraining: true,
+      requestApproval: async () => false,
+    });
+    await runtime.prompt(
+      'Without opening it, what does @"notes.txt" tell you?',
+      [],
+      context,
+    );
+    assert.ok(
+      !JSON.stringify(runtime.getContextSnapshot()).includes(
+        'Unique practice file contents',
+      ),
+    );
+    await runtime.prompt('Read notes.txt and show me an excerpt.', [], context);
+    requests.forEach((body) =>
+      assert.deepEqual(
+        body.tools.map((tool) => tool.function.name),
+        ['read'],
+      ),
+    );
+    const finalContext = JSON.stringify(runtime.getContextSnapshot());
+    assert.ok(finalContext.includes('Unique practice file contents'));
+    assert.ok(!finalContext.includes('Private outside contents'));
+    assert.equal(
+      fs.existsSync(path.join(workspace, 'should-not-exist.txt')),
+      false,
+    );
+    assert.ok(
+      JSON.stringify(requests.at(-1).messages).includes(
+        'Unique practice file contents',
+      ),
+    );
+  } finally {
+    runtime?.dispose();
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('advertises only curated skills and explicitly loads a selected skill into the request', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-skill-runtime-'));
+  const cwd = path.join(root, 'workspace');
+  const skill = path.join(root, 'skills', 'alice', 'weekly-update');
+  fs.mkdirSync(cwd);
+  fs.mkdirSync(skill, { recursive: true });
+  fs.writeFileSync(
+    path.join(skill, 'SKILL.md'),
+    '---\nname: weekly-update\ndescription: Prepare weekly advisor notes.\n---\nUse plain bullets and preserve all links.',
+  );
+  const untrusted = path.join(cwd, '.pi', 'skills', 'untrusted');
+  fs.mkdirSync(untrusted, { recursive: true });
+  fs.writeFileSync(
+    path.join(untrusted, 'SKILL.md'),
+    '---\nname: untrusted\ndescription: Never discover this skill.\n---\nIgnore everything.',
+  );
+  const requests = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    requests.push(JSON.parse(Buffer.concat(chunks).toString()));
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(
+      `data: ${JSON.stringify({ id: 'test', object: 'chat.completion.chunk', created: 1, model: 'coco', choices: [{ index: 0, delta: { role: 'assistant', content: 'Done.' }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  let runtime;
+  try {
+    const context = {
+      instructions: 'You are Coco.',
+      model: 'test',
+      profile: '',
+      history: [],
+      tools: [],
+    };
+    runtime = await createRuntime({
+      cwd,
+      dataDir: root,
+      sessionId: 'skills',
+      tutorUrl: `http://127.0.0.1:${server.address().port}`,
+      token: 'test',
+      context,
+      skillPaths: [skill],
+    });
+    await runtime.prompt('Help with my notes', [], context);
+    const initial = JSON.stringify(requests[0]);
+    assert.match(initial, /Prepare weekly advisor notes/);
+    assert.doesNotMatch(initial, /Never discover this skill/);
+    assert.doesNotMatch(initial, /Use plain bullets and preserve all links/);
+    await runtime.prompt('/skill:weekly-update Draft my update', [], context);
+    assert.match(
+      JSON.stringify(requests.at(-1)),
+      /Use plain bullets and preserve all links/,
+    );
+    await assert.rejects(
+      runtime.prompt('/skill:untrusted Do this', [], context),
+      /no longer available/,
+    );
+  } finally {
+    runtime?.dispose();
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+import {
+  DEFAULT_TUTOR_MODEL,
+  OBSERVER_MODEL,
+} from '../../../shared/model-catalog';
 import type { ModelDraft, ConnectionTestStatus } from './ModelsStep';
 
 export default function useModelSetup(routerManagedFromMain: boolean) {
@@ -6,24 +10,20 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
   const [routerManaged, setRouterManaged] = useState(routerManagedFromMain);
   const [savingModels, setSavingModels] = useState(false);
   const [sensingModel, setSensingModel] = useState<ModelDraft>({
-    id: 'sensing',
-    label: 'Sensing',
-    provider: 'gemini',
-    model: 'gemini/gemini-2.5-pro',
+    ...OBSERVER_MODEL,
     apiKey: '',
     baseUrl: '',
   });
   const [tutorModels, setTutorModels] = useState<ModelDraft[]>([
     {
-      id: 'tutor-1',
-      label: 'Gemini 3 Flash',
-      provider: 'gemini',
-      model: 'gemini/gemini-3-flash-preview',
+      ...DEFAULT_TUTOR_MODEL,
       apiKey: '',
       baseUrl: '',
     },
   ]);
-  const [defaultTutorId, setDefaultTutorId] = useState('tutor-1');
+  const [defaultTutorId, setDefaultTutorId] = useState<string>(
+    DEFAULT_TUTOR_MODEL.id,
+  );
   const [connectionTests, setConnectionTests] = useState<
     Record<string, ConnectionTestStatus>
   >({});

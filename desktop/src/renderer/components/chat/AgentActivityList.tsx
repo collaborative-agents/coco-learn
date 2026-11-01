@@ -1,4 +1,10 @@
-import type { AgentActivity } from '../../../shared/agent-execution';
+import { useContext } from 'react';
+import ToolViewerAccess from './ToolViewerAccess';
+import type {
+  AgentActivity,
+  PermissionRequest,
+} from '../../../shared/agent-execution';
+import PermissionCard from './PermissionCard';
 import type { TutorToolCall } from '../observation-types';
 import { ToolCallCard } from './ToolCallCard';
 import { TutorMessage } from './MessageContent';
@@ -10,10 +16,13 @@ export function groupActivity(activity: AgentActivity[]) {
     | { kind: 'tools'; calls: TutorToolCall[]; key: string }
     | { kind: 'message'; text: string; key: string }
     | { kind: 'question'; call: TutorToolCall; key: string }
+    | { kind: 'permission'; request: PermissionRequest; key: string }
   )[] = [];
   activity.forEach((item, index) => {
     if (item.kind === 'message') {
       groups.push({ ...item, key: `message-${index}` });
+    } else if (item.kind === 'permission') {
+      groups.push({ ...item, key: item.request.id });
     } else if (item.call.name === 'ask_user_question') {
       groups.push({ kind: 'question', call: item.call, key: item.call.id });
     } else {
@@ -27,6 +36,15 @@ export function groupActivity(activity: AgentActivity[]) {
 }
 
 function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
+  const unlocked = useContext(ToolViewerAccess);
+  if (!unlocked)
+    return (
+      <>
+        {calls.map((call) => (
+          <ToolCallCard key={call.id} call={call} />
+        ))}
+      </>
+    );
   if (calls.length === 1) return <ToolCallCard call={calls[0]} />;
   const running = calls.find((call) => call.status === 'running');
   const failed = calls.filter((call) => call.status === 'error').length;
@@ -60,15 +78,26 @@ function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
 }
 
 export default function AgentActivityList({
+  requestId,
   activity,
   interactive,
 }: {
+  requestId?: string;
   activity: AgentActivity[];
   interactive: boolean;
 }) {
   return (
     <div style={S.toolStack}>
       {groupActivity(activity).map((item) => {
+        if (item.kind === 'permission')
+          return (
+            <PermissionCard
+              key={item.key}
+              request={item.request}
+              requestId={requestId}
+              interactive={interactive}
+            />
+          );
         if (item.kind === 'tools')
           return <ToolGroup key={item.key} calls={item.calls} />;
         if (item.kind === 'question')
@@ -77,6 +106,7 @@ export default function AgentActivityList({
               key={item.key}
               call={item.call}
               interactive={interactive}
+              requestId={requestId}
             />
           );
         return (
@@ -88,3 +118,5 @@ export default function AgentActivityList({
     </div>
   );
 }
+
+AgentActivityList.defaultProps = { requestId: undefined };

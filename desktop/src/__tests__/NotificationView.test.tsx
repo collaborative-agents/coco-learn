@@ -174,7 +174,8 @@ describe('LaTeX inside JSON guidance', () => {
 
   it('handles LLM-style unescaped LaTeX in JSON (repairJsonEscapes path)', () => {
     // Simulate what an LLM emits: \frac is not doubled in the JSON string
-    const raw = '{"guidance": "Minimize $\\frac{1}{N}\\sum_i L_i$ at each step."}';
+    const raw =
+      '{"guidance": "Minimize $\\frac{1}{N}\\sum_i L_i$ at each step."}';
     const { container } = render(<NotificationBubble message={raw} />);
     // Should still render — either via repaired JSON or fallback
     expect(container).toBeTruthy();
@@ -282,7 +283,9 @@ describe('instant suggestion actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Chat with Coco' }));
     expect(onChat).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: /Run with Coco|Copy|Got it/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Run with Coco|Copy|Got it/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps the opposite rating available for a correction', () => {
@@ -321,7 +324,9 @@ describe('instant suggestion actions', () => {
           prompt: 'Explain this error.',
           copyText: 'Explain this error.',
           targetTool: 'chatgpt',
-          availableTools: [{ id: 'chatgpt', label: 'ChatGPT', category: 'chatbot' }],
+          availableTools: [
+            { id: 'chatgpt', label: 'ChatGPT', category: 'chatbot' },
+          ],
         }}
         onChatAboutSuggestion={onChat}
         onRunSuggestion={onRun}
@@ -330,7 +335,9 @@ describe('instant suggestion actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run with Coco' }));
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onChat).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Chat with Coco|Open |Copy/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Chat with Coco|Open |Copy/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('puts "← Why" and the action in one row on the action page', () => {
@@ -703,6 +710,114 @@ describe('interactive notification locking', () => {
     expect(
       screen.getByRole('button', { name: 'Show me how →' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('session invite pop-up', () => {
+  it('shows the task and starts the session from "Help me with this"', () => {
+    const listeners = new Map<string, (...args: any[]) => void>();
+    const sendMessage = jest.fn();
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: {
+        ipcRenderer: {
+          sendMessage,
+          invoke: jest.fn(),
+          on: (channel: string, callback: (...args: any[]) => void) => {
+            listeners.set(channel, callback);
+            return () => listeners.delete(channel);
+          },
+        },
+      },
+    });
+
+    render(<NotificationView />);
+    act(() => {
+      listeners.get('notification')?.({
+        notificationId: 'notif-1',
+        message: 'Drafting a social media thread',
+        actionLabel: 'Help me with this',
+        notifType: 'session-start-prompt',
+      });
+    });
+
+    expect(screen.getByText('Support available')).toBeInTheDocument();
+    expect(
+      screen.getByText('Drafting a social media thread'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Help me with this' }));
+    expect(sendMessage).toHaveBeenCalledWith('notification-response', {
+      notificationId: 'notif-1',
+      outcome: 'accepted',
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-accepted');
+    expect(sendMessage).not.toHaveBeenCalledWith('show-session-setup');
+  });
+});
+
+describe('session invite pop-up with a suggestion preview', () => {
+  it('accepts the invite only when the user chats about the suggestion', async () => {
+    const listeners = new Map<string, (...args: any[]) => void>();
+    const sendMessage = jest.fn();
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: {
+        ipcRenderer: {
+          sendMessage,
+          invoke: jest.fn(),
+          on: (channel: string, callback: (...args: any[]) => void) => {
+            listeners.set(channel, callback);
+            return () => listeners.delete(channel);
+          },
+        },
+      },
+    });
+    const suggestion = {
+      kind: 'content',
+      title: 'Next Steps & Timeline bullets',
+      body: '1. Enhance UX (Aug)',
+      copyText: '1. Enhance UX (Aug)',
+    };
+
+    render(<NotificationView />);
+    act(() => {
+      listeners.get('notification')?.({
+        notificationId: 'notif-1',
+        message: suggestion.title,
+        actionLabel: 'Reveal full suggestion',
+        notifType: 'proactive-suggestion',
+        observationId: 'invite-obs-1',
+        status: 'task_suggested',
+        suggestion,
+        scenario: 'everyday_support',
+        sessionInvite: true,
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Reveal full suggestion →' }),
+      );
+    });
+    expect(sendMessage).toHaveBeenCalledWith('session-invite-revealed', {
+      inviteId: 'notif-1',
+    });
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      'notification-response',
+      expect.anything(),
+    );
+
+    const close = jest.spyOn(window, 'close').mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Chat with Coco' }));
+    close.mockRestore();
+    expect(sendMessage).toHaveBeenCalledWith('notification-response', {
+      notificationId: 'notif-1',
+      outcome: 'accepted',
+    });
+    expect(sendMessage).toHaveBeenCalledWith(
+      'chat-about-suggestion',
+      expect.objectContaining({ sessionInvite: true, suggestion }),
+    );
   });
 });
 

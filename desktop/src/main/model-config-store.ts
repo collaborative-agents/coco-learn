@@ -1,8 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import {
+  GEMINI_TUTOR_MODEL,
+  DEFAULT_TUTOR_MODEL,
+  OBSERVER_MODEL,
+  TUTOR_MODEL_PRESETS,
+} from '../shared/model-catalog';
 
 export type ProviderId =
+  | 'deepseek-ai'
   | 'gemini'
   | 'openai'
   | 'anthropic'
@@ -39,38 +46,48 @@ export interface ModelConfigurationView extends ModelConfiguration {
 }
 
 export const ROUTER_MANAGED_MODEL_CONFIGURATION: ModelConfigurationInput = {
-  sensing: {
-    id: 'sensing',
-    label: 'Sensing',
-    provider: 'gemini',
-    model: 'gemini/gemini-2.5-pro',
-  },
-  tutors: [
-    {
-      id: 'tutor-1',
-      label: 'Gemini 3 Flash',
-      provider: 'gemini',
-      model: 'gemini/gemini-3-flash-preview',
-    },
-  ],
-  defaultTutorId: 'tutor-1',
+  sensing: OBSERVER_MODEL,
+  tutors: [...TUTOR_MODEL_PRESETS],
+  defaultTutorId: DEFAULT_TUTOR_MODEL.id,
 };
 
 export function normalizeRouterManagedModelConfiguration(
   current: ModelConfiguration | null,
 ): ModelConfigurationInput {
-  const geminiTutors = (current?.tutors ?? []).filter(
-    (model) => model.provider === 'gemini',
+  const existingTutors = (current?.tutors ?? [])
+    .filter((model) =>
+      ['gemini', 'openai', 'anthropic', 'deepseek-ai'].includes(model.provider),
+    )
+    .map((model) =>
+      /^(?:gemini\/)?gemini-3-flash(?:-preview)?$/.test(model.model)
+        ? { ...GEMINI_TUTOR_MODEL, id: model.id }
+        : model,
+    );
+  const tutors = [
+    ...(existingTutors.length
+      ? existingTutors
+      : ROUTER_MANAGED_MODEL_CONFIGURATION.tutors),
+  ];
+  TUTOR_MODEL_PRESETS.forEach((preset) => {
+    if (tutors.some((model) => model.model === preset.model)) return;
+    const usedIds = new Set(tutors.map((model) => model.id));
+    let { id } = preset;
+    while (usedIds.has(id)) id = `${id}-preset`;
+    tutors.push({ ...preset, id });
+  });
+  // Adopt the new default once when upgrading the catalog, then preserve
+  // any subsequent explicit default selection.
+  const hasNewDefault = existingTutors.some(
+    (model) => model.model === DEFAULT_TUTOR_MODEL.model,
   );
-  const tutors =
-    geminiTutors.length > 0
-      ? geminiTutors
-      : ROUTER_MANAGED_MODEL_CONFIGURATION.tutors;
-  const defaultTutorId = tutors.some(
-    (model) => model.id === current?.defaultTutorId,
-  )
-    ? (current?.defaultTutorId as string)
-    : tutors[0].id;
+  const previousDefault =
+    hasNewDefault &&
+    tutors.find((model) => model.id === current?.defaultTutorId);
+  const defaultTutorId = (
+    previousDefault ||
+    tutors.find((model) => model.model === DEFAULT_TUTOR_MODEL.model) ||
+    tutors[0]
+  ).id;
 
   return {
     sensing: ROUTER_MANAGED_MODEL_CONFIGURATION.sensing,
@@ -90,6 +107,7 @@ export const isLlmRouterConfigured = (
   );
 
 const PROVIDER_KEY_ENV: Partial<Record<ProviderId, string>> = {
+  'deepseek-ai': 'DEEPSEEK_API_KEY',
   gemini: 'GEMINI_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
@@ -102,6 +120,7 @@ export const PROVIDERS: Record<
   ProviderId,
   { label: string; requiresKey: boolean; privacy: string }
 > = {
+  'deepseek-ai': { label: 'DeepSeek', requiresKey: true, privacy: 'cloud' },
   gemini: { label: 'Google Gemini', requiresKey: true, privacy: 'cloud' },
   openai: { label: 'OpenAI', requiresKey: true, privacy: 'cloud' },
   anthropic: { label: 'Anthropic', requiresKey: true, privacy: 'cloud' },
@@ -129,10 +148,8 @@ const configPath = () =>
 const credentialsPath = () =>
   path.join(app.getPath('userData'), 'coco-model-credentials.json');
 
-export const credentialId = (
-  role: 'sensing' | 'tutor',
-  provider: ProviderId,
-) => `${role}:${provider}`;
+export const credentialId = (role: 'sensing' | 'tutor', provider: ProviderId) =>
+  `${role}:${provider}`;
 
 function isProvider(value: unknown): value is ProviderId {
   return typeof value === 'string' && value in PROVIDERS;
@@ -182,7 +199,8 @@ export function validateModelConfiguration(
         .map(normalizeConnection)
         .filter((item): item is ModelConnection => item !== null)
     : [];
-  if (!sensing) throw new Error('A sensing provider and vision model are required.');
+  if (!sensing)
+    throw new Error('A sensing provider and vision model are required.');
   if (tutors.length === 0) throw new Error('Add at least one tutor model.');
   if (new Set(tutors.map((item) => item.id)).size !== tutors.length) {
     throw new Error('Tutor model IDs must be unique.');
@@ -200,7 +218,9 @@ export function validateModelConfiguration(
 
 function readCredentials(): CredentialMap {
   try {
-    return JSON.parse(fs.readFileSync(credentialsPath(), 'utf8')) as CredentialMap;
+    return JSON.parse(
+      fs.readFileSync(credentialsPath(), 'utf8'),
+    ) as CredentialMap;
   } catch {
     return {};
   }
@@ -265,9 +285,10 @@ export function saveModelConfiguration(
 
   const required: Array<['sensing' | 'tutor', ProviderId]> = [
     ['sensing', config.sensing.provider],
-    ...config.tutors.map(
-      (item): ['tutor', ProviderId] => ['tutor', item.provider],
-    ),
+    ...config.tutors.map((item): ['tutor', ProviderId] => [
+      'tutor',
+      item.provider,
+    ]),
   ];
   const routerManaged = isLlmRouterConfigured();
   required.forEach(([role, provider]) => {
@@ -282,10 +303,7 @@ export function saveModelConfiguration(
     }
   });
 
-  if (
-    Object.keys(credentials).length > 0 ||
-    fs.existsSync(credentialsPath())
-  ) {
+  if (Object.keys(credentials).length > 0 || fs.existsSync(credentialsPath())) {
     writeCredentials(credentials);
   }
   atomicWrite(configPath(), `${JSON.stringify(config, null, 2)}\n`);
@@ -369,15 +387,17 @@ export function prepareModelConnectionTest(
   }
   const env = connectionEnv(connection, role, credentials, process.env);
   const keyName = PROVIDER_KEY_ENV[connection.provider];
-  if (PROVIDERS[connection.provider].requiresKey && (!keyName || !env[keyName])) {
+  if (
+    PROVIDERS[connection.provider].requiresKey &&
+    (!keyName || !env[keyName])
+  ) {
     if (!isLlmRouterConfigured()) {
-      throw new Error(`${PROVIDERS[connection.provider].label} requires an API key.`);
+      throw new Error(
+        `${PROVIDERS[connection.provider].label} requires an API key.`,
+      );
     }
   }
-  if (
-    connection.provider === 'hosted_vllm' &&
-    !env.HOSTED_VLLM_API_BASE
-  ) {
+  if (connection.provider === 'hosted_vllm' && !env.HOSTED_VLLM_API_BASE) {
     throw new Error('Enter the OpenAI-compatible endpoint base URL.');
   }
   return { connection, env };

@@ -1,9 +1,10 @@
 import subscribeCocoSleepMode from './services/coco-sleep-mode';
-import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import type { BubbleState } from './components/ObservationBubble';
 import PetSprite from './components/PetSprite';
+import usePetPointer from './components/usePetPointer';
 import {
   InstantSuggestion,
   ObservationEvent,
@@ -45,11 +46,14 @@ const TIER2_STATUSES = new Set<ObservationStatus>([
 // ── Pet View ──────────────────────────────────────────────────────────────────
 
 function PetView() {
+  usePetPointer();
   // Start in `dormant` (static sleep1.png, no animation) until the first
   // observation event arrives. After that the state machine takes over and
   // dormant is never re-entered for the lifetime of the window.
   const [mood, setMood] = useState<PetMood>('dormant');
   const [bubble, setBubble] = useState<BubbleState | null>(null);
+  const bubbleRef = useRef(bubble);
+  bubbleRef.current = bubble;
   const [pulse, setPulse] = useState<{
     status: ObservationStatus;
     key: number;
@@ -99,6 +103,7 @@ function PetView() {
   };
 
   const handleBubbleEnter = () => {
+    if (bubble?.agentReply || bubble?.agentWorking) return;
     bubbleHoverRef.current = true;
     // Cancel any pending hide / in-flight fade and bring it fully back.
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -107,6 +112,7 @@ function PetView() {
   };
 
   const handleBubbleLeave = () => {
+    if (bubble?.agentReply || bubble?.agentWorking) return;
     bubbleHoverRef.current = false;
     if (bubblePinnedRef.current) return; // pinned suggestion — never re-arm hide
     if (bubble) scheduleBubbleHide(holdMsRef.current);
@@ -146,7 +152,22 @@ function PetView() {
     };
   }, []);
 
-  useEffect(() => subscribeCocoSleepMode(setCocoSleeping), []);
+  const sleepingRef = useRef(false);
+  const applySleepMode = useCallback((sleeping: boolean) => {
+    sleepingRef.current = sleeping;
+    setCocoSleeping(sleeping);
+    if (!sleeping || bubbleRef.current?.agentReply || bubbleRef.current?.agentWorking) return;
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (fadeTimer.current) clearTimeout(fadeTimer.current);
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    bubbleHoverRef.current = false;
+    bubblePinnedRef.current = false;
+    setBubble(null);
+    setPulse(null);
+    setMood('idle');
+  }, []);
+
+  useEffect(() => subscribeCocoSleepMode(applySleepMode), [applySleepMode]);
 
   const setCocoSleepMode = async (sleeping: boolean) => {
     const result = (await window.electron?.ipcRenderer.invoke(
@@ -154,11 +175,7 @@ function PetView() {
       { sleeping },
     )) as { success?: boolean; sleeping?: boolean } | undefined;
     if (result?.success) {
-      setCocoSleeping(result.sleeping === true);
-      // A suggestion pinned before sleep must not block bubbles after waking.
-      bubblePinnedRef.current = false;
-      setBubble(null);
-      setMood(result.sleeping ? 'sleep' : 'idle');
+      applySleepMode(result.sleeping === true);
     }
   };
 
@@ -196,6 +213,7 @@ function PetView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'observation-update',
       (data: any) => {
+        if (sleepingRef.current) return;
         const event = data as ObservationEvent;
         // Skip the SSE handshake event ({type: "ready"}) and any payload
         // missing an actual observation string.
@@ -272,6 +290,67 @@ function PetView() {
     };
   }, []);
 
+  useEffect(() => {
+    const ipc = window.electron?.ipcRenderer;
+    const cleanup = ipc?.on('agent-working', (data: any) => {
+      if (!data?.sessionId || !data?.requestId || !data?.text) return;
+      // Do not replace a suggestion the user is reading or a completion reminder.
+      if (bubblePinnedRef.current || bubbleHoverRef.current) return;
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      bubblePinnedRef.current = true;
+      setPulse(null);
+      setBubble({ status: 'observing', phrase: '', fadingOut: false,
+        tutorMessage: data.text,
+        agentWorking: { sessionId: data.sessionId, requestId: data.requestId } });
+      setMood('write');
+      hideTimer.current = setTimeout(() => {
+        bubblePinnedRef.current = false;
+        setBubble(null);
+        setMood('idle');
+      }, 6000);
+    });
+    const cleanupEnd = ipc?.on('agent-work-ended', (data: any) => {
+      if (bubbleRef.current?.agentWorking?.requestId !== data?.requestId) return;
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+    });
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+      if (typeof cleanupEnd === 'function') cleanupEnd();
+    };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('agent-reply-ready', (data: any) => {
+      if (!data?.sessionId || !data?.requestId) return;
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      bubbleHoverRef.current = false;
+      bubblePinnedRef.current = true; // Keep observations from replacing the reminder.
+      setPulse(null);
+      setBubble({
+        status: 'progress', phrase: '', fadingOut: false,
+        tutorMessage: 'Your reply is ready.', agentReply: data,
+      });
+      setMood('write');
+      // Animate for the reminder's full lifetime; opening, dismissal, or expiry
+      // returns Coco to idle. No repeat reminders.
+      holdMsRef.current = 8000;
+      hideTimer.current = setTimeout(() => {
+        bubblePinnedRef.current = false;
+        setBubble(null);
+        setMood('idle');
+      }, 8000);
+    });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
+
   // ── Tier 3: tutor notification routed from main when webapp is hidden ────────
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on(
@@ -308,6 +387,66 @@ function PetView() {
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
 
+  // ── Session invite: Coco offers a session for the task it detected ──────────
+  // It previews a suggestion's title, or shows the task when there is none.
+  // The invite is pinned so observations don't replace it. Main clears it when
+  // it is ignored or a session starts another way.
+  useEffect(() => {
+    const ipc = window.electron?.ipcRenderer;
+    const cleanupInvite = ipc?.on('session-invite', (data: any) => {
+      const {
+        inviteId,
+        taskLabel,
+        observationId,
+        rawObservation,
+        suggestionTitle,
+      } = (data ?? {}) as {
+        inviteId?: string;
+        taskLabel?: string;
+        observationId?: string;
+        rawObservation?: string;
+        suggestionTitle?: string;
+      };
+      if (!inviteId || !taskLabel) return;
+      // Don't replace a suggestion the user opened; main shows the invite as
+      // a pop-up instead.
+      if (bubblePinnedRef.current) {
+        ipc?.sendMessage('session-invite-busy', { inviteId });
+        return;
+      }
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      bubbleHoverRef.current = false;
+      bubblePinnedRef.current = true;
+      setBubble({
+        status: 'inefficient',
+        phrase: suggestionTitle || taskLabel,
+        fadingOut: false,
+        showHelpButton: true,
+        rawObservation,
+        observationId,
+        invite: { inviteId, hasPreview: Boolean(suggestionTitle) },
+      });
+      setMood(STATUS_TO_MOOD.inefficient);
+      pulseKeyRef.current += 1;
+      setPulse({ status: 'inefficient', key: pulseKeyRef.current });
+      pulseTimer.current = setTimeout(() => setPulse(null), PULSE_MS);
+      ipc?.sendMessage('session-invite-shown', { inviteId });
+    });
+    const cleanupClear = ipc?.on('session-invite-clear', (data: any) => {
+      const { inviteId } = (data ?? {}) as { inviteId?: string };
+      if (bubbleRef.current?.invite?.inviteId !== inviteId) return;
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+    });
+    return () => {
+      if (typeof cleanupInvite === 'function') cleanupInvite();
+      if (typeof cleanupClear === 'function') cleanupClear();
+    };
+  }, []);
+
   // Opening chat is an explicit menu action. If a Tier-1
   // ("progress"/"observing") bubble is showing — i.e. the system offered no
   // proactive suggestion — record the action as a false-negative signal.
@@ -331,6 +470,48 @@ function PetView() {
   const handleHelpMe = async () => {
     if (!bubble) return;
     const current = bubble;
+    if (current.invite) {
+      const { inviteId } = current.invite;
+      // A preview opens in place; starting the session waits for "Chat with
+      // Coco". Without one, or if it can't be loaded, this accepts the invite.
+      if (current.invite.hasPreview) {
+        const res = await window.electron?.ipcRenderer.invoke(
+          'get-instant-suggestion',
+          { observationId: current.observationId ?? null },
+        );
+        if (res?.status === 'ready' && res.suggestion) {
+          window.electron?.ipcRenderer.sendMessage('session-invite-revealed', {
+            inviteId,
+          });
+          window.electron?.ipcRenderer.sendMessage('training-feedback', {
+            kind: 'engage',
+            surface: 'bubble',
+            observation_id: current.observationId ?? null,
+            status: 'task_suggested',
+            text: current.rawObservation ?? null,
+          });
+          setBubble((b) =>
+            b
+              ? {
+                  ...b,
+                  suggestion: res.suggestion,
+                  scenario: res.scenario,
+                  fadingOut: false,
+                }
+              : null,
+          );
+          return;
+        }
+      }
+      window.electron?.ipcRenderer.sendMessage('session-invite-response', {
+        inviteId,
+        outcome: 'accepted',
+      });
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+      return;
+    }
     const engagedAt = Math.floor(Date.now() / 1000);
     const recordEngagement = (
       suggestion: InstantSuggestion | undefined,
@@ -403,13 +584,20 @@ function PetView() {
   const handleDismiss = () => {
     if (!bubble) return;
     bubblePinnedRef.current = false;
-    window.electron?.ipcRenderer.sendMessage('training-feedback', {
-      kind: 'dismiss',
-      surface: 'bubble',
-      observation_id: bubble.observationId ?? null,
-      status: bubble.status,
-      text: bubble.rawObservation ?? null,
-    });
+    if (bubble.invite) {
+      window.electron?.ipcRenderer.sendMessage('session-invite-response', {
+        inviteId: bubble.invite.inviteId,
+        outcome: 'dismissed',
+      });
+    } else if (!bubble.agentReply && !bubble.agentWorking) {
+      window.electron?.ipcRenderer.sendMessage('training-feedback', {
+        kind: 'dismiss',
+        surface: 'bubble',
+        observation_id: bubble.observationId ?? null,
+        status: bubble.status,
+        text: bubble.rawObservation ?? null,
+      });
+    }
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
     setBubble((b) => (b ? { ...b, fadingOut: true } : null));
@@ -429,6 +617,7 @@ function PetView() {
       rawObservation: current.rawObservation ?? '',
       suggestion: current.suggestion,
       surface: 'bubble',
+      sessionInviteId: current.invite?.inviteId,
     });
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
@@ -439,7 +628,16 @@ function PetView() {
 
   // Tier 3: user wants to read the full tutor guidance — open main window.
   const handleViewConversation = () => {
-    window.electron?.ipcRenderer.sendMessage('open-main-window');
+    const target = bubble?.agentReply ?? bubble?.agentWorking;
+    if (target) {
+      window.electron?.ipcRenderer.sendMessage('view-agent-reply', target);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      bubblePinnedRef.current = false;
+      setBubble(null);
+      setMood('idle');
+    } else window.electron?.ipcRenderer.sendMessage('open-main-window');
   };
 
   // Menu items chosen in the ••• menu window run here, where the current bubble
@@ -490,7 +688,7 @@ function PetView() {
           openActionsMenu();
         }}
       >
-        <PetSprite mood={cocoSleeping ? 'sleep' : mood} />
+        <PetSprite mood={cocoSleeping && !bubble?.agentReply && !bubble?.agentWorking ? 'sleep' : mood} />
         <span className="pet-drag-hint" aria-hidden>
           Right-click for menu
         </span>

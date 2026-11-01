@@ -3,6 +3,7 @@ import { AGENT_MODES } from '../../../shared/agent-modes';
 import type { TutorModelOption } from './types';
 
 export const MODEL_PROVIDER_OPTIONS = [
+  ['deepseek-ai', 'DeepSeek'],
   ['gemini', 'Google Gemini'],
   ['openai', 'OpenAI'],
   ['anthropic', 'Anthropic'],
@@ -36,9 +37,17 @@ export const AGENTS = Object.values(AI_TOOLS).filter(
 );
 export const MODE_OPTIONS = AGENT_MODES.filter(({ id }) => id !== 'custom');
 
-export const SCREEN_TASK_PROMPT = 'Help me with the current ask on my screen';
+export const SCREEN_TASK_PROMPT = 'Help me with the current task on my screen';
 
 export const SECONDARY_CHAT_PROMPTS = [
   'Review my recent work activity to find one part that AI could handle.',
   'Suggest something useful to learn.',
+];
+
+// Offered under a suggestion that is the latest message, so the user can pick
+// up from what they just read.
+export const SUGGESTION_FOLLOW_UPS = [
+  'Walk me through this on my screen',
+  'Do the first step with me',
+  'Why does this help?',
 ];

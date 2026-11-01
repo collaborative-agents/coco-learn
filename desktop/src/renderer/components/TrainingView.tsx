@@ -1,5 +1,8 @@
-/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import { useCallback, useEffect, useState } from 'react';
+import useWorkflowChapter from './training/useWorkflowChapter';
+/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
+import useTokenChapter from './training/useTokenChapter';
+import useModelChapter from './training/useModelChapter';
 import type { StudyState } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
 import FollowUpAssessmentPanel from './FollowUpAssessmentPanel';
@@ -8,11 +11,17 @@ import DailyReflectionForm from './training/DailyReflectionForm';
 import TrainingDialog from './training/TrainingDialog';
 import TrainingAnnouncement from './training/TrainingAnnouncement';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
-import TrainingTodo from './training/TrainingTodo';
-import TrainingTaskGroup from './training/TrainingTaskGroup';
 import TrainingProgress from './training/TrainingProgress';
+import ToolChapter from './training/ToolChapter';
+import ContextChapter from './training/ContextChapter';
+import TokenChapter from './training/TokenChapter';
+import ModelChapter from './training/ModelChapter';
+import WorkflowChapter from './training/WorkflowChapter';
+import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
+import useToolChapterProgress from './training/useToolChapterProgress';
+import useContextChapterProgress from './training/useContextChapterProgress';
 import './TrainingView.css';
 
 export default function TrainingView({
@@ -43,6 +52,26 @@ export default function TrainingView({
   }, [followUp]);
   const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
+  const [questOpen, setQuestOpen] = useState(false);
+  const [startingToolChat, setStartingToolChat] = useState(false);
+  const [toolChatError, setToolChatError] = useState('');
+  const [questLevel, setQuestLevel] = useState(0);
+  const toolProgress = useToolChapterProgress();
+  const contextProgress = useContextChapterProgress();
+  const tokenProgress = useTokenChapter();
+  const modelProgress = useModelChapter();
+  const workflowProgress = useWorkflowChapter();
+  const questComplete = Boolean(
+    [
+      toolProgress.completedAt,
+      contextProgress.completedAt,
+      tokenProgress.completedAt,
+      modelProgress.completedAt,
+      workflowProgress.completedAt,
+    ][questLevel],
+  );
+  let questActionLabel = 'Start quest';
+  if (startingToolChat) questActionLabel = 'Opening quest…';
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -73,8 +102,6 @@ export default function TrainingView({
   const studentExperience = state?.role === 'participant' || studentMode;
   const adminMode =
     (state?.role === 'admin' || state?.role === 'super_admin') && !studentMode;
-  const followUpVisible =
-    adminMode || Boolean(followUp?.unlocks_at && followUp.visible);
   const followUpUnlocked =
     adminMode ||
     Boolean(
@@ -89,9 +116,6 @@ export default function TrainingView({
   const postAssessmentUnlocked = adminMode || trainingComplete;
   const orderedDays = [...(state?.days ?? [])].sort((a, b) => a.day - b.day);
   const nextDay = orderedDays.find((day) => !day.completed_at);
-  const visibleDays = orderedDays.filter(
-    (day) => adminMode || day.completed_at || day.day === nextDay?.day,
-  );
   const selectedDay = state?.days.find((day) => day.day === active);
   const reflectionDay = state?.days.find(
     (day) => day.day === reflectionDayNumber,
@@ -128,115 +152,225 @@ export default function TrainingView({
     <main className="training-page">
       <div
         className="training-home"
-        inert={active !== null || reflectionDayNumber !== null}
+        inert={active !== null || reflectionDayNumber !== null || questOpen}
       >
-        <header className="training-header">
-          <h1>AI Literacy Challenge</h1>
-          <p>
-            Coco helps you get work done faster—and work more thoughtfully with
-            AI. Build your skills, discover new possibilities, and strengthen
-            your own thinking.
-          </p>
-          <p>
-            During the three-week AI Literacy Camp, you’ll try a new AI
-            collaboration task each day in the first week. Starting and final
-            assessments, followed by an assignment 14 days after your final
-            assessment, help you track your progress.
-          </p>
-        </header>
-        {state && (
-          <>
-            <TrainingAnnouncement />
-            <TrainingProgress days={state.days} />
-          </>
-        )}
-        {error && (
-          <div role="alert" className="training-error">
-            {/fetch failed|network|timed? ?out|abort/i.test(error)
-              ? 'Unable to connect to the study server. Please check your connection and retry.'
-              : error}
-            <button type="button" onClick={() => act(refresh)}>
-              Retry
-            </button>
-          </div>
-        )}
-        {notice && (
-          <p role="status" className="training-notice">
-            {notice}
-          </p>
-        )}
-        {!state ? (
-          <p>
-            {error ? 'Training could not be loaded.' : 'Loading your training…'}
-          </p>
-        ) : (
-          <>
-            {state.role !== 'participant' && (
-              <div className="training-toolbar">
-                <button
-                  type="button"
-                  aria-pressed={studentMode}
-                  disabled={busy}
-                  onClick={() =>
-                    act(() => api('study-student-mode', !studentMode))
-                  }
-                >
-                  {studentMode ? 'Exit student mode' : 'Student mode'}
-                </button>
-              </div>
-            )}
-            {!state.tutoring_allowed && (
-              <p className="training-info">
-                AI tutoring is disabled for your account. Your available
-                assessments and tasks are still accessible.
+        <AgenticQuest
+          adminMode={adminMode}
+          onOpen={(level) => {
+            setQuestLevel(level);
+            setToolChatError('');
+            setQuestOpen(true);
+          }}
+        />
+        <section
+          className="training-main-challenge"
+          aria-labelledby="training-challenge-title"
+        >
+          <header className="training-header">
+            <div className="training-header-topline">
+              <h1 id="training-challenge-title">AI Literacy Challenge</h1>
+              {state && <TrainingAnnouncement />}
+            </div>
+            <p>
+              Build your skills, one day at a time. Learn to work thoughtfully
+              with AI.
+            </p>
+          </header>
+          {state && (
+            <TrainingProgress
+              steps={[
+                {
+                  id: 'pre',
+                  label: 'Start check-in',
+                  accessibleLabel: 'Start check-in',
+                  complete: preAssessmentComplete,
+                  available: true,
+                  onClick: () => setActive('pre'),
+                },
+                ...Array.from({ length: 7 }, (_, index) => {
+                  const day = orderedDays.find(
+                    (item) => item.day === index + 1,
+                  );
+                  return {
+                    id: `day-${index + 1}`,
+                    label: `${index + 1}`,
+                    accessibleLabel: `Day ${index + 1} Practice task`,
+                    complete: Boolean(day?.completed_at),
+                    available: Boolean(
+                      day &&
+                        dayCanOpen(day) &&
+                        (adminMode ||
+                          day.completed_at ||
+                          day.day === nextDay?.day),
+                    ),
+                    onClick: () => setActive(index + 1),
+                  };
+                }),
+                {
+                  id: 'post',
+                  label: 'Final check-in',
+                  accessibleLabel: 'Final check-in',
+                  complete: Boolean(state.post_assessment_complete),
+                  available: postAssessmentUnlocked,
+                  onClick: () => setActive('post'),
+                },
+                {
+                  id: 'follow-up',
+                  label: 'Follow-up',
+                  accessibleLabel: followUpUnlocked
+                    ? 'Follow-up'
+                    : `Follow-up${followUp?.unlocks_at ? ` — unlocks in ${countdown}` : ' — unlocks after final check-in'}`,
+                  complete: Boolean(followUp?.complete),
+                  available:
+                    followUpUnlocked &&
+                    (adminMode || Boolean(followUp?.visible)),
+                  onClick: () => setActive('follow-up'),
+                },
+              ]}
+            />
+          )}
+          <div className="training-challenge-details">
+            <details className="training-about">
+              <summary>How it works</summary>
+              <p>
+                During the three-week AI Literacy Camp, you’ll try a new AI
+                collaboration task each day in the first week. Start and final
+                check-ins, followed by a follow-up 14 days after your final
+                check-in, help you see how your skills grow.
               </p>
-            )}
-            <ol className="training-todos" aria-label="Practice checklist">
-              <TrainingTodo
-                title="Starting assessment"
-                complete={preAssessmentComplete}
-                onClick={() => setActive('pre')}
-              />
-              <TrainingTaskGroup>
-                {visibleDays.map((day) => (
-                  <TrainingTodo
-                    key={day.day}
-                    title={`Day ${day.day} Practice task`}
-                    complete={Boolean(day.completed_at)}
-                    disabled={!dayCanOpen(day)}
-                    onClick={() => setActive(day.day)}
-                  />
-                ))}
-              </TrainingTaskGroup>
-              {postAssessmentUnlocked && (
-                <TrainingTodo
-                  title="Final assessment"
-                  complete={state.post_assessment_complete}
-                  disabled={!postAssessmentUnlocked}
-                  onClick={() => setActive('post')}
-                />
+            </details>
+          </div>
+          {error && (
+            <div role="alert" className="training-error">
+              {/fetch failed|network|timed? ?out|abort/i.test(error)
+                ? 'Unable to connect to the study server. Please check your connection and retry.'
+                : error}
+              <button type="button" onClick={() => act(refresh)}>
+                Retry
+              </button>
+            </div>
+          )}
+          {notice && (
+            <p role="status" className="training-notice">
+              {notice}
+            </p>
+          )}
+          {!state ? (
+            <p>
+              {error
+                ? 'Training could not be loaded.'
+                : 'Loading your training…'}
+            </p>
+          ) : (
+            <>
+              {state.role !== 'participant' && (
+                <div className="training-toolbar">
+                  <button
+                    type="button"
+                    aria-pressed={studentMode}
+                    disabled={busy}
+                    onClick={() =>
+                      act(() => api('study-student-mode', !studentMode))
+                    }
+                  >
+                    {studentMode ? 'Exit student mode' : 'Student mode'}
+                  </button>
+                </div>
               )}
-              {followUpVisible && (
-                <TrainingTodo
-                  title={
-                    followUpUnlocked
-                      ? 'Follow-up assignment'
-                      : `Follow-up assignment — unlocks in ${countdown}`
-                  }
-                  complete={followUp?.complete}
-                  disabled={!followUpUnlocked}
-                  onClick={() => setActive('follow-up')}
-                />
+              {!state.tutoring_allowed && (
+                <p className="training-info">
+                  AI tutoring is disabled for your account. Your available
+                  check-ins and tasks are still accessible.
+                </p>
               )}
-            </ol>
-          </>
-        )}
+            </>
+          )}
+        </section>
       </div>
+      <TrainingDialog
+        open={questOpen}
+        title={`Chapter ${questLevel + 1} · ${agentLevels[questLevel].name}`}
+        onClose={() => setQuestOpen(false)}
+        busy={startingToolChat}
+        headerAction={
+          <>
+            {questComplete && (
+              <span className="agentic-quest-completed">Completed</span>
+            )}
+            <button
+              type="button"
+              className={
+                questComplete
+                  ? 'agentic-quest-retry'
+                  : 'training-primary agentic-chapter-action'
+              }
+              title={questComplete ? 'revisit quest' : undefined}
+              aria-label={questComplete ? 'revisit quest' : undefined}
+              aria-busy={startingToolChat}
+              disabled={startingToolChat}
+              onClick={async () => {
+                if (startingToolChat) return;
+                setStartingToolChat(true);
+                setToolChatError('');
+                try {
+                  const channels = [
+                    'tool-chapter-start',
+                    'context-chapter-start',
+                    'token-chapter-start',
+                    'model-chapter-start',
+                    'workflow-chapter-start',
+                  ] as const;
+                  await api(channels[questLevel]);
+                  setQuestOpen(false);
+                } catch (reason) {
+                  setToolChatError(
+                    reason instanceof Error ? reason.message : String(reason),
+                  );
+                } finally {
+                  setStartingToolChat(false);
+                }
+              }}
+            >
+              {questComplete ? (
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 11a9 9 0 1 1 2.6 7.4" />
+                  <path d="M3 4v7h7" />
+                </svg>
+              ) : (
+                questActionLabel
+              )}
+            </button>
+          </>
+        }
+      >
+        <div>
+          {questLevel === 0 && <ToolChapter />}
+          {questLevel === 1 && <ContextChapter />}
+          {questLevel === 2 && <TokenChapter />}
+          {questLevel === 3 && <ModelChapter />}
+          {questLevel === 4 && <WorkflowChapter />}
+          {toolChatError && (
+            <p role="alert" className="training-error">
+              {toolChatError}
+            </p>
+          )}
+        </div>
+      </TrainingDialog>
       {state && (
         <>
           <TrainingDialog
             open={active === 'pre'}
-            title="Starting assessment"
+            title="Start check-in"
             onClose={() => setActive(null)}
           >
             <PreAssessmentPanel
@@ -246,7 +380,7 @@ export default function TrainingView({
           </TrainingDialog>
           <TrainingDialog
             open={active === 'post'}
-            title="Final assessment"
+            title="Final check-in"
             onClose={() => setActive(null)}
           >
             <PostAssessmentPanel
@@ -257,7 +391,7 @@ export default function TrainingView({
           {followUpUnlocked && (
             <TrainingDialog
               open={active === 'follow-up'}
-              title="Follow-up assignment"
+              title="Follow-up"
               onClose={() => setActive(null)}
             >
               <FollowUpAssessmentPanel onSubmitted={refresh} />

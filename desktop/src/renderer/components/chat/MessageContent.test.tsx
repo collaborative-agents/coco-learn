@@ -138,3 +138,18 @@ test('copies a code block without its trailing newline', async () => {
     await screen.findByRole('button', { name: 'Copied ✓' }),
   ).toBeInTheDocument();
 });
+
+test('copies the complete code while its preview remains collapsed', async () => {
+  const writeText = jest.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText },
+  });
+  const source = Array.from({ length: 12 }, (_, i) => `const value${i} = ${i};`).join('\n');
+  const { container } = render(<TutorMessage text={`\`\`\`javascript\n${source}\n\`\`\``} />);
+  expect(container).not.toHaveTextContent('value11');
+  expect(screen.getByRole('button', { name: 'Show full code block' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(source));
+  expect(await screen.findByRole('button', { name: 'Copied ✓' })).toBeInTheDocument();
+});

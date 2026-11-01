@@ -56,6 +56,8 @@ import MemorySettings from './chat/MemorySettings';
 
 export { ToolCallCard } from './chat/ToolCallCard';
 
+const FOLLOW_THRESHOLD_PX = 48;
+
 function SessionChatContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -167,13 +169,30 @@ function SessionChatContent() {
   const peer = useParallelConversation(toolSession?.peerSessionId ?? null);
   const sendPeer = peer.send;
   const peerListRef = useRef<HTMLDivElement>(null);
+  const peerFollowingRef = useRef(true);
+  const [peerFollowing, setPeerFollowing] = useState(true);
+  const handlePeerScroll = () => {
+    const list = peerListRef.current;
+    if (!list) return;
+    const value =
+      list.scrollHeight - list.scrollTop - list.clientHeight <=
+      FOLLOW_THRESHOLD_PX;
+    peerFollowingRef.current = value;
+    setPeerFollowing(value);
+  };
+  const jumpToPeerLatest = () => {
+    peerFollowingRef.current = true;
+    setPeerFollowing(true);
+    if (peerListRef.current)
+      peerListRef.current.scrollTop = peerListRef.current.scrollHeight;
+  };
   const peerSendRef = useRef(peer.send);
   peerSendRef.current = peer.send;
   const comparisonRef = useRef(false);
   comparisonRef.current = Boolean(toolSession);
   const mirroredVoiceRequests = useRef(new Set<string>());
   useEffect(() => {
-    if (peerListRef.current)
+    if (peerFollowingRef.current && peerListRef.current)
       peerListRef.current.scrollTop = peerListRef.current.scrollHeight;
   }, [peer.messages]);
   const pendingContextRef = useRef<string | null>(null);
@@ -373,12 +392,35 @@ function SessionChatContent() {
     });
   };
 
+  // New text follows the bottom of the transcript only while the user is
+  // there; scrolling up to read stops it until they return or jump back.
+  const followingRef = useRef(true);
+  const [following, setFollowing] = useState(true);
+  const setFollowingLatest = useCallback((value: boolean) => {
+    if (followingRef.current === value) return;
+    followingRef.current = value;
+    setFollowing(value);
+  }, []);
+  const handleTranscriptScroll = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    setFollowingLatest(
+      list.scrollHeight - list.scrollTop - list.clientHeight <=
+        FOLLOW_THRESHOLD_PX,
+    );
+  }, [setFollowingLatest]);
+  // Jump to the latest message, e.g. after the user sends one.
   const scrollToBottom = useCallback(() => {
+    setFollowingLatest(true);
     requestAnimationFrame(() => {
-      if (listRef.current)
+      // The user may have scrolled up again before this frame.
+      if (followingRef.current && listRef.current)
         listRef.current.scrollTop = listRef.current.scrollHeight;
     });
-  }, []);
+  }, [setFollowingLatest]);
+  const followLatest = useCallback(() => {
+    if (followingRef.current) scrollToBottom();
+  }, [scrollToBottom]);
 
   // Main relays SSE events from the tutor service. Keep one pending tutor
   // message and update it in place so text and tool activity appear in order.
@@ -513,13 +555,13 @@ function SessionChatContent() {
           });
         });
         if (event.type === 'done' || event.type === 'error') setSending(false);
-        scrollToBottom();
+        followLatest();
       },
     );
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [scrollToBottom]);
+  }, [followLatest]);
 
   const submitTutorRequest = useCallback(
     async (
@@ -581,9 +623,9 @@ function SessionChatContent() {
         );
         setSending(false);
       }
-      scrollToBottom();
+      followLatest();
     },
-    [scrollToBottom],
+    [scrollToBottom, followLatest],
   );
 
   const submitAudioRequest = useCallback(
@@ -620,9 +662,9 @@ function SessionChatContent() {
         );
         setSending(false);
       }
-      scrollToBottom();
+      followLatest();
     },
-    [scrollToBottom],
+    [scrollToBottom, followLatest],
   );
 
   const sendVoiceMessage = useCallback(
@@ -1195,7 +1237,7 @@ function SessionChatContent() {
           ? current
           : [...current, suggestionMessage(suggestion, folded === true)],
       );
-      if (!folded) scrollToBottom();
+      if (!folded) followLatest();
     });
     const cleanupReveal = ipc?.on('reveal-chat-suggestion', (data: any) => {
       const { observationId, suggestion } = (data ?? {}) as {
@@ -1228,7 +1270,7 @@ function SessionChatContent() {
       if (typeof cleanupAdd === 'function') cleanupAdd();
       if (typeof cleanupReveal === 'function') cleanupReveal();
     };
-  }, [scrollToBottom]);
+  }, [scrollToBottom, followLatest]);
 
   const toggleSuggestionFold = (target: ChatMessage) => {
     const flip = (list: ChatMessage[]) =>
@@ -1773,6 +1815,9 @@ function SessionChatContent() {
                                     ratings,
                                     rateMessage,
                                     hasRunningTool,
+                                    following,
+                                    onScroll: handleTranscriptScroll,
+                                    onJumpToLatest: scrollToBottom,
                                   }}
                                 />
                               ),
@@ -1819,6 +1864,9 @@ function SessionChatContent() {
                                   <ChatTranscript
                                     reviewing={null}
                                     listRef={peerListRef}
+                                    following={peerFollowing}
+                                    onScroll={handlePeerScroll}
+                                    onJumpToLatest={jumpToPeerLatest}
                                     visibleMessages={peer.messages}
                                     sending={peer.busy}
                                     profile={profile}
@@ -1864,6 +1912,9 @@ function SessionChatContent() {
                           ratings,
                           rateMessage,
                           hasRunningTool,
+                          following,
+                          onScroll: handleTranscriptScroll,
+                          onJumpToLatest: scrollToBottom,
                         }}
                       >
                         <TokenTrainingQuestion

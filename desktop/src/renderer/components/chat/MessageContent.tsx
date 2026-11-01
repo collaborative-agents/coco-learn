@@ -14,15 +14,55 @@ import { S } from './styles';
 import './MessageContent.css';
 import ResponseCodeBlock from './ResponseCodeBlock';
 
+// A fenced code block with a Copy button that stays put while the code
+// scrolls sideways.
+function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
+  const code = React.isValidElement<{ children?: unknown }>(children)
+    ? children.props.children
+    : null;
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        (typeof code === 'string' ? code : '').replace(/\n$/, ''),
+      );
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
+    }
+    setTimeout(() => setStatus('idle'), 2000);
+  };
+  if (typeof code !== 'string')
+    return <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>;
+  let label = 'Copy';
+  if (status === 'copied') label = 'Copied ✓';
+  if (status === 'failed') label = 'Copy failed';
+  return (
+    <div className="chat-code-block">
+      <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>
+      <button
+        type="button"
+        className="chat-code-copy"
+        aria-label={status === 'idle' ? 'Copy code' : label}
+        onClick={() => void copy()}
+      >
+        {label}
+      </button>
+    </div>
+  );
+}
+
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
   {
-    pre: ResponseCodeBlock,
     a({ href, children, ...props }: any) {
       return (
         <a href={href} target="_blank" rel="noreferrer" {...props}>
           {children}
         </a>
       );
+    },
+    pre({ node: _node, ...props }: any) {
+      return <CodeBlock {...props} />;
     },
   };
 
@@ -95,10 +135,7 @@ export function TutorMessage({ text }: { text: string }) {
         </figure>
       )}
       {g.coaching && (
-        <aside
-          className="tutor-literacy-card"
-          aria-label="Suggestion"
-        >
+        <aside className="tutor-literacy-card" aria-label="Suggestion">
           <div className="tutor-literacy-header">
             <span className="tutor-literacy-title">
               <svg

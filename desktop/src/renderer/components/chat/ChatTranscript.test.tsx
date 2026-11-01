@@ -26,6 +26,9 @@ function renderMessage(message: ChatMessage) {
       ratings={{}}
       rateMessage={jest.fn()}
       hasRunningTool={false}
+      following
+      onScroll={jest.fn()}
+      onJumpToLatest={jest.fn()}
     />,
   );
 }

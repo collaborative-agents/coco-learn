@@ -52,6 +52,8 @@ import ConversationSidebar from './chat/ConversationSidebar';
 import HealthSettings from './chat/HealthSettings';
 import PreferencesSettings from './chat/PreferencesSettings';
 import AccountSettings from './chat/AccountSettings';
+import SettingsPanel from './chat/SettingsPanel';
+import TokenUsageSettings from './chat/TokenUsageSettings';
 import MemorySettings from './chat/MemorySettings';
 
 export { ToolCallCard } from './chat/ToolCallCard';
@@ -59,6 +61,7 @@ export { ToolCallCard } from './chat/ToolCallCard';
 const FOLLOW_THRESHOLD_PX = 48;
 
 function SessionChatContent() {
+  const contextUnlocked = React.useContext(ContextViewerAccess);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -1656,48 +1659,60 @@ function SessionChatContent() {
               />
             </div>
             {showSettings && (
-              <div className="workspace-settings">
-                <h1>Settings</h1>
-                <AccountSettings />
-                <HealthSettings
-                  {...{
-                    cocoSleeping,
-                    systemPermissionHealth,
-                    permissionOpening,
-                    openSystemPermission,
-                    permissionError,
-                    serviceHealth,
-                    healthLoading,
-                    refreshServiceHealth,
-                    healthError,
-                  }}
-                >
-                  <PreferencesSettings
-                    {...{
-                      editHideAvatar,
-                      avatarSaving,
-                      updateAvatarVisibility,
-                      avatarSaveError,
-                      wakeWordSaving,
-                      wakeWordEnabled,
-                      updateWakeWordEnabled,
-                      wakeWordCaptureError,
-                      wakeWordStatus,
-                      wakeWordDetail,
-                      cocoSleeping,
-                    }}
-                  />
-                  <MemorySettings
-                    {...{
-                      memoryDraft,
-                      setMemoryDraft,
-                      memoryDirty,
-                      saveMemory,
-                      memoryFlash,
-                    }}
-                  />
-                </HealthSettings>
-              </div>
+              <SettingsPanel
+                sections={{
+                  general: (
+                    <>
+                      <AccountSettings />
+                      <PreferencesSettings
+                        {...{
+                          editHideAvatar,
+                          avatarSaving,
+                          updateAvatarVisibility,
+                          avatarSaveError,
+                          wakeWordSaving,
+                          wakeWordEnabled,
+                          updateWakeWordEnabled,
+                          wakeWordCaptureError,
+                          wakeWordStatus,
+                          wakeWordDetail,
+                          cocoSleeping,
+                        }}
+                      />
+                    </>
+                  ),
+                  memory: (
+                    <MemorySettings
+                      {...{
+                        memoryDraft,
+                        setMemoryDraft,
+                        memoryDirty,
+                        saveMemory,
+                        memoryFlash,
+                      }}
+                    />
+                  ),
+                  usage:
+                    contextUnlocked || tokenChapter.completedAt ? (
+                      <TokenUsageSettings />
+                    ) : null,
+                  health: (
+                    <HealthSettings
+                      {...{
+                        cocoSleeping,
+                        systemPermissionHealth,
+                        permissionOpening,
+                        openSystemPermission,
+                        permissionError,
+                        serviceHealth,
+                        healthLoading,
+                        refreshServiceHealth,
+                        healthError,
+                      }}
+                    />
+                  ),
+                }}
+              />
             )}
           </>
         }

@@ -1,4 +1,3 @@
-import type React from 'react';
 import { S } from './styles';
 import type {
   SystemPermissionHealth,
@@ -7,7 +6,6 @@ import type {
 } from './types';
 
 interface Props {
-  children: React.ReactNode;
   cocoSleeping: boolean;
   systemPermissionHealth: SystemPermissionHealth;
   permissionOpening: SystemPermissionTarget | null;
@@ -20,7 +18,6 @@ interface Props {
 }
 
 export default function HealthSettings({
-  children,
   cocoSleeping,
   systemPermissionHealth,
   permissionOpening,
@@ -195,7 +192,6 @@ export default function HealthSettings({
           Health check failed: {healthError}
         </div>
       )}
-      {children}
     </section>
   );
 }

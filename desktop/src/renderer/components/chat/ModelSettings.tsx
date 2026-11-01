@@ -207,7 +207,7 @@ export default function ModelSettings({
           >
             {(routerManaged
               ? MODEL_PROVIDER_OPTIONS.filter(([id]) =>
-                  ['gemini', 'openai', 'anthropic'].includes(id),
+                  ['gemini', 'openai', 'anthropic', 'deepseek-ai'].includes(id),
                 )
               : MODEL_PROVIDER_OPTIONS
             ).map(([id, label]) => (

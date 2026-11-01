@@ -1,6 +1,24 @@
-import subscribeCocoSleepMode from '../services/coco-sleep-mode';
+import useWorkflowChapter from './training/useWorkflowChapter';
+import WorkflowUnlock from './training/WorkflowUnlock';
+import WorkflowTrainingBanner from './training/WorkflowTrainingBanner';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import TokenUsageAccess from './chat/TokenUsageAccess';
+import TokenTrainingBanner from './training/TokenTrainingBanner';
+import TokenTrainingQuestion from './training/TokenTrainingQuestion';
+import useTokenChapter from './training/useTokenChapter';
+import useModelChapter from './training/useModelChapter';
+import ModelQuest from './training/ModelQuest';
+import subscribeCocoSleepMode from '../services/coco-sleep-mode';
+import ChatComparisonLayout from './chat/ChatComparisonLayout';
+import useParallelConversation from './chat/useParallelConversation';
+import useToolTrainingSession from './training/useToolTrainingSession';
 import TrainingView from './TrainingView';
+import ContextTrainingBanner from './training/ContextTrainingBanner';
+import ContextViewerAccess from './chat/ContextViewerAccess';
+import useContextChapterProgress from './training/useContextChapterProgress';
+import ToolTrainingBanner from './training/ToolTrainingBanner';
+import ToolViewerAccess from './chat/ToolViewerAccess';
+import useToolChapterProgress from './training/useToolChapterProgress';
 import useStudyAccess from '../useStudyAccess';
 import 'katex/dist/katex.min.css';
 import {
@@ -38,7 +56,7 @@ import MemorySettings from './chat/MemorySettings';
 
 export { ToolCallCard } from './chat/ToolCallCard';
 
-export default function SessionChatView() {
+function SessionChatContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -143,6 +161,21 @@ export default function SessionChatView() {
   const listRef = useRef<HTMLDivElement>(null);
   const pendingHotkeyImagesRef = useRef<Set<string>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
+  const toolSession = useToolTrainingSession(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
+  const peer = useParallelConversation(toolSession?.peerSessionId ?? null);
+  const sendPeer = peer.send;
+  const peerListRef = useRef<HTMLDivElement>(null);
+  const peerSendRef = useRef(peer.send);
+  peerSendRef.current = peer.send;
+  const comparisonRef = useRef(false);
+  comparisonRef.current = Boolean(toolSession);
+  const mirroredVoiceRequests = useRef(new Set<string>());
+  useEffect(() => {
+    if (peerListRef.current)
+      peerListRef.current.scrollTop = peerListRef.current.scrollHeight;
+  }, [peer.messages]);
   const pendingContextRef = useRef<string | null>(null);
   // What Coco saw on screen, attached to the next message as removable context.
   const pendingScreenContextRef = useRef<string | null>(null);
@@ -370,13 +403,36 @@ export default function SessionChatView() {
         if (!event.requestId) return;
         if (event.sessionId && event.sessionId !== sessionIdRef.current) {
           if (event.type === 'done' || event.type === 'error') {
-            setConversations((saved) => saved.map((conversation) => conversation.sessionId !== event.sessionId ? conversation : {
-              ...conversation, messages: conversation.messages.map((message) => message.requestId !== event.requestId ? message : {
-                ...message, isStreaming: false, text: event.guidance ?? event.error ?? message.text,
-              }),
-            }));
+            setConversations((saved) =>
+              saved.map((conversation) =>
+                conversation.sessionId !== event.sessionId
+                  ? conversation
+                  : {
+                      ...conversation,
+                      messages: conversation.messages.map((message) =>
+                        message.requestId !== event.requestId
+                          ? message
+                          : {
+                              ...message,
+                              isStreaming: false,
+                              text:
+                                event.guidance ?? event.error ?? message.text,
+                            },
+                      ),
+                    },
+              ),
+            );
           }
           return;
+        }
+        if (
+          event.type === 'transcription' &&
+          event.text?.trim() &&
+          comparisonRef.current &&
+          !mirroredVoiceRequests.current.has(event.requestId)
+        ) {
+          mirroredVoiceRequests.current.add(event.requestId);
+          void peerSendRef.current(event.text.trim());
         }
         setMessages((current) => {
           if (event.type === 'transcription') {
@@ -448,6 +504,7 @@ export default function SessionChatView() {
               return {
                 ...message,
                 text: event.error ?? 'The tutor could not generate a response.',
+                tutorMetrics: event.llm_metrics ?? null,
                 isError: true,
                 isStreaming: false,
               };
@@ -573,7 +630,11 @@ export default function SessionChatView() {
       const requestId = makeMessageId();
       setMessages((current) => [
         ...current,
-        { role: 'user', text: '🎤 Voice message', requestId: `${requestId}:user` },
+        {
+          role: 'user',
+          text: '🎤 Voice message',
+          requestId: `${requestId}:user`,
+        },
         {
           role: 'tutor',
           text: '',
@@ -607,7 +668,13 @@ export default function SessionChatView() {
       const screenContext = pendingScreenContextRef.current ?? undefined;
       setMessages((m) => [
         ...m,
-        { role: 'user', text: trimmed, images, screenContext, requestId: `${requestId}:user` },
+        {
+          role: 'user',
+          text: trimmed,
+          images,
+          screenContext,
+          requestId: `${requestId}:user`,
+        },
         {
           role: 'tutor',
           text: '',
@@ -624,18 +691,23 @@ export default function SessionChatView() {
       setPendingContextLabel(null);
       setDiscussingSuggestion(false);
       setPendingScreenContext(null);
-      await submitTutorRequest(
-        requestId,
-        userText,
-        images,
-        trimmed,
-        false,
-        requestKind,
-        hotkeyImages,
-        screenContext,
-      );
+      await Promise.all([
+        submitTutorRequest(
+          requestId,
+          userText,
+          images,
+          trimmed,
+          false,
+          requestKind,
+          hotkeyImages,
+          screenContext,
+        ),
+        toolSession && requestKind === 'chat'
+          ? sendPeer(userText, images, trimmed, hotkeyImages, screenContext)
+          : Promise.resolve(),
+      ]);
     },
-    [submitTutorRequest, setPendingScreenContext],
+    [submitTutorRequest, setPendingScreenContext, toolSession, sendPeer],
   );
 
   const retryMessage = useCallback(
@@ -687,27 +759,37 @@ export default function SessionChatView() {
 
   const [replyToReveal, setReplyToReveal] = useState<string | null>(null);
   useEffect(() => {
-    const cleanup = window.electron?.ipcRenderer.on('reveal-agent-reply', (data: any) => {
-      const conversation = data?.conversation as SavedConversation | undefined;
-      if (!conversation?.sessionId || !data?.requestId) return;
-      setActivePage('chat');
-      setShowSettings(false);
-      setShowHistory(false);
-      if (conversation.sessionId === sessionIdRef.current) {
-        setReviewing(null);
-        setReplyToReveal(data.requestId);
-      } else {
-        resumeConversation(conversation).then(() => setReplyToReveal(data.requestId))
-          .catch((error) => setUnderstandingError(error.message));
-      }
-    });
-    return () => { if (typeof cleanup === 'function') cleanup(); };
+    const cleanup = window.electron?.ipcRenderer.on(
+      'reveal-agent-reply',
+      (data: any) => {
+        const conversation = data?.conversation as
+          | SavedConversation
+          | undefined;
+        if (!conversation?.sessionId || !data?.requestId) return;
+        setActivePage('chat');
+        setShowSettings(false);
+        setShowHistory(false);
+        if (conversation.sessionId === sessionIdRef.current) {
+          setReviewing(null);
+          setReplyToReveal(data.requestId);
+        } else {
+          resumeConversation(conversation)
+            .then(() => setReplyToReveal(data.requestId))
+            .catch((error) => setUnderstandingError(error.message));
+        }
+      },
+    );
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
   }, []);
   useEffect(() => {
     if (!replyToReveal) return undefined;
     const frame = requestAnimationFrame(() => {
-      const message = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-request-id]') ?? [])
-        .find((element) => element.dataset.requestId === replyToReveal);
+      const message = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[data-request-id]') ??
+          [],
+      ).find((element) => element.dataset.requestId === replyToReveal);
       if (message) {
         message.scrollIntoView({ block: 'start' });
         setReplyToReveal(null);
@@ -721,12 +803,13 @@ export default function SessionChatView() {
     const cleanup = window.electron?.ipcRenderer.on(
       'session-init',
       (data: any) => {
-        const { sessionId, problemStatement, tutorModelId, preserveDraft } = (data ?? {}) as {
-          sessionId?: string;
-          preserveDraft?: boolean;
-          problemStatement?: string;
-          tutorModelId?: string;
-        };
+        const { sessionId, problemStatement, tutorModelId, preserveDraft } =
+          (data ?? {}) as {
+            sessionId?: string;
+            preserveDraft?: boolean;
+            problemStatement?: string;
+            tutorModelId?: string;
+          };
         if (tutorModelId) setCurrentTutorModelId(tutorModelId);
         if (sessionId && sessionId !== sessionIdRef.current) {
           if (sessionIdRef.current && messagesRef.current.length > 0) {
@@ -752,7 +835,7 @@ export default function SessionChatView() {
           }
           setSending(false);
           window.electron?.ipcRenderer
-            .invoke('get-chat-conversations')
+            .invoke('get-chat-conversations', { includeQuests: true })
             .then((saved: unknown) => {
               if (sessionIdRef.current !== sessionId || !Array.isArray(saved)) {
                 return;
@@ -1206,7 +1289,8 @@ export default function SessionChatView() {
     }
     sessionIdRef.current = conversation.sessionId;
     setProblem(conversation.problem);
-    const restored = (result.conversation as SavedConversation | undefined) ?? conversation;
+    const restored =
+      (result.conversation as SavedConversation | undefined) ?? conversation;
     setMessages(restored.messages);
     setSending(restored.messages.some((message) => message.isStreaming));
     setCurrentTutorModelId(
@@ -1218,7 +1302,15 @@ export default function SessionChatView() {
   };
 
   const handleSend = () => {
-    if (sending || startingNewSession || checkingUnderstanding) return;
+    if (
+      sending ||
+      peer.busy ||
+      peer.loading ||
+      peer.error ||
+      startingNewSession ||
+      checkingUnderstanding
+    )
+      return;
     const imgs = pendingImages;
     const hotkeyImgs = imgs.filter((src) =>
       pendingHotkeyImagesRef.current.has(src),
@@ -1261,6 +1353,9 @@ export default function SessionChatView() {
       setReviewing(null);
     }
     const unavailable =
+      peer.busy ||
+      peer.loading ||
+      Boolean(peer.error) ||
       sending ||
       startingNewSession ||
       (!fromWakeWord && reviewing) ||
@@ -1336,12 +1431,22 @@ export default function SessionChatView() {
     if (startingNewSession || checkingUnderstanding) return;
     setStartingNewSession(true);
     try {
-      const result = await window.electron?.ipcRenderer.invoke('start-new-chat-session', {
-        problemStatement: problem,
-      });
-      if (!result?.success) setUnderstandingError(result?.error || 'Could not start a new conversation.');
+      const result = await window.electron?.ipcRenderer.invoke(
+        'start-new-chat-session',
+        {
+          problemStatement: problem,
+        },
+      );
+      if (!result?.success)
+        setUnderstandingError(
+          result?.error || 'Could not start a new conversation.',
+        );
     } catch (error) {
-      setUnderstandingError(error instanceof Error ? error.message : 'Could not start a new conversation.');
+      setUnderstandingError(
+        error instanceof Error
+          ? error.message
+          : 'Could not start a new conversation.',
+      );
     } finally {
       setStartingNewSession(false);
     }
@@ -1402,6 +1507,9 @@ export default function SessionChatView() {
   };
 
   const canSend =
+    !peer.busy &&
+    !peer.loading &&
+    !peer.error &&
     !sending &&
     !startingNewSession &&
     !checkingUnderstanding &&
@@ -1422,229 +1530,453 @@ export default function SessionChatView() {
       message.role === 'tutor' &&
       (message.toolCalls?.some((call) => call.status === 'running') ||
         message.activity?.some(
-          (item) => item.kind === 'tool' && item.call.status === 'running',
+          (item) =>
+            (item.kind === 'tool' && item.call.status === 'running') ||
+            (item.kind === 'permission' && item.request.status === 'pending'),
         )),
   );
 
+  const tokenChapter = useTokenChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
+  const workflowChapter = useWorkflowChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
+  const modelChapter = useModelChapter(
+    reviewing?.sessionId ?? sessionIdRef.current,
+  );
   return (
-    <DesktopWorkspace
-      expanded={expanded}
-      onExpandedChange={changeExpanded}
-      active={
-        showSettings
-          ? 'settings'
-          : activePage === 'settings'
-            ? 'chat'
-            : activePage
-      }
-      historyOpen={showHistory}
-      onHistoryOpen={() => void openHistory()}
-      onHistoryClose={() => setShowHistory(false)}
-      onNavigate={(page) => {
-        if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
-        setActivePage(page);
-        setShowSettings(page === 'settings');
-        if (page !== 'chat') {
-          setShowHistory(false);
-          changeExpanded(true);
+    <TokenUsageAccess.Provider
+      value={Boolean(tokenChapter.completedAt || tokenChapter.session)}
+    >
+      <DesktopWorkspace
+        expanded={expanded}
+        onExpandedChange={changeExpanded}
+        active={
+          showSettings
+            ? 'settings'
+            : activePage === 'settings'
+              ? 'chat'
+              : activePage
         }
-      }}
-      history={
-        <ConversationSidebar
-          conversations={conversations}
-          loading={historyLoading}
-          error={historyError}
-          selectedId={reviewing?.sessionId}
-          onRetry={() => {
+        historyOpen={showHistory}
+        onHistoryOpen={() => void openHistory()}
+        onHistoryClose={() => setShowHistory(false)}
+        onNavigate={(page) => {
+          if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
+          setActivePage(page);
+          setShowSettings(page === 'settings');
+          if (page !== 'chat') {
             setShowHistory(false);
-            void openHistory();
-          }}
-          onCurrent={() => {
-            if (checkingUnderstanding) return;
-            setReviewing(null);
-            setShowHistory(false);
-            setShowSettings(false);
-            setActivePage('chat');
-          }}
-          onSelect={(conversation) => {
-            if (checkingUnderstanding) return;
-            setUnderstandingError('');
-            if (sending || conversation.messages.some((message) => message.isStreaming)) {
-              resumeConversation(conversation).catch((error) => setUnderstandingError(error.message));
-            } else setReviewing(conversation);
-            setShowHistory(false);
-            setShowSettings(false);
-            setActivePage('chat');
+            changeExpanded(true);
+          }
+        }}
+        history={
+          <ConversationSidebar
+            conversations={conversations}
+            loading={historyLoading}
+            error={historyError}
+            selectedId={reviewing?.sessionId}
+            onRetry={() => {
+              setShowHistory(false);
+              void openHistory();
+            }}
+            onCurrent={() => {
+              if (checkingUnderstanding) return;
+              setReviewing(null);
+              setShowHistory(false);
+              setShowSettings(false);
+              setActivePage('chat');
+            }}
+            onSelect={(conversation) => {
+              if (checkingUnderstanding) return;
+              setUnderstandingError('');
+              if (
+                sending ||
+                conversation.messages.some((message) => message.isStreaming)
+              ) {
+                resumeConversation(conversation).catch((error) =>
+                  setUnderstandingError(error.message),
+                );
+              } else setReviewing(conversation);
+              setShowHistory(false);
+              setShowSettings(false);
+              setActivePage('chat');
+            }}
+          />
+        }
+        details={
+          <>
+            <div className="workspace-training" hidden={showSettings}>
+              <TrainingView
+                visible={activePage === 'tasks' && !showSettings}
+                refreshKey={trainingRefreshKey}
+              />
+            </div>
+            {showSettings && (
+              <div className="workspace-settings">
+                <h1>Settings</h1>
+                <AccountSettings />
+                <HealthSettings
+                  {...{
+                    cocoSleeping,
+                    systemPermissionHealth,
+                    permissionOpening,
+                    openSystemPermission,
+                    permissionError,
+                    serviceHealth,
+                    healthLoading,
+                    refreshServiceHealth,
+                    healthError,
+                  }}
+                >
+                  <PreferencesSettings
+                    {...{
+                      editHideAvatar,
+                      avatarSaving,
+                      updateAvatarVisibility,
+                      avatarSaveError,
+                      wakeWordSaving,
+                      wakeWordEnabled,
+                      updateWakeWordEnabled,
+                      wakeWordCaptureError,
+                      wakeWordStatus,
+                      wakeWordDetail,
+                      cocoSleeping,
+                    }}
+                  />
+                  <MemorySettings
+                    {...{
+                      memoryDraft,
+                      setMemoryDraft,
+                      memoryDirty,
+                      saveMemory,
+                      memoryFlash,
+                    }}
+                  />
+                </HealthSettings>
+              </div>
+            )}
+          </>
+        }
+      >
+        <ChatHeader
+          chatEnabled={studyAccess === true}
+          {...{
+            sending,
+            startingNewSession,
+            handleNewSession,
+            expanded,
+            changeExpanded,
           }}
         />
-      }
-      details={
-        <>
-          <div className="workspace-training" hidden={showSettings}>
-            <TrainingView
-              visible={activePage === 'tasks' && !showSettings}
-              refreshKey={trainingRefreshKey}
-            />
-          </div>
-          {showSettings && (
-            <div className="workspace-settings">
-              <h1>Settings</h1>
-              <AccountSettings />
-              <HealthSettings
-                {...{
-                  cocoSleeping,
-                  systemPermissionHealth,
-                  permissionOpening,
-                  openSystemPermission,
-                  permissionError,
-                  serviceHealth,
-                  healthLoading,
-                  refreshServiceHealth,
-                  healthError,
-                }}
-              />
-              <PreferencesSettings
-                {...{
-                  editHideAvatar,
-                  avatarSaving,
-                  updateAvatarVisibility,
-                  avatarSaveError,
-                  wakeWordSaving,
-                  wakeWordEnabled,
-                  updateWakeWordEnabled,
-                  wakeWordCaptureError,
-                  wakeWordStatus,
-                  wakeWordDetail,
-                  cocoSleeping,
-                }}
-              />
-              <MemorySettings
-                {...{
-                  memoryDraft,
-                  setMemoryDraft,
-                  memoryDirty,
-                  saveMemory,
-                  memoryFlash,
-                }}
-              />
-            </div>
-          )}
-        </>
-      }
-    >
-      <ChatHeader
-        chatEnabled={studyAccess === true}
-        {...{
-          sending,
-          startingNewSession,
-          handleNewSession,
-          expanded,
-          changeExpanded,
-        }}
-      />
 
-      <div style={S.contentViewport}>
-        <div
-          data-testid="chat-scalable-content"
-          style={{
-            ...S.scalableContent,
-            transform: `scale(${contentZoomFactor})`,
-            width: `${100 / contentZoomFactor}%`,
-            height: `${100 / contentZoomFactor}%`,
-          }}
-        >
-          {studyAccess === true ? (
-            <>
-              <ChatTranscript
-                {...{
-                  reviewing,
-                  listRef,
-                  visibleMessages,
-                  sending,
-                  profile,
-                  startingNewSession,
-                  sendMessage,
-                  openImagePreview,
-                  copiedMessageKey,
-                  copyMessage,
-                  toggleSuggestionFold,
-                  retryMessage,
-                  ratings,
-                  rateMessage,
-                  hasRunningTool,
-                }}
-              />{' '}
-              <ChatComposer
-                modelPicker={
-                  <TutorModelPicker
-                    modelId={currentTutorModelId}
-                    onChange={setCurrentTutorModelId}
-                    disabled={
-                      sending || hasRunningTool || startingNewSession ||
-                      checkingUnderstanding || Boolean(reviewing)
-                    }
+        <div style={S.contentViewport}>
+          <div
+            data-testid="chat-scalable-content"
+            style={{
+              ...S.scalableContent,
+              transform: `scale(${contentZoomFactor})`,
+              width: `${100 / contentZoomFactor}%`,
+              height: `${100 / contentZoomFactor}%`,
+            }}
+          >
+            {studyAccess === true ? (
+              <>
+                {workflowChapter.session?.savedSkillId && (
+                  <WorkflowUnlock
+                    key={workflowChapter.session.savedSkillId}
+                    session={workflowChapter.session}
                   />
-                }
-                workspaceSessionId={
-                  reviewing?.sessionId ?? sessionIdRef.current
-                }
-                agentRunning={
-                  sending &&
-                  messages.some(
-                    (m) => m.isStreaming && m.retryRequestKind === 'chat',
-                  )
-                }
-                stopAgent={async () => {
-                  const pending = messages.find((m) => m.isStreaming);
-                  if (pending?.requestId)
-                    await window.electron?.ipcRenderer.invoke(
-                      'stop-agent-run',
-                      pending.requestId,
-                    );
-                }}
-                {...{
-                  pendingContextLabel,
-                  pendingContextRef,
-                  setPendingContextLabel,
-                  discussingSuggestion,
-                  composerFocusRequest,
-                  pendingScreenContext,
-                  clearPendingScreenContext: () =>
-                    setPendingScreenContext(null),
-                  pendingImages,
-                  openImagePreview,
-                  pendingHotkeyImagesRef,
-                  setPendingImages,
-                  understandingError,
-                  sending,
-                  voiceState,
-                  input,
-                  setInput,
-                  onPaste,
-                  onKeyDown,
-                  voiceActive,
-                  startingNewSession,
-                  reviewing,
-                  handleVoiceClick,
-                  profile,
-                  checkingUnderstanding,
-                  handleCheckUnderstanding,
-                  canSend,
-                  handleSend,
-                  voiceStatusText,
-                  voiceError,
-                }}
-              />
-            </>
-          ) : (
-            <div className="workspace-locked">
-              {studyAccess === null
-                ? 'Checking study access…'
-                : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}
-            </div>
-          )}
+                )}
+                {modelChapter.session && (
+                  <ModelQuest
+                    key={modelChapter.session.sessionId}
+                    session={modelChapter.session}
+                    completedAt={modelChapter.completedAt}
+                    onNewChat={() => {
+                      handleNewSession();
+                    }}
+                  />
+                )}
+                {!modelChapter.session && (
+                  <>
+                    <WorkflowTrainingBanner session={workflowChapter.session} />
+                    <TokenTrainingBanner
+                      onSettings={() => {
+                        setActivePage('settings');
+                        setShowSettings(true);
+                      }}
+                      session={tokenChapter.session}
+                      completedAt={tokenChapter.completedAt}
+                      busy={
+                        sending ||
+                        startingNewSession ||
+                        checkingUnderstanding ||
+                        voiceState !== 'idle'
+                      }
+                      onPrompt={(prompt) => {
+                        setInput((previous) =>
+                          previous.trim()
+                            ? `${previous.trim()}\n\n${prompt}`
+                            : prompt,
+                        );
+                        setComposerFocusRequest((value) => value + 1);
+                      }}
+                    />
+                    <ContextTrainingBanner
+                      sessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                      busy={
+                        sending ||
+                        startingNewSession ||
+                        checkingUnderstanding ||
+                        voiceState !== 'idle'
+                      }
+                      onPrompt={(prompt) => {
+                        setInput((previous) =>
+                          previous.trim()
+                            ? `${previous.trim()}\n\n${prompt}`
+                            : prompt,
+                        );
+                        setComposerFocusRequest((value) => value + 1);
+                      }}
+                    />
+                    <ToolTrainingBanner
+                      comparison={Boolean(toolSession)}
+                      sessionId={reviewing?.sessionId ?? sessionIdRef.current}
+                    />
+                    {toolSession ? (
+                      <ToolViewerAccess.Provider value>
+                        <ChatComparisonLayout
+                          panes={[
+                            {
+                              id: toolSession.sessionId,
+                              title:
+                                toolSession.mode === 'with'
+                                  ? 'With tools'
+                                  : 'Without tools',
+                              content: (
+                                <ChatTranscript
+                                  {...{
+                                    reviewing,
+                                    listRef,
+                                    visibleMessages,
+                                    sending,
+                                    profile,
+                                    startingNewSession,
+                                    sendMessage,
+                                    openImagePreview,
+                                    copiedMessageKey,
+                                    copyMessage,
+                                    toggleSuggestionFold,
+                                    retryMessage,
+                                    ratings,
+                                    rateMessage,
+                                    hasRunningTool,
+                                  }}
+                                />
+                              ),
+                              actions: sending && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const pending = messages.find(
+                                      (m) => m.isStreaming,
+                                    );
+                                    if (pending?.requestId)
+                                      void window.electron.ipcRenderer.invoke(
+                                        'stop-agent-run',
+                                        pending.requestId,
+                                      );
+                                  }}
+                                >
+                                  Stop
+                                </button>
+                              ),
+                            },
+                            {
+                              id: toolSession.peerSessionId,
+                              title:
+                                toolSession.mode === 'with'
+                                  ? 'Without tools'
+                                  : 'With tools',
+                              actions: peer.busy && (
+                                <button
+                                  type="button"
+                                  onClick={() => void peer.stop()}
+                                >
+                                  Stop
+                                </button>
+                              ),
+                              content: (
+                                <>
+                                  {peer.loading && (
+                                    <p role="status">Loading conversation…</p>
+                                  )}
+                                  {peer.error && (
+                                    <p role="alert">{peer.error}</p>
+                                  )}
+                                  <ChatTranscript
+                                    reviewing={null}
+                                    listRef={peerListRef}
+                                    visibleMessages={peer.messages}
+                                    sending={peer.busy}
+                                    profile={profile}
+                                    startingNewSession={startingNewSession}
+                                    sendMessage={sendMessage}
+                                    openImagePreview={openImagePreview}
+                                    copiedMessageKey={copiedMessageKey}
+                                    copyMessage={copyMessage}
+                                    toggleSuggestionFold={peer.toggleFold}
+                                    retryMessage={peer.retry}
+                                    ratings={{}}
+                                    rateMessage={() => {}}
+                                    allowRatings={false}
+                                    hasRunningTool={peer.messages.some((m) =>
+                                      m.activity?.some(
+                                        (item) =>
+                                          item.kind === 'permission' &&
+                                          item.request.status === 'pending',
+                                      ),
+                                    )}
+                                  />
+                                </>
+                              ),
+                            },
+                          ].sort((a, b) => a.title.localeCompare(b.title))}
+                        />
+                      </ToolViewerAccess.Provider>
+                    ) : (
+                      <ChatTranscript
+                        {...{
+                          reviewing,
+                          listRef,
+                          visibleMessages,
+                          sending,
+                          profile,
+                          startingNewSession,
+                          sendMessage,
+                          openImagePreview,
+                          copiedMessageKey,
+                          copyMessage,
+                          toggleSuggestionFold,
+                          retryMessage,
+                          ratings,
+                          rateMessage,
+                          hasRunningTool,
+                        }}
+                      >
+                        <TokenTrainingQuestion
+                          key={tokenChapter.session?.sessionId}
+                          session={tokenChapter.session}
+                          completedAt={tokenChapter.completedAt}
+                          busy={
+                            sending ||
+                            startingNewSession ||
+                            checkingUnderstanding ||
+                            voiceState !== 'idle'
+                          }
+                        />
+                      </ChatTranscript>
+                    )}
+                    <ChatComposer
+                      modelPicker={
+                        <TutorModelPicker
+                          modelId={currentTutorModelId}
+                          onChange={setCurrentTutorModelId}
+                          disabled={
+                            Boolean(toolSession) ||
+                            Boolean(tokenChapter.session) ||
+                            sending ||
+                            peer.busy ||
+                            hasRunningTool ||
+                            startingNewSession ||
+                            checkingUnderstanding ||
+                            Boolean(reviewing)
+                          }
+                        />
+                      }
+                      workspaceSessionId={
+                        reviewing?.sessionId ?? sessionIdRef.current
+                      }
+                      agentRunning={
+                        peer.busy ||
+                        (sending &&
+                          messages.some(
+                            (m) =>
+                              m.isStreaming && m.retryRequestKind === 'chat',
+                          ))
+                      }
+                      stopAgent={async () => {
+                        await peer.stop();
+                        const pending = messages.find((m) => m.isStreaming);
+                        if (pending?.requestId)
+                          await window.electron?.ipcRenderer.invoke(
+                            'stop-agent-run',
+                            pending.requestId,
+                          );
+                      }}
+                      {...{
+                        pendingContextLabel,
+                        pendingContextRef,
+                        setPendingContextLabel,
+                        discussingSuggestion,
+                        composerFocusRequest,
+                        pendingScreenContext,
+                        clearPendingScreenContext: () =>
+                          setPendingScreenContext(null),
+                        pendingImages,
+                        openImagePreview,
+                        pendingHotkeyImagesRef,
+                        setPendingImages,
+                        understandingError,
+                        sending,
+                        voiceState,
+                        input,
+                        setInput,
+                        onPaste,
+                        onKeyDown,
+                        voiceActive,
+                        startingNewSession,
+                        reviewing,
+                        handleVoiceClick,
+                        profile,
+                        checkingUnderstanding,
+                        handleCheckUnderstanding,
+                        canSend,
+                        handleSend,
+                        voiceStatusText,
+                        voiceError,
+                      }}
+                      sending={sending || peer.busy || peer.loading}
+                    />
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="workspace-locked">
+                {studyAccess === null
+                  ? 'Checking study access…'
+                  : 'AI tutoring is currently unavailable for your account. You can still access your training and messages with other participants.'}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </DesktopWorkspace>
+      </DesktopWorkspace>
+    </TokenUsageAccess.Provider>
+  );
+}
+
+export default function SessionChatView() {
+  const toolProgress = useToolChapterProgress();
+  const contextProgress = useContextChapterProgress();
+  return (
+    <ToolViewerAccess.Provider value={Boolean(toolProgress.completedAt)}>
+      <ContextViewerAccess.Provider
+        value={Boolean(contextProgress.completedAt)}
+      >
+        <SessionChatContent />
+      </ContextViewerAccess.Provider>
+    </ToolViewerAccess.Provider>
   );
 }

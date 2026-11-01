@@ -125,3 +125,43 @@ it('only runs a proactive suggestion after an explicit click', () => {
   );
   expect(screen.getByRole('button', { name: 'Run with Coco' })).toBeDisabled();
 });
+
+it('consolidates folder access and command approvals into the workspace Access control', async () => {
+  const invoke = jest.fn(async (channel: string) =>
+    channel === 'list-command-approvals'
+      ? { directory: '/work/project', rules: [] }
+      : {
+          directory: '/work/project',
+          accessGranted: channel === 'get-agent-workspace',
+        },
+  );
+  (window as any).electron = { ipcRenderer: { invoke } };
+  render(
+    <AgentWorkspace
+      sessionId="session-a"
+      disabled={false}
+      running={false}
+      onStop={jest.fn()}
+    />,
+  );
+  await screen.findByText('project');
+  expect(
+    screen.queryByRole('button', { name: 'Manage permissions' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Revoke access' }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Workspace access' }));
+  expect(
+    screen.getByRole('dialog', { name: 'Workspace access' }),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Allowed')).toBeInTheDocument();
+  expect(
+    await screen.findByText('No saved command approvals.'),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke folder access' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('revoke-agent-workspace', 'session-a'),
+  );
+  expect(await screen.findByText('Ask first')).toBeInTheDocument();
+});

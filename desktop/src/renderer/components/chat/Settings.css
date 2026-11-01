@@ -118,3 +118,9 @@
   color: var(--coco-color-danger);
   font-size: var(--coco-text-secondary);
 }
+
+.settings-subsection {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--coco-color-border);
+}

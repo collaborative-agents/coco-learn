@@ -1104,6 +1104,7 @@ describe('deferred suggestion context', () => {
     const listeners = new Map<string, (data: any) => void>();
     let requestId = '';
     const invoke = jest.fn(async (channel: string, payload?: any) => {
+      if (channel === 'tool-chapter-progress') return { approved: true, denied: true, externalInformation: true, completedAt: '2026-10-26T00:00:00Z' };
       if (channel === 'send-chat-message') {
         requestId = payload.requestId;
         return { streamed: true };

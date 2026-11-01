@@ -14,7 +14,24 @@ import {
   SUGGESTION_FOLLOW_UPS,
 } from './constants';
 
+// Older saved denials used the generic error UI. Keep them compact too.
+function isWorkspaceDenial(message: ChatMessage) {
+  return (
+    message.activity?.some(
+      (item) =>
+        item.kind === 'permission' &&
+        item.request.kind === 'workspace' &&
+        item.request.status === 'denied',
+    ) &&
+    (!message.text ||
+      message.text === 'Workspace access request denied by the user.' ||
+      message.text.startsWith('Workspace access was denied.'))
+  );
+}
+
 interface Props {
+  children?: React.ReactNode;
+  allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
   visibleMessages: ChatMessage[];
@@ -38,6 +55,8 @@ interface Props {
 }
 
 export default function ChatTranscript({
+  children = null,
+  allowRatings = true,
   reviewing,
   listRef,
   visibleMessages,
@@ -209,79 +228,83 @@ export default function ChatTranscript({
                       ))}
                     </div>
                   )}
-                {!m.suggestion && (m.text || m.isError) && (
-                  <div style={m.isError ? S.errBubble : S.tutorBubble}>
-                    {m.isError ? (
-                      <>
-                        <div>{m.text}</div>
-                        {m.retryText !== undefined && (
-                          <button
-                            type="button"
-                            style={{
-                              ...S.retryBtn,
-                              ...(sending || startingNewSession
-                                ? S.sendBtnDisabled
-                                : {}),
-                            }}
-                            disabled={sending || startingNewSession}
-                            onClick={() => retryMessage(m)}
-                          >
-                            Retry
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <TutorMessage text={m.text} />
-                    )}
-                  </div>
-                )}
+                {!m.suggestion &&
+                  !isWorkspaceDenial(m) &&
+                  (m.text || m.isError) && (
+                    <div style={m.isError ? S.errBubble : S.tutorBubble}>
+                      {m.isError ? (
+                        <>
+                          <div>{m.text}</div>
+                          {m.retryText !== undefined && (
+                            <button
+                              type="button"
+                              style={{
+                                ...S.retryBtn,
+                                ...(sending || startingNewSession
+                                  ? S.sendBtnDisabled
+                                  : {}),
+                              }}
+                              disabled={sending || startingNewSession}
+                              onClick={() => retryMessage(m)}
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <TutorMessage text={m.text} />
+                      )}
+                    </div>
+                  )}
                 {m.stopped && (
                   <div style={S.typing}>
                     Run stopped · completed changes remain
                   </div>
                 )}
-                {!m.isError && (
+                {!m.isStreaming && (
                   <ChatMetrics
                     observerMetrics={m.observerMetrics}
                     tutorMetrics={m.tutorMetrics}
                   />
                 )}
-                {(m.text.trim() || (!m.isError && m.id)) && (
-                  <div style={S.feedbackRow}>
-                    {m.text.trim() && (
-                      <button
-                        type="button"
-                        style={{
-                          ...S.copyMessageBtn,
-                          ...(copiedMessageKey === messageCopyKey(m, i)
-                            ? S.copyMessageBtnDone
-                            : {}),
-                        }}
-                        aria-label="Copy tutor message"
-                        title="Copy message"
-                        onClick={() =>
-                          void copyMessage(m, messageCopyKey(m, i))
-                        }
-                      >
-                        {copiedMessageKey === messageCopyKey(m, i)
-                          ? 'Copied ✓'
-                          : 'Copy'}
-                      </button>
-                    )}
-                    {!m.isError && m.id && (
-                      <RatingButtons
-                        value={ratings[m.id]}
-                        onRate={(dir) => rateMessage(m, dir)}
-                        className="coco-rating--compact"
-                      />
-                    )}
-                  </div>
-                )}
+                {!isWorkspaceDenial(m) &&
+                  (m.text.trim() || (!m.isError && m.id)) && (
+                    <div style={S.feedbackRow}>
+                      {m.text.trim() && (
+                        <button
+                          type="button"
+                          style={{
+                            ...S.copyMessageBtn,
+                            ...(copiedMessageKey === messageCopyKey(m, i)
+                              ? S.copyMessageBtnDone
+                              : {}),
+                          }}
+                          aria-label="Copy tutor message"
+                          title="Copy message"
+                          onClick={() =>
+                            void copyMessage(m, messageCopyKey(m, i))
+                          }
+                        >
+                          {copiedMessageKey === messageCopyKey(m, i)
+                            ? 'Copied ✓'
+                            : 'Copy'}
+                        </button>
+                      )}
+                      {allowRatings && !m.isError && m.id && (
+                        <RatingButtons
+                          value={ratings[m.id]}
+                          onRate={(dir) => rateMessage(m, dir)}
+                          className="coco-rating--compact"
+                        />
+                      )}
+                    </div>
+                  )}
               </div>
             </>
           )}
         </div>
       ))}
+      {children}
       {sending && !hasRunningTool && (
         <div style={S.typing}>Coco is thinking…</div>
       )}

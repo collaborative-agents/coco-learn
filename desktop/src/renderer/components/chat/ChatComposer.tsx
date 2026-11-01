@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { S } from './styles';
+import SkillPicker from './SkillPicker';
 import ChatComposerActions from './ChatComposerActions';
 import './ChatComposer.css';
 import AgentWorkspace from './AgentWorkspace';
@@ -243,6 +244,19 @@ export default function ChatComposer({
           onAttachFiles={attachFiles}
           attachmentDisabled={attachmentDisabled}
           modelPicker={modelPicker}
+          skillPicker={
+            <SkillPicker
+              key={`skills:${workspaceSessionId}`}
+              disabled={attachmentDisabled}
+              onSelect={(name) => {
+                setInput(
+                  (previous) =>
+                    `/skill:${name} ${previous.replace(/^\/skill:[a-z0-9-]+\s*/, '')}`,
+                );
+                textareaRef.current?.focus();
+              }}
+            />
+          }
           sessionId={workspaceSessionId}
           showUnderstandingCheck={profile.scenario === 'ai_upskilling'}
           checkingUnderstanding={checkingUnderstanding}

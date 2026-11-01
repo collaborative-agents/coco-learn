@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import ResponseCodeBlock from './chat/ResponseCodeBlock';
+import { currencySafeMarkdown } from './currency-markdown';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import type { InstantSuggestion } from './observation-types';
@@ -175,6 +177,7 @@ function truncateForPreview(text: string): string {
 //  - <a>: open external links in the system browser via shell, not
 //    inside this transparent BrowserWindow.
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] = {
+  pre: ResponseCodeBlock,
   a({ href, children, ...props }: any) {
     return (
       <a href={href} target="_blank" rel="noreferrer" {...props}>
@@ -362,7 +365,7 @@ export function NotificationBubble({
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {displayMessage}
+              {currencySafeMarkdown(displayMessage)}
             </Markdown>
           </div>
         )}

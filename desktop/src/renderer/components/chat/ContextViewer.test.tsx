@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import ContextViewer from './ContextViewer';
+import ContextViewerAccess from './ContextViewerAccess';
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function showModal() {
@@ -25,7 +26,10 @@ test('opens session-scoped analysis on demand and restores focus on close', asyn
   });
   (window as any).electron = { ipcRenderer: { invoke } };
   render(<ContextViewer sessionId="saved-session" />);
-  expect(invoke).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith(
+    'get-agent-context',
+    expect.anything(),
+  );
   const button = screen.getByRole('button', { name: 'Context' });
   fireEvent.click(button);
   expect(await screen.findByText('Tool schema content')).toBeInTheDocument();
@@ -53,4 +57,29 @@ test('reads context again when reopened after a failed read', async () => {
   expect(
     await screen.findByText(/Send a message in this session/),
   ).toBeInTheDocument();
+});
+
+test('hints at Chapter 2 while locked and opens only after completion', async () => {
+  const invoke = jest.fn().mockResolvedValue(null);
+  (window as any).electron = { ipcRenderer: { invoke } };
+  const { rerender } = render(
+    <ContextViewerAccess.Provider value={false}>
+      <ContextViewer sessionId="practice" />
+    </ContextViewerAccess.Provider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Context' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Complete Chapter 2');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(invoke).not.toHaveBeenCalledWith(
+    'get-agent-context',
+    expect.anything(),
+  );
+  rerender(
+    <ContextViewerAccess.Provider value>
+      <ContextViewer sessionId="practice" />
+    </ContextViewerAccess.Provider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Context' }));
+  await screen.findByText(/Send a message in this session/);
+  expect(invoke).toHaveBeenCalledWith('get-agent-context', 'practice');
 });

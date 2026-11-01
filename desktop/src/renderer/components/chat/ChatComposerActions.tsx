@@ -7,6 +7,7 @@ interface Props {
   onAttachFiles: () => Promise<void>;
   attachmentDisabled: boolean;
   modelPicker?: ReactNode;
+  skillPicker?: ReactNode;
   sessionId: string | null;
   showUnderstandingCheck: boolean;
   checkingUnderstanding: boolean;
@@ -23,6 +24,7 @@ export default function ChatComposerActions({
   onAttachFiles,
   attachmentDisabled,
   modelPicker,
+  skillPicker,
   sessionId,
   showUnderstandingCheck,
   checkingUnderstanding,
@@ -64,6 +66,7 @@ export default function ChatComposerActions({
             </svg>
           </button>
         </ActionTooltip>
+        {skillPicker}
         {showUnderstandingCheck && (
           <ActionTooltip label="Check my understanding">
             <button

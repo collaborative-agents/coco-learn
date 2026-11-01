@@ -3,11 +3,13 @@ import path from 'path';
 import { app } from 'electron';
 import {
   GEMINI_TUTOR_MODEL,
+  DEFAULT_TUTOR_MODEL,
   OBSERVER_MODEL,
   TUTOR_MODEL_PRESETS,
 } from '../shared/model-catalog';
 
 export type ProviderId =
+  | 'deepseek-ai'
   | 'gemini'
   | 'openai'
   | 'anthropic'
@@ -46,7 +48,7 @@ export interface ModelConfigurationView extends ModelConfiguration {
 export const ROUTER_MANAGED_MODEL_CONFIGURATION: ModelConfigurationInput = {
   sensing: OBSERVER_MODEL,
   tutors: [...TUTOR_MODEL_PRESETS],
-  defaultTutorId: 'tutor-1',
+  defaultTutorId: DEFAULT_TUTOR_MODEL.id,
 };
 
 export function normalizeRouterManagedModelConfiguration(
@@ -54,7 +56,7 @@ export function normalizeRouterManagedModelConfiguration(
 ): ModelConfigurationInput {
   const existingTutors = (current?.tutors ?? [])
     .filter((model) =>
-      ['gemini', 'openai', 'anthropic'].includes(model.provider),
+      ['gemini', 'openai', 'anthropic', 'deepseek-ai'].includes(model.provider),
     )
     .map((model) =>
       /^(?:gemini\/)?gemini-3-flash(?:-preview)?$/.test(model.model)
@@ -73,11 +75,19 @@ export function normalizeRouterManagedModelConfiguration(
     while (usedIds.has(id)) id = `${id}-preset`;
     tutors.push({ ...preset, id });
   });
-  const defaultTutorId = tutors.some(
-    (model) => model.id === current?.defaultTutorId,
-  )
-    ? (current?.defaultTutorId as string)
-    : tutors[0].id;
+  // Adopt the new default once when upgrading the catalog, then preserve
+  // any subsequent explicit default selection.
+  const hasNewDefault = existingTutors.some(
+    (model) => model.model === DEFAULT_TUTOR_MODEL.model,
+  );
+  const previousDefault =
+    hasNewDefault &&
+    tutors.find((model) => model.id === current?.defaultTutorId);
+  const defaultTutorId = (
+    previousDefault ||
+    tutors.find((model) => model.model === DEFAULT_TUTOR_MODEL.model) ||
+    tutors[0]
+  ).id;
 
   return {
     sensing: ROUTER_MANAGED_MODEL_CONFIGURATION.sensing,
@@ -97,6 +107,7 @@ export const isLlmRouterConfigured = (
   );
 
 const PROVIDER_KEY_ENV: Partial<Record<ProviderId, string>> = {
+  'deepseek-ai': 'DEEPSEEK_API_KEY',
   gemini: 'GEMINI_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
@@ -109,6 +120,7 @@ export const PROVIDERS: Record<
   ProviderId,
   { label: string; requiresKey: boolean; privacy: string }
 > = {
+  'deepseek-ai': { label: 'DeepSeek', requiresKey: true, privacy: 'cloud' },
   gemini: { label: 'Google Gemini', requiresKey: true, privacy: 'cloud' },
   openai: { label: 'OpenAI', requiresKey: true, privacy: 'cloud' },
   anthropic: { label: 'Anthropic', requiresKey: true, privacy: 'cloud' },

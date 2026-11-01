@@ -7,6 +7,8 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import { emptyContextProgress } from '../shared/context-training';
+import { emptyToolProgress } from '../shared/tool-exploration';
 import TrainingView from '../renderer/components/TrainingView';
 import type { StudyState } from '../shared/study';
 import type { PreAssessmentState } from '../shared/pre-assessment';
@@ -15,6 +17,10 @@ import type {
   TaskRecorderState,
 } from '../shared/post-assessment';
 
+let toolProgress = emptyToolProgress();
+let contextProgress = emptyContextProgress();
+let tokenProgress: { completedAt: string | null } = { completedAt: null };
+let modelProgress: { completedAt: string | null } = { completedAt: null };
 let me: StudyState;
 let invoke: jest.Mock;
 let assessments: PreAssessmentState;
@@ -41,6 +47,10 @@ const completedAssessments = (): PreAssessmentState => ({
   },
 });
 beforeEach(() => {
+  toolProgress = emptyToolProgress();
+  contextProgress = emptyContextProgress();
+  tokenProgress = { completedAt: null };
+  modelProgress = { completedAt: null };
   me = {
     user_id: 'alice',
     role: 'participant',
@@ -101,6 +111,10 @@ beforeEach(() => {
           },
         ],
       };
+    if (channel === 'tool-chapter-progress') return toolProgress;
+    if (channel === 'context-chapter-progress') return contextProgress;
+    if (channel === 'token-chapter-progress') return tokenProgress;
+    if (channel === 'model-chapter-progress') return modelProgress;
     if (channel === 'pre-assessment-state') return assessments;
     if (channel === 'pre-assessment-submit') {
       const set = args[0] as 'A' | 'E';
@@ -719,33 +733,51 @@ it('shows four stages and seven day markers without a separate checklist', async
   ).not.toHaveAttribute('open');
 });
 
-it('lets admins preview every Agent 101 level and hides locked details in student mode', async () => {
+it('lets admins preview every Agent 101 chapter and hides locked details in student mode', async () => {
   me.role = 'admin';
   render(<TrainingView />);
   const context = await screen.findByRole('button', {
-    name: 'Level 2: Context. Available',
+    name: 'Chapter 2: Context. Available',
   });
   expect(context).toBeEnabled();
   expect(
     screen.getByRole('button', {
-      name: 'Reward after level 2: Context button',
+      name: 'Reward after chapter 2: Context button',
     }),
   ).toBeEnabled();
   fireEvent.click(context);
   expect(
-    screen.getByRole('dialog', { name: 'Level 2 · Context' }),
+    screen.getByRole('dialog', { name: 'Chapter 2 · Context' }),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Back to training' }));
+  const diagram = screen.getByRole('region', { name: 'How Coco uses context' });
+  expect(
+    within(diagram).getByText(/You are Coco, the user's desktop assistant/),
+  ).toBeInTheDocument();
+  const history = within(diagram).getByRole('button', { name: 'Chat history' });
+  fireEvent.click(history);
+  expect(history).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    within(diagram).getByText(/Recent Coco conversation:/),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(diagram).getByRole('button', { name: 'Tool results' }),
+  );
+  expect(within(diagram).getByText(/Review the budget/)).toBeInTheDocument();
+  expect(
+    within(diagram).queryByText(/Recent Coco conversation:/),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText(/Lesson preview/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Close task details' }));
   fireEvent.click(screen.getByRole('button', { name: 'Student mode' }));
   await screen.findByRole('button', { name: 'Exit student mode' });
   expect(
     screen.getByRole('button', {
-      name: 'Level 2: Locked, complete level 1 first',
+      name: 'Chapter 2: Locked, complete chapter 1 first',
     }),
   ).toBeDisabled();
   expect(
     screen.queryByRole('button', {
-      name: 'Reward after level 2: Context button',
+      name: 'Reward after chapter 2: Context button',
     }),
   ).not.toBeInTheDocument();
 });
@@ -937,3 +969,221 @@ it.each(['admin', 'super_admin'] as const)(
     expect(screen.queryByRole('button', { name: /Follow-up/ })).toBeDisabled();
   },
 );
+
+it('starts Tool training in the regular chat instead of mounting a separate exploration screen', async () => {
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('tool-chapter-start'),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Chapter 1 · Tool' }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    screen.queryByRole('button', { name: 'Compare answers' }),
+  ).not.toBeInTheDocument();
+});
+
+it.each(['participant', 'admin', 'super_admin'] as const)(
+  'unlocks Context after Tool is passed in the %s student experience',
+  async (role) => {
+    me.role = role;
+    studentMode = role !== 'participant';
+    toolProgress = {
+      externalInformation: true,
+      approved: true,
+      denied: true,
+      completedAt: '2026-10-27T00:00:00Z',
+    };
+    render(<TrainingView />);
+    const context = await screen.findByRole('button', {
+      name: 'Chapter 2: Context. Available',
+    });
+    expect(context).toBeEnabled();
+    expect(context).toHaveAttribute('aria-current', 'step');
+    expect(
+      screen.getByRole('button', { name: 'Chapter 1: Tool. Complete' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', {
+        name: 'Chapter 3: Locked, complete chapter 2 first',
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', {
+        name: 'Reward after chapter 1: Expand tool calls',
+      }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Reward after chapter 2: Locked' }),
+    ).toBeDisabled();
+    fireEvent.click(context);
+    expect(
+      screen.getByRole('dialog', { name: 'Chapter 2 · Context' }),
+    ).toBeInTheDocument();
+  },
+);
+
+it('starts Context practice in normal chat from the chapter popup', async () => {
+  toolProgress = {
+    externalInformation: true,
+    approved: true,
+    denied: true,
+    completedAt: '2026-10-27T00:00:00Z',
+  };
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: 'Chapter 2: Context. Available',
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('context-chapter-start'),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Chapter 2 · Context' }),
+    ).not.toBeInTheDocument(),
+  );
+});
+
+it('unlocks Token and the Context reward after completing Context in student mode', async () => {
+  toolProgress = {
+    externalInformation: true,
+    approved: true,
+    denied: true,
+    completedAt: '2026-10-27T00:00:00Z',
+  };
+  contextProgress = {
+    workspaceSet: true,
+    fileLinked: true,
+    fileRead: true,
+    completedAt: '2026-10-28T00:00:00Z',
+  };
+  render(<TrainingView />);
+  const token = await screen.findByRole('button', {
+    name: 'Chapter 3: Token. Available',
+  });
+  expect(token).toBeEnabled();
+  expect(token).toHaveAttribute('aria-current', 'step');
+  expect(
+    screen.getByRole('button', { name: 'Chapter 2: Context. Complete' }),
+  ).toBeEnabled();
+  expect(
+    screen.getByRole('button', {
+      name: 'Reward after chapter 2: Context button',
+    }),
+  ).toBeEnabled();
+  expect(
+    screen.getByRole('button', {
+      name: 'Chapter 4: Locked, complete chapter 3 first',
+    }),
+  ).toBeDisabled();
+});
+
+it.each([0, 1])(
+  'allows revisiting completed chapter %i from its content panel',
+  async (chapter) => {
+    toolProgress = {
+      externalInformation: true,
+      approved: true,
+      denied: true,
+      completedAt: '2026-10-27T00:00:00Z',
+    };
+    contextProgress = {
+      workspaceSet: true,
+      fileLinked: true,
+      fileRead: true,
+      completedAt: '2026-10-28T00:00:00Z',
+    };
+    render(<TrainingView />);
+    const name =
+      chapter === 0
+        ? 'Chapter 1: Tool. Complete'
+        : 'Chapter 2: Context. Complete';
+    fireEvent.click(await screen.findByRole('button', { name }));
+    const completed = screen.getByRole('button', { name: 'revisit quest' });
+    expect(completed).toBeEnabled();
+    expect(completed).toHaveAttribute('title', 'revisit quest');
+    expect(completed).not.toHaveClass('training-primary');
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(completed.closest('.training-dialog-actions')).toContainElement(
+      screen.getByRole('button', { name: 'Close task details' }),
+    );
+    fireEvent.click(completed);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        chapter === 0 ? 'tool-chapter-start' : 'context-chapter-start',
+      ),
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Start quest' }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it('starts the Token quest from Chapter 3 and unlocks Models after completion', async () => {
+  me.role = 'admin';
+  const view = render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Chapter 3: Token. Available' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('token-chapter-start'),
+  );
+  view.unmount();
+  tokenProgress = { completedAt: '2026-10-29T00:00:00Z' };
+  render(<TrainingView />);
+  expect(
+    await screen.findByRole('button', { name: 'Chapter 3: Token. Complete' }),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Chapter 3: Token. Complete' }),
+  );
+  expect(screen.getByRole('button', { name: 'revisit quest' })).toBeEnabled();
+});
+
+it('starts the Models comparison and reflects the saved picker reward', async () => {
+  me.role = 'admin';
+  const view = render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Chapter 4: Models. Available' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('model-chapter-start'),
+  );
+  view.unmount();
+  modelProgress = { completedAt: '2026-10-29T00:00:00Z' };
+  render(<TrainingView />);
+  expect(
+    await screen.findByRole('button', { name: 'Chapter 4: Models. Complete' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {
+      name: 'Reward after chapter 4: Model picker',
+    }),
+  ).toBeEnabled();
+});
+
+it('starts the Workflow skill workshop from Chapter 5 in admin mode', async () => {
+  me.role = 'admin';
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: 'Chapter 5: Workflow. Available',
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('workflow-chapter-start'),
+  );
+});

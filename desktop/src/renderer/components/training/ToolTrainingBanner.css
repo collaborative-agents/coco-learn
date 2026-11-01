@@ -1,0 +1,104 @@
+.tool-training-banner {
+  flex: none;
+  margin: 8px 16px;
+  padding: 12px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 12px;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-text);
+  font: var(--coco-text-control) / 1.5 var(--coco-font-family);
+}
+.tool-training-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.tool-training-goals {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.tool-training-goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 10px;
+  background: var(--coco-color-surface);
+  font-weight: 600;
+}
+.tool-training-goal-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-primary);
+}
+.tool-training-goal.is-complete {
+  border-color: var(--coco-color-primary);
+  animation: tool-goal-highlight 1s ease-out;
+}
+.tool-training-goal.is-complete .tool-training-goal-icon {
+  background: var(--coco-color-primary);
+  color: var(--coco-color-surface);
+  animation: tool-goal-check 550ms ease-out;
+}
+.tool-training-banner button {
+  cursor: pointer;
+  padding: 5px 10px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 8px;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-primary);
+  font: inherit;
+}
+.tool-training-banner button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.tool-training-banner button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+@keyframes tool-goal-check {
+  0% {
+    transform: scale(0.6);
+  }
+  55% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes tool-goal-highlight {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px var(--coco-color-accent-border);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (max-width: 600px) {
+  .tool-training-goals {
+    grid-template-columns: 1fr;
+  }
+  .tool-training-goal {
+    padding: 8px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-training-goal.is-complete,
+  .tool-training-goal.is-complete .tool-training-goal-icon {
+    animation: none;
+  }
+}

@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useContext, useId, useState } from 'react';
+import ToolViewerAccess from './ToolViewerAccess';
+import ToolCallDetails from './ToolCallDetails';
 import type { TutorToolCall } from '../observation-types';
 import toolSummary from './tool-summary';
 import './ToolActivity.css';
 import QuestionCard from './QuestionCard';
 import { S } from './styles';
 
+// eslint-disable-next-line import/prefer-default-export -- Keep the existing named component API.
 export function ToolCallCard({
   requestId,
   call,
@@ -16,6 +19,14 @@ export function ToolCallCard({
   interactive?: boolean;
   grouped?: boolean;
 }) {
+  const unlocked = useContext(ToolViewerAccess);
+  const [showLockedHint, setShowLockedHint] = useState(false);
+  const hintId = useId();
+  const statusLabel = {
+    running: 'Working…',
+    error: 'Failed',
+    completed: 'Done',
+  }[call.status];
   if (call.name === 'ask_user_question')
     return (
       <QuestionCard
@@ -24,20 +35,47 @@ export function ToolCallCard({
         requestId={requestId}
       />
     );
-  const rawDetails = (
-    <div className="tool-activity-details">
-      <div className="tool-activity-caption">Full tool call · JSON</div>
-      <pre className="agent-tool-output">{JSON.stringify(call, null, 2)}</pre>
-    </div>
-  );
+  if (!unlocked)
+    return (
+      <div>
+        <details className="tool-activity-call">
+          <summary
+            aria-expanded={false}
+            aria-describedby={showLockedHint ? hintId : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              setShowLockedHint(true);
+            }}
+          >
+            <span className="tool-activity-description">
+              {toolSummary(call)}
+            </span>
+            <span className={`tool-activity-status ${call.status}`}>
+              {statusLabel}
+            </span>
+            <span className="tool-activity-detail-label">Details · Locked</span>
+          </summary>
+        </details>
+        {showLockedHint && (
+          <p id={hintId} className="tool-activity-locked-hint" role="status">
+            Complete{' '}
+            <a
+              href="#agent-101"
+              onClick={(event) => {
+                event.preventDefault();
+                window.electron.ipcRenderer.sendMessage('open-training');
+              }}
+            >
+              Agent 101 Chapter 1 · Tool
+            </a>{' '}
+            to unlock tool details.
+          </p>
+        )}
+      </div>
+    );
+  const callDetails = <ToolCallDetails call={call} />;
   const status = (
-    <span className={`tool-activity-status ${call.status}`}>
-      {call.status === 'running'
-        ? 'Working…'
-        : call.status === 'error'
-          ? 'Failed'
-          : 'Done'}
-    </span>
+    <span className={`tool-activity-status ${call.status}`}>{statusLabel}</span>
   );
   if (grouped) {
     return (
@@ -47,7 +85,7 @@ export function ToolCallCard({
           {status}
           <span className="tool-activity-detail-label">Details</span>
         </summary>
-        {rawDetails}
+        {callDetails}
       </details>
     );
   }
@@ -63,7 +101,7 @@ export function ToolCallCard({
           {status}
           <span className="tool-activity-detail-label">Details</span>
         </summary>
-        {rawDetails}
+        {callDetails}
       </details>
     );
   }
@@ -80,11 +118,13 @@ export function ToolCallCard({
               ...(call.status === 'error' ? S.toolStatusError : {}),
             }}
           >
-            {call.status === 'running'
-              ? 'Observing…'
-              : call.status === 'error'
-                ? 'Unavailable'
-                : 'Observed'}
+            {
+              {
+                running: 'Observing…',
+                error: 'Unavailable',
+                completed: 'Observed',
+              }[call.status]
+            }
           </span>
         </div>
         {call.arguments?.focus && (
@@ -124,11 +164,13 @@ export function ToolCallCard({
             ...(call.status === 'error' ? S.toolStatusError : {}),
           }}
         >
-          {call.status === 'running'
-            ? 'Searching…'
-            : call.status === 'error'
-              ? 'Failed'
-              : `${count} found`}
+          {
+            {
+              running: 'Searching…',
+              error: 'Failed',
+              completed: `${count} found`,
+            }[call.status]
+          }
         </span>
       </div>
       <div style={S.toolArgs}>
@@ -175,4 +217,8 @@ export function ToolCallCard({
   );
 }
 
-ToolCallCard.defaultProps = { interactive: false, grouped: false };
+ToolCallCard.defaultProps = {
+  interactive: false,
+  grouped: false,
+  requestId: undefined,
+};

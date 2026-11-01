@@ -1,0 +1,49 @@
+.tool-viewer-guide {
+  color: var(--coco-color-text);
+}
+.tool-viewer-guide > p {
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
+.tool-viewer-example {
+  margin: 0 0 20px;
+  padding: 18px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 12px;
+  background: var(--coco-color-accent-soft);
+}
+.tool-viewer-example figcaption {
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.tool-viewer-example-notes {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.tool-viewer-example-notes > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.tool-viewer-example-notes > div > code {
+  font-weight: 600;
+  color: var(--coco-color-primary);
+}
+.tool-viewer-unlock .training-dialog-header button {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 50%;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text);
+  font-size: 22px;
+  cursor: pointer;
+}
+.tool-viewer-unlock .training-dialog-header button:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}

@@ -1,3 +1,4 @@
+import isQuestConversation from '../shared/quest-conversations';
 /**
  * Local, cross-session storage for conversations shown in the chat panel.
  *
@@ -81,6 +82,7 @@ export const INTERRUPTED_REPLY_TEXT =
   "Coco's reply was interrupted before it finished. Please retry.";
 
 export interface StoredConversation {
+  agent101Quest?: boolean;
   sessionId: string;
   title?: string;
   problem: string;
@@ -100,15 +102,16 @@ export function tutorRestoreMessage(message: StoredChatMessage): {
 } {
   return {
     role: message.suggestion ? 'suggestion' : message.role,
-    text: message.role === 'user' && message.screenContext?.trim()
-      ? [
-          '<screen_observation>',
-          "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
-          message.screenContext.trim(),
-          '</screen_observation>',
-          message.text,
-        ].join('\n')
-      : message.text,
+    text:
+      message.role === 'user' && message.screenContext?.trim()
+        ? [
+            '<screen_observation>',
+            "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
+            message.screenContext.trim(),
+            '</screen_observation>',
+            message.text,
+          ].join('\n')
+        : message.text,
   };
 }
 
@@ -255,7 +258,9 @@ export function readConversations(
           ...message,
           activity: parseAgentActivity(
             message.activity,
-            isActive ? !(message.requestId && isActive(message.requestId)) : false,
+            isActive
+              ? !(message.requestId && isActive(message.requestId))
+              : false,
           ),
         })),
         title:
@@ -363,6 +368,10 @@ export function saveConversation(input: {
       : existing?.tutorModelId;
   const next: StoredConversation = {
     sessionId: input.sessionId,
+    ...(isQuestConversation(existing ?? {}) ||
+    isQuestConversation({ problem: requestedProblem })
+      ? { agent101Quest: true }
+      : {}),
     title:
       (existing?.messages.length ? existing.title : undefined) ||
       deriveConversationTitle(

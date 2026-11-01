@@ -1,5 +1,8 @@
-/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import { useCallback, useEffect, useState } from 'react';
+import useWorkflowChapter from './training/useWorkflowChapter';
+/* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
+import useTokenChapter from './training/useTokenChapter';
+import useModelChapter from './training/useModelChapter';
 import type { StudyState } from '../../shared/study';
 import PreAssessmentPanel from './PreAssessmentPanel';
 import FollowUpAssessmentPanel from './FollowUpAssessmentPanel';
@@ -9,9 +12,16 @@ import TrainingDialog from './training/TrainingDialog';
 import TrainingAnnouncement from './training/TrainingAnnouncement';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingProgress from './training/TrainingProgress';
+import ToolChapter from './training/ToolChapter';
+import ContextChapter from './training/ContextChapter';
+import TokenChapter from './training/TokenChapter';
+import ModelChapter from './training/ModelChapter';
+import WorkflowChapter from './training/WorkflowChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
+import useToolChapterProgress from './training/useToolChapterProgress';
+import useContextChapterProgress from './training/useContextChapterProgress';
 import './TrainingView.css';
 
 export default function TrainingView({
@@ -43,7 +53,25 @@ export default function TrainingView({
   const countdown = `${Math.floor(countdownSeconds / 86400)}d ${Math.floor((countdownSeconds % 86400) / 3600)}h ${Math.floor((countdownSeconds % 3600) / 60)}m ${countdownSeconds % 60}s`;
   const [notice, setNotice] = useState('');
   const [questOpen, setQuestOpen] = useState(false);
+  const [startingToolChat, setStartingToolChat] = useState(false);
+  const [toolChatError, setToolChatError] = useState('');
   const [questLevel, setQuestLevel] = useState(0);
+  const toolProgress = useToolChapterProgress();
+  const contextProgress = useContextChapterProgress();
+  const tokenProgress = useTokenChapter();
+  const modelProgress = useModelChapter();
+  const workflowProgress = useWorkflowChapter();
+  const questComplete = Boolean(
+    [
+      toolProgress.completedAt,
+      contextProgress.completedAt,
+      tokenProgress.completedAt,
+      modelProgress.completedAt,
+      workflowProgress.completedAt,
+    ][questLevel],
+  );
+  let questActionLabel = 'Start quest';
+  if (startingToolChat) questActionLabel = 'Opening quest…';
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
   const [active, setActive] = useState<
@@ -130,6 +158,7 @@ export default function TrainingView({
           adminMode={adminMode}
           onOpen={(level) => {
             setQuestLevel(level);
+            setToolChatError('');
             setQuestOpen(true);
           }}
         />
@@ -260,61 +289,81 @@ export default function TrainingView({
       </div>
       <TrainingDialog
         open={questOpen}
-        title={`Level ${questLevel + 1} · ${agentLevels[questLevel].name}`}
+        title={`Chapter ${questLevel + 1} · ${agentLevels[questLevel].name}`}
         onClose={() => setQuestOpen(false)}
-      >
-        <div className="agentic-quest-preview">
-          <span className="training-eyebrow">AGENT 101</span>
-          {questLevel === 0 ? (
-            <>
-              <h3>Give AI a way to act</h3>
-              <p>
-                A tool lets an AI system do something beyond generating a reply,
-                such as searching for information, reading a file, or running
-                code. The model requests a tool call, then uses the result to
-                continue.
-              </p>
-              <div className="agentic-quest-example">
-                <strong>Try thinking of it this way</strong>
-                <p>
-                  Ask Coco to summarize a document. Reading the document is the
-                  tool call; the document’s contents are the result; the summary
-                  is Coco’s response.
-                </p>
-              </div>
-              <div className="agentic-quest-reward">
-                <strong>Your level reward · Expand tool calls</strong>
-                <p>
-                  Completing this level will let you open tool calls in the main
-                  panel to see what Coco did and what came back.
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <h3>{agentLevels[questLevel].name}</h3>
-              <p>{agentLevels[questLevel].summary}</p>
-              {agentLevels[questLevel].reward && (
-                <div className="agentic-quest-reward">
-                  <strong>
-                    Your level reward · {agentLevels[questLevel].reward}
-                  </strong>
-                  <p>{agentLevels[questLevel].detail}</p>
-                </div>
+        busy={startingToolChat}
+        headerAction={
+          <>
+            {questComplete && (
+              <span className="agentic-quest-completed">Completed</span>
+            )}
+            <button
+              type="button"
+              className={
+                questComplete
+                  ? 'agentic-quest-retry'
+                  : 'training-primary agentic-chapter-action'
+              }
+              title={questComplete ? 'revisit quest' : undefined}
+              aria-label={questComplete ? 'revisit quest' : undefined}
+              aria-busy={startingToolChat}
+              disabled={startingToolChat}
+              onClick={async () => {
+                if (startingToolChat) return;
+                setStartingToolChat(true);
+                setToolChatError('');
+                try {
+                  const channels = [
+                    'tool-chapter-start',
+                    'context-chapter-start',
+                    'token-chapter-start',
+                    'model-chapter-start',
+                    'workflow-chapter-start',
+                  ] as const;
+                  await api(channels[questLevel]);
+                  setQuestOpen(false);
+                } catch (reason) {
+                  setToolChatError(
+                    reason instanceof Error ? reason.message : String(reason),
+                  );
+                } finally {
+                  setStartingToolChat(false);
+                }
+              }}
+            >
+              {questComplete ? (
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 11a9 9 0 1 1 2.6 7.4" />
+                  <path d="M3 4v7h7" />
+                </svg>
+              ) : (
+                questActionLabel
               )}
-            </>
+            </button>
+          </>
+        }
+      >
+        <div>
+          {questLevel === 0 && <ToolChapter />}
+          {questLevel === 1 && <ContextChapter />}
+          {questLevel === 2 && <TokenChapter />}
+          {questLevel === 3 && <ModelChapter />}
+          {questLevel === 4 && <WorkflowChapter />}
+          {toolChatError && (
+            <p role="alert" className="training-error">
+              {toolChatError}
+            </p>
           )}
-          <p className="training-info">
-            Lesson preview. Level completion and feature unlocks are coming
-            next.
-          </p>
-          <button
-            type="button"
-            className="training-primary"
-            onClick={() => setQuestOpen(false)}
-          >
-            Back to training
-          </button>
         </div>
       </TrainingDialog>
       {state && (

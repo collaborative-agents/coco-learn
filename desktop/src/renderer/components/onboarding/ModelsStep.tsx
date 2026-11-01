@@ -1,4 +1,5 @@
 const MODEL_PROVIDERS = [
+  ['deepseek-ai', 'DeepSeek'],
   ['gemini', 'Google Gemini'],
   ['openai', 'OpenAI'],
   ['anthropic', 'Anthropic'],

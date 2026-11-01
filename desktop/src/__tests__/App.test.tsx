@@ -29,6 +29,66 @@ describe('App', () => {
     expect(render(<App />)).toBeTruthy();
   });
 
+  it('shows a calm bubble only when Coco moves into a calm status', () => {
+    jest.useFakeTimers();
+    const listeners = new Map<string, (...args: unknown[]) => void>();
+    const sendMessage = jest.fn();
+    (window as any).electron = {
+      ipcRenderer: {
+        on: (channel: string, callback: (...args: unknown[]) => void) => {
+          listeners.set(channel, callback);
+          return () => listeners.delete(channel);
+        },
+        sendMessage,
+        invoke: jest.fn().mockResolvedValue([]),
+      },
+    };
+    render(<App />);
+    const observe = (status: string) =>
+      act(() => {
+        listeners.get('observation-update')?.({
+          type: 'snapshot',
+          observation: 'The user is working on a report.',
+          status,
+          ts: Date.now() / 1000,
+        });
+      });
+    const letBubbleFade = () =>
+      act(() => {
+        jest.advanceTimersByTime(30_000);
+      });
+
+    observe('progress');
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'progress' }),
+    );
+    letBubbleFade();
+    expect(lastBubbleState(sendMessage)).toBeNull();
+
+    observe('progress');
+    expect(lastBubbleState(sendMessage)).toBeNull();
+    // Only the fox follows a repeated calm status, and only for a while.
+    const fox = document.getElementById('pet-image');
+    expect(fox).not.toHaveClass('pet-image-awake');
+    act(() => {
+      jest.advanceTimersByTime(20_000);
+    });
+    expect(fox).toHaveClass('pet-image-awake');
+
+    observe('observing');
+    expect(lastBubbleState(sendMessage)).toBeNull();
+
+    observe('stuck');
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'stuck' }),
+    );
+    observe('progress');
+    expect(lastBubbleState(sendMessage)).toEqual(
+      expect.objectContaining({ status: 'progress' }),
+    );
+    jest.useRealTimers();
+  });
+
   it('clears an observation bubble when the system suspends', async () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();
     (window as any).electron = {

@@ -195,3 +195,29 @@ def test_router_configuration_requires_router_key(monkeypatch) -> None:
         assert "LLM_ROUTER_API_KEY" in str(error)
     else:
         raise AssertionError("Expected a missing router key error")
+
+
+def test_deepseek_router_ids_and_direct_provider_namespace(monkeypatch):
+    captured: dict = {}
+
+    def fake_completion(**kwargs):
+        captured.update(kwargs)
+        return {
+            "choices": [{"message": {"content": "Hello"}}],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 1},
+        }
+
+    monkeypatch.setattr(litellm_api, "completion", fake_completion)
+    monkeypatch.delenv("LLM_ROUTER_URL", raising=False)
+    for model in ["deepseek-v4-pro", "deepseek-v4.1-flash-1017"]:
+        get_litellm_completion(
+            [{"role": "user", "content": "Hello"}], model=f"deepseek-ai/{model}"
+        )
+        assert captured["model"] == f"deepseek/{model}"
+    monkeypatch.setenv("LLM_ROUTER_URL", "https://router.example.test")
+    monkeypatch.setenv("LLM_ROUTER_API_KEY", "test-key")
+    get_litellm_completion(
+        [{"role": "user", "content": "Hello"}], model="deepseek-ai/deepseek-v4-pro"
+    )
+    assert captured["model"] == "deepseek-ai/deepseek-v4-pro"
+    assert captured["custom_llm_provider"] == "openai"

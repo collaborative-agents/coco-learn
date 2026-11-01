@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { currencySafeMarkdown } from '../currency-markdown';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
@@ -11,6 +12,45 @@ import type { ChatMessage } from './types';
 import { parseGuidance, makeMessageId } from './message-format';
 import { S } from './styles';
 import './MessageContent.css';
+import ResponseCodeBlock from './ResponseCodeBlock';
+
+// A fenced code block with a Copy button that stays put while the code
+// scrolls sideways.
+function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
+  const code = React.isValidElement<{ children?: unknown }>(children)
+    ? children.props.children
+    : null;
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        (typeof code === 'string' ? code : '').replace(/\n$/, ''),
+      );
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
+    }
+    setTimeout(() => setStatus('idle'), 2000);
+  };
+  if (typeof code !== 'string')
+    return <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>;
+  let label = 'Copy';
+  if (status === 'copied') label = 'Copied ✓';
+  if (status === 'failed') label = 'Copy failed';
+  return (
+    <div className="chat-code-block">
+      <ResponseCodeBlock {...props}>{children}</ResponseCodeBlock>
+      <button
+        type="button"
+        className="chat-code-copy"
+        aria-label={status === 'idle' ? 'Copy code' : label}
+        onClick={() => void copy()}
+      >
+        {label}
+      </button>
+    </div>
+  );
+}
 
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
   {
@@ -20,6 +60,9 @@ const markdownComponents: React.ComponentProps<typeof Markdown>['components'] =
           {children}
         </a>
       );
+    },
+    pre({ node: _node, ...props }: any) {
+      return <CodeBlock {...props} />;
     },
   };
 
@@ -52,7 +95,7 @@ export function TutorMessage({ text }: { text: string }) {
             rehypePlugins={[rehypeKatex]}
             components={markdownComponents}
           >
-            {g.mainText ?? g.text}
+            {currencySafeMarkdown(g.mainText ?? g.text)}
           </Markdown>
         </div>
       )}
@@ -92,10 +135,7 @@ export function TutorMessage({ text }: { text: string }) {
         </figure>
       )}
       {g.coaching && (
-        <aside
-          className="tutor-literacy-card"
-          aria-label="Suggestion"
-        >
+        <aside className="tutor-literacy-card" aria-label="Suggestion">
           <div className="tutor-literacy-header">
             <span className="tutor-literacy-title">
               <svg
@@ -130,7 +170,7 @@ export function TutorMessage({ text }: { text: string }) {
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {g.coaching}
+              {currencySafeMarkdown(g.coaching)}
             </Markdown>
           </div>
         </aside>
@@ -227,7 +267,7 @@ export function SuggestionMessage({
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {detail}
+              {currencySafeMarkdown(detail)}
             </Markdown>
           </div>
         ))}

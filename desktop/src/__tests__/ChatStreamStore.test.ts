@@ -49,8 +49,9 @@ it('saves interleaved background replies, questions, and completion without stal
     expect(tutorRestoreMessage(userA).text).toContain(
       'Draft A is open.\n</screen_observation>\nTask A',
     );
-    expect(saved.find((item) => item.sessionId === 'b')!.messages[0].screenContext)
-      .toBeUndefined();
+    expect(
+      saved.find((item) => item.sessionId === 'b')!.messages[0].screenContext,
+    ).toBeUndefined();
     const stale = saved.find((item) => item.sessionId === 'a')!;
     store.accept('ra', { type: 'done', guidance: 'A finished' });
     store.finish('ra');
@@ -77,3 +78,29 @@ it('saves interleaved background replies, questions, and completion without stal
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+it.each(['done', 'error'] as const)(
+  'preserves reported usage on %s when a chat is reopened',
+  (type) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-usage-'));
+    (app.getPath as jest.Mock).mockReturnValue(directory);
+    const store = new ChatStreamStore();
+    try {
+      store.begin('usage-session', 'usage-request', 'Question');
+      store.accept('usage-request', {
+        type,
+        guidance: 'Answer',
+        error: 'Failed',
+        llm_metrics: { input_tokens: 123, output_tokens: 45 },
+      });
+      store.finish('usage-request');
+      expect(
+        readConversations().find((item) => item.sessionId === 'usage-session')
+          ?.messages[1].tutorMetrics,
+      ).toEqual({ input_tokens: 123, output_tokens: 45 });
+    } finally {
+      store.finish('usage-request');
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);

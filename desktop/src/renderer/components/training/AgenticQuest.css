@@ -117,10 +117,6 @@
 .agentic-quest-tooltip strong {
   color: var(--coco-color-text);
 }
-.agentic-quest-tooltip-kicker {
-  font-size: var(--coco-text-control);
-  color: var(--coco-color-text-muted);
-}
 .agentic-quest-bridge:hover .agentic-quest-tooltip,
 .agentic-quest-bridge:focus-within .agentic-quest-tooltip {
   display: grid;
@@ -163,4 +159,14 @@
   .agentic-quest-bridge {
     position: static;
   }
+}
+
+.training-page .agentic-chapter-action {
+  margin: 0;
+  white-space: nowrap;
+}
+.training-page .agentic-chapter-action:disabled {
+  background: var(--coco-color-surface-subtle);
+  border-color: var(--coco-color-border);
+  color: var(--coco-color-text-muted);
 }

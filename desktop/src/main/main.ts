@@ -1,3 +1,4 @@
+import aggregateCallMetrics from '../shared/aggregate-call-metrics';
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -9,6 +10,8 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
+import isQuestConversation from '../shared/quest-conversations';
+import CommandApprovalRules from './services/command-approval-rules';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
@@ -86,6 +89,11 @@ import {
 } from './services/tutor-stream';
 import type { TutorStreamEvent } from './services/tutor-stream';
 import AgentRuns from './services/agent-runs';
+import registerContextTraining from './services/context-training';
+import registerTokenTraining from './services/token-training';
+import registerModelTraining from './services/model-training';
+import registerWorkflowTraining from './services/workflow-training';
+import registerToolExploration from './services/tool-exploration';
 import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
@@ -526,7 +534,8 @@ let resumableSessionId: string | null = null;
 // Tutor replies still streaming, so a reopened chat can tell a reply that is
 // still coming from one that was cut off.
 const activeChatRequests = new Set<string>();
-const readConversations = () => readStoredConversations((requestId) => activeChatRequests.has(requestId));
+const readConversations = () =>
+  readStoredConversations((requestId) => activeChatRequests.has(requestId));
 const chatStreams = new ChatStreamStore();
 let pendingTaskLabel: string | null = null;
 // The struggle time chosen for the current session. Re-sent whenever sensing
@@ -552,19 +561,43 @@ const interactions = new InteractionTracker((source) => {
 // Wrap a chat IPC handler so its turn is tracked as an interaction.
 const agentRuns = new AgentRuns();
 const withTutorTurn =
-  <Payload extends { requestId: string; sessionId?: string; requestKind?: string }, Result>(
+  <
+    Payload extends {
+      requestId: string;
+      sessionId?: string;
+      requestKind?: string;
+    },
+    Result,
+  >(
     handler: (event: IpcMainInvokeEvent, payload: Payload) => Promise<Result>,
   ) =>
-  (event: IpcMainInvokeEvent, payload: Payload): Promise<Result | { error: string }> => {
+  (
+    event: IpcMainInvokeEvent,
+    payload: Payload,
+  ): Promise<Result | { error: string }> => {
     const sessionId = payload.sessionId || currentSessionId;
-    if (!sessionId) return Promise.resolve({ error: 'Open a conversation first.' });
-    try { agentRuns.begin(sessionId, payload.requestId, payload.requestKind === 'practice_suggestions'); }
-    catch (error) { return Promise.resolve({ error: (error as Error).message }); }
+    if (!sessionId)
+      return Promise.resolve({ error: 'Open a conversation first.' });
+    try {
+      agentRuns.begin(
+        sessionId,
+        payload.requestId,
+        payload.requestKind === 'practice_suggestions',
+      );
+    } catch (error) {
+      return Promise.resolve({ error: (error as Error).message });
+    }
     activeChatRequests.add(payload.requestId);
-    return interactions.trackTurn(() => handler(event, { ...payload, sessionId }))
+    return interactions
+      .trackTurn(() => handler(event, { ...payload, sessionId }))
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        sendChatStreamEvent(event.sender, { sessionId, requestId: payload.requestId, type: 'error', error: message });
+        sendChatStreamEvent(event.sender, {
+          sessionId,
+          requestId: payload.requestId,
+          type: 'error',
+          error: message,
+        });
         return { error: message };
       })
       .finally(() => {
@@ -657,47 +690,72 @@ function agentDirectory(sessionId: string | null = currentSessionId): string {
     ? readConversations().find((item) => item.sessionId === sessionId)
     : undefined;
   if (conversation?.workingDirectory) return conversation.workingDirectory;
-  let directory = path.join(app.getPath('userData'), 'workspace', sessionId ? `session-${encodeURIComponent(sessionId)}` : 'draft');
-  // Older conversations used a single shared folder. Preserve that choice
-  // when first opening them; new sessions start in Coco's default workspace.
-  if (conversation?.messages.length) {
-    try {
-      const saved = JSON.parse(
-        fs.readFileSync(
-          path.join(app.getPath('userData'), 'agent-workspace.json'),
-          'utf8',
-        ),
-      );
-      if (typeof saved.directory === 'string' && saved.directory)
-        directory = saved.directory;
-    } catch {
-      /* No legacy folder setting. */
-    }
-  }
+  const directory = path.join(app.getPath('userData'), 'workspace');
   fs.mkdirSync(directory, { recursive: true });
   if (sessionId) saveConversationDirectory(sessionId, directory);
   return directory;
 }
 
-function executionContext(sessionId: string, userText?: string): SessionContextInput {
-  const conversation = readConversations().find((item) => item.sessionId === sessionId);
+function executionContext(
+  sessionId: string,
+  userText?: string,
+): SessionContextInput {
+  const conversation = readConversations().find(
+    (item) => item.sessionId === sessionId,
+  );
   const profile = readProfile();
   const config = readModelConfiguration();
-  const selectedId = sessionId === currentSessionId ? currentTutorModelId : conversation?.tutorModelId;
-  const selected = config?.tutors.find((model) => model.id === selectedId) ?? (config ? defaultTutor(config) : null);
+  const selectedId =
+    sessionId === currentSessionId
+      ? currentTutorModelId
+      : conversation?.tutorModelId;
+  const selected =
+    config?.tutors.find((model) => model.id === selectedId) ??
+    (config ? defaultTutor(config) : null);
   if (!selected) throw new Error('Choose a model before running Coco.');
   return {
-    model: selected.model, scenario: profile.scenario,
-    problem: conversation?.problem || (sessionId === currentSessionId ? pendingTaskLabel : '') || '',
-    user_name: profile.userName, ai_tools: profile.aiTools, memory: readLocalMemory(),
+    model: selected.model,
+    scenario: profile.scenario,
+    problem:
+      conversation?.problem ||
+      (sessionId === currentSessionId ? pendingTaskLabel : '') ||
+      '',
+    user_name: profile.userName,
+    ai_tools: profile.aiTools,
+    memory: readLocalMemory(),
     messages: restorableMessages(conversation?.messages ?? [], userText),
   };
+}
+
+function commandApprovalRules() {
+  const user = currentUserId;
+  if (!user || !isAuthenticated) throw new Error('Sign in to manage permissions.');
+  return new CommandApprovalRules(app.getPath('userData'), user, () => {
+    if (currentUserId !== user || !isAuthenticated) throw new Error('Your account changed.');
+  });
+}
+for (const channel of ['list-command-approvals', 'revoke-command-approval']) {
+  ipcMain.handle(channel, (event, sessionId: string | null, ruleId?: string) => {
+    if (!chatWindow || event.sender !== chatWindow.webContents) throw new Error('Open permissions from the chat window.');
+    if (sessionId !== null && typeof sessionId !== 'string') throw new Error('Invalid conversation.');
+    const rules = commandApprovalRules();
+    const directory = agentDirectory(sessionId);
+    if (channel === 'revoke-command-approval') {
+      if (typeof ruleId !== 'string') throw new Error('Invalid permission rule.');
+      rules.revoke(directory, ruleId);
+    }
+    return { directory, rules: rules.list(directory) };
+  });
 }
 
 ipcMain.handle(
   'get-agent-workspace',
   (_event, { sessionId }: { sessionId?: string | null } = {}) => ({
     directory: agentDirectory(sessionId),
+    accessGranted: Boolean(
+      sessionId &&
+        agentRuns.get(sessionId).hasWorkspaceAccess(agentDirectory(sessionId)),
+    ),
   }),
 );
 ipcMain.handle(
@@ -711,7 +769,7 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const result = await dialog.showOpenDialog({
-      title: 'Choose Coco’s working folder',
+      title: 'Choose a folder for Coco to read and edit',
       defaultPath: agentDirectory(sessionId),
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -719,12 +777,57 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const directory = fs.realpathSync(result.filePaths[0]);
+    await agentRuns.get(sessionId).revokeWorkspaceAccess();
+    if (agentRuns.has(sessionId))
+      throw new Error('Stop the current run before changing folders.');
     saveConversationDirectory(sessionId, directory);
-    return { directory };
+    contextTraining.workspaceSelected(sessionId, currentUserId, directory);
+    return { directory, accessGranted: false };
   },
 );
+ipcMain.handle('revoke-agent-workspace', async (_event, sessionId: string) => {
+  if (typeof sessionId !== 'string' || !sessionId)
+    throw new Error('Open a conversation first.');
+  if (agentRuns.has(sessionId))
+    throw new Error('Stop the current run before revoking access.');
+  await agentRuns.get(sessionId).revokeWorkspaceAccess();
+  return { directory: agentDirectory(sessionId), accessGranted: false };
+});
+// Explain supplied text without starting an agent run or changing a conversation.
+ipcMain.handle('explain-tool-command', async (_event, payload: unknown) => {
+  const { tool, source } = (payload ?? {}) as {
+    tool?: unknown;
+    source?: unknown;
+  };
+  if (
+    typeof tool !== 'string' ||
+    !tool.trim() ||
+    tool.length > 200 ||
+    typeof source !== 'string' ||
+    !source.trim() ||
+    source.length > 10000
+  ) {
+    throw new Error('Invalid command explanation request.');
+  }
+  const tutorPort = process.env.TUTOR_PORT || '8081';
+  const response = await axios.post(
+    `http://127.0.0.1:${tutorPort}/explain-tool-command`,
+    { tool, source },
+    { timeout: 45_000 },
+  );
+  if (
+    typeof response.data?.explanation !== 'string' ||
+    !response.data.explanation.trim()
+  ) {
+    throw new Error('No explanation returned.');
+  }
+  return { explanation: response.data.explanation.trim() };
+});
+
 ipcMain.handle('get-agent-context', (_event, sessionId: string) =>
-  typeof sessionId === 'string' ? agentRuns.get(sessionId).getContextSnapshot(sessionId) : null,
+  typeof sessionId === 'string'
+    ? agentRuns.get(sessionId).getContextSnapshot(sessionId)
+    : null,
 );
 ipcMain.handle(
   'answer-agent-question',
@@ -733,6 +836,416 @@ ipcMain.handle(
 );
 ipcMain.handle('stop-agent-run', (_event, requestId: string) => {
   return agentRuns.abort(requestId);
+});
+ipcMain.handle(
+  'answer-agent-permission',
+  (event, requestId: string, id: string, allow: unknown) => {
+    if (!chatWindow || event.sender !== chatWindow.webContents)
+      throw new Error('Permission decisions must come from the chat window.');
+    return agentRuns.answerPermission(requestId, id, allow);
+  },
+);
+
+const contextTraining = registerContextTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  changed: () => sendToChat('context-chapter-progress-changed', null),
+  createConversation: (session) => {
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: 'Chapter 2 · Context',
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [
+        {
+          role: 'tutor',
+          text: 'Let’s explore what I can see. Choose a working folder below, then ask me about it.',
+          id: randomUUID(),
+          ts: Date.now(),
+        },
+      ],
+    });
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the practice suggestion to finish.');
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 2 · Context';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+});
+
+const tokenTraining = registerTokenTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+  changed: () => sendToChat('token-chapter-progress-changed', null),
+  createConversation: (session) => {
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: 'Chapter 3 · Token',
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [
+        {
+          role: 'tutor',
+          text: 'Let’s see what a request uses. Send the one-sentence question below, then compare it with a more detailed follow-up.',
+          id: randomUUID(),
+          ts: Date.now(),
+        },
+      ],
+    });
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the practice suggestion to finish.');
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 3 · Token';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+});
+
+const modelTraining = registerModelTraining({
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  models: () => readModelConfiguration()?.tutors ?? [],
+  changed: (completion) => {
+    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+    sendToChat('model-chapter-session-changed', null);
+    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
+    if (completion) sendToChat('model-chapter-progress-changed', null);
+  },
+  open: (session, created) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the current practice suggestion to finish.');
+    if (created)
+      saveConversation({
+        sessionId: session.sessionId,
+        problem: 'Chapter 4 · Models',
+        messages: [],
+      });
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 4 · Models';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+  stop: (id) => agentRuns.abort(id),
+  run: async (request) => {
+    if (currentUserId !== request.user || !isAuthenticated || !tutoringAllowed)
+      throw new Error('Your account changed. Reopen the quest to continue.');
+    agentRuns.begin(request.sessionId, request.requestId);
+    activeChatRequests.add(request.requestId);
+    const recordUsage = tokenTraining.observe(
+      request.questSessionId,
+      request.requestId,
+      request.user,
+    );
+    const emit = (event: TutorStreamEvent) => {
+      recordUsage(event);
+      request.emit(event);
+    };
+    try {
+      await interactions.trackTurn(() =>
+        agentRuns.get(request.sessionId).run({
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          directory: agentDirectory(request.questSessionId),
+          tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
+          token: piBridgeToken,
+          text: request.prompt,
+          images: [],
+          context: {
+            model: request.model,
+            scenario: '',
+            problem: 'Model comparison',
+            user_name: '',
+            ai_tools: [],
+            memory: '',
+            messages: [],
+          },
+          training: {
+            tools: 'none',
+            instructions:
+              'Answer the user’s request directly. Follow the requested format. Keep prose concise, at most 160 words; code is exempt from this limit. Do not add a quiz or claim quest completion. No tools are available.',
+          },
+          emit,
+        }),
+      );
+    } catch (error) {
+      recordUsage({
+        type: 'error',
+        llm_metrics: (error as { llm_metrics?: LLMCallMetrics })?.llm_metrics,
+      });
+      throw error;
+    } finally {
+      activeChatRequests.delete(request.requestId);
+      agentRuns.finish(request.requestId);
+      await agentRuns.release(request.sessionId);
+    }
+  },
+});
+
+const workflowChatTurns = new Map<
+  string,
+  {
+    requestId: string;
+    images: string[];
+    metrics: LLMCallMetrics[];
+    sender: WebContents;
+  }
+>();
+const workflowTraining = registerWorkflowTraining({
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  currentUser: () => currentUserId,
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use your skills.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  canStart: (user) =>
+    (!adminStudentMode &&
+      (currentStudyRole === 'admin' || currentStudyRole === 'super_admin')) ||
+    modelTraining.canPick(user),
+  // eslint-disable-next-line no-use-before-define -- Called after initialization.
+  changed: () => sendToChat('workflow-chapter-progress-changed', null),
+  reveal: (directory) => shell.openPath(directory),
+  open: (session, created) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the current request to finish.');
+    const existing = readConversations().find(
+      (item) => item.sessionId === session.sessionId,
+    );
+    if (created || !existing?.messages.length)
+      saveConversation({
+        sessionId: session.sessionId,
+        problem: 'Chapter 5 · Build your own skill',
+        messages: [
+          {
+            role: 'tutor',
+            text: 'Let’s create a skill that works the way you do. What’s a task you do repeatedly that you’d like my help with?',
+            id: randomUUID(),
+            ts: Date.now(),
+          },
+          ...(session.messages ?? []).map((message) => ({
+            role:
+              message.role === 'assistant'
+                ? ('tutor' as const)
+                : ('user' as const),
+            text: message.text,
+            id: message.id,
+            ts: Date.now(),
+          })),
+        ],
+      });
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = 'Chapter 5 · Build your own skill';
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+  run: async (user, questId, prompt, instructions, mode) => {
+    if (currentUserId !== user || !isAuthenticated || !tutoringAllowed)
+      throw new Error('Reopen the quest with your current account.');
+    const turn = workflowChatTurns.get(questId);
+    const requestId = turn?.requestId ?? randomUUID();
+    const runId = turn ? questId : randomUUID();
+    if (agentRuns.requests.get(requestId)?.stopped) throw new Error('Stopped.');
+    const config = readModelConfiguration();
+    const model =
+      config?.tutors.find((item) => item.id === currentTutorModelId) ??
+      config?.tutors[0];
+    if (!model) throw new Error('Configure a model before creating a skill.');
+    if (!turn) agentRuns.begin(runId, requestId);
+    activeChatRequests.add(requestId);
+    const record = tokenTraining.observe(questId, randomUUID(), user);
+    let output = '';
+    let failure = '';
+    try {
+      await interactions.trackTurn(() =>
+        agentRuns.get(runId).run({
+          requestId,
+          sessionId: runId,
+          directory: agentDirectory(questId),
+          tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
+          token: piBridgeToken,
+          text:
+            mode === 'execute'
+              ? `${instructions}\n\nUser example:\n${prompt}`
+              : prompt,
+          approvalRules: mode === 'execute' ? commandApprovalRules() : undefined,
+          images: turn?.images ?? [],
+          context: {
+            model: model.model,
+            scenario: '',
+            problem: 'Personal skill workshop',
+            user_name: '',
+            ai_tools: [],
+            memory: '',
+            messages: [],
+          },
+          training:
+            mode === 'execute'
+              ? undefined
+              : { tools: 'none', instructions, persist: false },
+          emit: (event) => {
+            record(event);
+            if (
+              turn &&
+              mode === 'execute' &&
+              ['agent_activity', 'tool_call_started', 'tool_call_completed'].includes(event.type)
+            ) {
+              sendChatStreamEvent(turn.sender, {
+                ...event,
+                sessionId: questId,
+                requestId,
+              });
+            }
+            if (event.type === 'text_delta' && typeof event.text === 'string')
+              output += event.text;
+            if (event.type === 'done') {
+              if (turn) {
+                turn.metrics.push(
+                  (event.llm_metrics as LLMCallMetrics | undefined) ?? {},
+                );
+                if (event.observer_metrics)
+                  turn.metrics.push(event.observer_metrics as LLMCallMetrics);
+              }
+              if (!output && typeof event.guidance === 'string')
+                output = event.guidance;
+              if (event.stopped) failure = 'Request stopped. Please try again.';
+            }
+            if (event.type === 'error')
+              failure = String(event.error || 'Request failed.');
+          },
+        }),
+      );
+      if (failure) throw new Error(failure);
+      if (!output.trim())
+        throw new Error('The model returned no content. Please try again.');
+      return output;
+    } finally {
+      if (!turn) {
+        activeChatRequests.delete(requestId);
+        agentRuns.finish(requestId);
+        await agentRuns.release(runId);
+      }
+    }
+  },
+});
+
+const toolTraining = registerToolExploration({
+  ipc: ipcMain,
+  runs: agentRuns,
+  root: () => app.getPath('userData'),
+  user: (event, run = false) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !currentUserId
+    )
+      throw new Error('Sign in to use Agent 101.');
+    if (run && !tutoringAllowed)
+      throw new Error('AI tutoring is not available for this account yet.');
+    return currentUserId;
+  },
+  currentUser: () => currentUserId,
+  createConversation: (session) => {
+    const mode = session.mode === 'with' ? 'With tools' : 'Without tools';
+    saveConversation({
+      sessionId: session.sessionId,
+      problem: `Chapter 1 · Tool · ${mode}`,
+      tutorModelId: currentTutorModelId ?? undefined,
+      messages: [
+        {
+          role: 'tutor',
+          text:
+            session.mode === 'with'
+              ? 'In this session, Coco can make tool calls'
+              : 'In this session, Coco *cannot* make tool calls',
+          id: randomUUID(),
+          ts: Date.now(),
+        },
+      ],
+    });
+    saveConversationDirectory(session.sessionId, session.directory);
+  },
+  openConversation: (session) => {
+    if (agentRuns.legacyBusy)
+      throw new Error('Wait for the practice suggestion to finish.');
+    currentTutorModelId =
+      readConversations().find((saved) => saved.sessionId === session.sessionId)
+        ?.tutorModelId ?? currentTutorModelId;
+    currentSessionId = session.sessionId;
+    isSessionActive = false;
+    resumableSessionId = session.sessionId;
+    pendingTaskLabel = `Chapter 1 · Tool · ${session.mode === 'with' ? 'With tools' : 'Without tools'}`;
+    openChatForSession(session.sessionId, pendingTaskLabel);
+  },
+  connection: () => ({
+    tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
+    token: piBridgeToken,
+  }),
+  changed: () => sendToChat('tool-chapter-progress-changed', null),
 });
 
 // Preserve the original Upskilling session invitation cadence even though the
@@ -1406,10 +1919,16 @@ ipcMain.on(
 
 // ── Avatar window ─────────────────────────────────────────────────────────────
 
-let avatarPointerDrag: { x: number; y: number; windowX: number; windowY: number } | null = null;
+let avatarPointerDrag: {
+  x: number;
+  y: number;
+  windowX: number;
+  windowY: number;
+} | null = null;
 ipcMain.on('avatar-pointer', (event, value: { inside?: boolean } = {}) => {
   if (event.sender !== avatarWindow?.webContents || !avatarWindow) return;
-  if (!avatarPointerDrag) avatarWindow.setIgnoreMouseEvents(value.inside !== true, { forward: true });
+  if (!avatarPointerDrag)
+    avatarWindow.setIgnoreMouseEvents(value.inside !== true, { forward: true });
 });
 ipcMain.on('avatar-pointer-drag', (event, value: { phase?: string } = {}) => {
   if (event.sender !== avatarWindow?.webContents || !avatarWindow) return;
@@ -1458,7 +1977,12 @@ const createAvatarWindow = () => {
   // Screen coordinates and content bounds are both DIP units. Polling also
   // handles animation/scale changes when the pointer does not move.
   const pointerTimer = setInterval(() => {
-    if (!avatarWindow || avatarWindow.isDestroyed() || !avatarWindow.isVisible()) return;
+    if (
+      !avatarWindow ||
+      avatarWindow.isDestroyed() ||
+      !avatarWindow.isVisible()
+    )
+      return;
     const point = screen.getCursorScreenPoint();
     const bounds = avatarWindow.getContentBounds();
     const zoom = avatarWindow.webContents.getZoomFactor();
@@ -1578,12 +2102,20 @@ ipcMain.on('get-chat-window-pin-state', (event) => {
   if (event.sender !== chatWindow?.webContents) return;
   event.sender.send('chat-window-pin-state', { pinned: chatWindowPinned });
 });
-ipcMain.on('set-chat-window-pinned', (event, value: { pinned?: boolean } = {}) => {
-  if (event.sender !== chatWindow?.webContents || !chatWindow || typeof value?.pinned !== 'boolean') return;
-  chatWindow.setAlwaysOnTop(value.pinned);
-  chatWindowPinned = chatWindow.isAlwaysOnTop();
-  event.sender.send('chat-window-pin-state', { pinned: chatWindowPinned });
-});
+ipcMain.on(
+  'set-chat-window-pinned',
+  (event, value: { pinned?: boolean } = {}) => {
+    if (
+      event.sender !== chatWindow?.webContents ||
+      !chatWindow ||
+      typeof value?.pinned !== 'boolean'
+    )
+      return;
+    chatWindow.setAlwaysOnTop(value.pinned);
+    chatWindowPinned = chatWindow.isAlwaysOnTop();
+    event.sender.send('chat-window-pin-state', { pinned: chatWindowPinned });
+  },
+);
 
 const createChatWindow = () => {
   if (chatWindow && !chatWindow.isDestroyed()) return;
@@ -1751,8 +2283,12 @@ const sendChatStreamEvent = (
   payload: Record<string, unknown>,
 ): void => {
   if (typeof payload.requestId === 'string') {
-    chatStreams.accept(payload.requestId, payload as unknown as TutorStreamEvent);
-    if (payload.type === 'done' || payload.type === 'error') chatStreams.flush(payload.requestId);
+    chatStreams.accept(
+      payload.requestId,
+      payload as unknown as TutorStreamEvent,
+    );
+    if (payload.type === 'done' || payload.type === 'error')
+      chatStreams.flush(payload.requestId);
   }
   let target: WebContents | null = sender;
   if (target.isDestroyed()) {
@@ -1770,22 +2306,47 @@ const sendChatStreamEvent = (
 };
 
 // Completion reminders are one-shot; they do not track read/unread state.
-const remindAgentReply = async (sessionId: string | null, requestId: string) => {
+const remindAgentReply = async (
+  sessionId: string | null,
+  requestId: string,
+) => {
   if (!sessionId || hideAvatarMode || !tutoringAllowed) return;
   if (!(await isChatOutOfView(chatWindow))) return;
-  if (hideAvatarMode || !tutoringAllowed || !avatarWindow || avatarWindow.isDestroyed()) return;
+  if (
+    hideAvatarMode ||
+    !tutoringAllowed ||
+    !avatarWindow ||
+    avatarWindow.isDestroyed()
+  )
+    return;
   avatarWindow.webContents.send('agent-reply-ready', { sessionId, requestId });
 };
 
-const startAgentProgressReminder = (sessionId: string | null, requestId: string) =>
+const startAgentProgressReminder = (
+  sessionId: string | null,
+  requestId: string,
+) =>
   new AgentProgressReminder((text) => {
     const publish = async () => {
       if (!sessionId || !(await isChatOutOfView(chatWindow))) return;
-      if (!agentRuns.requests.has(requestId) || agentRuns.requests.get(requestId)?.stopped || hideAvatarMode || !tutoringAllowed ||
-          !avatarWindow || avatarWindow.isDestroyed()) return;
-      avatarWindow.webContents.send('agent-working', { sessionId, requestId, text });
+      if (
+        !agentRuns.requests.has(requestId) ||
+        agentRuns.requests.get(requestId)?.stopped ||
+        hideAvatarMode ||
+        !tutoringAllowed ||
+        !avatarWindow ||
+        avatarWindow.isDestroyed()
+      )
+        return;
+      avatarWindow.webContents.send('agent-working', {
+        sessionId,
+        requestId,
+        text,
+      });
     };
-    publish().catch((error) => log.warn('[Chat] Could not show working update:', error));
+    publish().catch((error) =>
+      log.warn('[Chat] Could not show working update:', error),
+    );
   });
 
 const clearAgentProgressReminder = (requestId: string) => {
@@ -1793,12 +2354,26 @@ const clearAgentProgressReminder = (requestId: string) => {
     avatarWindow.webContents.send('agent-work-ended', { requestId });
 };
 
-ipcMain.on('view-agent-reply', (_event, target: { sessionId?: string; requestId?: string } = {}) => {
-  const conversation = readConversations().find((saved) => saved.sessionId === target.sessionId);
-  if (!conversation || !conversation.messages.some((message) => message.requestId === target.requestId)) return;
-  showChatPanel();
-  sendToChat('reveal-agent-reply', { conversation, requestId: target.requestId });
-});
+ipcMain.on(
+  'view-agent-reply',
+  (_event, target: { sessionId?: string; requestId?: string } = {}) => {
+    const conversation = readConversations().find(
+      (saved) => saved.sessionId === target.sessionId,
+    );
+    if (
+      !conversation ||
+      !conversation.messages.some(
+        (message) => message.requestId === target.requestId,
+      )
+    )
+      return;
+    showChatPanel();
+    sendToChat('reveal-agent-reply', {
+      conversation,
+      requestId: target.requestId,
+    });
+  },
+);
 
 const toChatSuggestion = (
   suggestion: InstantSuggestion,
@@ -2142,7 +2717,7 @@ async function openCoco(): Promise<void> {
   }
   // Return to the most recent conversation rather than a blank chat. Like a
   // draft, it becomes a live session again only once the user sends.
-  const latest = latestConversation(readConversations());
+  const latest = latestConversation(readConversations().filter(conversation => !isQuestConversation(conversation)));
   if (latest) {
     currentSessionId = latest.sessionId;
     resumableSessionId = latest.sessionId;
@@ -2353,9 +2928,18 @@ function applyAvatarVisibility(hidden: boolean): void {
 
 const activateBridgeConversation = (sessionId: string) => {
   const tutorPort = process.env.TUTOR_PORT || '8081';
-  axios.post(`http://127.0.0.1:${tutorPort}/agent/active/${encodeURIComponent(sessionId)}`, {}, {
-    headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000,
-  }).catch((error) => log.warn('[Chat] Could not sync foreground conversation:', error.message));
+  axios
+    .post(
+      `http://127.0.0.1:${tutorPort}/agent/active/${encodeURIComponent(sessionId)}`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${piBridgeToken}` },
+        timeout: 3000,
+      },
+    )
+    .catch((error) =>
+      log.warn('[Chat] Could not sync foreground conversation:', error.message),
+    );
 };
 
 interface ChatSeed {
@@ -2646,7 +3230,8 @@ const createNotificationRecord = (
 };
 
 const showNotification = (payload: NotificationPayload): boolean => {
-  if (!tutoringAllowed || (cocoSleeping && payload.category !== 'system')) return false;
+  if (!tutoringAllowed || (cocoSleeping && payload.category !== 'system'))
+    return false;
   if (postAssessmentActive && payload.category !== 'system') {
     log.info(
       `[Post-assessment] Dropped proactive notification ${payload.notifType ?? payload.category ?? 'general'}`,
@@ -3415,7 +4000,9 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
     try {
       await Promise.all([
         axios.get(`${tutor}/health`, { timeout: 1000 }),
-        ...(!isCocoSleeping() ? [axios.get(`${sensing}/health`, { timeout: 1000 })] : []),
+        ...(!isCocoSleeping()
+          ? [axios.get(`${sensing}/health`, { timeout: 1000 })]
+          : []),
       ]);
       break;
     } catch {
@@ -3450,19 +4037,20 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
       { timeout: 8000 },
     );
   }
-  if (!isCocoSleeping()) await axios.post(
-    `${sensing}/session`,
-    {
-      node_uuid: currentSessionId,
-      struggle_detection_seconds: sessionStruggleSeconds,
-      scenario,
-      config_source: 'model_settings_restart',
-      ...(customObserverPrompt && {
-        custom_observer_prompt: customObserverPrompt,
-      }),
-    },
-    { timeout: 15000 },
-  );
+  if (!isCocoSleeping())
+    await axios.post(
+      `${sensing}/session`,
+      {
+        node_uuid: currentSessionId,
+        struggle_detection_seconds: sessionStruggleSeconds,
+        scenario,
+        config_source: 'model_settings_restart',
+        ...(customObserverPrompt && {
+          custom_observer_prompt: customObserverPrompt,
+        }),
+      },
+      { timeout: 15000 },
+    );
 }
 
 ipcMain.handle(
@@ -3527,7 +4115,27 @@ ipcMain.handle(
 
 ipcMain.handle(
   'set-chat-model',
-  async (_event, { modelId }: { modelId?: string } = {}) => {
+  async (event, { modelId }: { modelId?: string } = {}) => {
+    if (
+      !chatWindow ||
+      event.sender !== chatWindow.webContents ||
+      !isAuthenticated ||
+      !modelTraining.canPick(currentUserId)
+    )
+      return {
+        success: false,
+        error:
+          'Complete Agent 101 Chapter 4 · Models to unlock the model picker.',
+      };
+    if (
+      agentRuns.has(currentSessionId) ||
+      modelTraining.get(currentSessionId, currentUserId)
+    )
+      return {
+        success: false,
+        error:
+          'Finish this comparison and open a regular chat to choose a model.',
+      };
     const config = readModelConfiguration();
     const selected = config?.tutors.find((item) => item.id === modelId);
     if (!selected) return { success: false, error: 'Tutor model not found.' };
@@ -3778,20 +4386,29 @@ async function restoreSensingSession() {
   const { scenario, customObserverPrompt } = readProfile();
   const sensingPort = process.env.SENSING_PORT || '8080';
   try {
-    await retryOperation(() => axios.post(
-      `http://127.0.0.1:${sensingPort}/session`,
+    await retryOperation(
+      () =>
+        axios.post(
+          `http://127.0.0.1:${sensingPort}/session`,
+          {
+            node_uuid: sessionId,
+            struggle_detection_seconds: sessionStruggleSeconds,
+            scenario,
+            config_source: 'settings',
+            preserve_tutor_context: true,
+            ...(customObserverPrompt && {
+              custom_observer_prompt: customObserverPrompt,
+            }),
+          },
+          { timeout: 15000 },
+        ),
       {
-        node_uuid: sessionId,
-        struggle_detection_seconds: sessionStruggleSeconds,
-        scenario,
-        config_source: 'settings',
-        preserve_tutor_context: true,
-        ...(customObserverPrompt && { custom_observer_prompt: customObserverPrompt }),
+        shouldContinue: () =>
+          !isCocoSleeping() &&
+          isSessionActive &&
+          currentSessionId === sessionId,
       },
-      { timeout: 15000 },
-    ), {
-      shouldContinue: () => !isCocoSleeping() && isSessionActive && currentSessionId === sessionId,
-    });
+    );
   } catch (error) {
     if (!(error instanceof RetryCancelledError))
       log.warn('[Sleep] Could not restore sensing session:', error);
@@ -4604,7 +5221,11 @@ async function createProactiveTutorSession(
   struggleSeconds: number,
   startTrigger: SessionStartTrigger,
   seed?: ChatSeed,
-  options: { sessionId?: string; openChat?: boolean; preserveDraft?: boolean } = {},
+  options: {
+    sessionId?: string;
+    openChat?: boolean;
+    preserveDraft?: boolean;
+  } = {},
 ): Promise<string | null> {
   if (!tutoringAllowed) return null;
   // Read the user's onboarding profile to get their selected AI tools and mode.
@@ -4627,7 +5248,12 @@ async function createProactiveTutorSession(
   sessionStruggleSeconds = struggleSeconds;
   clearAvatarInvite('ignored');
   if (options.openChat !== false) {
-    openChatForSession(sessionId, problemStatement, seed, options.preserveDraft);
+    openChatForSession(
+      sessionId,
+      problemStatement,
+      seed,
+      options.preserveDraft,
+    );
   }
   log.info(`[ProactiveSession] Local tutor session started: ${sessionId}`);
   const startedAt = new Date();
@@ -4648,7 +5274,9 @@ async function createProactiveTutorSession(
   const sessionStillActive = () =>
     isSessionActive &&
     currentSessionId === sessionId &&
-    !([...agentRuns.requests.values()].some((request) => request.sessionId === sessionId && request.stopped));
+    ![...agentRuns.requests.values()].some(
+      (request) => request.sessionId === sessionId && request.stopped,
+    );
   const retryLocalPost = async (
     label: string,
     url: string,
@@ -4667,20 +5295,21 @@ async function createProactiveTutorSession(
   // Register sensing before configuring tutor context. During sleep only the
   // manual tutor is configured; sensing catches up when Coco wakes.
   try {
-    if (!isCocoSleeping()) await retryLocalPost(
-      'Sensing session setup',
-      `${sensing}/session`,
-      {
-        node_uuid: sessionId,
-        struggle_detection_seconds: struggleSeconds,
-        scenario,
-        config_source: 'session_start',
-        ...(customObserverPrompt && {
-          custom_observer_prompt: customObserverPrompt,
-        }),
-      },
-      15000,
-    );
+    if (!isCocoSleeping())
+      await retryLocalPost(
+        'Sensing session setup',
+        `${sensing}/session`,
+        {
+          node_uuid: sessionId,
+          struggle_detection_seconds: struggleSeconds,
+          scenario,
+          config_source: 'session_start',
+          ...(customObserverPrompt && {
+            custom_observer_prompt: customObserverPrompt,
+          }),
+        },
+        15000,
+      );
   } catch (err) {
     if (!(err instanceof RetryCancelledError)) {
       log.warn(
@@ -4748,7 +5377,12 @@ ipcMain.removeHandler('start-new-chat-session');
 ipcMain.handle(
   'start-new-chat-session',
   async (_event, { problemStatement }: { problemStatement?: string } = {}) => {
-    if (agentRuns.legacyBusy) return { success: false, error: 'Wait for the practice suggestion before switching conversations.' };
+    if (agentRuns.legacyBusy)
+      return {
+        success: false,
+        error:
+          'Wait for the practice suggestion before switching conversations.',
+      };
     const task =
       problemStatement?.trim() || pendingTaskLabel || 'General help session';
     try {
@@ -4772,19 +5406,32 @@ ipcMain.handle(
 // Chat history is local-only: the renderer persists completed turns here and
 // asks main to rebuild tutor context before continuing an older conversation.
 ipcMain.removeHandler('get-chat-conversations');
-ipcMain.handle('get-chat-conversations', () =>
+ipcMain.handle('get-chat-conversations', (_event, options?: { includeQuests?: boolean }) =>
   readConversations()
+    .filter(conversation => options?.includeQuests === true || !isQuestConversation(conversation))
     .filter((conversation) => conversation.messages.length > 0)
     .map((conversation) =>
-      interruptStaleReplies(conversation, (requestId) =>
-        activeChatRequests.has(requestId),
+      interruptStaleReplies(
+        {
+          ...conversation,
+          messages: chatStreams.overlay(
+            conversation.sessionId,
+            conversation.messages,
+          ),
+        },
+        (requestId) => activeChatRequests.has(requestId),
       ),
     ),
 );
 
 ipcMain.removeHandler('save-chat-conversation');
 ipcMain.handle('save-chat-conversation', (_event, payload) => {
-  saveConversation({ ...(payload ?? {}), messages: chatStreams.overlay(payload?.sessionId, payload?.messages ?? []), tutorModelId: payload?.sessionId === currentSessionId ? currentTutorModelId : undefined });
+  saveConversation({
+    ...(payload ?? {}),
+    messages: chatStreams.overlay(payload?.sessionId, payload?.messages ?? []),
+    tutorModelId:
+      payload?.sessionId === currentSessionId ? currentTutorModelId : undefined,
+  });
   return { success: true };
 });
 
@@ -4884,7 +5531,12 @@ ipcMain.removeHandler('resume-chat-conversation');
 ipcMain.handle(
   'resume-chat-conversation',
   async (_event, { sessionId }: { sessionId?: string } = {}) => {
-    if (agentRuns.legacyBusy) return { success: false, error: 'Wait for the practice suggestion before switching conversations.' };
+    if (agentRuns.legacyBusy)
+      return {
+        success: false,
+        error:
+          'Wait for the practice suggestion before switching conversations.',
+      };
     const conversation = readConversations().find(
       (saved) => saved.sessionId === sessionId,
     );
@@ -4894,8 +5546,15 @@ ipcMain.handle(
     const result = await resumeSavedConversation(conversation);
     if (!result.success) return result;
     activateBridgeConversation(conversation.sessionId);
-    const latest = readConversations().find((saved) => saved.sessionId === sessionId) ?? conversation;
-    return { ...result, conversation: interruptStaleReplies(latest, (id) => activeChatRequests.has(id)) };
+    const latest =
+      readConversations().find((saved) => saved.sessionId === sessionId) ??
+      conversation;
+    return {
+      ...result,
+      conversation: interruptStaleReplies(latest, (id) =>
+        activeChatRequests.has(id),
+      ),
+    };
   },
 );
 
@@ -5024,6 +5683,50 @@ function endCurrentSession() {
 // Chat requests run in a persistent pi session. The local tutor service supplies
 // the configured model, profile context, and existing screen/memory tools.
 // Images stay as data URLs; execution events stream back to the renderer.
+async function runWorkflowChatTurn(
+  event: IpcMainInvokeEvent,
+  sessionId: string,
+  requestId: string,
+  text: string,
+  images: string[] = [],
+) {
+  const metrics: LLMCallMetrics[] = [];
+  workflowChatTurns.set(sessionId, {
+    requestId,
+    images,
+    metrics,
+    sender: event.sender,
+  });
+  try {
+    const result = await workflowTraining.chat(event, sessionId, text);
+    const guidance = result.messages?.at(-1)?.text ?? '';
+    sendChatStreamEvent(event.sender, {
+      sessionId,
+      requestId,
+      type: 'done',
+      guidance,
+      llm_metrics: aggregateCallMetrics(metrics),
+    });
+    gatewayClient?.addMessage(sessionId, 'coco', guidance);
+    return { streamed: true };
+  } catch (error) {
+    if (agentRuns.requests.get(requestId)?.stopped) {
+      sendChatStreamEvent(event.sender, {
+        sessionId,
+        requestId,
+        type: 'done',
+        guidance: 'Stopped.',
+        stopped: true,
+        llm_metrics: aggregateCallMetrics(metrics),
+      });
+      return { streamed: true };
+    }
+    throw error;
+  } finally {
+    workflowChatTurns.delete(sessionId);
+  }
+}
+
 ipcMain.removeHandler('send-chat-message');
 ipcMain.handle(
   'send-chat-message',
@@ -5054,18 +5757,94 @@ ipcMain.handle(
       },
     ) => {
       const gatewaySessionId = sessionId!;
+      if (modelTraining.get(gatewaySessionId, currentUserId))
+        return { error: 'Use the controls in this quest to continue.' };
+      const workflow = workflowTraining.get(gatewaySessionId, currentUserId);
+      if (workflow && !workflow.savedSkillId) {
+        if (
+          ipcEvent.sender !== chatWindow?.webContents ||
+          !isAuthenticated ||
+          !currentUserId
+        )
+          return { error: 'Sign in to continue.' };
+        if (requestKind === 'practice_suggestions')
+          return { error: 'Tell Coco about the skill you want to create.' };
+        chatStreams.begin(
+          gatewaySessionId,
+          requestId,
+          displayText ?? userText,
+          images ?? [],
+          isRetry,
+        );
+        gatewayClient?.addMessage(
+          gatewaySessionId,
+          'user',
+          displayText ?? userText,
+        );
+        return runWorkflowChatTurn(
+          ipcEvent,
+          gatewaySessionId,
+          requestId,
+          userText,
+          images,
+        );
+      }
+      if (
+        requestKind === 'practice_suggestions' &&
+        (toolTraining.training(gatewaySessionId, currentUserId) ||
+          contextTraining.get(gatewaySessionId, currentUserId) ||
+          tokenTraining.get(gatewaySessionId, currentUserId))
+      )
+        return { error: 'Ask your own question to explore this chapter.' };
       const piHarness = agentRuns.get(gatewaySessionId);
-      const context = executionContext(gatewaySessionId, displayText ?? userText);
+      const context = executionContext(
+        gatewaySessionId,
+        displayText ?? userText,
+      );
       const directory = agentDirectory(gatewaySessionId);
-      chatStreams.begin(gatewaySessionId, requestId, displayText ?? userText, images ?? [], isRetry, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined, screenContext);
+      const training =
+        toolTraining.training(gatewaySessionId, currentUserId) ??
+        contextTraining.training(
+          gatewaySessionId,
+          currentUserId,
+          directory,
+          userText,
+        ) ??
+        tokenTraining.training(gatewaySessionId, currentUserId);
+      const observeContextTraining = contextTraining.observe(
+        gatewaySessionId,
+        currentUserId,
+      );
+      const observeTokenTraining = tokenTraining.observe(
+        gatewaySessionId,
+        requestId,
+        currentUserId,
+      );
+      const observeTraining = toolTraining.observe(
+        gatewaySessionId,
+        currentUserId,
+        context,
+        userText,
+      );
+      chatStreams.begin(
+        gatewaySessionId,
+        requestId,
+        displayText ?? userText,
+        images ?? [],
+        isRetry,
+        gatewaySessionId === currentSessionId ? currentTutorModelId : undefined,
+        screenContext,
+      );
       const tutorPort = process.env.TUTOR_PORT || '8081';
       const tutor = `http://127.0.0.1:${tutorPort}`;
       const sessionStartText = (displayText ?? userText).trim();
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
-      if (gatewaySessionId === currentSessionId) await resumeReopenedConversation(displayText ?? userText);
+      if (gatewaySessionId === currentSessionId)
+        await resumeReopenedConversation(displayText ?? userText);
       if (
-        gatewaySessionId === currentSessionId && !isSessionActive &&
+        gatewaySessionId === currentSessionId &&
+        !isSessionActive &&
         shouldStartSessionFromUserMessage(
           sessionStartText,
           requestKind ?? 'chat',
@@ -5099,6 +5878,7 @@ ipcMain.handle(
       ).length;
 
       const contextualizedUserText = [
+        userText,
         ...(hotkeyImageCount > 0
           ? [
               '<hotkey_screenshot_context>',
@@ -5115,7 +5895,6 @@ ipcMain.handle(
               '</screen_observation>',
             ]
           : []),
-        userText,
       ]
         .filter(Boolean)
         .join('\n');
@@ -5126,26 +5905,32 @@ ipcMain.handle(
         }
       };
       activeChatRequests.add(requestId);
-      const progressReminder = requestKind === 'practice_suggestions' ? null : startAgentProgressReminder(gatewaySessionId, requestId);
+      const progressReminder =
+        requestKind === 'practice_suggestions'
+          ? null
+          : startAgentProgressReminder(gatewaySessionId, requestId);
       try {
         // A plain chat can be opened without creating a proactive session. Sync
         // the persisted profile on every turn so the tutor never falls back to
         // its default scenario or recommends tools the user did not select.
         if (requestKind === 'practice_suggestions') {
-        const { scenario, aiTools } = readProfile();
-        await axios.post(
-          `${tutor}/config/scenario`,
-          { scenario },
-          { timeout: 8000 },
-        );
-        await axios.post(
-          `${tutor}/context/ai_tools`,
-          { ai_tools: aiTools },
-          { timeout: 8000 },
-        );
+          const { scenario, aiTools } = readProfile();
+          await axios.post(
+            `${tutor}/config/scenario`,
+            { scenario },
+            { timeout: 8000 },
+          );
+          await axios.post(
+            `${tutor}/context/ai_tools`,
+            { ai_tools: aiTools },
+            { timeout: 8000 },
+          );
         }
         const turnTiming = new TutorTurnTiming();
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          observeTraining(streamEvent);
+          observeContextTraining(streamEvent);
+          observeTokenTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (streamEvent.type === 'text_delta') {
             const delta = String(streamEvent.text ?? '');
@@ -5163,7 +5948,11 @@ ipcMain.handle(
                 | undefined,
             });
           }
-          if (streamEvent.type === 'done' && !streamEvent.stopped && requestKind !== 'practice_suggestions') {
+          if (
+            streamEvent.type === 'done' &&
+            !streamEvent.stopped &&
+            requestKind !== 'practice_suggestions'
+          ) {
             remindAgentReply(gatewaySessionId, requestId).catch((error) =>
               log.warn('[Chat] Could not show reply reminder:', error),
             );
@@ -5219,9 +6008,14 @@ ipcMain.handle(
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
+            approvalRules: training ? undefined : commandApprovalRules(),
+            curatedSkills: training
+              ? undefined
+              : workflowTraining.runtimeSkills(currentUserId),
             requestId,
             sessionId: gatewaySessionId,
             context,
+            training,
             directory,
             tutorUrl: tutor,
             token: piBridgeToken,
@@ -5243,12 +6037,24 @@ ipcMain.handle(
             : err instanceof Error
               ? err.message
               : 'Coco could not complete this request.';
-        settleReply({ text: error, isError: true });
+        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
+          ?.llm_metrics;
+        observeTokenTraining({
+          type: 'error',
+          error,
+          llm_metrics: failedMetrics,
+        });
+        settleReply({
+          text: error,
+          isError: true,
+          tutorMetrics: failedMetrics,
+        });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           sessionId: gatewaySessionId,
           type: 'error',
           error,
+          llm_metrics: failedMetrics,
         });
         return { error };
       } finally {
@@ -5322,16 +6128,79 @@ ipcMain.handle(
       },
     ) => {
       const gatewaySessionId = sessionId!;
+      if (modelTraining.get(gatewaySessionId, currentUserId))
+        return { error: 'Use the controls in this quest to continue.' };
+      const workflow = workflowTraining.get(gatewaySessionId, currentUserId);
+      if (workflow && !workflow.savedSkillId) {
+        if (
+          ipcEvent.sender !== chatWindow?.webContents ||
+          !isAuthenticated ||
+          !currentUserId
+        )
+          return { error: 'Sign in to continue.' };
+        if (!tutoringAllowed)
+          return { error: 'AI tutoring is disabled for this account.' };
+        if (!audioData || audioData.length > 16_000_000)
+          return { error: 'The voice recording is empty or too large.' };
+        chatStreams.begin(gatewaySessionId, requestId, '[Voice message]');
+        const response = await axios.post(
+          `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/transcribe`,
+          { audio_data: audioData },
+          {
+            headers: {
+              Authorization: `Bearer ${piBridgeToken}`,
+              'X-Coco-Session': gatewaySessionId,
+            },
+            timeout: 120000,
+          },
+        );
+        const text = String(response.data.text ?? '').trim();
+        sendChatStreamEvent(ipcEvent.sender, {
+          sessionId: gatewaySessionId,
+          requestId,
+          type: 'transcription',
+          text,
+        });
+        gatewayClient?.addMessage(gatewaySessionId, 'user', text);
+        return runWorkflowChatTurn(ipcEvent, gatewaySessionId, requestId, text);
+      }
       const piHarness = agentRuns.get(gatewaySessionId);
       const context = executionContext(gatewaySessionId);
       const directory = agentDirectory(gatewaySessionId);
-      chatStreams.begin(gatewaySessionId, requestId, '[Voice message]', [], false, gatewaySessionId === currentSessionId ? currentTutorModelId : undefined);
+      const training =
+        toolTraining.training(gatewaySessionId, currentUserId) ??
+        contextTraining.training(gatewaySessionId, currentUserId, directory) ??
+        tokenTraining.training(gatewaySessionId, currentUserId);
+      const observeContextTraining = contextTraining.observe(
+        gatewaySessionId,
+        currentUserId,
+      );
+      const observeTokenTraining = tokenTraining.observe(
+        gatewaySessionId,
+        requestId,
+        currentUserId,
+      );
+      const observeTraining = toolTraining.observe(
+        gatewaySessionId,
+        currentUserId,
+        context,
+        '',
+      );
+      chatStreams.begin(
+        gatewaySessionId,
+        requestId,
+        '[Voice message]',
+        [],
+        false,
+        gatewaySessionId === currentSessionId ? currentTutorModelId : undefined,
+      );
       if (!audioData || audioData.length > 16_000_000) {
         return { error: 'The voice recording is empty or too large.' };
       }
       if (!tutoringAllowed)
         return { error: 'AI tutoring is disabled for this account.' };
-      if (gatewaySessionId === currentSessionId) await resumeReopenedConversation();
+      if (gatewaySessionId === currentSessionId)
+        await resumeReopenedConversation();
       if (gatewaySessionId === currentSessionId && !isSessionActive) {
         // A pre-session invite may already be visible from the last sensing tick.
         // Voice input is itself an explicit session start, so remove that stale UI.
@@ -5359,9 +6228,15 @@ ipcMain.handle(
         }
       };
       activeChatRequests.add(requestId);
-      const progressReminder = startAgentProgressReminder(gatewaySessionId, requestId);
+      const progressReminder = startAgentProgressReminder(
+        gatewaySessionId,
+        requestId,
+      );
       try {
         const onEvent = (streamEvent: TutorStreamEvent) => {
+          observeTraining(streamEvent);
+          observeContextTraining(streamEvent);
+          observeTokenTraining(streamEvent);
           progressReminder?.update(streamEvent);
           if (
             streamEvent.type === 'transcription' &&
@@ -5438,9 +6313,14 @@ ipcMain.handle(
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
           await piHarness.run({
+            approvalRules: training ? undefined : commandApprovalRules(),
+            curatedSkills: training
+              ? undefined
+              : workflowTraining.runtimeSkills(currentUserId),
             requestId,
             sessionId: gatewaySessionId,
             context,
+            training,
             directory,
             tutorUrl: `http://127.0.0.1:${tutorPort}`,
             token: piBridgeToken,
@@ -5460,12 +6340,24 @@ ipcMain.handle(
           err instanceof TutorStreamTimeoutError
             ? 'The tutor took too long to respond to the voice message. Please retry.'
             : 'The tutor could not process the voice message. Please try again.';
-        settleReply({ text: error, isError: true });
+        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
+          ?.llm_metrics;
+        observeTokenTraining({
+          type: 'error',
+          error,
+          llm_metrics: failedMetrics,
+        });
+        settleReply({
+          text: error,
+          isError: true,
+          tutorMetrics: failedMetrics,
+        });
         sendChatStreamEvent(ipcEvent.sender, {
           requestId,
           sessionId: gatewaySessionId,
           type: 'error',
           error,
+          llm_metrics: failedMetrics,
         });
         return { error };
       } finally {
@@ -5989,6 +6881,11 @@ const authenticate = async (
         : await gatewayClient.signIn(request);
     currentUserId = session.participantId;
     isAuthenticated = true;
+    sendToChat('tool-chapter-progress-changed', null);
+    sendToChat('context-chapter-progress-changed', null);
+    sendToChat('token-chapter-progress-changed', null);
+    sendToChat('model-chapter-progress-changed', null);
+    sendToChat('workflow-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6009,6 +6906,11 @@ const authenticate = async (
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
     currentUserId = null;
     isAuthenticated = false;
+    sendToChat('tool-chapter-progress-changed', null);
+    sendToChat('context-chapter-progress-changed', null);
+    sendToChat('token-chapter-progress-changed', null);
+    sendToChat('model-chapter-progress-changed', null);
+    sendToChat('workflow-chapter-progress-changed', null);
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6683,6 +7585,11 @@ app
         );
         currentUserId = restored.participantId;
         isAuthenticated = true;
+        sendToChat('tool-chapter-progress-changed', null);
+        sendToChat('context-chapter-progress-changed', null);
+        sendToChat('token-chapter-progress-changed', null);
+        sendToChat('model-chapter-progress-changed', null);
+        sendToChat('workflow-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;
@@ -6692,6 +7599,11 @@ app
         clearAuthSession(app.getPath('userData'));
         currentUserId = null;
         isAuthenticated = false;
+        sendToChat('tool-chapter-progress-changed', null);
+        sendToChat('context-chapter-progress-changed', null);
+        sendToChat('token-chapter-progress-changed', null);
+        sendToChat('model-chapter-progress-changed', null);
+        sendToChat('workflow-chapter-progress-changed', null);
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;

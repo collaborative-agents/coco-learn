@@ -3,6 +3,7 @@ import { AGENT_MODES } from '../../../shared/agent-modes';
 import type { TutorModelOption } from './types';
 
 export const MODEL_PROVIDER_OPTIONS = [
+  ['deepseek-ai', 'DeepSeek'],
   ['gemini', 'Google Gemini'],
   ['openai', 'OpenAI'],
   ['anthropic', 'Anthropic'],

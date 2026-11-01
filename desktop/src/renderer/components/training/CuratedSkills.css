@@ -1,0 +1,257 @@
+.curated-skills h3 {
+  margin-bottom: 8px;
+}
+.workflow-skill-card {
+  min-width: 0;
+  margin: 16px 0;
+  padding: 20px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 14px;
+  background: var(--coco-color-surface);
+}
+.curated-skills button {
+  padding: 8px 16px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 999px;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-primary);
+  font: inherit;
+  font-size: var(--coco-text-control);
+  cursor: pointer;
+}
+.curated-skills :focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+.curated-skills details {
+  margin-top: 12px;
+}
+.curated-skills summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.workflow-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.curated-skills {
+  margin-top: 24px;
+}
+.skill-picker-row {
+  margin-top: 12px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.curated-skills .skill-picker-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--coco-color-text);
+}
+.curated-skills .skill-picker-select:hover:not(:disabled) {
+  background: var(--coco-color-accent-soft);
+}
+.skill-picker-select span {
+  color: var(--coco-color-text-secondary);
+  font-weight: 400;
+}
+.skill-picker-row .workflow-skill-card {
+  border: 0;
+  margin: 0;
+  padding: 0 16px 16px;
+}
+.skill-picker-row summary {
+  font-size: var(--coco-text-control);
+}
+
+.skill-picker-dialog {
+  width: min(480px, 100%);
+  border-radius: 20px;
+}
+.skill-picker-dialog .training-dialog-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--coco-color-border);
+}
+.skill-picker-dialog .training-dialog-header h2 {
+  font-size: var(--coco-text-lead);
+  font-weight: 600;
+}
+.skill-picker-dialog .training-dialog-content {
+  padding: 20px 24px 24px;
+}
+.skill-picker-dialog .curated-skills {
+  margin: 0;
+  font-size: var(--coco-text-control);
+  line-height: 1.5;
+}
+.skill-picker-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 8px 12px;
+}
+.skill-picker-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-primary);
+}
+.skill-picker-empty h3 {
+  margin: 0 0 8px;
+  font-size: var(--coco-text-body);
+  font-weight: 600;
+  color: var(--coco-color-text);
+}
+.skill-picker-empty p {
+  max-width: 320px;
+  margin: 0 0 24px;
+  color: var(--coco-color-text-muted);
+}
+.curated-skills .skill-picker-create {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--coco-color-primary);
+  color: var(--coco-color-surface);
+  border: 1px solid var(--coco-color-primary);
+  white-space: nowrap;
+}
+.skill-picker-create:hover {
+  filter: brightness(1.08);
+}
+.skill-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.skill-picker-toolbar p,
+.skill-picker-status {
+  margin: 0;
+  color: var(--coco-color-text-muted);
+}
+.skill-picker-toolbar p {
+  flex: 1 1 180px;
+}
+
+/* Quiet surfaces and compact rows, using Coco's existing theme. */
+.skill-picker-dialog {
+  width: min(540px, 100%);
+  border-radius: 16px;
+}
+.skill-picker-dialog .training-dialog-header {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.skill-picker-dialog .training-dialog-content {
+  padding-top: 12px;
+}
+.skill-picker-toolbar {
+  align-items: baseline;
+  margin-bottom: 20px;
+}
+.curated-skills .skill-picker-create {
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text);
+  border-color: var(--coco-color-border);
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+.curated-skills .skill-picker-create:hover {
+  background: var(--coco-color-surface-subtle);
+  filter: none;
+}
+.skill-picker-empty {
+  padding: 28px 8px 20px;
+}
+.skill-picker-empty-icon {
+  background: transparent;
+  width: auto;
+  height: auto;
+  margin-bottom: 20px;
+  color: var(--coco-color-primary);
+}
+.skill-picker-empty h3 {
+  max-width: 280px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.skill-picker-empty p {
+  margin-top: 4px;
+}
+.skill-picker-search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 8px;
+  background: var(--coco-color-surface-subtle);
+  color: var(--coco-color-text);
+  font: inherit;
+  margin-bottom: 4px;
+}
+.skill-picker-row {
+  border-radius: 10px;
+  margin-top: 10px;
+}
+.curated-skills .skill-picker-select {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+.skill-picker-select .skill-picker-glyph {
+  flex: none;
+  padding-top: 2px;
+  color: var(--coco-color-primary);
+}
+.skill-picker-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.skill-picker-copy strong {
+  color: var(--coco-color-text);
+  font-weight: 600;
+}
+.skill-picker-copy > span {
+  font-size: var(--coco-text-secondary);
+  line-height: 1.5;
+}
+.skill-picker-add {
+  color: var(--coco-color-text-muted);
+}
+.skill-picker-row .workflow-skill-card {
+  padding-left: 48px;
+}
+.skill-picker-row summary {
+  color: var(--coco-color-text-muted);
+  font-size: var(--coco-text-secondary);
+  font-weight: 400;
+}
+.curated-skills .workflow-actions button {
+  background: transparent;
+  border-radius: 8px;
+  border-color: var(--coco-color-border);
+  color: var(--coco-color-text);
+}

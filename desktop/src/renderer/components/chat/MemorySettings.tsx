@@ -17,13 +17,10 @@ export default function MemorySettings({
   memoryFlash,
 }: Props) {
   return (
-    <section
-      className="workspace-settings-section"
-      aria-labelledby="memory-heading"
-    >
-      <h2 id="memory-heading" className="settings-heading">
+    <section className="settings-subsection" aria-labelledby="memory-heading">
+      <h3 id="memory-heading" className="settings-heading">
         Memory
-      </h2>
+      </h3>
       <div style={S.helpText}>
         Preferences and notes Coco uses in each conversation. Edit them anytime.
       </div>

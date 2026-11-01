@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import ResponseCodeBlock from './chat/ResponseCodeBlock';
+import { currencySafeMarkdown } from './currency-markdown';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import type { InstantSuggestion } from './observation-types';
@@ -33,6 +35,8 @@ interface NotificationPayload {
   suggestion?: InstantSuggestion;
   adjustable?: boolean;
   scenario?: string;
+  /** Pre-session invite; acting on its suggestion starts the session. */
+  sessionInvite?: boolean;
 }
 
 function suggestionToolLabel(suggestion: InstantSuggestion): string {
@@ -173,6 +177,7 @@ function truncateForPreview(text: string): string {
 //  - <a>: open external links in the system browser via shell, not
 //    inside this transparent BrowserWindow.
 const markdownComponents: React.ComponentProps<typeof Markdown>['components'] = {
+  pre: ResponseCodeBlock,
   a({ href, children, ...props }: any) {
     return (
       <a href={href} target="_blank" rel="noreferrer" {...props}>
@@ -225,8 +230,8 @@ export function NotificationBubble({
   onFrameworkPageChange?: (page: 0 | 1) => void;
   rawObservation?: string;
 }) {
-  const isPrompt =
-    notifType === 'session-start-prompt' || notifType === 'session-end-prompt';
+  const isSessionInvite = notifType === 'session-start-prompt';
+  const isPrompt = isSessionInvite || notifType === 'session-end-prompt';
   const isSuggestionPreview =
     notifType === 'proactive-suggestion' && suggestion != null;
   const isRevealedSuggestion =
@@ -319,6 +324,12 @@ export function NotificationBubble({
             <span>{isFrameworkPager ? 'Try this' : 'Suggestion'}</span>
           </div>
         )}
+        {isSessionInvite && (
+          <div className="toast-suggestion-label">
+            <span aria-hidden="true">✦</span>
+            <span>Support available</span>
+          </div>
+        )}
         {/* eslint-disable-next-line no-nested-ternary */}
         {isFrameworkOverview && explanation ? (
           <div className="toast-framework-overview">
@@ -354,7 +365,7 @@ export function NotificationBubble({
               rehypePlugins={[rehypeKatex]}
               components={markdownComponents}
             >
-              {displayMessage}
+              {currencySafeMarkdown(displayMessage)}
             </Markdown>
           </div>
         )}
@@ -472,6 +483,7 @@ export default function NotificationView() {
           adjustable: incoming?.adjustable === true,
           scenario: incoming?.scenario,
           notificationId: incoming?.notificationId,
+          sessionInvite: incoming?.sessionInvite === true,
         });
         setLoadingSuggestion(false);
         setSuggestionRating(null);
@@ -552,12 +564,20 @@ export default function NotificationView() {
     if (payload.notifType === 'proactive-suggestion' && loadingSuggestion) {
       return;
     }
-    reportResponse('accepted');
+    // An invite's preview is accepted only by chatting about it; reading it
+    // and closing with "Got it" declines the session.
+    if (payload.sessionInvite && payload.notifType === 'instant-suggestion') {
+      reportResponse('dismissed');
+    } else if (
+      !payload.sessionInvite ||
+      payload.notifType === 'session-start-prompt'
+    ) {
+      reportResponse('accepted');
+    }
     if (payload.notifType === 'session-start-prompt') {
-      // Ask main to show the mini session-setup window.
-      ipc?.sendMessage('show-session-setup');
+      // Main starts the session, opens the chat, and destroys this window.
+      ipc?.sendMessage('session-invite-accepted');
       setVisible(false);
-      // Don't close — main will destroy this window after showing setup.
       return;
     }
     if (payload.notifType === 'session-end-prompt') {
@@ -595,6 +615,11 @@ export default function NotificationView() {
           notifType: 'instant-suggestion',
           suggestion,
         });
+        if (payload.sessionInvite) {
+          ipc?.sendMessage('session-invite-revealed', {
+            inviteId: payload.notificationId,
+          });
+        }
         const engagedAt = Math.floor(Date.now() / 1000);
         ipc?.sendMessage('activity-support-engaged', {
           observationId: payload.observationId,
@@ -621,7 +646,7 @@ export default function NotificationView() {
       return;
     }
     if (payload.notifType === 'instant-suggestion') {
-      // "Got it" on coaching text: accepted (reported above) and closed. It is
+      // "Got it" on coaching text: reported above and closed. It is
       // not a rating; the thumbs record whether it helped.
       setVisible(false);
       window.close();
@@ -691,6 +716,7 @@ export default function NotificationView() {
       rawObservation: payload.rawObservation,
       suggestion: payload.suggestion,
       surface: 'notification',
+      sessionInvite: payload.sessionInvite,
     });
     setVisible(false);
     window.close();

@@ -38,12 +38,7 @@ export function shouldOfferInstantSuggestion(
   return sessionActive && isJudgeApprovedIntervention(event);
 }
 
-/**
- * Keep the monorepo's visible observation feedback: lightweight status bubbles
- * such as "Stuck?" and "AI could help" are shown even when the Judge does not
- * approve a full proactive suggestion. Judge gating applies only to generating
- * and pushing the detailed suggestion, not to the avatar's observation state.
- */
-export function shouldSurfaceObservation(): boolean {
-  return true;
+/** Progress remains in activity history without interrupting the user. */
+export function shouldSurfaceObservation(event: InterventionEvent): boolean {
+  return event.status !== 'progress';
 }

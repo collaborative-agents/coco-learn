@@ -68,32 +68,117 @@ describe('model configuration', () => {
 
   it('uses the pilot models when configuration is managed by the router', () => {
     expect(ROUTER_MANAGED_MODEL_CONFIGURATION.sensing.model).toBe(
-      'gemini/gemini-2.5-pro',
+      'anthropic/claude-sonnet-4-6',
     );
     expect(ROUTER_MANAGED_MODEL_CONFIGURATION.tutors[0].model).toBe(
-      'gemini/gemini-3-flash-preview',
+      'deepseek-ai/deepseek-v4-pro',
+    );
+    expect(ROUTER_MANAGED_MODEL_CONFIGURATION.defaultTutorId).toBe(
+      'deepseek-v4-pro',
     );
   });
 
-  it('replaces unsupported Router tutors while preserving Gemini choices', () => {
-    const anthropicOnly = validateModelConfiguration({
-      sensing,
-      tutors: [tutors[1]],
-      defaultTutorId: 'deep',
+  it('migrates saved Gemini 3 Flash selections to Argon', () => {
+    const normalized = normalizeRouterManagedModelConfiguration(
+      validateModelConfiguration({
+        sensing,
+        tutors: [
+          {
+            id: 'saved-flash',
+            label: 'Gemini 3 Flash',
+            provider: 'gemini',
+            model: 'gemini/gemini-3-flash-preview',
+          },
+        ],
+        defaultTutorId: 'saved-flash',
+      }),
+    );
+    expect(normalized.defaultTutorId).toBe('deepseek-v4-pro');
+    expect(normalized.tutors[0]).toMatchObject({
+      id: 'saved-flash',
+      label: 'Gemini 4 Argon',
+      model: 'gemini/gemini-4-argon',
     });
     expect(
-      normalizeRouterManagedModelConfiguration(anthropicOnly).tutors,
-    ).toEqual(ROUTER_MANAGED_MODEL_CONFIGURATION.tutors);
+      normalized.tutors.filter(
+        (model) => model.model === 'gemini/gemini-4-argon',
+      ),
+    ).toHaveLength(1);
+    expect(
+      normalizeRouterManagedModelConfiguration(
+        validateModelConfiguration(normalized),
+      ),
+    ).toEqual(normalized);
+  });
 
+  it('adds the requested tutor models and migrates the default to DeepSeek Pro', () => {
     const mixed = validateModelConfiguration({
       sensing,
       tutors,
-      defaultTutorId: 'fast',
+      defaultTutorId: 'deep',
     });
-    expect(normalizeRouterManagedModelConfiguration(mixed)).toMatchObject({
-      tutors: [tutors[0]],
-      defaultTutorId: 'fast',
+    const normalized = normalizeRouterManagedModelConfiguration(mixed);
+    expect(normalized.sensing.model).toBe('anthropic/claude-sonnet-4-6');
+    expect(normalized.defaultTutorId).toBe('deepseek-v4-pro');
+    expect(normalized.tutors).toEqual(expect.arrayContaining(tutors));
+    expect(normalized.tutors.map((model) => model.model)).toEqual(
+      expect.arrayContaining([
+        'deepseek-ai/deepseek-v4-pro',
+        'deepseek-ai/deepseek-v4.1-flash-1017',
+        'openai/gpt-5.6-sol',
+        'openai/gpt-5.6-terra',
+        'openai/gpt-5.6-luna',
+        'anthropic/claude-sonnet-5-5',
+        'anthropic/bedrock-claude-opus-5-5',
+      ]),
+    );
+    expect(
+      normalizeRouterManagedModelConfiguration(
+        validateModelConfiguration(normalized),
+      ),
+    ).toEqual(normalized);
+  });
+
+  it('keeps a saved preset ID and handles colliding custom IDs', () => {
+    const current = validateModelConfiguration({
+      sensing,
+      tutors: [
+        {
+          id: 'chosen',
+          label: 'My Sol',
+          provider: 'openai',
+          model: 'openai/gpt-5.6-sol',
+        },
+        {
+          id: 'gpt-5.6-terra',
+          label: 'Other model',
+          provider: 'openai',
+          model: 'openai/custom',
+        },
+      ],
+      defaultTutorId: 'chosen',
     });
+    const normalized = normalizeRouterManagedModelConfiguration(current);
+    expect(normalized.defaultTutorId).toBe('deepseek-v4-pro');
+    expect(
+      normalized.tutors.filter((model) => model.model === 'openai/gpt-5.6-sol'),
+    ).toHaveLength(1);
+    expect(() => validateModelConfiguration(normalized)).not.toThrow();
+  });
+
+  it('preserves later default choices after the DeepSeek catalog upgrade', () => {
+    const upgraded = validateModelConfiguration(
+      normalizeRouterManagedModelConfiguration(null),
+    );
+    const selected = { ...upgraded, defaultTutorId: 'gpt-5.6-sol' };
+    expect(
+      normalizeRouterManagedModelConfiguration(selected).defaultTutorId,
+    ).toBe('gpt-5.6-sol');
+    expect(
+      buildRoleModelEnvironments(upgraded, {
+        'tutor:deepseek-ai': 'test-deepseek-key',
+      }).tutorEnv.DEEPSEEK_API_KEY,
+    ).toBe('test-deepseek-key');
   });
 
   it('does not expose sensing credentials to tutors or tutor credentials to sensing', () => {
@@ -149,9 +234,7 @@ describe('model configuration', () => {
       defaultTutorId: 'fast',
     });
 
-    expect(config.sensing.model).toBe(
-      'hosted_vllm/thinkingmachines/inkling',
-    );
+    expect(config.sensing.model).toBe('hosted_vllm/thinkingmachines/inkling');
   });
 
   it('routes an Inkling tutor through Tinker with a tutor-scoped key', () => {

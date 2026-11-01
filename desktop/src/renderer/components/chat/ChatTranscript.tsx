@@ -4,12 +4,34 @@ import type { SavedConversation, ChatMessage } from './types';
 import { TutorMessage, SuggestionMessage } from './MessageContent';
 import AgentActivityList from './AgentActivityList';
 import ChatMetrics from './ChatMetrics';
+import { ScreenContextTag } from './ScreenContext';
 import RatingButtons from '../RatingButtons';
 import { messageCopyKey } from './message-format';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
-import { SCREEN_TASK_PROMPT, SECONDARY_CHAT_PROMPTS } from './constants';
+import {
+  SCREEN_TASK_PROMPT,
+  SECONDARY_CHAT_PROMPTS,
+  SUGGESTION_FOLLOW_UPS,
+} from './constants';
+
+// Older saved denials used the generic error UI. Keep them compact too.
+function isWorkspaceDenial(message: ChatMessage) {
+  return (
+    message.activity?.some(
+      (item) =>
+        item.kind === 'permission' &&
+        item.request.kind === 'workspace' &&
+        item.request.status === 'denied',
+    ) &&
+    (!message.text ||
+      message.text === 'Workspace access request denied by the user.' ||
+      message.text.startsWith('Workspace access was denied.'))
+  );
+}
 
 interface Props {
+  children?: React.ReactNode;
+  allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
   visibleMessages: ChatMessage[];
@@ -33,6 +55,8 @@ interface Props {
 }
 
 export default function ChatTranscript({
+  children = null,
+  allowRatings = true,
   reviewing,
   listRef,
   visibleMessages,
@@ -91,7 +115,11 @@ export default function ChatTranscript({
         ))}
       {visibleMessages.map((m, i) => (
         // eslint-disable-next-line react/no-array-index-key
-        <div key={i} style={m.role === 'user' ? S.userRow : S.tutorRow}>
+        <div
+          key={i}
+          data-request-id={m.requestId}
+          style={m.role === 'user' ? S.userRow : S.tutorRow}
+        >
           {m.role === 'user' ? (
             <>
               <div style={S.userBubble}>
@@ -118,6 +146,7 @@ export default function ChatTranscript({
                   </div>
                 )}
               </div>
+              {m.screenContext && <ScreenContextTag text={m.screenContext} />}
               {m.text.trim() && (
                 <div style={S.userMessageActions}>
                   <button
@@ -146,6 +175,7 @@ export default function ChatTranscript({
                 {(m.activity && m.activity.length > 0) ||
                 (!m.activity && m.toolCalls?.length) ? (
                   <AgentActivityList
+                    requestId={m.requestId}
                     activity={
                       m.activity ??
                       m.toolCalls?.map((call) => ({
@@ -176,79 +206,105 @@ export default function ChatTranscript({
                     runDisabled={sending || startingNewSession}
                   />
                 )}
-                {!m.suggestion && (m.text || m.isError) && (
-                  <div style={m.isError ? S.errBubble : S.tutorBubble}>
-                    {m.isError ? (
-                      <>
-                        <div>{m.text}</div>
-                        {m.retryText !== undefined && (
-                          <button
-                            type="button"
-                            style={{
-                              ...S.retryBtn,
-                              ...(sending || startingNewSession
-                                ? S.sendBtnDisabled
-                                : {}),
-                            }}
-                            disabled={sending || startingNewSession}
-                            onClick={() => retryMessage(m)}
-                          >
-                            Retry
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <TutorMessage text={m.text} />
-                    )}
-                  </div>
-                )}
+                {m.suggestion &&
+                  !m.folded &&
+                  !reviewing &&
+                  !sending &&
+                  i === visibleMessages.length - 1 && (
+                    <div style={S.followUpRow} aria-label="Follow-up questions">
+                      {SUGGESTION_FOLLOW_UPS.map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          style={{
+                            ...S.followUpBtn,
+                            ...(startingNewSession ? S.sendBtnDisabled : {}),
+                          }}
+                          disabled={startingNewSession}
+                          onClick={() => void sendMessage(prompt, [])}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                {!m.suggestion &&
+                  !isWorkspaceDenial(m) &&
+                  (m.text || m.isError) && (
+                    <div style={m.isError ? S.errBubble : S.tutorBubble}>
+                      {m.isError ? (
+                        <>
+                          <div>{m.text}</div>
+                          {m.retryText !== undefined && (
+                            <button
+                              type="button"
+                              style={{
+                                ...S.retryBtn,
+                                ...(sending || startingNewSession
+                                  ? S.sendBtnDisabled
+                                  : {}),
+                              }}
+                              disabled={sending || startingNewSession}
+                              onClick={() => retryMessage(m)}
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <TutorMessage text={m.text} />
+                      )}
+                    </div>
+                  )}
                 {m.stopped && (
                   <div style={S.typing}>
                     Run stopped · completed changes remain
                   </div>
                 )}
-                {!m.isError && (
+                {!m.isStreaming && (
                   <ChatMetrics
                     observerMetrics={m.observerMetrics}
                     tutorMetrics={m.tutorMetrics}
                   />
                 )}
-                {(m.text.trim() || (!m.isError && m.id)) && (
-                  <div style={S.feedbackRow}>
-                    {m.text.trim() && (
-                      <button
-                        type="button"
-                        style={{
-                          ...S.copyMessageBtn,
-                          ...(copiedMessageKey === messageCopyKey(m, i)
-                            ? S.copyMessageBtnDone
-                            : {}),
-                        }}
-                        aria-label="Copy tutor message"
-                        title="Copy message"
-                        onClick={() =>
-                          void copyMessage(m, messageCopyKey(m, i))
-                        }
-                      >
-                        {copiedMessageKey === messageCopyKey(m, i)
-                          ? 'Copied ✓'
-                          : 'Copy'}
-                      </button>
-                    )}
-                    {!m.isError && m.id && (
-                      <RatingButtons
-                        value={ratings[m.id]}
-                        onRate={(dir) => rateMessage(m, dir)}
-                        className="coco-rating--compact"
-                      />
-                    )}
-                  </div>
-                )}
+                {!isWorkspaceDenial(m) &&
+                  (m.text.trim() || (!m.isError && m.id)) && (
+                    <div style={S.feedbackRow}>
+                      {m.text.trim() && (
+                        <button
+                          type="button"
+                          style={{
+                            ...S.copyMessageBtn,
+                            ...(copiedMessageKey === messageCopyKey(m, i)
+                              ? S.copyMessageBtnDone
+                              : {}),
+                          }}
+                          aria-label="Copy tutor message"
+                          title="Copy message"
+                          onClick={() =>
+                            void copyMessage(m, messageCopyKey(m, i))
+                          }
+                        >
+                          {copiedMessageKey === messageCopyKey(m, i)
+                            ? 'Copied ✓'
+                            : 'Copy'}
+                        </button>
+                      )}
+                      {allowRatings && !m.isError && m.id && (
+                        <RatingButtons
+                          value={ratings[m.id]}
+                          onRate={(dir) => rateMessage(m, dir)}
+                          className="coco-rating--compact"
+                        />
+                      )}
+                    </div>
+                  )}
               </div>
             </>
           )}
         </div>
       ))}
+      {children}
       {sending && !hasRunningTool && (
         <div style={S.typing}>Coco is thinking…</div>
       )}

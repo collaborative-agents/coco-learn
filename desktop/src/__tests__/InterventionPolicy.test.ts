@@ -18,7 +18,7 @@ describe('AI Upskilling intervention policy', () => {
     expect(
       shouldOfferInstantSuggestion('ai_upskilling', false, rawObserverEvent),
     ).toBe(false);
-    expect(shouldSurfaceObservation()).toBe(true);
+    expect(shouldSurfaceObservation(rawObserverEvent)).toBe(true);
   });
 
   it('preserves the observer-owned pre-session invitation event', () => {
@@ -26,7 +26,7 @@ describe('AI Upskilling intervention policy', () => {
       type: 'snapshot',
       status: 'task_suggested',
     };
-    expect(shouldSurfaceObservation()).toBe(true);
+    expect(shouldSurfaceObservation(invite)).toBe(true);
     expect(shouldOfferInstantSuggestion('ai_upskilling', false, invite)).toBe(
       false,
     );
@@ -36,18 +36,20 @@ describe('AI Upskilling intervention policy', () => {
     expect(
       shouldOfferInstantSuggestion('ai_upskilling', true, rawObserverEvent),
     ).toBe(false);
-    expect(shouldSurfaceObservation()).toBe(true);
+    expect(shouldSurfaceObservation(rawObserverEvent)).toBe(true);
   });
 
   it('surfaces Judge-approved interventions during an active session', () => {
     expect(
       shouldOfferInstantSuggestion('ai_upskilling', true, judgeEvent),
     ).toBe(true);
-    expect(shouldSurfaceObservation()).toBe(true);
+    expect(shouldSurfaceObservation(judgeEvent)).toBe(true);
   });
 
-  it('keeps neutral observations and other modes unchanged', () => {
-    expect(shouldSurfaceObservation()).toBe(true);
+  it('keeps progress quiet while preserving other observations', () => {
+    expect(shouldSurfaceObservation({ status: 'progress' })).toBe(false);
+    expect(shouldSurfaceObservation({ status: 'observing' })).toBe(true);
+    expect(shouldSurfaceObservation(rawObserverEvent)).toBe(true);
     expect(
       shouldOfferInstantSuggestion('everyday_support', false, rawObserverEvent),
     ).toBe(true);

@@ -1,0 +1,23 @@
+.skill-picker-trigger {
+  position: relative;
+  display: inline-flex;
+}
+.skill-picker-unlock-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 10px;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-caption);
+  box-shadow: 0 4px 16px rgb(15 23 42 / 12%);
+}
+.skill-picker-unlock-hint a {
+  color: var(--coco-color-primary);
+  text-underline-offset: 3px;
+}

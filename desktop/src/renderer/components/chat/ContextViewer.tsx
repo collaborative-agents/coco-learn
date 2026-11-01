@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   AgentContextSnapshot,
@@ -6,15 +6,11 @@ import type {
 } from '../../../shared/agent-context';
 import { S } from './styles';
 import './ContextViewer.css';
+import ActionTooltip from './ActionTooltip';
+import ContextViewerAccess from './ContextViewerAccess';
+import ToolViewerAccess from './ToolViewerAccess';
+import ContextComposition from './ContextComposition';
 
-const colors = [
-  '#668bd1',
-  '#8d78bf',
-  '#53a59b',
-  '#c49b52',
-  '#c47c8b',
-  '#7893a6',
-];
 const number = (value: number) => Math.round(value).toLocaleString();
 
 function Category({ category }: { category: ContextCategory }) {
@@ -78,9 +74,6 @@ function ContextDialog({
       disposed = true;
     };
   }, [sessionId]);
-  const total = snapshot?.estimatedTokens ?? 0;
-  const capacity = snapshot?.reported?.contextWindow;
-  const scale = Math.max(total, capacity ?? 0, 1);
   return createPortal(
     <dialog
       ref={dialog}
@@ -100,33 +93,7 @@ function ContextDialog({
         {!error && loading && <p role="status">Reading context…</p>}
         {!error && !loading && snapshot && (
           <>
-            <div className="context-total">
-              <strong>≈ {number(total)} tokens</strong>
-              {capacity ? ` / ${number(capacity)} configured capacity` : ''}
-            </div>
-            <div
-              className="context-usage-bar"
-              aria-label="Estimated context composition"
-            >
-              {snapshot.categories.map((category, index) => (
-                <span
-                  key={category.id}
-                  title={`${category.label}: ≈ ${number(category.tokens)} tokens`}
-                  style={{
-                    width: `${(category.tokens / scale) * 100}%`,
-                    background: colors[index % colors.length],
-                  }}
-                />
-              ))}
-            </div>
-            <div className="context-legend">
-              {snapshot.categories.map((category, index) => (
-                <span key={category.id}>
-                  <i style={{ background: colors[index % colors.length] }} />
-                  {category.label}
-                </span>
-              ))}
-            </div>
+            <ContextComposition snapshot={snapshot} />
             {snapshot.categories.map((category) => (
               <Category key={category.id} category={category} />
             ))}
@@ -147,24 +114,78 @@ export default function ContextViewer({
   sessionId: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const unlocked = useContext(ContextViewerAccess);
+  const toolsUnlocked = useContext(ToolViewerAccess);
+  const [questSessionId, setQuestSessionId] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setQuestSessionId(null);
+    if (sessionId && !unlocked) {
+      window.electron?.ipcRenderer
+        .invoke('context-chapter-session', sessionId)
+        .then((value) => {
+          if (active && value?.sessionId === sessionId)
+            setQuestSessionId(sessionId);
+          return undefined;
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [sessionId, unlocked]);
+  const canInspect =
+    unlocked || Boolean(sessionId && questSessionId === sessionId);
+  useEffect(() => {
+    const inspect = (event: Event) => {
+      if (canInspect && (event as CustomEvent).detail === sessionId)
+        setOpen(true);
+    };
+    window.addEventListener('coco:inspect-context', inspect);
+    return () => window.removeEventListener('coco:inspect-context', inspect);
+  }, [canInspect, sessionId]);
   const button = useRef<HTMLButtonElement>(null);
+  if (!canInspect && !toolsUnlocked) return null;
   return (
     <>
-      <button
-        ref={button}
-        type="button"
-        style={{
-          ...S.finishTaskBtn,
-          background: 'var(--coco-color-surface-subtle)',
-          color: 'var(--coco-color-text-secondary)',
-        }}
-        onClick={() => setOpen(true)}
-        title="Inspect the agent’s context"
-        aria-haspopup="dialog"
-      >
-        Context
-      </button>
-      {open && (
+      <ActionTooltip label="View conversation context">
+        <button
+          ref={button}
+          type="button"
+          className="chat-composer-context"
+          aria-label="Context"
+          style={{
+            ...S.finishTaskBtn,
+            background: 'var(--coco-color-surface-subtle)',
+            color: 'var(--coco-color-text-secondary)',
+          }}
+          onClick={() => (canInspect ? setOpen(true) : setShowHint(true))}
+          aria-haspopup="dialog"
+        >
+          <svg
+            className="chat-composer-context-icon"
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m12 3 9 5-9 5-9-5 9-5Z M3 12l9 5 9-5 M3 16l9 5 9-5" />
+          </svg>
+          <span className="chat-composer-action-label">Context</span>
+        </button>
+      </ActionTooltip>
+      {!canInspect && showHint && (
+        <span className="context-viewer-locked-hint" role="status">
+          Complete Chapter 2 · Context to unlock this viewer.
+        </span>
+      )}
+      {canInspect && open && (
         <ContextDialog
           key={sessionId}
           sessionId={sessionId}

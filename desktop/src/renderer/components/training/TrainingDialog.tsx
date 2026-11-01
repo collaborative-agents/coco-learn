@@ -7,12 +7,16 @@ export default function TrainingDialog({
   children,
   onClose,
   busy = false,
+  headerAction = null,
+  className = '',
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
+  headerAction?: ReactNode;
+  className?: string;
 }) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -70,7 +74,7 @@ export default function TrainingDialog({
   return (
     <div className="training-dialog-backdrop" hidden={!open}>
       <div
-        className="training-dialog"
+        className={`training-dialog ${className}`}
         ref={ref}
         role="dialog"
         aria-modal={open || undefined}
@@ -79,15 +83,19 @@ export default function TrainingDialog({
       >
         <header className="training-dialog-header">
           <h2 id={titleId}>{title}</h2>
-          <button
-            type="button"
-            aria-label="Close task details"
-            title="Close"
-            disabled={busy}
-            onClick={onClose}
-          >
-            ×
-          </button>
+          <div className="training-dialog-actions">
+            {headerAction}
+            <button
+              className="training-dialog-close"
+              type="button"
+              aria-label="Close task details"
+              title="Close"
+              disabled={busy}
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </div>
         </header>
         <div className="training-dialog-content">{children}</div>
       </div>

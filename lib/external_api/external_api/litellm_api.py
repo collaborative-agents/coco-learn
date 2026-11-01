@@ -120,6 +120,10 @@ def get_litellm_completion(
         )
         kwargs["api_key"] = router_key
         kwargs["custom_llm_provider"] = "openai"
+    elif model.startswith("deepseek-ai/"):
+        # Keep public router IDs intact above; direct LiteLLM calls use its
+        # DeepSeek provider namespace and DEEPSEEK_API_KEY.
+        kwargs["model"] = f"deepseek/{model.split('/', 1)[1]}"
 
     response = completion(**kwargs)
     if stream:

@@ -38,7 +38,6 @@ export default function TrainingSubmissionView({ day }: { day: number }) {
   const writingKeys = ['q6', 'q7', 'q8'] as const;
   return (
     <section className="training-submission" aria-label="Your submission">
-      <h3>Your submission</h3>
       {loading && <p role="status">Loading your submission…</p>}
       {error && (
         <div role="alert" className="training-error">
@@ -56,17 +55,7 @@ export default function TrainingSubmissionView({ day }: { day: number }) {
       )}
       {submission && (
         <>
-          <h4>Screenshot</h4>
-          {submission.screenshotDataUrl ? (
-            <img
-              className="training-submission-screenshot"
-              src={submission.screenshotDataUrl}
-              alt="Your submitted screenshot"
-            />
-          ) : (
-            <p>Your screenshot isn’t available on this device.</p>
-          )}
-          <h4>Your reflection</h4>
+          <h3>Your reflection</h3>
           <dl>
             {DAILY_REFLECTION_RATING_QUESTIONS.map((question, index) => {
               const value = submission.answers[ratingKeys[index]];

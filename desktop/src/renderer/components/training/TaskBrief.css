@@ -30,3 +30,46 @@
   border: 1px solid var(--coco-color-border);
   border-radius: var(--coco-radius-control);
 }
+
+.training-task-brief {
+  font-size: 15px;
+  line-height: 1.7;
+}
+.training-task-brief > section {
+  margin-top: 28px;
+}
+.training-task-brief .training-brief-items {
+  margin: 8px 0;
+  padding-left: 24px;
+  list-style: decimal;
+}
+.training-brief-items > li + li {
+  margin-top: 10px;
+}
+.training-task-submission {
+  margin-top: 28px;
+}
+.training-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.training-brief-context {
+  margin-top: 20px;
+}
+.training-task-actions {
+  align-items: center;
+}
+.training-submit-explanation {
+  flex: 1 1 260px;
+  margin: 0;
+  color: var(--coco-color-text-secondary);
+  line-height: 1.5;
+}
+.training-submit-explanation small {
+  display: block;
+  margin-top: 4px;
+  color: var(--coco-color-text-muted);
+}

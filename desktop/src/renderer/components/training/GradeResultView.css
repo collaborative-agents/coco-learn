@@ -1,0 +1,181 @@
+.grade-result {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 16px 0;
+  padding: 24px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 16px;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-text);
+  font-size: var(--coco-text-body);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.grade-result .grade-result-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grade-result .grade-result-header h3 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.grade-band {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--coco-color-surface-muted);
+  color: var(--coco-color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.grade-band--strong {
+  background: rgba(var(--coco-color-success-rgb), 0.1);
+  color: var(--coco-color-success);
+}
+
+.grade-result .grade-summary,
+.grade-result > p {
+  margin: 0;
+  color: var(--coco-color-text-secondary);
+  line-height: 1.75;
+}
+
+.grade-result .grade-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.grade-result .grade-summary p {
+  margin: 0;
+  line-height: inherit;
+}
+
+.grade-result .grade-summary .grade-summary-takeaway {
+  padding: 14px 18px;
+  border-left: 3px solid var(--coco-color-primary);
+  border-radius: 0 10px 10px 0;
+  background: var(--coco-color-surface-subtle);
+  color: var(--coco-color-text);
+  font-weight: 600;
+}
+
+.grade-result .grade-correction {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--coco-color-surface-subtle);
+}
+
+.grade-result h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.grade-breakdown {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--coco-color-surface-subtle);
+}
+
+.grade-sections {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.grade-sections > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.grade-sections dt {
+  color: var(--coco-color-text-secondary);
+}
+
+.grade-sections dd {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.grade-section-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--coco-color-border);
+}
+
+.grade-section-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--coco-color-primary);
+}
+
+.grade-feedback-section + .grade-feedback-section {
+  padding-top: 24px;
+  border-top: 1px solid var(--coco-color-border);
+}
+
+.grade-result .grade-feedback-section ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--coco-color-text-secondary);
+}
+
+.grade-result .grade-feedback-section li {
+  margin: 0;
+  padding-left: 4px;
+  line-height: 1.65;
+}
+
+.grade-feedback-section li::marker {
+  color: var(--coco-color-text-muted);
+}
+
+.grade-feedback-section--strengths li::marker {
+  color: var(--coco-color-success);
+}
+
+@media (max-width: 600px) {
+  .grade-result {
+    padding: 18px;
+    gap: 20px;
+  }
+
+  .grade-breakdown {
+    padding: 16px;
+  }
+
+  .grade-sections > div {
+    grid-template-columns: minmax(0, 1fr) 80px;
+    gap: 12px;
+  }
+}
+
+.training-deliverable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}

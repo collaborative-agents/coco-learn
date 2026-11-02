@@ -1,13 +1,24 @@
 # Seven-day training
 
 Open **Training** in the fox's three-dot menu, or **Training & Administration**
-in the tray/chat header. Download the unlocked task, then choose **Add screenshot
-& complete** and submit a screenshot of the most exciting part of your work.
+in the tray/chat header. Download the unlocked task and do the work. To complete
+the day, choose **Submit work** on the task page and review your score and feedback.
+Choose **Submit again** to improve your work as many times as needed, including all
+files with each submission. When ready, choose **Mark as finished**, answer the
+reflection, and add a screenshot of the most exciting part of your work.
+
+Uploads may be PDF, Word, Excel, CSV, Markdown, or text files, up to five files and
+20 MiB in total. They are sent to the Gateway and graded automatically, and can be
+replaced until the day is complete. Files with no readable text, such as scans, are
+rejected at upload. Your score and feedback appear on the task once grading finishes.
+This feedback is automated, may contain errors, and can be corrected by the study
+team, and **Report a problem** sends a concern to them.
+
 Screenshots may be PNG, JPEG, or WebP files up to 10 MiB. The next task opens no
-earlier than the calendar day after the previous task unlocked, and only after
-that task is complete. Screenshots stay on the participant's computer under the
-Coco user-data folder in `training-screenshots/<username>`; they are not sent to
-the Gateway.
+earlier than the calendar day after the previous task unlocked, and only after that
+task is complete. It never waits for grading. Screenshots stay on the participant's
+computer under the Coco user-data folder in `training-screenshots/<username>`; they
+are not sent to the Gateway.
 Your timezone is recorded when you choose **Start Day 1** and cannot be changed.
 Progress is stored on the study server, so reinstalling does not reset it.
 
@@ -47,6 +58,13 @@ along with material metadata, access flags and admin-change audit records.
 Materials are private files on the server. No automatic deletion period is
 configured yet; include these records/files in the study's privacy and
 retention policy.
+# Automatic grading
+
+The Gateway grades submissions in the background and shows the results to the
+participant straight away. Rubrics, keys, and judge prompts live in the private Gateway repository and
+must never be added to this public one. Admins manage results in the Grades tab of
+the Gateway admin console. See `server/README.md` in that repository for settings.
+
 # Pre-intervention evaluation files
 
 The My tasks page includes two baseline task ZIP downloads above the seven-day
@@ -73,3 +91,19 @@ and refuses to replace different existing materials. Metadata is stored in
 `EvaluationMaterials`; blobs live under the existing `COCO_TRAINING_DIR`.
 Restart the Gateway after deploying code. A new desktop package is required to
 display the download section.
+
+Training previews are prefetched for accessible tasks while Training is open.
+The desktop keeps account-scoped materials and parsed PDF briefs in memory,
+sharing concurrent loads and refreshing materials after ten minutes. Restarting
+Coco clears this cache. The current server endpoint bundles instructions and
+references in one archive, so the initial prefetch still downloads that archive;
+reference contents are not sent to the renderer or saved until requested.
+
+## Start check-in
+
+Complete **AI literacy** and the **Execution task** before starting training. The
+execution task, **Count Before You Commit**, asks you to verify and revise a supply
+plan for 600 kits with no more than 30 unfilled. Download its five-file toolkit,
+start the timer and recording, then submit your answer sheet as a PDF and answer
+the questionnaire. Your activity log is attached automatically. Earlier completed
+start check-ins remain complete.

@@ -6,6 +6,9 @@ export interface TrainingDay {
   unlocked: boolean;
   unlocks_at: string | null;
   completed_at: string | null;
+  /** True when this day can't be completed without uploading a deliverable. */
+  deliverable_required?: boolean;
+  submitted_files?: string[];
 }
 export interface StudyState {
   user_id: string;

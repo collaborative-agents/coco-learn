@@ -31,6 +31,8 @@ type StudyActivityRecorder = Pick<
 
 const MAX_POST_ASSESSMENT_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_POST_ASSESSMENT_TOTAL_BYTES = 72 * 1024 * 1024;
+const MAX_DELIVERABLE_BYTES = 20 * 1024 * 1024;
+const MAX_DELIVERABLE_FILES = 5;
 
 function validReflection(raw: unknown): DailyReflection {
   if (!raw || typeof raw !== 'object')
@@ -146,36 +148,10 @@ export function registerStudyIpc(
       if (typeof userId !== 'string' || !userId.trim())
         throw new Error('Username is required.');
       const reflection = validReflection(rawReflection);
-      const selected = await dialog.showOpenDialog({
-        title: 'Share the most exciting part of your work',
-        buttonLabel: 'Use screenshot',
-        properties: ['openFile'],
-        filters: [
-          { name: 'Screenshot', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
-        ],
-      });
-      if (selected.canceled || !selected.filePaths[0])
-        return { canceled: true };
-      const file = selected.filePaths[0];
-      const extension = path.extname(file).toLowerCase();
-      if (!['.png', '.jpg', '.jpeg', '.webp'].includes(extension))
-        throw new Error('Screenshot must be a PNG, JPEG, or WebP image.');
-      if ((await fs.stat(file)).size > 10 * 1024 * 1024)
-        throw new Error('Screenshot exceeds 10 MiB.');
       const userFolder = userId
         .trim()
         .replace(/[^a-zA-Z0-9._-]/g, '_')
         .slice(0, 100);
-      const screenshotFolder = path.join(
-        app.getPath('userData'),
-        'training-screenshots',
-        userFolder,
-      );
-      await fs.mkdir(screenshotFolder, { recursive: true });
-      await fs.copyFile(
-        file,
-        path.join(screenshotFolder, `day-${validDay}${extension}`),
-      );
       const reflectionFolder = path.join(
         app.getPath('userData'),
         'training-reflections',
@@ -202,6 +178,64 @@ export function registerStudyIpc(
       });
     },
   );
+  ipc.handle('study-submit-deliverable', async (_event, day: unknown) => {
+    const validDay = dayNumber(day);
+    const selected = await dialog.showOpenDialog({
+      title: 'Choose your finished work',
+      buttonLabel: 'Submit files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        {
+          name: 'Your work',
+          extensions: ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'md'],
+        },
+      ],
+    });
+    if (selected.canceled || !selected.filePaths.length)
+      return { canceled: true };
+    if (selected.filePaths.length > MAX_DELIVERABLE_FILES)
+      throw new Error(`Choose up to ${MAX_DELIVERABLE_FILES} files.`);
+    const sizes = await Promise.all(
+      selected.filePaths.map(async (file) => (await fs.stat(file)).size),
+    );
+    if (sizes.reduce((total, size) => total + size, 0) > MAX_DELIVERABLE_BYTES)
+      throw new Error('Your files must total 20 MiB or less.');
+    const files = await Promise.all(
+      selected.filePaths.map(async (file) => ({
+        filename: path.basename(file),
+        data: (await fs.readFile(file)).toString('base64'),
+      })),
+    );
+    return request(`/days/${validDay}/submission`, 'POST', { files }, 120000);
+  });
+  const gradeTask = (taskId: unknown) => {
+    if (typeof taskId !== 'string' || !/^[a-z0-9-]{1,40}$/.test(taskId))
+      throw new Error('Invalid task.');
+    return taskId;
+  };
+  const attemptQuery = (attemptId: unknown) => {
+    if (attemptId === undefined) return '';
+    if (typeof attemptId !== 'string' || !/^[a-f0-9]{32}$/.test(attemptId))
+      throw new Error('Invalid submission attempt.');
+    return `attempt_id=${encodeURIComponent(attemptId)}`;
+  };
+  ipc.handle('study-grade', (_event, taskId: unknown, attemptId?: unknown) => {
+    const query = attemptQuery(attemptId);
+    return request(`/grades/${gradeTask(taskId)}${query ? `?${query}` : ''}`);
+  });
+  ipc.handle('study-submission-attempts', (_event, taskId: unknown) =>
+    request(`/grades/${gradeTask(taskId)}/attempts`),
+  );
+  ipc.handle(
+    'study-grade-report',
+    (_event, taskId: unknown, message: unknown) => {
+      if (typeof message !== 'string' || !message.trim())
+        throw new Error('Describe the problem before sending.');
+      return request(`/grades/${gradeTask(taskId)}/report`, 'POST', {
+        message: message.trim().slice(0, 2000),
+      });
+    },
+  );
   ipc.handle('study-admin-users', (_event, after = '') =>
     request(`/admin/users?after=${encodeURIComponent(after)}`),
   );
@@ -211,7 +245,11 @@ export function registerStudyIpc(
   ipc.handle('study-admin-tutoring', (_event, id: string, disabled: boolean) =>
     request(`${userPath(id)}/tutoring`, 'PATCH', { disabled }),
   );
-  const saveDownload = async (route: string, title: string) => {
+  const saveDownload = async (
+    route: string,
+    title: string,
+    maxBase64Bytes = 28 * 1024 * 1024,
+  ) => {
     const file = await request(route);
     if (
       typeof file.filename !== 'string' ||
@@ -219,7 +257,7 @@ export function registerStudyIpc(
       /[\\\\]/.test(file.filename) ||
       file.filename.includes('\0') ||
       typeof file.data !== 'string' ||
-      file.data.length > 28 * 1024 * 1024
+      file.data.length > maxBase64Bytes
     )
       throw new Error('Invalid training file.');
     const destination = await dialog.showSaveDialog({
@@ -233,6 +271,31 @@ export function registerStudyIpc(
   };
   ipc.handle('study-download', async (_event, day: number) =>
     saveDownload(`/days/${dayNumber(day)}/download`, 'Save training task'),
+  );
+  ipc.handle(
+    'study-download-submission',
+    async (_event, taskId: unknown, filename: unknown, attemptId?: unknown) => {
+      if (
+        typeof taskId !== 'string' ||
+        !/^(day-[1-7]|pre-assessment|post-assessment|follow-up-assessment)$/.test(
+          taskId,
+        )
+      )
+        throw new Error('Invalid submission.');
+      if (
+        typeof filename !== 'string' ||
+        !filename ||
+        path.basename(filename) !== filename ||
+        /[\\\0]/.test(filename)
+      )
+        throw new Error('Invalid submitted filename.');
+      const query = attemptQuery(attemptId);
+      return saveDownload(
+        `/submissions/${taskId}/download?filename=${encodeURIComponent(filename)}${query ? `&${query}` : ''}`,
+        'Save submitted file',
+        90 * 1024 * 1024,
+      );
+    },
   );
   ipc.handle('study-upload', async (_event, day: number, title: string) => {
     dayNumber(day);
@@ -255,45 +318,50 @@ export function registerStudyIpc(
     });
   });
   const activeAssessments = new Set<string>();
-  (['post-assessment', 'follow-up-assessment'] as const).forEach(
-    (assessment) => {
-      let selectedOutcomePath: string | null = null;
-      const recorder =
-        assessment === 'post-assessment'
-          ? activityRecorder
-          : createPostAssessmentActivityRecorder('follow-up-assessment');
-      const setActive = (active: boolean) => {
-        if (active) activeAssessments.add(assessment);
-        else activeAssessments.delete(assessment);
-        onPostAssessmentActiveChange(activeAssessments.size > 0);
-      };
-      ipc.handle(`study-upload-${assessment}-toolkit`, async () => {
-        const me = (await request('/me')) as unknown as StudyState;
-        if (me.role === 'participant')
-          throw new Error('Administrator access required.');
-        const selected = await dialog.showOpenDialog({
-          title: `Select ${assessment} toolkit ZIP (up to 20 MiB)`,
-          properties: ['openFile'],
-          filters: [{ name: 'Post-assessment toolkit', extensions: ['zip'] }],
-        });
-        if (selected.canceled || !selected.filePaths[0])
-          return { canceled: true };
-        const file = selected.filePaths[0];
-        if (path.extname(file).toLowerCase() !== '.zip')
-          throw new Error('Post-assessment toolkit must be a ZIP file.');
-        if ((await fs.stat(file)).size > 20 * 1024 * 1024)
-          throw new Error('File exceeds 20 MiB.');
-        return request(
-          `/admin/${assessment}/toolkit`,
-          'POST',
-          {
-            filename: path.basename(file),
-            data: (await fs.readFile(file)).toString('base64'),
-          },
-          60000,
-        );
+  (
+    ['pre-assessment', 'post-assessment', 'follow-up-assessment'] as const
+  ).forEach((assessment) => {
+    let selectedOutcomePath: string | null = null;
+    const recorder =
+      assessment === 'post-assessment'
+        ? activityRecorder
+        : createPostAssessmentActivityRecorder(assessment);
+    const setActive = (active: boolean) => {
+      if (active) activeAssessments.add(assessment);
+      else activeAssessments.delete(assessment);
+      onPostAssessmentActiveChange(activeAssessments.size > 0);
+    };
+    ipc.handle(`study-upload-${assessment}-toolkit`, async () => {
+      const me = (await request('/me')) as unknown as StudyState;
+      if (me.role === 'participant')
+        throw new Error('Administrator access required.');
+      const selected = await dialog.showOpenDialog({
+        title: `Select ${assessment} toolkit ZIP (up to 20 MiB)`,
+        properties: ['openFile'],
+        filters: [{ name: 'Post-assessment toolkit', extensions: ['zip'] }],
       });
-      ipc.handle(`${assessment}-state`, async () => {
+      if (selected.canceled || !selected.filePaths[0])
+        return { canceled: true };
+      const file = selected.filePaths[0];
+      if (path.extname(file).toLowerCase() !== '.zip')
+        throw new Error('Post-assessment toolkit must be a ZIP file.');
+      if ((await fs.stat(file)).size > 20 * 1024 * 1024)
+        throw new Error('File exceeds 20 MiB.');
+      return request(
+        `/admin/${assessment}/toolkit`,
+        'POST',
+        {
+          filename: path.basename(file),
+          data: (await fs.readFile(file)).toString('base64'),
+        },
+        60000,
+      );
+    });
+    ipc.handle(
+      assessment === 'pre-assessment'
+        ? 'pre-assessment-execution-state'
+        : `${assessment}-state`,
+      async () => {
         const state = (await request(`/${assessment}`)) as {
           unlocked?: unknown;
           complete?: unknown;
@@ -302,147 +370,145 @@ export function registerStudyIpc(
         };
         setActive(state.unlocked === true && state.complete !== true);
         return state;
-      });
-      ipc.handle(
-        `${assessment}-submit-self-efficacy`,
-        (_event, answers: SelfEfficacyAnswers) =>
-          request(`/${assessment}/self-efficacy`, 'POST', {
-            responses: answers,
-          }),
-      );
-      ipc.handle(
-        `${assessment}-submit-ai-literacy`,
-        (_event, answers: AiLiteracyAnswers) =>
-          request(`/${assessment}/ai-literacy`, 'POST', { responses: answers }),
-      );
-      ipc.handle(`${assessment}-start-execution`, async () => {
-        const result = (await request(
-          `/${assessment}/execution/start`,
-          'POST',
-        )) as { execution_started_at?: unknown };
-        if (typeof result.execution_started_at !== 'string')
+      },
+    );
+    ipc.handle(
+      `${assessment}-submit-self-efficacy`,
+      (_event, answers: SelfEfficacyAnswers) =>
+        request(`/${assessment}/self-efficacy`, 'POST', {
+          responses: answers,
+        }),
+    );
+    ipc.handle(
+      `${assessment}-submit-ai-literacy`,
+      (_event, answers: AiLiteracyAnswers) =>
+        request(`/${assessment}/ai-literacy`, 'POST', { responses: answers }),
+    );
+    ipc.handle(`${assessment}-start-execution`, async () => {
+      const result = (await request(
+        `/${assessment}/execution/start`,
+        'POST',
+      )) as { execution_started_at?: unknown };
+      if (typeof result.execution_started_at !== 'string')
+        throw new Error('The study server did not return the task start time.');
+      selectedOutcomePath = null;
+      setActive(true);
+      await recorder.begin(result.execution_started_at);
+      return result;
+    });
+    ipc.handle(`${assessment}-recorder-state`, (_event, startedAt: unknown) =>
+      recorder.restore(typeof startedAt === 'string' ? startedAt : null),
+    );
+    ipc.handle(`${assessment}-recorder-start`, async () => {
+      const state = (await request(`/${assessment}`)) as {
+        execution_started_at?: unknown;
+        sections?: { execution?: unknown };
+      };
+      if (state.sections?.execution)
+        throw new Error('The execution task has already been submitted.');
+      if (typeof state.execution_started_at !== 'string')
+        throw new Error('Start the execution task first.');
+      return recorder.begin(state.execution_started_at);
+    });
+    ipc.handle(`${assessment}-recorder-pause`, () => recorder.pause());
+    ipc.handle(`${assessment}-recorder-resume`, () => recorder.resume());
+    ipc.handle(`${assessment}-recorder-captures`, () => recorder.captures());
+    ipc.handle(
+      `${assessment}-recorder-remove-capture`,
+      (_event, captureId: unknown) => {
+        if (typeof captureId !== 'string' || !captureId)
+          throw new Error('Invalid task capture.');
+        return recorder.removeCapture(captureId);
+      },
+    );
+    ipc.handle(`${assessment}-download-toolkit`, () =>
+      saveDownload(
+        `/${assessment}/toolkit/download`,
+        `Save ${assessment} toolkit`,
+      ),
+    );
+    ipc.handle(
+      `${assessment}-submit-execution`,
+      async (_event, rawQuestionnaire: unknown) => {
+        const questionnaire = validQuestionnaire(rawQuestionnaire);
+        if (!selectedOutcomePath)
+          throw new Error('Choose your completed answer sheet as a PDF.');
+        const automaticLog = await recorder.buildAutomaticLog();
+        if (!automaticLog)
           throw new Error(
-            'The study server did not return the task start time.',
+            'Task activity recording is required before submitting. Start or resume recording and try again.',
           );
-        selectedOutcomePath = null;
-        setActive(true);
-        await recorder.begin(result.execution_started_at);
-        return result;
-      });
-      ipc.handle(`${assessment}-recorder-state`, (_event, startedAt: unknown) =>
-        recorder.restore(typeof startedAt === 'string' ? startedAt : null),
-      );
-      ipc.handle(`${assessment}-recorder-start`, async () => {
-        const state = (await request(`/${assessment}`)) as {
-          execution_started_at?: unknown;
-          sections?: { execution?: unknown };
-        };
-        if (state.sections?.execution)
-          throw new Error('The execution task has already been submitted.');
-        if (typeof state.execution_started_at !== 'string')
-          throw new Error('Start the execution task first.');
-        return recorder.begin(state.execution_started_at);
-      });
-      ipc.handle(`${assessment}-recorder-pause`, () => recorder.pause());
-      ipc.handle(`${assessment}-recorder-resume`, () => recorder.resume());
-      ipc.handle(`${assessment}-recorder-captures`, () => recorder.captures());
-      ipc.handle(
-        `${assessment}-recorder-remove-capture`,
-        (_event, captureId: unknown) => {
-          if (typeof captureId !== 'string' || !captureId)
-            throw new Error('Invalid task capture.');
-          return recorder.removeCapture(captureId);
-        },
-      );
-      ipc.handle(`${assessment}-download-toolkit`, () =>
-        saveDownload(
-          `/${assessment}/toolkit/download`,
-          `Save ${assessment} toolkit`,
-        ),
-      );
-      ipc.handle(
-        `${assessment}-submit-execution`,
-        async (_event, rawQuestionnaire: unknown) => {
-          const questionnaire = validQuestionnaire(rawQuestionnaire);
-          if (!selectedOutcomePath)
-            throw new Error('Choose your completed answer sheet as a PDF.');
-          const automaticLog = await recorder.buildAutomaticLog();
-          if (!automaticLog)
-            throw new Error(
-              'Task activity recording is required before submitting. Start or resume recording and try again.',
-            );
-          const outcomeSize = await fs.stat(selectedOutcomePath);
-          if (
-            outcomeSize.size < 1 ||
-            outcomeSize.size > MAX_POST_ASSESSMENT_FILE_BYTES
-          )
-            throw new Error(
-              'Each submission file must be between 1 byte and 64 MiB.',
-            );
-          const outcomeData = await fs.readFile(selectedOutcomePath);
-          if (
-            outcomeData.length + automaticLog.data.length >
-            MAX_POST_ASSESSMENT_TOTAL_BYTES
-          )
-            throw new Error('The combined submission files exceed 72 MiB.');
-          const result = await request(
-            `/${assessment}/execution`,
-            'POST',
-            {
-              questionnaire: {
-                decision: questionnaire.decision,
-                reasoning: questionnaire.reasoning,
-                ai_use: questionnaire.aiUse,
-                alternatives: questionnaire.alternatives,
-                challenge: questionnaire.challenge,
-                ownership: questionnaire.ownership,
-              },
-              outcome: {
-                filename: path.basename(selectedOutcomePath),
-                data: outcomeData.toString('base64'),
-              },
-              interaction_logs: [
-                {
-                  filename: automaticLog.filename,
-                  data: automaticLog.data.toString('base64'),
-                },
-              ],
+        const outcomeSize = await fs.stat(selectedOutcomePath);
+        if (
+          outcomeSize.size < 1 ||
+          outcomeSize.size > MAX_POST_ASSESSMENT_FILE_BYTES
+        )
+          throw new Error(
+            'Each submission file must be between 1 byte and 64 MiB.',
+          );
+        const outcomeData = await fs.readFile(selectedOutcomePath);
+        if (
+          outcomeData.length + automaticLog.data.length >
+          MAX_POST_ASSESSMENT_TOTAL_BYTES
+        )
+          throw new Error('The combined submission files exceed 72 MiB.');
+        const result = await request(
+          `/${assessment}/execution`,
+          'POST',
+          {
+            questionnaire: {
+              decision: questionnaire.decision,
+              reasoning: questionnaire.reasoning,
+              ai_use: questionnaire.aiUse,
+              alternatives: questionnaire.alternatives,
+              challenge: questionnaire.challenge,
+              ownership: questionnaire.ownership,
             },
-            300000,
+            outcome: {
+              filename: path.basename(selectedOutcomePath),
+              data: outcomeData.toString('base64'),
+            },
+            interaction_logs: [
+              {
+                filename: automaticLog.filename,
+                data: automaticLog.data.toString('base64'),
+              },
+            ],
+          },
+          300000,
+        );
+        selectedOutcomePath = null;
+        try {
+          await recorder.completeAndDelete();
+        } catch (error) {
+          log.warn(
+            `[Post-assessment] Submission succeeded but local recording cleanup failed: ${String(error)}`,
           );
-          selectedOutcomePath = null;
-          try {
-            await recorder.completeAndDelete();
-          } catch (error) {
-            log.warn(
-              `[Post-assessment] Submission succeeded but local recording cleanup failed: ${String(error)}`,
-            );
-          }
-          return result;
-        },
-      );
-      ipc.handle(
-        `${assessment}-select-execution-files`,
-        async (_event, kind: unknown) => {
-          if (kind !== 'outcome')
-            throw new Error(`Unknown ${assessment} file type.`);
-          const selected = await dialog.showOpenDialog({
-            title: 'Select completed answer sheet PDF',
-            buttonLabel: 'Use answer sheet',
-            properties: ['openFile'],
-            filters: [{ name: 'PDF', extensions: ['pdf'] }],
-          });
-          if (selected.canceled || selected.filePaths.length === 0)
-            return { canceled: true };
-          if (path.extname(selected.filePaths[0]).toLowerCase() !== '.pdf')
-            throw new Error('Choose your completed answer sheet as a PDF.');
-          [selectedOutcomePath] = selected.filePaths;
-          return {
-            success: true,
-            filenames: [path.basename(selectedOutcomePath)],
-          };
-        },
-      );
-    },
-  );
+        }
+        return result;
+      },
+    );
+    ipc.handle(
+      `${assessment}-select-execution-files`,
+      async (_event, kind: unknown) => {
+        if (kind !== 'outcome')
+          throw new Error(`Unknown ${assessment} file type.`);
+        const selected = await dialog.showOpenDialog({
+          title: 'Select completed answer sheet PDF',
+          buttonLabel: 'Use answer sheet',
+          properties: ['openFile'],
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        });
+        if (selected.canceled || selected.filePaths.length === 0)
+          return { canceled: true };
+        if (path.extname(selected.filePaths[0]).toLowerCase() !== '.pdf')
+          throw new Error('Choose your completed answer sheet as a PDF.');
+        [selectedOutcomePath] = selected.filePaths;
+        return {
+          success: true,
+          filenames: [path.basename(selectedOutcomePath)],
+        };
+      },
+    );
+  });
 }

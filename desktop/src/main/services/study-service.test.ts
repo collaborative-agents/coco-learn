@@ -183,27 +183,15 @@ function fakeRecorder(automaticLog: Buffer | null = null) {
   };
 }
 
-it('requires and saves a screenshot locally when completing a training day', async () => {
-  const screenshot = Buffer.from('image');
+it('completes a training day without requesting a screenshot', async () => {
   const { invoke, requestJson } = fixture({ success: true });
-  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
-    canceled: false,
-    filePaths: ['/chosen/favorite-moment.png'],
-  });
-  (fs.stat as jest.Mock).mockResolvedValue({ size: screenshot.length });
-
   await expect(
     invoke('study-complete', 1, 'alice', reflection),
   ).resolves.toEqual({
     success: true,
   });
-  expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-screenshots/alice', {
-    recursive: true,
-  });
-  expect(fs.copyFile).toHaveBeenCalledWith(
-    '/chosen/favorite-moment.png',
-    '/coco/training-screenshots/alice/day-1.png',
-  );
+  expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+  expect(fs.copyFile).not.toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-reflections/alice', {
     recursive: true,
   });
@@ -219,21 +207,7 @@ it('requires and saves a screenshot locally when completing a training day', asy
   );
 });
 
-it('does not complete a training day when screenshot selection is cancelled', async () => {
-  const { invoke, requestJson } = fixture({ success: true });
-  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
-    canceled: true,
-    filePaths: [],
-  });
-
-  await expect(
-    invoke('study-complete', 1, 'alice', reflection),
-  ).resolves.toEqual({ canceled: true });
-  expect(requestJson).not.toHaveBeenCalled();
-  expect(fs.copyFile).not.toHaveBeenCalled();
-});
-
-it('requires every reflection answer before opening the screenshot chooser', async () => {
+it('requires every reflection answer before completing a training day', async () => {
   const { invoke, requestJson } = fixture({ success: true });
 
   await expect(
@@ -520,4 +494,144 @@ it('rejects an incomplete post-assessment submission before reading files', asyn
   ).rejects.toThrow('Please answer every questionnaire question.');
   expect(fs.stat).not.toHaveBeenCalled();
   expect(requestJson).not.toHaveBeenCalled();
+});
+
+describe('deliverable uploads', () => {
+  const chooseFiles = (...filePaths: string[]) =>
+    (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+      canceled: false,
+      filePaths,
+    });
+
+  it('sends the chosen files to the server for that day', async () => {
+    const { invoke, requestJson } = fixture({ filenames: ['memo.docx'] });
+    chooseFiles('/work/memo.docx', '/work/notes.txt');
+    (fs.stat as jest.Mock).mockResolvedValue({ size: 10 });
+    (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('work'));
+    await expect(invoke('study-submit-deliverable', 3)).resolves.toEqual({
+      filenames: ['memo.docx'],
+    });
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/days/3/submission',
+      'POST',
+      {
+        files: [
+          { filename: 'memo.docx', data: 'd29yaw==' },
+          { filename: 'notes.txt', data: 'd29yaw==' },
+        ],
+      },
+      120000,
+    );
+  });
+
+  it('does nothing when the picker is cancelled', async () => {
+    const { invoke, requestJson } = fixture({});
+    (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
+      canceled: true,
+      filePaths: [],
+    });
+    await expect(invoke('study-submit-deliverable', 1)).resolves.toEqual({
+      canceled: true,
+    });
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized and excess selections before uploading', async () => {
+    const { invoke, requestJson } = fixture({});
+    chooseFiles('/a.pdf', '/b.pdf');
+    (fs.stat as jest.Mock).mockResolvedValue({ size: 11 * 1024 * 1024 });
+    await expect(invoke('study-submit-deliverable', 1)).rejects.toThrow(
+      '20 MiB',
+    );
+    chooseFiles('/1', '/2', '/3', '/4', '/5', '/6');
+    await expect(invoke('study-submit-deliverable', 1)).rejects.toThrow(
+      'up to 5 files',
+    );
+    expect(requestJson).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid training day', async () => {
+    const { invoke } = fixture({});
+    await expect(() => invoke('study-submit-deliverable', 9)).rejects.toThrow(
+      'Invalid training day',
+    );
+  });
+});
+
+describe('grades', () => {
+  it('reads and reports grades only for valid task ids', async () => {
+    const { invoke, requestJson } = fixture({ status: 'pending' });
+    await invoke('study-grade', 'day-1');
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/grades/day-1',
+      'GET',
+      undefined,
+    );
+    await invoke('study-grade-report', 'set-e', '  Looks wrong  ');
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/grades/set-e/report',
+      'POST',
+      { message: 'Looks wrong' },
+    );
+    expect(() => invoke('study-grade', '../admin')).toThrow('Invalid task');
+    expect(() => invoke('study-grade-report', 'day-1', '  ')).toThrow(
+      'Describe the problem',
+    );
+  });
+});
+
+it('downloads a submitted file using an authenticated, encoded route', async () => {
+  const { invoke, requestJson } = fixture({
+    filename: 'my report.pdf',
+    data: 'YWJj',
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePath: '/chosen/report.pdf',
+  });
+  await invoke('study-download-submission', 'day-2', 'my report.pdf');
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/submissions/day-2/download?filename=my%20report.pdf',
+    'GET',
+    undefined,
+  );
+  expect(fs.writeFile).toHaveBeenCalledWith(
+    '/chosen/report.pdf',
+    Buffer.from('abc'),
+  );
+});
+
+it('rejects invalid submission download targets before requesting them', async () => {
+  const { invoke, requestJson } = fixture({});
+  await expect(
+    invoke('study-download-submission', 'day-8', 'report.pdf'),
+  ).rejects.toThrow('Invalid submission');
+  await expect(
+    invoke('study-download-submission', 'day-2', '../report.pdf'),
+  ).rejects.toThrow('Invalid submitted filename');
+  expect(requestJson).not.toHaveBeenCalled();
+});
+
+it('uses the selected attempt for grades and downloads and rejects invalid IDs', async () => {
+  const attempt = 'a'.repeat(32);
+  const { invoke, requestJson } = fixture({
+    filename: 'report.pdf',
+    data: 'YWJj',
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: true });
+  await invoke('study-grade', 'day-2', attempt);
+  expect(requestJson).toHaveBeenLastCalledWith(
+    `/api/study/grades/day-2?attempt_id=${attempt}`,
+    'GET',
+    undefined,
+  );
+  await invoke('study-download-submission', 'day-2', 'report.pdf', attempt);
+  expect(requestJson).toHaveBeenLastCalledWith(
+    `/api/study/submissions/day-2/download?filename=report.pdf&attempt_id=${attempt}`,
+    'GET',
+    undefined,
+  );
+  expect(() => invoke('study-grade', 'day-2', '../other')).toThrow(
+    'Invalid submission attempt',
+  );
 });

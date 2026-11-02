@@ -1,3 +1,5 @@
+import type { ExecutionAssessmentResult } from './post-assessment';
+
 export type PreAssessmentSet = 'A' | 'E';
 
 export interface SetAQuestion {
@@ -187,13 +189,15 @@ export interface SetEAnswers {
 
 export interface PreAssessmentResult {
   set: PreAssessmentSet;
-  score: number;
+  /** Null while the server is still grading Set E. */
+  score: number | null;
   maxScore: number;
   completedAt: string;
   answers: SetAAnswers | SetEAnswers;
 }
 
 export interface PreAssessmentState {
+  execution?: ExecutionAssessmentResult | null;
   complete: boolean;
   sets: {
     A: PreAssessmentResult | null;

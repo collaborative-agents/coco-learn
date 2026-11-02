@@ -81,6 +81,10 @@
   font-weight: 700;
 }
 
+.post-assessment-submitted--mission {
+  margin-top: var(--coco-space-4);
+}
+
 .post-assessment-submitted span {
   color: var(--coco-color-text-muted);
   font-size: var(--coco-text-caption);
@@ -395,24 +399,6 @@
   color: var(--coco-color-text);
   font-size: var(--coco-text-secondary);
   line-height: var(--coco-leading-body);
-}
-
-.post-assessment-questionnaire textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 11px;
-  border: 1px solid var(--coco-color-border);
-  border-radius: var(--coco-radius-control);
-  background: var(--coco-color-surface);
-  color: var(--coco-color-text);
-  font: inherit;
-}
-
-.post-assessment-questionnaire textarea:focus {
-  outline: none;
-  border-color: var(--coco-color-primary);
-  box-shadow: var(--coco-focus-ring);
 }
 
 .post-assessment-questionnaire fieldset {

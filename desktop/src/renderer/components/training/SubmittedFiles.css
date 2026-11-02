@@ -1,0 +1,59 @@
+.submitted-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  margin: 12px 0;
+}
+
+.submitted-files ul {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.submitted-files li {
+  min-width: 0;
+}
+
+.submitted-files > p {
+  flex-basis: 100%;
+}
+
+.training-page .submitted-files button,
+.submitted-files.submitted-files button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--coco-color-primary);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.submitted-files button:hover {
+  color: var(--coco-color-text);
+}
+
+.submitted-files button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.training-page .submitted-files button:not(:disabled):hover,
+.submitted-files.submitted-files button:not(:disabled):hover {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--coco-color-text);
+}

@@ -1,5 +1,13 @@
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
+import AssessmentMission from './training/AssessmentMission';
 /* eslint-disable react/require-default-props -- Optional shared task configuration. */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AI_LITERACY_QUESTIONS,
   EXECUTION_QUESTIONNAIRE_QUESTIONS,
@@ -15,7 +23,23 @@ import {
 import FollowUpBriefing, {
   FOLLOW_UP_TOOLKIT,
 } from './training/FollowUpBriefing';
+import SubmissionAttempts from './training/SubmissionAttempts';
+import TrainingDialog from './training/TrainingDialog';
+import TrainingDialogActions from './training/TrainingDialogActions';
+import ReflectionCompleted from './training/ReflectionCompleted';
+import AssessmentCompleted from './training/AssessmentCompleted';
+import PreAssessmentBriefing, {
+  PRE_ASSESSMENT_TOOLKIT,
+} from './training/PreAssessmentBriefing';
+import QuestionConversation from './training/QuestionConversation';
 import SelfEfficacySection from './training/SelfEfficacySection';
+
+const EXECUTION_CONVERSATION = EXECUTION_QUESTIONNAIRE_QUESTIONS.map(
+  ({ key, question }) => ({
+    id: key,
+    text: question,
+  }),
+);
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
@@ -115,13 +139,24 @@ function AiLiteracySection({
 
 function MissionBriefing() {
   return (
-    <div className="post-assessment-mission">
-      <div className="post-assessment-mission-title">
-        <span aria-hidden>🎯</span>
-        <div>
-          <h3>Trust, But Verify</h3>
-        </div>
-      </div>
+    <AssessmentMission
+      title="Trust, But Verify"
+      winConditions={
+        <>
+          <li>Your plan reaches at least 8%, using numbers you checked.</li>
+          <li>Every saving says where its number comes from.</li>
+          <li>Anything wrong in the chosen draft is fixed with evidence.</li>
+          <li>
+            You explain what your plan gives up and why you did not pick another
+            plan.
+          </li>
+          <li>
+            Submit the recorded activity report, answer sheet, and
+            questionnaire. Task duration is recorded automatically.
+          </li>
+        </>
+      }
+    >
       <p>
         You are a financial analyst at Meridian Analytics Inc. (a fictional
         company). Today is August 10, 2026. Leadership needs to cut this year’s
@@ -154,29 +189,15 @@ function MissionBriefing() {
         hold up. Savings are counted per year once the action takes effect. The
         target is at least 8% of the approved FY2026 budget.
       </p>
-      <div className="post-assessment-win-conditions">
-        <strong>Win conditions</strong>
-        <ul>
-          <li>Your plan reaches at least 8%, using numbers you checked.</li>
-          <li>Every saving says where its number comes from.</li>
-          <li>Anything wrong in the chosen draft is fixed with evidence.</li>
-          <li>
-            You explain what your plan gives up and why you did not pick another
-            plan.
-          </li>
-          <li>
-            Submit the recorded activity report, answer sheet, and
-            questionnaire. Task duration is recorded automatically.
-          </li>
-        </ul>
-      </div>
-    </div>
+    </AssessmentMission>
   );
 }
 
 export function ExecutionSection({
   state,
   followUp = false,
+  preAssessment = false,
+  submissionError = '',
   busy,
   onStart,
   onDownload,
@@ -185,23 +206,47 @@ export function ExecutionSection({
 }: {
   state: PostAssessmentState;
   followUp?: boolean;
+  preAssessment?: boolean;
+  submissionError?: string;
   busy: boolean;
   onStart: () => Promise<void>;
   onDownload: () => Promise<void>;
   onChooseAnswerSheet: () => Promise<string | null>;
   onSubmit: (questionnaire: ExecutionQuestionnaire) => Promise<void>;
 }) {
+  let route = 'post-assessment';
+  let missionTitle = 'Financial Analysis Mission';
+  let Mission = MissionBriefing;
+  let toolkit: readonly { filename: string }[] = POST_ASSESSMENT_TOOLKIT;
+  if (preAssessment) {
+    route = 'pre-assessment';
+    missionTitle = 'Supply Planning Mission';
+    Mission = PreAssessmentBriefing;
+    toolkit = PRE_ASSESSMENT_TOOLKIT;
+  } else if (followUp) {
+    route = 'follow-up-assessment';
+    missionTitle = 'Staffing Planning Mission';
+    Mission = FollowUpBriefing;
+    toolkit = FOLLOW_UP_TOOLKIT;
+  }
   const invokeTask = useCallback(
     (channel: Parameters<typeof invoke>[0], ...args: unknown[]) =>
       invoke(
-        (followUp
-          ? channel.replace('post-assessment', 'follow-up-assessment')
-          : channel) as Parameters<typeof invoke>[0],
+        channel.replace('post-assessment', route) as Parameters<
+          typeof invoke
+        >[0],
         ...args,
       ),
-    [followUp],
+    [route],
   );
   const complete = Boolean(state.sections.execution);
+  const headerActions = useContext(TrainingDialogActions);
+  const [showInstructions, setShowInstructions] = useState(!complete);
+  const [showReflection, setShowReflection] = useState(false);
+  const [reflectionStep, setReflectionStep] = useState<'ratings' | 'writing'>(
+    'ratings',
+  );
+  const [submissionRequested, setSubmissionRequested] = useState(false);
   const [questionnaire, setQuestionnaire] = useState(emptyQuestionnaire);
   const [outcomeFilename, setOutcomeFilename] = useState('');
   const [showConsent, setShowConsent] = useState(false);
@@ -275,78 +320,104 @@ export function ExecutionSection({
   let executionStatus = '';
   if (startedAt) executionStatus = 'In progress';
   if (complete) executionStatus = '✓ Submitted';
+  const readyForReflection =
+    Boolean(outcomeFilename) && recorder.can_generate_log;
   const ready =
-    Boolean(outcomeFilename) &&
-    recorder.can_generate_log &&
+    readyForReflection &&
     questionnaire.ownership >= 1 &&
     EXECUTION_QUESTIONNAIRE_QUESTIONS.every(
       ({ key }) => questionnaire[key].trim().length > 0,
     );
+  const submitReflection = async (answers: ExecutionQuestionnaire) => {
+    if (busy || !readyForReflection) return;
+    setSubmissionRequested(true);
+    await onSubmit(answers);
+  };
+  const navigation = complete ? (
+    <button
+      type="button"
+      className="training-view-submission"
+      onClick={() => setShowInstructions((value) => !value)}
+    >
+      {showInstructions ? 'View submission' : 'Back to task instructions'}
+    </button>
+  ) : null;
 
   return (
     <section className="post-assessment-section">
-      <div className="pre-assessment-challenge-header">
-        <div>
-          <h3>
-            {followUp
-              ? 'Staffing Planning Mission'
-              : 'Financial Analysis Mission'}
-          </h3>
-          <p>
-            In this task, we’ll give you a brand-new work challenge and see how
-            you tackle it—how you make decisions, use AI, verify its work, and
-            turn your process into a final submission.
-          </p>
-        </div>
-        {executionStatus && (
-          <span
-            className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
-          >
-            {executionStatus}
-          </span>
-        )}
-      </div>
-
-      {followUp ? <FollowUpBriefing /> : <MissionBriefing />}
-
-      <div className="post-assessment-toolkit">
-        <div>
-          <h4>Reference files</h4>
-          <p>
-            {state.toolkit_available
-              ? 'Download and use these five files to complete the mission.'
-              : 'The study team is preparing this toolkit. The download will become available here.'}
-          </p>
-        </div>
-        <div className="post-assessment-toolkit-grid">
-          <div className="post-assessment-toolkit-file">
-            <span aria-hidden>↓</span>
+      {headerActions ? createPortal(navigation, headerActions) : navigation}
+      {(!complete || showInstructions) && (
+        <>
+          <div className="pre-assessment-challenge-header">
             <div>
-              <strong>Complete mission toolkit</strong>
-              <small>
-                Includes{' '}
-                {(followUp ? FOLLOW_UP_TOOLKIT : POST_ASSESSMENT_TOOLKIT)
-                  .map((file) => file.filename)
-                  .join(', ')}
-              </small>
+              <h3>{missionTitle}</h3>
+              <p>
+                In this task, we’ll give you a brand-new work challenge and see
+                how you tackle it—how you make decisions, use AI, verify its
+                work, and turn your process into a final submission.
+              </p>
             </div>
-            <button
-              type="button"
-              disabled={busy || !state.toolkit_available}
-              onClick={onDownload}
-            >
-              {state.toolkit_available
-                ? 'Download all toolkit files'
-                : 'Toolkit is being prepared'}
-            </button>
+            {executionStatus && (
+              <span
+                className={`pre-assessment-status pre-assessment-status--${complete ? 'done' : 'ready'}`}
+              >
+                {executionStatus}
+              </span>
+            )}
           </div>
-        </div>
-      </div>
 
-      {complete && state.sections.execution && (
-        <div className="post-assessment-submitted">
-          <strong>Mission submitted</strong>
-        </div>
+          <Mission />
+
+          <div className="post-assessment-toolkit">
+            <div>
+              <h4>Reference files</h4>
+              <p>
+                {state.toolkit_available
+                  ? 'Download and use these five files to complete the mission.'
+                  : 'The study team is preparing this toolkit. The download will become available here.'}
+              </p>
+            </div>
+            <div className="post-assessment-toolkit-grid">
+              <div className="post-assessment-toolkit-file">
+                <span aria-hidden>↓</span>
+                <div>
+                  <strong>Complete mission toolkit</strong>
+                  <small>
+                    Includes {toolkit.map((file) => file.filename).join(', ')}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || !state.toolkit_available}
+                  onClick={onDownload}
+                >
+                  {state.toolkit_available
+                    ? 'Download all toolkit files'
+                    : 'Toolkit is being prepared'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {complete && !showInstructions && state.sections.execution && (
+        <SubmissionAttempts
+          taskId={route}
+          files={[
+            state.sections.execution.outcome_filename,
+            ...state.sections.execution.interaction_log_filenames,
+          ]}
+        />
+      )}
+      {complete && submissionRequested && (
+        <ReflectionCompleted
+          assessment
+          onClose={() => {
+            setSubmissionRequested(false);
+            setShowInstructions(false);
+            setShowReflection(false);
+          }}
+        />
       )}
       {!complete && !startedAt && (
         <div className="post-assessment-start">
@@ -507,23 +578,48 @@ export function ExecutionSection({
             </div>
           </div>
 
-          <div className="post-assessment-upload-grid">
-            <div>
-              <strong>Completed answer sheet</strong>
-              <span>Export your completed answer sheet as a PDF.</span>
+          <section
+            className="training-task-submission"
+            aria-label="Submit your work"
+          >
+            {outcomeFilename && (
+              <p>
+                <strong>Selected:</strong> {outcomeFilename}
+              </p>
+            )}
+            <div className="training-task-actions">
               <button
                 type="button"
-                disabled={busy}
+                className={outcomeFilename ? undefined : 'training-primary'}
+                disabled={busy || recorderBusy}
                 onClick={async () => {
                   const filename = await onChooseAnswerSheet();
                   if (filename) setOutcomeFilename(filename);
                 }}
               >
-                Choose answer sheet PDF
+                {outcomeFilename
+                  ? 'Change answer sheet'
+                  : 'Choose answer sheet PDF'}
               </button>
-              {outcomeFilename && <small>{outcomeFilename}</small>}
+              {outcomeFilename && (
+                <button
+                  type="button"
+                  className="training-primary"
+                  disabled={busy || recorderBusy || !readyForReflection}
+                  onClick={() => setShowReflection(true)}
+                >
+                  Submit
+                </button>
+              )}
+              <p className="training-submit-explanation">
+                <small>
+                  Export your completed answer sheet as a PDF. Your activity
+                  report is attached automatically when you finish the
+                  reflection. You can submit this execution task only once.
+                </small>
+              </p>
             </div>
-          </div>
+          </section>
 
           {showReview && (
             <div className="post-assessment-modal-backdrop">
@@ -598,79 +694,107 @@ export function ExecutionSection({
             </div>
           )}
 
-          <div className="post-assessment-questionnaire">
-            <h4>Tell us about your approach</h4>
-            {EXECUTION_QUESTIONNAIRE_QUESTIONS.map(
-              ({ key, question }, index) => (
-                <label key={key} htmlFor={`execution-${key}`}>
-                  <strong>
-                    {index + 1}. {question}
-                  </strong>
-                  <textarea
-                    id={`execution-${key}`}
-                    rows={4}
-                    maxLength={5000}
-                    value={questionnaire[key]}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setQuestionnaire((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
+          <TrainingDialog
+            open={showReflection}
+            title="Tell us about your approach"
+            busy={busy}
+            onClose={() => setShowReflection(false)}
+          >
+            <section className="training-reflection">
+              {submissionError && (
+                <p role="alert" className="training-error">
+                  {submissionError}
+                </p>
+              )}
+              {reflectionStep === 'ratings' && (
+                <div className="post-assessment-questionnaire">
+                  <fieldset>
+                    <legend>
+                      To what extent do you feel the final work is your own?
+                    </legend>
+                    <div className="post-assessment-ownership-scale">
+                      {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                        (value) => (
+                          <label key={value} htmlFor={`ownership-${value}`}>
+                            <input
+                              id={`ownership-${value}`}
+                              type="radio"
+                              name="ownership"
+                              value={value}
+                              checked={questionnaire.ownership === value}
+                              disabled={busy}
+                              onChange={() =>
+                                setQuestionnaire((current) => ({
+                                  ...current,
+                                  ownership: value,
+                                }))
+                              }
+                            />
+                            <span>{value}</span>
+                          </label>
+                        ),
+                      )}
+                    </div>
+                    <div className="post-assessment-scale-labels">
+                      <span>1 · Not at all</span>
+                      <span>10 · Completely</span>
+                    </div>
+                  </fieldset>
+                  <button
+                    type="button"
+                    className="training-primary"
+                    disabled={busy || questionnaire.ownership < 1}
+                    onClick={() => setReflectionStep('writing')}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+              {reflectionStep === 'writing' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setReflectionStep('ratings')}
+                >
+                  Back to ratings
+                </button>
+              )}
+              <div hidden={reflectionStep !== 'writing'}>
+                <QuestionConversation
+                  idPrefix={`${route}-execution`}
+                  questions={EXECUTION_CONVERSATION}
+                  answers={questionnaire}
+                  maxLength={5000}
+                  disabled={busy}
+                  allowEditing={false}
+                  onAnswerChange={(id, value) => {
+                    const next = { ...questionnaire, [id]: value };
+                    setQuestionnaire(next);
+                    if (
+                      next.ownership >= 1 &&
+                      EXECUTION_QUESTIONNAIRE_QUESTIONS.every(({ key }) =>
+                        next[key].trim(),
+                      )
+                    ) {
+                      submitReflection(next);
                     }
-                  />
-                </label>
-              ),
-            )}
-            <fieldset>
-              <legend>
-                6. To what extent do you feel the final work is your own?
-              </legend>
-              <div className="post-assessment-ownership-scale">
-                {Array.from({ length: 10 }, (_, index) => index + 1).map(
-                  (value) => (
-                    <label key={value} htmlFor={`ownership-${value}`}>
-                      <input
-                        id={`ownership-${value}`}
-                        type="radio"
-                        name="ownership"
-                        value={value}
-                        checked={questionnaire.ownership === value}
-                        disabled={busy}
-                        onChange={() =>
-                          setQuestionnaire((current) => ({
-                            ...current,
-                            ownership: value,
-                          }))
-                        }
-                      />
-                      <span>{value}</span>
-                    </label>
-                  ),
-                )}
+                  }}
+                />
               </div>
-              <div className="post-assessment-scale-labels">
-                <span>1 · Not at all</span>
-                <span>10 · Completely</span>
-              </div>
-            </fieldset>
-          </div>
-
-          <div className="post-assessment-final-submit">
-            <div>
-              <strong>Submission checklist</strong>
-              <span>
-                Recorded activity report · answer sheet PDF · questionnaire
-              </span>
-            </div>
-            <button
-              type="button"
-              disabled={busy || !ready}
-              onClick={async () => onSubmit(questionnaire)}
-            >
-              {busy ? 'Submitting files…' : 'Submit execution task'}
-            </button>
-          </div>
+              {reflectionStep === 'writing' &&
+                ready &&
+                (busy ? (
+                  <p role="status">Submitting your work…</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => submitReflection(questionnaire)}
+                  >
+                    Retry submission
+                  </button>
+                ))}
+            </section>
+          </TrainingDialog>
         </div>
       )}
     </section>
@@ -770,32 +894,31 @@ export default function PostAssessmentPanel({
   return (
     <section
       className={`training-card post-assessment${state?.complete ? ' post-assessment--complete' : ''}`}
-      aria-labelledby="post-assessment-title"
+      aria-label="Final assessment"
     >
-      <div className="post-assessment-intro">
-        <div>
-          <h2 id="post-assessment-title">
-            {state?.complete
-              ? 'Post-assessment complete!'
-              : 'Complete your post-assessment'}
-          </h2>
-          <p>
-            Finish all three parts. Your responses and files are submitted
-            securely to the study team.
-          </p>
+      {state?.complete && <AssessmentCompleted />}
+      {!state?.complete && (
+        <div className="post-assessment-intro">
+          <div>
+            <h2 id="post-assessment-title">Complete your post-assessment</h2>
+            <p>
+              Finish all three parts. Your responses and files are submitted
+              securely to the study team.
+            </p>
+          </div>
+          <div
+            className="pre-assessment-progress"
+            role="progressbar"
+            aria-label="Post-assessment progress"
+            aria-valuemin={0}
+            aria-valuemax={3}
+            aria-valuenow={completedCount}
+          >
+            <strong>{completedCount}/3</strong>
+            <span>submitted</span>
+          </div>
         </div>
-        <div
-          className="pre-assessment-progress"
-          role="progressbar"
-          aria-label="Post-assessment progress"
-          aria-valuemin={0}
-          aria-valuemax={3}
-          aria-valuenow={completedCount}
-        >
-          <strong>{completedCount}/3</strong>
-          <span>submitted</span>
-        </div>
-      </div>
+      )}
       {error && (
         <p className="training-error" role="alert">
           {error}
@@ -844,6 +967,13 @@ export default function PostAssessmentPanel({
                 }
               />
             )}
+            {activeSection === 'ai_literacy' &&
+              typeof state.sections.ai_literacy?.score === 'number' && (
+                <p className="training-notice" role="status">
+                  Your score: {state.sections.ai_literacy.score} /{' '}
+                  {state.sections.ai_literacy.max_score}
+                </p>
+              )}
             {activeSection === 'ai_literacy' && (
               <AiLiteracySection
                 complete={Boolean(state.sections.ai_literacy)}
@@ -857,6 +987,7 @@ export default function PostAssessmentPanel({
             )}
             {activeSection === 'execution' && (
               <ExecutionSection
+                submissionError={error}
                 state={state}
                 busy={busy}
                 onStart={() =>

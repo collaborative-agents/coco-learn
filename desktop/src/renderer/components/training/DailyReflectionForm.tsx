@@ -7,8 +7,18 @@ import {
 } from '../../../shared/study';
 import TrainingDialog from './TrainingDialog';
 import LikertQuestions from './LikertQuestions';
+import QuestionConversation from './QuestionConversation';
 import { SELF_EFFICACY_SCALE } from '../../../shared/post-assessment';
 import './DailyReflectionForm.css';
+
+const responseKeys = ['q6', 'q7', 'q8'] as const;
+
+const REFLECTION_CONVERSATION = DAILY_REFLECTION_OPEN_QUESTIONS.map(
+  (text, index) => ({
+    id: responseKeys[index],
+    text,
+  }),
+);
 
 const emptyReflection = (): DailyReflection => ({
   q1: 0,
@@ -37,7 +47,6 @@ export default function DailyReflectionForm({
   const [answers, setAnswers] = useState<DailyReflection>(emptyReflection);
   const [step, setStep] = useState<'ratings' | 'writing'>('ratings');
   const ratingKeys = ['q1', 'q2', 'q3', 'q4', 'q5'] as const;
-  const responseKeys = ['q6', 'q7', 'q8'] as const;
   const ratingsReady = ratingKeys.every(
     (key) => answers[key] >= 1 && answers[key] <= 5,
   );
@@ -57,17 +66,7 @@ export default function DailyReflectionForm({
             {error}
           </p>
         )}
-        <div className="training-reflection-header">
-          <div>
-            <span className="training-eyebrow">DAY {day} REFLECTION</span>
-            <p>
-              There are no right or wrong answers. Your honest feedback helps us
-              improve the camp.
-            </p>
-          </div>
-        </div>
-
-        {step === 'ratings' ? (
+        {step === 'ratings' && (
           <>
             <LikertQuestions
               questions={DAILY_REFLECTION_RATING_QUESTIONS.map(
@@ -88,64 +87,54 @@ export default function DailyReflectionForm({
               disabled={busy || !ratingsReady}
               onClick={() => setStep('writing')}
             >
-              Next: written reflection
+              Next
             </button>
           </>
-        ) : (
-          <>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setStep('ratings')}
-            >
-              Back to ratings
-            </button>
-            <div className="training-reflection-writing">
-              {DAILY_REFLECTION_OPEN_QUESTIONS.map(
-                (question, questionIndex) => {
-                  const key = responseKeys[questionIndex];
-                  return (
-                    <label key={key} htmlFor={`day-${day}-${key}`}>
-                      <strong>
-                        {questionIndex + 6}. {question}
-                      </strong>
-                      <textarea
-                        id={`day-${day}-${key}`}
-                        rows={4}
-                        maxLength={5000}
-                        value={answers[key]}
-                        disabled={busy}
-                        onChange={(event) =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  );
-                },
-              )}
-            </div>
-
-            <div className="training-reflection-submit">
-              <div>
-                <strong>One last step</strong>
-                <span>
-                  After submitting your reflection, choose a screenshot of your
-                  favorite moment.
-                </span>
-              </div>
+        )}
+        {step === 'writing' && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setStep('ratings')}
+          >
+            Back to ratings
+          </button>
+        )}
+        {/* Stays mounted during the ratings step so unsent text is kept. */}
+        <div hidden={step !== 'writing'}>
+          <QuestionConversation
+            idPrefix={`day-${day}`}
+            questions={REFLECTION_CONVERSATION}
+            answers={answers}
+            maxLength={5000}
+            disabled={busy}
+            allowEditing={false}
+            onAnswerChange={(id, value) => {
+              const next = { ...answers, [id]: value };
+              setAnswers(next);
+              if (
+                ratingsReady &&
+                responseKeys.every((key) => next[key].trim())
+              ) {
+                onSubmit(next);
+              }
+            }}
+          />
+        </div>
+        {step === 'writing' && ready && (
+          <div className="training-reflection-submit">
+            {busy ? (
+              <p role="status">Saving your reflection…</p>
+            ) : (
               <button
                 type="button"
                 className="training-proof-action"
-                disabled={busy || !ready}
                 onClick={() => onSubmit(answers)}
               >
-                Submit reflection &amp; add screenshot
+                Retry submission
               </button>
-            </div>
-          </>
+            )}
+          </div>
         )}
       </section>
     </TrainingDialog>

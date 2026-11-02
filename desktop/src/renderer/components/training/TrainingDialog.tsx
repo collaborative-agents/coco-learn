@@ -1,5 +1,7 @@
 /* eslint-disable react/require-default-props -- React 19 uses default function parameters. */
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+
+import TrainingDialogActions from './TrainingDialogActions';
 
 export default function TrainingDialog({
   open,
@@ -19,6 +21,7 @@ export default function TrainingDialog({
   className?: string;
 }) {
   const titleId = useId();
+  const [pageActions, setPageActions] = useState<HTMLSpanElement | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   const busyRef = useRef(busy);
@@ -85,6 +88,7 @@ export default function TrainingDialog({
           <h2 id={titleId}>{title}</h2>
           <div className="training-dialog-actions">
             {headerAction}
+            <span ref={setPageActions} className="training-page-actions" />
             <button
               className="training-dialog-close"
               type="button"
@@ -97,7 +101,9 @@ export default function TrainingDialog({
             </button>
           </div>
         </header>
-        <div className="training-dialog-content">{children}</div>
+        <TrainingDialogActions.Provider value={pageActions}>
+          <div className="training-dialog-content">{children}</div>
+        </TrainingDialogActions.Provider>
       </div>
     </div>
   );

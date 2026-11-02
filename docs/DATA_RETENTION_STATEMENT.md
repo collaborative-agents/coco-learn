@@ -16,8 +16,16 @@ giving this statement to participants.
 - The study Gateway stores participant accounts, chat text, session timing,
   recap results, model identifiers, latency timestamps, and software-version
   metadata in MongoDB.
-- The study Gateway does **not** receive screenshots, pasted-image bytes, raw
-  keyboard/mouse events, or raw sensing observations.
+- During ordinary use, the study Gateway does **not** receive screenshots,
+  pasted-image bytes, raw keyboard/mouse events, or raw sensing observations.
+  The exception is assessment tasks: their submitted activity logs contain the
+  screen captures taken during the task, after the participant has reviewed them.
+- The study Gateway stores files participants submit for grading: practice-day
+  deliverables and assessment answer sheets. Answer sheets, deliverables, and
+  questionnaire answers are sent with the rubric through the study's LLM Router
+  to the configured model provider for automatic grading, and the Router's usage
+  log stores that text. The scores and feedback are stored. Activity logs and
+  daily reflections are not sent for grading.
 - Screen images and text prompts are sent through the study's LLM Router to the
   configured model provider for inference.
 - The Router currently stores text prompts, text responses, model and timing
@@ -85,8 +93,9 @@ is 180 days when **Keep me signed in** is selected and 1 day otherwise.
 - For AI responses: request-start, first-token, and completion timestamps and
   model name
 
-The Gateway deliberately excludes screenshots, pasted-image bytes, raw input
-events, sensing observations, and locally inferred semantic memory.
+Outside assessment activity logs, the Gateway deliberately excludes screenshots,
+pasted-image bytes, raw input events, sensing observations, and locally inferred
+semantic memory.
 
 ### Current Gateway retention
 

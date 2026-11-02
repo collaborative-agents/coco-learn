@@ -23,38 +23,6 @@
   font-size: var(--coco-text-body);
 }
 
-.training-reflection-writing {
-  display: grid;
-  gap: 13px;
-}
-
-.training-reflection-writing label {
-  display: grid;
-  gap: 7px;
-  color: var(--coco-color-text-secondary);
-  font-size: var(--coco-text-caption);
-  line-height: var(--coco-leading-body);
-}
-
-.training-reflection-writing textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  padding: 10px;
-  border: 1px solid var(--coco-color-border);
-  border-radius: var(--coco-radius-control);
-  background: var(--coco-color-surface);
-  color: var(--coco-color-text);
-  font: inherit;
-  line-height: var(--coco-leading-body);
-}
-
-.training-reflection-writing textarea:focus {
-  outline: none;
-  border-color: var(--coco-color-primary);
-  box-shadow: var(--coco-focus-ring);
-}
-
 .training-reflection-submit {
   display: flex;
   align-items: center;

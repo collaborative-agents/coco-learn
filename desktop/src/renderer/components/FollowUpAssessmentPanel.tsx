@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PostAssessmentState } from '../../shared/post-assessment';
 import { ExecutionSection } from './PostAssessmentPanel';
+import AssessmentCompleted from './training/AssessmentCompleted';
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
@@ -43,9 +44,27 @@ export default function FollowUpAssessmentPanel({
     <section
       className={`training-card post-assessment${state?.complete ? ' post-assessment--complete' : ''}`}
     >
-      {state?.complete && (
+      {state?.complete && <AssessmentCompleted />}
+      {state?.unlocked && !state.complete && (
         <div className="post-assessment-intro">
-          <h2>Follow-up assignment complete!</h2>
+          <div>
+            <h2>Complete your follow-up assessment</h2>
+            <p>
+              Finish the execution task. Your responses and files are submitted
+              securely to the study team.
+            </p>
+          </div>
+          <div
+            className="pre-assessment-progress"
+            role="progressbar"
+            aria-label="Follow-up assessment progress"
+            aria-valuemin={0}
+            aria-valuemax={1}
+            aria-valuenow={0}
+          >
+            <strong>0/1</strong>
+            <span>submitted</span>
+          </div>
         </div>
       )}
       {error && (
@@ -69,38 +88,67 @@ export default function FollowUpAssessmentPanel({
         </p>
       )}
       {state?.unlocked && (
-        <ExecutionSection
-          followUp
-          state={state}
-          busy={busy}
-          onStart={() =>
-            act(() => invoke('follow-up-assessment-start-execution'))
-          }
-          onDownload={() =>
-            act(async () => {
-              const result = (await invoke(
-                'follow-up-assessment-download-toolkit',
-              )) as { success?: boolean };
-              if (result.success) setNotice('Toolkit file saved.');
-            })
-          }
-          onChooseAnswerSheet={async () => {
-            let filename: string | null = null;
-            await act(async () => {
-              const result = (await invoke(
-                'follow-up-assessment-select-execution-files',
-                'outcome',
-              )) as { canceled?: boolean; filenames?: string[] };
-              if (!result.canceled) filename = result.filenames?.[0] ?? null;
-            });
-            return filename;
-          }}
-          onSubmit={(questionnaire) =>
-            act(() =>
-              invoke('follow-up-assessment-submit-execution', questionnaire),
-            )
-          }
-        />
+        <>
+          <div
+            className="pre-assessment-tabs post-assessment-tabs"
+            role="tablist"
+            aria-label="Follow-up assessment sections"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected="true"
+              id="follow-up-execution-tab"
+              aria-controls="follow-up-execution-panel"
+            >
+              <span>{state.complete ? '✓' : '1'}</span>
+              Execution task
+            </button>
+          </div>
+          <div
+            role="tabpanel"
+            id="follow-up-execution-panel"
+            aria-labelledby="follow-up-execution-tab"
+          >
+            <ExecutionSection
+              submissionError={error}
+              followUp
+              state={state}
+              busy={busy}
+              onStart={() =>
+                act(() => invoke('follow-up-assessment-start-execution'))
+              }
+              onDownload={() =>
+                act(async () => {
+                  const result = (await invoke(
+                    'follow-up-assessment-download-toolkit',
+                  )) as { success?: boolean };
+                  if (result.success) setNotice('Toolkit file saved.');
+                })
+              }
+              onChooseAnswerSheet={async () => {
+                let filename: string | null = null;
+                await act(async () => {
+                  const result = (await invoke(
+                    'follow-up-assessment-select-execution-files',
+                    'outcome',
+                  )) as { canceled?: boolean; filenames?: string[] };
+                  if (!result.canceled)
+                    filename = result.filenames?.[0] ?? null;
+                });
+                return filename;
+              }}
+              onSubmit={(questionnaire) =>
+                act(() =>
+                  invoke(
+                    'follow-up-assessment-submit-execution',
+                    questionnaire,
+                  ),
+                )
+              }
+            />
+          </div>
+        </>
       )}
     </section>
   );

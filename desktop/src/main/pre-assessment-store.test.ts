@@ -36,8 +36,8 @@ describe('pre-assessment store', () => {
         remote.sets[set] = {
           set,
           responses: body.responses,
-          score: body.score,
-          max_score: body.max_score,
+          score: set === 'A' ? body.score : null,
+          max_score: set === 'A' ? body.max_score : 4,
           completed_at: '2026-09-23T00:00:00Z',
         };
       return remote.sets[set];
@@ -61,7 +61,7 @@ describe('pre-assessment store', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
-  it('scores both sets locally and unlocks only after both are complete', async () => {
+  it('scores Set A locally, leaves Set E to the server, and unlocks after both', async () => {
     const setA = await invoke('pre-assessment-submit', 'A', {
       1: 'B',
       2: 'C',
@@ -85,7 +85,13 @@ describe('pre-assessment store', () => {
       e2: 'I would use IRS.gov, DOL.gov, and my state labor department.',
       e3: 'The wage and benefits claims are risky because laws and thresholds can change.',
     });
-    expect(setE).toMatchObject({ set: 'E', score: 4, maxScore: 4 });
+    expect(setE).toMatchObject({ set: 'E', score: null, maxScore: 4 });
+    // Set E's score comes only from the server's grader.
+    expect(requestJson).toHaveBeenCalledWith(
+      '/api/study/pre-assessments/E',
+      'POST',
+      { responses: expect.any(Object) },
+    );
     expect(readPreAssessmentState(directory, userId).complete).toBe(true);
     expect(completed).toHaveBeenCalledTimes(2);
   });
@@ -104,7 +110,34 @@ describe('pre-assessment store', () => {
     userId = 'bob';
     expect(await invoke('pre-assessment-state')).toEqual({
       complete: false,
+      execution: null,
       sets: { A: null, E: null },
     });
+  });
+  it('accepts server completion from AI literacy and execution without Set E', async () => {
+    const execution = {
+      completed_at: '2026-11-01T00:00:00Z',
+      outcome_filename: 'answer.pdf',
+    };
+    requestJson.mockResolvedValueOnce({
+      complete: true,
+      sets: {
+        A: {
+          set: 'A',
+          score: 7,
+          max_score: 8,
+          completed_at: '2026-11-01T00:00:00Z',
+          responses: {},
+        },
+        E: null,
+      },
+      execution,
+    });
+    expect(await invoke('pre-assessment-state')).toMatchObject({
+      complete: true,
+      execution,
+      sets: { E: null },
+    });
+    expect(readPreAssessmentState(directory, userId).complete).toBe(true);
   });
 });

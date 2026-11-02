@@ -2,24 +2,33 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   SET_A_QUESTIONS,
-  SET_E_AI_RESPONSE,
-  SET_E_MODEL_ANSWER,
-  SET_E_QUESTIONS,
   type PreAssessmentResult,
   type PreAssessmentSet,
   type PreAssessmentState,
   type SetAAnswers,
   type SetEAnswers,
 } from '../../shared/pre-assessment';
+import PreExecutionPanel from './PreExecutionPanel';
+import AssessmentCompleted from './training/AssessmentCompleted';
 
 const invoke = (
   channel: Parameters<typeof window.electron.ipcRenderer.invoke>[0],
   ...args: unknown[]
 ) => window.electron.ipcRenderer.invoke(channel, ...args);
 
-const emptyEAnswers: SetEAnswers = { e1: '', e2: '', e3: '' };
-
 function ScoreCard({ result }: { result: PreAssessmentResult }) {
+  if (result.score === null)
+    return (
+      <div className="pre-assessment-score pre-assessment-score--growing">
+        <span className="pre-assessment-score-icon" aria-hidden>
+          ✦
+        </span>
+        <div>
+          <h3>Grading your answers…</h3>
+          <p>Your score will appear here when grading finishes.</p>
+        </div>
+      </div>
+    );
   const strong = result.score / result.maxScore >= 0.75;
   return (
     <div
@@ -61,11 +70,11 @@ function SetAChallenge({
 
   return (
     <section
-      className={`pre-assessment-challenge${complete ? ' pre-assessment-challenge--complete' : ''}`}
+      className={`post-assessment-section pre-assessment-challenge${complete ? ' pre-assessment-challenge--complete' : ''}`}
     >
       <div className="pre-assessment-challenge-header">
         <div>
-          <h3>Conceptual Understanding</h3>
+          <h3>AI literacy</h3>
           <p>Choose the one best answer for each question.</p>
         </div>
         {complete && (
@@ -144,109 +153,7 @@ function SetAChallenge({
           disabled={busy || !allAnswered}
           onClick={() => onSubmit('A', answers)}
         >
-          {busy ? 'Checking answers…' : 'Finish Challenge 1 & see my score'}
-        </button>
-      )}
-    </section>
-  );
-}
-
-function SetEChallenge({
-  result,
-  onSubmit,
-  busy,
-}: {
-  result: PreAssessmentResult | null;
-  onSubmit: (set: PreAssessmentSet, answers: SetEAnswers) => Promise<void>;
-  busy: boolean;
-}) {
-  const [answers, setAnswers] = useState<SetEAnswers>(() =>
-    result ? (result.answers as SetEAnswers) : emptyEAnswers,
-  );
-  const complete = Boolean(result);
-  const allAnswered = Object.values(answers).every(
-    (answer) => answer.trim().length >= 3,
-  );
-
-  return (
-    <section
-      className={`pre-assessment-challenge${complete ? ' pre-assessment-challenge--complete' : ''}`}
-    >
-      <div className="pre-assessment-challenge-header">
-        <div>
-          <h3>Anti-Blind-Acceptance</h3>
-          <p>
-            Review the AI output and explain what you would verify before using
-            it.
-          </p>
-        </div>
-        {complete && (
-          <span className="pre-assessment-status pre-assessment-status--done">
-            ✓ Complete
-          </span>
-        )}
-      </div>
-
-      <div className="pre-assessment-prompt">
-        <strong>Scenario</strong>
-        <p>
-          You asked an AI tool: “What are the requirements for hiring a
-          part-time employee in my state?”
-        </p>
-        <blockquote>{SET_E_AI_RESPONSE}</blockquote>
-      </div>
-
-      {complete && result && <ScoreCard result={result} />}
-
-      <div className="pre-assessment-questions">
-        {SET_E_QUESTIONS.map((question, index) => (
-          <label
-            key={question.id}
-            htmlFor={`set-e-${question.id}`}
-            className="pre-assessment-writing-question"
-          >
-            <strong>
-              E{index + 1}. {question.question}
-            </strong>
-            <textarea
-              id={`set-e-${question.id}`}
-              value={
-                result
-                  ? (result.answers as SetEAnswers)[question.id]
-                  : answers[question.id]
-              }
-              disabled={complete || busy}
-              rows={question.id === 'e1' ? 7 : 5}
-              onChange={(event) =>
-                setAnswers((current) => ({
-                  ...current,
-                  [question.id]: event.target.value,
-                }))
-              }
-            />
-          </label>
-        ))}
-      </div>
-
-      {complete && (
-        <div className="pre-assessment-model-answer">
-          <h4>What a strong answer includes</h4>
-          <ul>
-            {SET_E_MODEL_ANSWER.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {!complete && (
-        <button
-          type="button"
-          className="pre-assessment-submit"
-          disabled={busy || !allAnswered}
-          onClick={() => onSubmit('E', answers)}
-        >
-          {busy ? 'Reviewing response…' : 'Finish Challenge 2 & see my score'}
+          {busy ? 'Checking answers…' : 'Finish AI literacy & see my score'}
         </button>
       )}
     </section>
@@ -261,7 +168,7 @@ export default function PreAssessmentPanel({
   required?: boolean;
 }) {
   const [state, setState] = useState<PreAssessmentState | null>(null);
-  const [activeSet, setActiveSet] = useState<PreAssessmentSet>('A');
+  const [activeSet, setActiveSet] = useState<'A' | 'execution'>('A');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -279,7 +186,10 @@ export default function PreAssessmentPanel({
 
   const completedCount = useMemo(
     () =>
-      state ? Number(Boolean(state.sets.A)) + Number(Boolean(state.sets.E)) : 0,
+      state
+        ? Number(Boolean(state.sets.A)) +
+          Number(Boolean(state.execution || state.complete))
+        : 0,
     [state],
   );
 
@@ -302,11 +212,11 @@ export default function PreAssessmentPanel({
   const challengeContent = state ? (
     <>
       <div
-        className="pre-assessment-tabs"
+        className="pre-assessment-tabs post-assessment-tabs"
         role="tablist"
         aria-label="Pre-assessment challenges"
       >
-        {(['A', 'E'] as const).map((set, index) => (
+        {(['A', 'execution'] as const).map((set, index) => (
           <button
             key={set}
             type="button"
@@ -314,8 +224,12 @@ export default function PreAssessmentPanel({
             aria-selected={activeSet === set}
             onClick={() => setActiveSet(set)}
           >
-            <span>{state.sets[set] ? '✓' : index + 1}</span>
-            Challenge {index + 1}
+            <span>
+              {(set === 'A' ? state.sets.A : state.execution || state.complete)
+                ? '✓'
+                : index + 1}
+            </span>
+            {set === 'A' ? 'AI literacy' : 'Execution task'}
           </button>
         ))}
       </div>
@@ -323,7 +237,10 @@ export default function PreAssessmentPanel({
         {activeSet === 'A' ? (
           <SetAChallenge result={state.sets.A} onSubmit={submit} busy={busy} />
         ) : (
-          <SetEChallenge result={state.sets.E} onSubmit={submit} busy={busy} />
+          <PreExecutionPanel
+            onSubmitted={load}
+            legacyComplete={Boolean(state.complete && !state.execution)}
+          />
         )}
       </div>
     </>
@@ -333,19 +250,18 @@ export default function PreAssessmentPanel({
 
   return (
     <section
-      className={`training-card pre-assessment${state?.complete ? ' pre-assessment--complete' : ''}`}
+      className={`training-card pre-assessment post-assessment${state?.complete ? ' pre-assessment--complete post-assessment--complete' : ''}`}
       aria-label="Starting assessment"
     >
+      {state?.complete && <AssessmentCompleted />}
       {!state?.complete && (
-        <div className="pre-assessment-intro">
+        <div className="post-assessment-intro">
           <div>
-            <h2 id="pre-assessment-title">
-              Complete both pre-assessment challenges
-            </h2>
+            <h2 id="pre-assessment-title">Complete your start check-in</h2>
             <p>
               {required
-                ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after both challenges are complete.'
-                : 'This is the participant pre-assessment experience. Admin accounts can preview and complete both challenges.'}
+                ? 'These questions help you see your starting point. Coco chat, sensing, and camp tasks unlock after AI literacy and the execution task are complete.'
+                : 'This is the participant pre-assessment experience. Admin accounts can preview and complete AI literacy and the execution task.'}
             </p>
           </div>
           <div
@@ -357,7 +273,7 @@ export default function PreAssessmentPanel({
             aria-valuenow={completedCount}
           >
             <strong>{completedCount}/2</strong>
-            <span>complete</span>
+            <span>submitted</span>
           </div>
         </div>
       )}

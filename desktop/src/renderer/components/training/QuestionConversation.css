@@ -21,7 +21,7 @@
   overflow-wrap: anywhere;
 }
 
-.question-conversation-question {
+.question-conversation .question-conversation-question {
   align-self: flex-start;
   max-width: min(92%, 76ch);
   border-radius: 4px 16px 16px;
@@ -38,7 +38,7 @@
   max-width: min(85%, 68ch);
 }
 
-.question-conversation-answer p {
+.question-conversation .question-conversation-answer p {
   border-radius: 16px 16px 4px;
   background: var(--coco-color-primary);
   color: var(--coco-color-surface);

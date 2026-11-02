@@ -111,6 +111,7 @@ export default function FollowUpAssessmentPanel({
             aria-labelledby="follow-up-execution-tab"
           >
             <ExecutionSection
+              submissionError={error}
               followUp
               state={state}
               busy={busy}

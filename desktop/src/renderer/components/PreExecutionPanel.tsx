@@ -69,6 +69,7 @@ export default function PreExecutionPanel({
       )}
       {state?.unlocked && (
         <ExecutionSection
+          submissionError={error}
           preAssessment
           state={state}
           busy={busy}

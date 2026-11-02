@@ -2,8 +2,10 @@
 
 Open **Training** in the fox's three-dot menu, or **Training & Administration**
 in the tray/chat header. Download the unlocked task and do the work. To complete
-the day, upload your finished work, answer the reflection, and add a screenshot of
-the most exciting part of your work.
+the day, choose **Submit work** on the task page and review your score and feedback.
+Choose **Submit again** to improve your work as many times as needed, including all
+files with each submission. When ready, choose **Mark as finished**, answer the
+reflection, and add a screenshot of the most exciting part of your work.
 
 Uploads may be PDF, Word, Excel, CSV, Markdown, or text files, up to five files and
 20 MiB in total. They are sent to the Gateway and graded automatically, and can be
@@ -89,3 +91,19 @@ and refuses to replace different existing materials. Metadata is stored in
 `EvaluationMaterials`; blobs live under the existing `COCO_TRAINING_DIR`.
 Restart the Gateway after deploying code. A new desktop package is required to
 display the download section.
+
+Training previews are prefetched for accessible tasks while Training is open.
+The desktop keeps account-scoped materials and parsed PDF briefs in memory,
+sharing concurrent loads and refreshing materials after ten minutes. Restarting
+Coco clears this cache. The current server endpoint bundles instructions and
+references in one archive, so the initial prefetch still downloads that archive;
+reference contents are not sent to the renderer or saved until requested.
+
+## Start check-in
+
+Complete **AI literacy** and the **Execution task** before starting training. The
+execution task, **Count Before You Commit**, asks you to verify and revise a supply
+plan for 600 kits with no more than 30 unfilled. Download its five-file toolkit,
+start the timer and recording, then submit your answer sheet as a PDF and answer
+the questionnaire. Your activity log is attached automatically. Earlier completed
+start check-ins remain complete.

@@ -8,8 +8,10 @@ import PreAssessmentPanel from './PreAssessmentPanel';
 import FollowUpAssessmentPanel from './FollowUpAssessmentPanel';
 import PostAssessmentPanel from './PostAssessmentPanel';
 import DailyReflectionForm from './training/DailyReflectionForm';
+import ReflectionCompleted from './training/ReflectionCompleted';
 import TrainingDialog from './training/TrainingDialog';
 import TrainingAnnouncement from './training/TrainingAnnouncement';
+import { loadMaterials } from './training/training-materials-cache';
 import TrainingTaskDetail from './training/TrainingTaskDetail';
 import TrainingProgress from './training/TrainingProgress';
 import ToolChapter from './training/ToolChapter';
@@ -80,6 +82,9 @@ export default function TrainingView({
   const [reflectionDayNumber, setReflectionDayNumber] = useState<number | null>(
     null,
   );
+  const [completedReflectionDay, setCompletedReflectionDay] = useState<
+    number | null
+  >(null);
   const handlePreAssessmentCompletion = useCallback((complete: boolean) => {
     setPreAssessmentComplete(complete);
   }, []);
@@ -120,20 +125,46 @@ export default function TrainingView({
   const reflectionDay = state?.days.find(
     (day) => day.day === reflectionDayNumber,
   );
-  const dayCanOpen = (day: StudyState['days'][number]) =>
-    Boolean(day.completed_at) ||
-    (trainingUnlocked &&
-      day.available &&
-      (day.unlocked || (!state?.started_at && day.day === 1)));
+  const dayCanOpen = useCallback(
+    (day: StudyState['days'][number]) =>
+      Boolean(day.completed_at) ||
+      (day.available &&
+        (adminMode ||
+          (trainingUnlocked &&
+            (day.unlocked || (!state?.started_at && day.day === 1))))),
+    [adminMode, trainingUnlocked, state?.started_at],
+  );
+  const prefetchTasks = JSON.stringify(
+    visible && state
+      ? state.days
+          .filter((day) => day.available && dayCanOpen(day))
+          .map((day) => [state.user_id, day.day, day.filename])
+      : [],
+  );
+  useEffect(() => {
+    let cancelled = false;
+    const tasks = JSON.parse(prefetchTasks) as [
+      string,
+      number,
+      string | null,
+    ][];
+    // One archive at a time; opening a task shares any in-flight request.
+    tasks
+      .reduce<Promise<void>>(async (previous, [userId, day, filename]) => {
+        await previous;
+        if (!cancelled) {
+          await loadMaterials(userId, day, filename).catch(() => undefined);
+        }
+      }, Promise.resolve())
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [prefetchTasks]);
   useEffect(() => {
     if (
       typeof active === 'number' &&
-      (!selectedDay ||
-        (!selectedDay.completed_at &&
-          (!trainingUnlocked ||
-            !selectedDay.available ||
-            (!selectedDay.unlocked &&
-              (state?.started_at || selectedDay.day !== 1)))))
+      (!selectedDay || !dayCanOpen(selectedDay))
     ) {
       setActive(null);
       setReflectionDayNumber(null);
@@ -143,8 +174,7 @@ export default function TrainingView({
   }, [
     active,
     selectedDay,
-    trainingUnlocked,
-    state?.started_at,
+    dayCanOpen,
     postAssessmentUnlocked,
     followUpUnlocked,
   ]);
@@ -152,7 +182,12 @@ export default function TrainingView({
     <main className="training-page">
       <div
         className="training-home"
-        inert={active !== null || reflectionDayNumber !== null || questOpen}
+        inert={
+          active !== null ||
+          reflectionDayNumber !== null ||
+          completedReflectionDay !== null ||
+          questOpen
+        }
       >
         <AgenticQuest
           adminMode={adminMode}
@@ -404,7 +439,7 @@ export default function TrainingView({
               onClose={() => setActive(null)}
               busy={busy}
             >
-              {!state.started_at && !selectedDay.completed_at ? (
+              {!adminMode && !state.started_at && !selectedDay.completed_at ? (
                 <section>
                   <p>
                     Your practice days will use{' '}
@@ -429,6 +464,8 @@ export default function TrainingView({
                 </section>
               ) : (
                 <TrainingTaskDetail
+                  key={`${state.user_id}:${selectedDay.day}`}
+                  userId={state.user_id}
                   day={selectedDay}
                   busy={busy}
                   onReflect={() => setReflectionDayNumber(selectedDay.day)}
@@ -441,15 +478,17 @@ export default function TrainingView({
               )}
             </TrainingDialog>
           )}
+          {completedReflectionDay !== null && (
+            <ReflectionCompleted
+              day={completedReflectionDay}
+              onClose={() => setCompletedReflectionDay(null)}
+            />
+          )}
           {reflectionDay &&
             !reflectionDay.completed_at &&
             dayCanOpen(reflectionDay) && (
               <DailyReflectionForm
                 day={reflectionDay.day}
-                deliverableRequired={
-                  reflectionDay.deliverable_required === true
-                }
-                submittedFiles={reflectionDay.submitted_files ?? []}
                 busy={busy}
                 error={error}
                 onClose={() => setReflectionDayNumber(null)}
@@ -466,12 +505,13 @@ export default function TrainingView({
                       completed = true;
                       setNotice(
                         reflectionDay.deliverable_required
-                          ? `Day ${reflectionDay.day} complete — your results will appear on this task once grading finishes.`
-                          : `Day ${reflectionDay.day} complete — reflection and screenshot saved locally.`,
+                          ? `Day ${reflectionDay.day} complete — your results are available on this task.`
+                          : `Day ${reflectionDay.day} complete — reflection submitted.`,
                       );
                     }
                   });
                   if (completed) {
+                    setCompletedReflectionDay(reflectionDay.day);
                     setReflectionDayNumber(null);
                     setActive(null);
                   }

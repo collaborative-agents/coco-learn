@@ -1,0 +1,86 @@
+.reflection-completed {
+  position: relative;
+  overflow: hidden;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.reflection-completed-icon {
+  font-size: 64px;
+  animation: reflection-pop 650ms ease-out both;
+}
+
+.reflection-completed h2 {
+  margin: 20px 0 12px;
+}
+
+.reflection-completed p {
+  margin: 0 0 28px;
+  color: var(--coco-color-text-muted);
+}
+
+.reflection-completed-sparkles {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  pointer-events: none;
+}
+
+.reflection-completed-sparkles i {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.reflection-completed-sparkles i::after {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--coco-color-primary);
+  animation: reflection-sparkle 1200ms ease-out both;
+}
+
+.reflection-completed-sparkles i:nth-child(even)::after {
+  background: var(--coco-color-success);
+  animation-delay: 100ms;
+}
+
+@keyframes reflection-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  65% {
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes reflection-sparkle {
+  from {
+    opacity: 0;
+    transform: translateY(-25px) scale(0.5);
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-140px) rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reflection-completed-icon,
+  .reflection-completed-sparkles i::after {
+    animation: none;
+  }
+  .reflection-completed-sparkles {
+    display: none;
+  }
+}

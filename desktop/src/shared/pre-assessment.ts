@@ -1,3 +1,5 @@
+import type { ExecutionAssessmentResult } from './post-assessment';
+
 export type PreAssessmentSet = 'A' | 'E';
 
 export interface SetAQuestion {
@@ -195,6 +197,7 @@ export interface PreAssessmentResult {
 }
 
 export interface PreAssessmentState {
+  execution?: ExecutionAssessmentResult | null;
   complete: boolean;
   sets: {
     A: PreAssessmentResult | null;

@@ -189,3 +189,14 @@
 .training-dialog-header h2 {
   min-width: 0;
 }
+
+.training-dialog-actions .training-view-submission {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--coco-color-primary);
+  font-size: var(--coco-text-control);
+  white-space: nowrap;
+  cursor: pointer;
+}

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import GradeResultView from './GradeResultView';
 
 const invoke = jest.fn();
@@ -40,7 +40,7 @@ it('renders nothing before anything has been submitted', async () => {
   expect(container).toBeEmptyDOMElement();
 });
 
-it('shows the score, sections, feedback and automated label', async () => {
+it('shows the score, breakdown and feedback without reporting controls', async () => {
   invoke.mockResolvedValue(graded);
   render(<GradeResultView taskId="day-1" />);
   expect(
@@ -54,7 +54,13 @@ it('shows the score, sections, feedback and automated label', async () => {
     screen.getByText('Cite the claim in paragraph 4.'),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/automated and may contain errors/),
+    screen.queryByText(/automated and may contain errors/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Report a problem' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: 'Score breakdown' }),
   ).toBeInTheDocument();
   expect(invoke).toHaveBeenCalledWith('study-grade', 'day-1');
 });
@@ -93,22 +99,17 @@ it('shows a correction from the study team', async () => {
   expect(await screen.findByText(/Reviewed by hand\./)).toBeInTheDocument();
 });
 
-it('sends a problem report', async () => {
-  invoke.mockResolvedValue(graded);
-  render(<GradeResultView taskId="day-1" />);
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'Report a problem' }),
-  );
-  const send = screen.getByRole('button', { name: 'Send report' });
-  expect(send).toBeDisabled();
-  fireEvent.change(screen.getByRole('textbox'), {
-    target: { value: 'Item 12 was correct.' },
+it('keeps checking when an uploaded submission is not yet queued for grading', async () => {
+  jest.useFakeTimers();
+  invoke.mockResolvedValueOnce({ status: 'none' });
+  invoke.mockResolvedValueOnce(graded);
+  render(<GradeResultView taskId="day-1" awaitingSubmission />);
+  await act(async () => {
+    await Promise.resolve();
   });
-  fireEvent.click(send);
-  expect(await screen.findByRole('status')).toHaveTextContent('Thanks');
-  expect(invoke).toHaveBeenCalledWith(
-    'study-grade-report',
-    'day-1',
-    'Item 12 was correct.',
-  );
+  expect(screen.getByText('Grading…')).toBeInTheDocument();
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(15_000);
+  });
+  expect(screen.getByText('Your result: 84.5 / 100')).toBeInTheDocument();
 });

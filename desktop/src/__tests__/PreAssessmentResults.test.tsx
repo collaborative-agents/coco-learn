@@ -41,9 +41,42 @@ it('shows Set A answers and rationales from the app', async () => {
   expect(screen.getByText(/Your answer was A\./)).toBeInTheDocument();
 });
 
-it('shows Set E as grading until the server has a score', async () => {
+it('keeps earlier completions without showing the removed challenge', async () => {
   panel();
-  fireEvent.click(await screen.findByRole('tab', { name: /Challenge 2/ }));
-  expect(screen.getByText('Grading your answers…')).toBeInTheDocument();
-  expect(await screen.findByText('Grading…')).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('tab', { name: /Execution task/ }));
+  expect(
+    screen.getByText(/Your earlier start check-in is complete/),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole('tab', { name: /Challenge 2/ }),
+  ).not.toBeInTheDocument();
+});
+
+it('opens the new execution task and downloads its toolkit', async () => {
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'pre-assessment-state')
+      return { complete: false, sets: { A: setA, E: null } };
+    if (channel === 'pre-assessment-execution-state')
+      return {
+        unlocked: true,
+        complete: false,
+        toolkit_available: true,
+        toolkit_filename: 'pre-assessment-toolkit.zip',
+        execution_started_at: null,
+        sections: { execution: null, ai_literacy: null, self_efficacy: null },
+      };
+    if (channel === 'pre-assessment-download-toolkit') return { success: true };
+    return null;
+  });
+  panel();
+  fireEvent.click(await screen.findByRole('tab', { name: /Execution task/ }));
+  expect(
+    await screen.findByText('Count Before You Commit'),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/inventory.xlsx/)).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Download all toolkit files' }),
+  );
+  expect(await screen.findByText('Toolkit file saved.')).toBeInTheDocument();
+  expect(invoke).toHaveBeenCalledWith('pre-assessment-download-toolkit');
 });

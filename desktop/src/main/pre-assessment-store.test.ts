@@ -110,7 +110,34 @@ describe('pre-assessment store', () => {
     userId = 'bob';
     expect(await invoke('pre-assessment-state')).toEqual({
       complete: false,
+      execution: null,
       sets: { A: null, E: null },
     });
+  });
+  it('accepts server completion from AI literacy and execution without Set E', async () => {
+    const execution = {
+      completed_at: '2026-11-01T00:00:00Z',
+      outcome_filename: 'answer.pdf',
+    };
+    requestJson.mockResolvedValueOnce({
+      complete: true,
+      sets: {
+        A: {
+          set: 'A',
+          score: 7,
+          max_score: 8,
+          completed_at: '2026-11-01T00:00:00Z',
+          responses: {},
+        },
+        E: null,
+      },
+      execution,
+    });
+    expect(await invoke('pre-assessment-state')).toMatchObject({
+      complete: true,
+      execution,
+      sets: { E: null },
+    });
+    expect(readPreAssessmentState(directory, userId).complete).toBe(true);
   });
 });

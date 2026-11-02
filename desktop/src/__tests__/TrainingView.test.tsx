@@ -62,7 +62,7 @@ beforeEach(() => {
       day: index + 1,
       title: `Task ${index + 1}`,
       available: true,
-      filename: 'task.pdf',
+      filename: `${expect.getState().currentTestName}-task.pdf`,
       unlocked: index === 0,
       unlocks_at: null,
       completed_at: null,
@@ -197,7 +197,7 @@ it('preserves reflection drafts when Training becomes inactive and is reopened',
   });
   await waitFor(() => expect(task).toBeEnabled());
   fireEvent.click(task);
-  fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as finished' }));
   const dialog = screen.getByRole('dialog', {
     name: 'Tell us about your practice',
   });
@@ -207,7 +207,7 @@ it('preserves reflection drafts when Training becomes inactive and is reopened',
       fireEvent.click(within(group).getByRole('radio', { name: '4 — Agree' }));
     });
   fireEvent.click(
-    within(dialog).getByRole('button', { name: 'Next: written reflection' }),
+    within(dialog).getByRole('button', { name: 'Next' }),
   );
   const draft = within(dialog).getAllByRole('textbox')[0];
   fireEvent.change(draft, {
@@ -229,11 +229,10 @@ it('preserves reflection drafts when Training becomes inactive and is reopened',
 it('retries instruction loading and closes the task with Escape', async () => {
   assessments = completedAssessments();
   const original = invoke.getMockImplementation()!;
-  let attempts = 0;
+  let failInstructions = true;
   invoke.mockImplementation(async (channel, ...args) => {
     if (channel === 'study-task-materials') {
-      attempts += 1;
-      if (attempts === 1) throw new Error('Could not load instructions');
+      if (failInstructions) throw new Error('Could not load instructions');
     }
     return original(channel, ...args);
   });
@@ -248,6 +247,7 @@ it('retries instruction loading and closes the task with Escape', async () => {
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'Could not load instructions',
   );
+  failInstructions = false;
   fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }));
   expect(
     await within(dialog).findByText('Try one useful prompt.'),
@@ -258,7 +258,7 @@ it('retries instruction loading and closes the task with Escape', async () => {
 });
 
 it.each(['cancel', 'error'])(
-  'preserves reflection answers after a screenshot submission %s',
+  'preserves reflection answers after a submission %s',
   async (outcome) => {
     assessments = completedAssessments();
     const original = invoke.getMockImplementation()!;
@@ -278,7 +278,7 @@ it.each(['cancel', 'error'])(
     expect(
       screen.queryByText(/When you’re ready, reflect on your practice/),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as finished' }));
     const dialog = screen.getByRole('dialog', {
       name: 'Tell us about your practice',
     });
@@ -286,13 +286,9 @@ it.each(['cancel', 'error'])(
     for (let index = 0; index < ratings.length; index += 5)
       fireEvent.click(ratings[index]);
     fireEvent.click(
-      within(dialog).getByRole('button', { name: 'Next: written reflection' }),
+      within(dialog).getByRole('button', { name: 'Next' }),
     );
     answerConversation(dialog, () => 'Keep my answer');
-    const submit = within(dialog).getByRole('button', {
-      name: 'Submit reflection & add screenshot',
-    });
-    fireEvent.click(submit);
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
         'study-complete',
@@ -301,7 +297,9 @@ it.each(['cancel', 'error'])(
         expect.any(Object),
       ),
     );
-    await waitFor(() => expect(submit).toBeEnabled());
+    expect(
+      await within(dialog).findByRole('button', { name: 'Retry submission' }),
+    ).toBeEnabled();
     expect(within(dialog).getAllByText('Keep my answer')).toHaveLength(3);
     expect(within(dialog).queryByRole('alert')?.textContent ?? '').toBe(
       outcome === 'error' ? 'Submission failed' : '',
@@ -318,7 +316,7 @@ it('starts with a compact checklist and opens assessments only on click', async 
   });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('tab', { name: /Challenge 1/ }),
+    screen.queryByRole('tab', { name: /AI literacy/ }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: /Day 1 Practice task/ }),
@@ -329,9 +327,11 @@ it('starts with a compact checklist and opens assessments only on click', async 
     await screen.findByRole('dialog', { name: 'Start check-in' }),
   ).toBeInTheDocument();
   expect(
-    await screen.findByRole('tab', { name: /Challenge 1/ }),
+    await screen.findByRole('tab', { name: /AI literacy/ }),
   ).toBeInTheDocument();
-  expect(screen.getByRole('tab', { name: /Challenge 2/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole('tab', { name: /Execution task/ }),
+  ).toBeInTheDocument();
   expect(screen.queryByText('CHALLENGE 1')).not.toBeInTheDocument();
   expect(screen.queryByText('Ready')).not.toBeInTheDocument();
 });
@@ -346,16 +346,16 @@ it('opens completed assessments directly into their questions and saved answers'
   fireEvent.click(row);
   const dialog = screen.getByRole('dialog', { name: 'Start check-in' });
   expect(
-    within(dialog).queryByText('Complete both pre-assessment challenges'),
+    within(dialog).queryByText('Complete your start check-in'),
   ).not.toBeInTheDocument();
   expect(dialog.querySelector('details')).toBeNull();
   expect(
-    await within(dialog).findByRole('tab', { name: /Challenge 1/ }),
+    await within(dialog).findByRole('tab', { name: /AI literacy/ }),
   ).toBeInTheDocument();
-  fireEvent.click(within(dialog).getByRole('tab', { name: /Challenge 2/ }));
-  ['answer', 'source', 'risk'].forEach((saved) => {
-    expect(within(dialog).getByText(saved)).toBeInTheDocument();
-  });
+  fireEvent.click(within(dialog).getByRole('tab', { name: /Execution task/ }));
+  expect(
+    within(dialog).getByText(/Your earlier start check-in is complete/),
+  ).toBeInTheDocument();
   expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
 });
 
@@ -367,7 +367,7 @@ it('keeps an unsent reflection answer when going back to the ratings', async () 
   });
   await waitFor(() => expect(task).toBeEnabled());
   fireEvent.click(task);
-  fireEvent.click(screen.getByRole('button', { name: 'Mark as finish' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as finished' }));
   const dialog = screen.getByRole('dialog', {
     name: 'Tell us about your practice',
   });
@@ -375,7 +375,7 @@ it('keeps an unsent reflection answer when going back to the ratings', async () 
   for (let index = 0; index < ratings.length; index += 5)
     fireEvent.click(ratings[index]);
   const next = () =>
-    within(dialog).getByRole('button', { name: 'Next: written reflection' });
+    within(dialog).getByRole('button', { name: 'Next' });
   fireEvent.click(next());
   fireEvent.change(within(dialog).getByRole('textbox'), {
     target: { value: 'Not sent yet' },
@@ -415,15 +415,21 @@ it('opens completed practice tasks with saved reflections and a screenshot', asy
   });
   await waitFor(() => expect(row).toBeEnabled());
   fireEvent.click(row);
+  expect(screen.queryByText('Try one useful prompt.')).not.toBeInTheDocument();
+  expect(await screen.findByText('My saved reflection')).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Back to task instructions' }),
+  );
   expect(await screen.findByText('Try one useful prompt.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View submission' }));
   expect(await screen.findByText('My saved reflection')).toBeInTheDocument();
   expect(screen.getByText('5 — Strongly agree')).toBeInTheDocument();
   expect(
-    screen.getByRole('img', { name: 'Your submitted screenshot' }),
-  ).toBeInTheDocument();
+    screen.queryByRole('img', { name: 'Your submitted screenshot' }),
+  ).not.toBeInTheDocument();
   expect(invoke).toHaveBeenCalledWith('study-task-submission', 1);
   expect(
-    screen.queryByRole('button', { name: 'Mark as finish' }),
+    screen.queryByRole('button', { name: 'Mark as finished' }),
   ).not.toBeInTheDocument();
 });
 
@@ -471,7 +477,7 @@ it('opens instructions and individual references without tutoring while locking 
     expect(invoke).toHaveBeenCalledWith('study-save-references', 1),
   );
   expect(invoke).not.toHaveBeenCalledWith('study-download', 1);
-  const submitTask = screen.getByRole('button', { name: 'Mark as finish' });
+  const submitTask = screen.getByRole('button', { name: 'Mark as finished' });
   await waitFor(() => expect(submitTask).toBeEnabled());
   fireEvent.click(submitTask);
   const reflection = await screen.findByRole('dialog', {
@@ -484,7 +490,7 @@ it('opens instructions and individual references without tutoring while locking 
   ).toBeInTheDocument();
   expect(
     within(reflection).getByRole('button', {
-      name: 'Next: written reflection',
+      name: 'Next',
     }),
   ).toBeDisabled();
   const ratings = within(reflection).getAllByRole('radio');
@@ -492,17 +498,29 @@ it('opens instructions and individual references without tutoring while locking 
     fireEvent.click(ratings[index]);
   fireEvent.click(
     within(reflection).getByRole('button', {
-      name: 'Next: written reflection',
+      name: 'Next',
     }),
   );
-  const submit = within(reflection).getByRole('button', {
-    name: 'Submit reflection & add screenshot',
-  });
-  expect(submit).toBeDisabled();
+  expect(
+    within(reflection).queryByText('DAY 1 REFLECTION'),
+  ).not.toBeInTheDocument();
+  expect(
+    within(reflection).queryByText(/There are no right or wrong answers/),
+  ).not.toBeInTheDocument();
+  expect(
+    within(reflection).getByRole('textbox').getAttribute('aria-label'),
+  ).not.toMatch(/^\d+\./);
+  expect(invoke).not.toHaveBeenCalledWith(
+    'study-complete',
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+  );
   expect(within(reflection).getAllByRole('textbox')).toHaveLength(1);
   answerConversation(reflection, (index) => `Reflection answer ${index + 1}`);
-  expect(submit).toBeEnabled();
-  fireEvent.click(submit);
+  expect(
+    within(reflection).queryByRole('button', { name: /Edit answer/ }),
+  ).not.toBeInTheDocument();
   await waitFor(() =>
     expect(invoke).toHaveBeenCalledWith(
       'study-complete',
@@ -517,20 +535,26 @@ it('opens instructions and individual references without tutoring while locking 
     ),
   );
   expect(
-    await screen.findByText(
-      'Day 1 complete — reflection and screenshot saved locally.',
-    ),
+    await screen.findByText('Day 1 complete — reflection submitted.'),
   ).toBeInTheDocument();
+  const celebration = await screen.findByRole('dialog', {
+    name: 'Practice complete',
+  });
+  expect(within(celebration).getByText('Congratulations!')).toBeInTheDocument();
+  fireEvent.click(
+    within(celebration).getByRole('button', { name: 'Back to camp' }),
+  );
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
-it('keeps Challenge 1 open to show its score after submission', async () => {
+it('keeps AI literacy open to show its score after submission', async () => {
   render(<TrainingView />);
   fireEvent.click(
     await screen.findByRole('button', { name: /Start check-in/ }),
   );
   const challenge = (
     await screen.findByRole('heading', {
-      name: 'Conceptual Understanding',
+      name: 'AI literacy',
     })
   ).closest('section')!;
   const radios = within(challenge).getAllByRole('radio');
@@ -538,14 +562,14 @@ it('keeps Challenge 1 open to show its score after submission', async () => {
     fireEvent.click(radios[index]);
   }
   const submit = within(challenge).getByRole('button', {
-    name: 'Finish Challenge 1 & see my score',
+    name: 'Finish AI literacy & see my score',
   });
   await waitFor(() => expect(submit).toBeEnabled());
   fireEvent.click(submit);
 
   expect(await screen.findByText('2 / 8')).toBeInTheDocument();
   expect(
-    screen.getByRole('heading', { name: 'Conceptual Understanding' }),
+    screen.getByRole('heading', { name: 'AI literacy' }),
   ).toBeInTheDocument();
   expect(
     screen.queryByRole('heading', { name: 'Anti-Blind-Acceptance' }),
@@ -1187,3 +1211,64 @@ it('starts the Workflow skill workshop from Chapter 5 in admin mode', async () =
     expect(invoke).toHaveBeenCalledWith('workflow-chapter-start'),
   );
 });
+
+it('prefetches unlocked instructions and reuses them when opening the task', async () => {
+  assessments = completedAssessments();
+  render(<TrainingView />);
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('study-task-materials', 1),
+  );
+  expect(
+    invoke.mock.calls.filter(([channel]) => channel === 'study-task-materials'),
+  ).toHaveLength(1);
+  const task = await screen.findByRole('button', {
+    name: /Day 1 Practice task/,
+  });
+  fireEvent.click(task);
+  expect(await screen.findByText('Try one useful prompt.')).toBeInTheDocument();
+  expect(
+    invoke.mock.calls.filter(([channel]) => channel === 'study-task-materials'),
+  ).toHaveLength(1);
+});
+
+it.each(['admin', 'super_admin'] as const)(
+  'lets %s open and test every practice task without starting training',
+  async (role) => {
+    me.role = role;
+    me.started_at = null;
+    me.days.forEach((day) => {
+      day.unlocked = false;
+      day.deliverable_required = true;
+    });
+    render(<TrainingView />);
+    await screen.findByRole('button', { name: 'Student mode' });
+    for (let day = 1; day <= 7; day += 1) {
+      const task = screen.getByRole('button', {
+        name: `Day ${day} Practice task`,
+      });
+      expect(task).toBeEnabled();
+      fireEvent.click(task);
+      // eslint-disable-next-line no-await-in-loop
+      const brief = await screen.findByText('Try one useful prompt.');
+      expect(brief).toBeVisible();
+      expect(
+        screen.queryByRole('button', { name: 'Start Day 1' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Submit work' })).toBeEnabled();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Close task details' }),
+      );
+    }
+    expect(
+      invoke.mock.calls.some(
+        ([channel]) =>
+          channel === 'study-start' || channel === 'study-complete',
+      ),
+    ).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Student mode' }));
+    await screen.findByRole('button', { name: 'Exit student mode' });
+    expect(
+      screen.getByRole('button', { name: 'Day 7 Practice task' }),
+    ).toBeDisabled();
+  },
+);

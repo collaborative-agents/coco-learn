@@ -183,27 +183,15 @@ function fakeRecorder(automaticLog: Buffer | null = null) {
   };
 }
 
-it('requires and saves a screenshot locally when completing a training day', async () => {
-  const screenshot = Buffer.from('image');
+it('completes a training day without requesting a screenshot', async () => {
   const { invoke, requestJson } = fixture({ success: true });
-  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
-    canceled: false,
-    filePaths: ['/chosen/favorite-moment.png'],
-  });
-  (fs.stat as jest.Mock).mockResolvedValue({ size: screenshot.length });
-
   await expect(
     invoke('study-complete', 1, 'alice', reflection),
   ).resolves.toEqual({
     success: true,
   });
-  expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-screenshots/alice', {
-    recursive: true,
-  });
-  expect(fs.copyFile).toHaveBeenCalledWith(
-    '/chosen/favorite-moment.png',
-    '/coco/training-screenshots/alice/day-1.png',
-  );
+  expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+  expect(fs.copyFile).not.toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalledWith('/coco/training-reflections/alice', {
     recursive: true,
   });
@@ -219,21 +207,7 @@ it('requires and saves a screenshot locally when completing a training day', asy
   );
 });
 
-it('does not complete a training day when screenshot selection is cancelled', async () => {
-  const { invoke, requestJson } = fixture({ success: true });
-  (dialog.showOpenDialog as jest.Mock).mockResolvedValue({
-    canceled: true,
-    filePaths: [],
-  });
-
-  await expect(
-    invoke('study-complete', 1, 'alice', reflection),
-  ).resolves.toEqual({ canceled: true });
-  expect(requestJson).not.toHaveBeenCalled();
-  expect(fs.copyFile).not.toHaveBeenCalled();
-});
-
-it('requires every reflection answer before opening the screenshot chooser', async () => {
+it('requires every reflection answer before completing a training day', async () => {
   const { invoke, requestJson } = fixture({ success: true });
 
   await expect(
@@ -604,4 +578,60 @@ describe('grades', () => {
       'Describe the problem',
     );
   });
+});
+
+it('downloads a submitted file using an authenticated, encoded route', async () => {
+  const { invoke, requestJson } = fixture({
+    filename: 'my report.pdf',
+    data: 'YWJj',
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({
+    canceled: false,
+    filePath: '/chosen/report.pdf',
+  });
+  await invoke('study-download-submission', 'day-2', 'my report.pdf');
+  expect(requestJson).toHaveBeenCalledWith(
+    '/api/study/submissions/day-2/download?filename=my%20report.pdf',
+    'GET',
+    undefined,
+  );
+  expect(fs.writeFile).toHaveBeenCalledWith(
+    '/chosen/report.pdf',
+    Buffer.from('abc'),
+  );
+});
+
+it('rejects invalid submission download targets before requesting them', async () => {
+  const { invoke, requestJson } = fixture({});
+  await expect(
+    invoke('study-download-submission', 'day-8', 'report.pdf'),
+  ).rejects.toThrow('Invalid submission');
+  await expect(
+    invoke('study-download-submission', 'day-2', '../report.pdf'),
+  ).rejects.toThrow('Invalid submitted filename');
+  expect(requestJson).not.toHaveBeenCalled();
+});
+
+it('uses the selected attempt for grades and downloads and rejects invalid IDs', async () => {
+  const attempt = 'a'.repeat(32);
+  const { invoke, requestJson } = fixture({
+    filename: 'report.pdf',
+    data: 'YWJj',
+  });
+  (dialog.showSaveDialog as jest.Mock).mockResolvedValue({ canceled: true });
+  await invoke('study-grade', 'day-2', attempt);
+  expect(requestJson).toHaveBeenLastCalledWith(
+    `/api/study/grades/day-2?attempt_id=${attempt}`,
+    'GET',
+    undefined,
+  );
+  await invoke('study-download-submission', 'day-2', 'report.pdf', attempt);
+  expect(requestJson).toHaveBeenLastCalledWith(
+    `/api/study/submissions/day-2/download?filename=report.pdf&attempt_id=${attempt}`,
+    'GET',
+    undefined,
+  );
+  expect(() => invoke('study-grade', 'day-2', '../other')).toThrow(
+    'Invalid submission attempt',
+  );
 });

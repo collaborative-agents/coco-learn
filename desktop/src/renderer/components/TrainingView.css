@@ -6,7 +6,8 @@
   color: var(--coco-color-text-muted);
   font-size: var(--coco-text-control);
 }
-.training-dialog-actions .agentic-quest-retry {
+.training-dialog-actions .agentic-quest-retry,
+.training-dialog-actions .training-dialog-back {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19,15 +20,18 @@
   color: var(--coco-color-text-muted);
   cursor: pointer;
 }
-.training-dialog-actions .agentic-quest-retry:hover {
+.training-dialog-actions .agentic-quest-retry:hover,
+.training-dialog-actions .training-dialog-back:hover {
   background: var(--coco-color-surface-subtle);
   color: var(--coco-color-text);
 }
-.training-dialog-actions .agentic-quest-retry:focus-visible {
+.training-dialog-actions .agentic-quest-retry:focus-visible,
+.training-dialog-actions .training-dialog-back:focus-visible {
   outline: 2px solid var(--coco-color-primary);
   outline-offset: 3px;
 }
-.training-dialog-actions .agentic-quest-retry:disabled {
+.training-dialog-actions .agentic-quest-retry:disabled,
+.training-dialog-actions .training-dialog-back:disabled {
   opacity: 0.5;
   cursor: default;
 }

@@ -12,9 +12,13 @@ export default function registerTrainingMaterialsIpc(
   ipc: Pick<IpcMain, 'handle'>,
   download: (day: unknown) => Promise<unknown>,
 ) {
-  ipc.handle('study-task-materials', async (_event, day: unknown) =>
-    describeTrainingFiles(await readTrainingDownload(await download(day))),
-  );
+  ipc.handle('study-task-materials', async (_event, day: unknown) => {
+    const materials = describeTrainingFiles(
+      await readTrainingDownload(await download(day)),
+    );
+    // Reference content is only needed for an explicit save, not for preview.
+    return { ...materials, documents: materials.documents.slice(0, 1) };
+  });
   ipc.handle('study-save-references', async (_event, day: unknown) => {
     const files = await readTrainingDownload(await download(day));
     const instruction = describeTrainingFiles(files).documents[0]?.id;

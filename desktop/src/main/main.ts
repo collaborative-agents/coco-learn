@@ -671,9 +671,9 @@ const showPreAssessmentLockedMessage = () => {
       type: 'info',
       title: 'Finish your pre-assessments first',
       message:
-        'Coco chat will unlock after you finish both pre-assessment challenges.',
+        'Coco chat will unlock after you finish AI literacy and the execution task.',
       detail:
-        'Complete Challenge 1 and Challenge 2 in Training to unlock Coco chat, tutoring, and sensing.',
+        'Complete AI literacy and the execution task in Training to unlock Coco chat, tutoring, and sensing.',
       buttons: ['Open pre-assessments', 'Not now'],
       defaultId: 0,
       cancelId: 1,

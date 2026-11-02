@@ -28,6 +28,8 @@ Acceptance checklist
 • Explain what would change your decision.
 What not to do (non-goals)
 • Do not invent data.
+What happens next
+Unnecessary next steps.
 `;
 
 it('extracts task sections without dropping evidence limits, deliverables, or constraints', () => {
@@ -40,9 +42,10 @@ it('extracts task sections without dropping evidence limits, deliverables, or co
     'Deliverables',
     'Success checklist',
     'Keep in mind',
+    'What happens next',
   ]);
   expect(result.sections[1].text).toContain('Do not use outside sources');
-  expect(result.sections.at(-1)?.text).toContain('Do not invent data');
+  expect(result.sections.at(-2)?.text).toContain('Do not invent data');
   expect(briefParagraphs(result.sections[2].text)).toEqual([
     { list: true, text: 'Pick exactly one product.' },
     { list: true, text: 'Explain the trade-off and show your calculations.' },
@@ -66,8 +69,25 @@ it('renders native task content without embedding a PDF', async () => {
   ).toBeInTheDocument();
   expect(screen.getByText('Do not invent data.')).toBeInTheDocument();
   expect(
-    screen.getByRole('heading', { name: 'Deliverables' }),
+    screen.getByRole('heading', { name: 'Win conditions' }),
   ).toBeInTheDocument();
+  expect(
+    screen.getByText('Choose one product for the campaign.'),
+  ).toBeVisible();
+  expect(screen.getByText('A decision memo.')).toBeVisible();
+  expect(
+    screen.getByText('Explain what would change your decision.'),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('heading', { name: 'Your task' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen
+      .getByText('Choose one product for the campaign.')
+      .closest('.post-assessment-mission'),
+  ).not.toBeNull();
+  expect(container.querySelector('details')).toBeNull();
+  expect(screen.queryByText('Unnecessary next steps.')).not.toBeInTheDocument();
   expect(container.querySelector('iframe')).toBeNull();
   expect(extractPdfText).toHaveBeenCalledWith('encoded-pdf');
 });

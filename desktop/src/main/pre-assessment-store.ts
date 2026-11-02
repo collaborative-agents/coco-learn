@@ -103,7 +103,9 @@ function stateFromServer(raw: unknown): PreAssessmentState {
       E: sets.E ? resultFromServer(sets.E, 'E') : null,
     },
   };
-  state.complete = Boolean(state.sets.A && state.sets.E);
+  state.complete = candidate.complete === true;
+  state.execution = (candidate.execution ??
+    null) as PreAssessmentState['execution'];
   return state;
 }
 
@@ -117,29 +119,6 @@ const submissionBody = (result: PreAssessmentResult) =>
       }
     : { responses: result.answers };
 
-export async function syncPreAssessmentState(
-  userDataPath: string,
-  userId: string,
-  client: PreAssessmentGateway,
-): Promise<PreAssessmentState> {
-  const local = readPreAssessmentState(userDataPath, userId);
-  // Backfill results created before server persistence was introduced.
-  for (const set of ['A', 'E'] as const) {
-    const result = local.sets[set];
-    if (result)
-      await client.requestJson(
-        `/api/study/pre-assessments/${set}`,
-        'POST',
-        submissionBody(result),
-      );
-  }
-  const remote = stateFromServer(
-    await client.requestJson('/api/study/pre-assessments', 'GET'),
-  );
-  writeState(userDataPath, userId, remote);
-  return remote;
-}
-
 export function readPreAssessmentState(
   userDataPath: string,
   userId: string | null,
@@ -148,12 +127,34 @@ export function readPreAssessmentState(
   const state = readStore(userDataPath).users[userId];
   if (!state) return emptyState();
   return {
-    complete: Boolean(state.sets?.A && state.sets?.E),
+    complete: state.complete === true,
+    execution: state.execution ?? null,
     sets: {
       A: state.sets?.A ?? null,
       E: state.sets?.E ?? null,
     },
   };
+}
+
+export async function syncPreAssessmentState(
+  userDataPath: string,
+  userId: string,
+  client: PreAssessmentGateway,
+): Promise<PreAssessmentState> {
+  const local = readPreAssessmentState(userDataPath, userId);
+  // Backfill results created before server persistence was introduced.
+  const result = local.sets.A;
+  if (result)
+    await client.requestJson(
+      '/api/study/pre-assessments/A',
+      'POST',
+      submissionBody(result),
+    );
+  const remote = stateFromServer(
+    await client.requestJson('/api/study/pre-assessments', 'GET'),
+  );
+  writeState(userDataPath, userId, remote);
+  return remote;
 }
 
 export function arePreAssessmentsComplete(
@@ -252,7 +253,9 @@ export function registerPreAssessmentIpc(
         set,
       );
       state.sets[set] = result;
-      state.complete = Boolean(state.sets.A && state.sets.E);
+      state.complete = Boolean(
+        state.sets.A && (state.execution || state.sets.E),
+      );
       writeState(userDataPath(), userId, state);
       await onCompleted();
       return result;

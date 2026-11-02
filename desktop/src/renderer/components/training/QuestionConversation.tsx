@@ -22,6 +22,7 @@ export default function QuestionConversation<Id extends string>({
   maxLength,
   disabled = false,
   readOnly = false,
+  allowEditing = true,
 }: {
   questions: readonly ConversationQuestion<Id>[];
   answers: Readonly<Record<Id, string>>;
@@ -31,6 +32,7 @@ export default function QuestionConversation<Id extends string>({
   maxLength?: number;
   disabled?: boolean;
   readOnly?: boolean;
+  allowEditing?: boolean;
 }) {
   const [drafts, setDrafts] = useState<Partial<Record<Id, string>>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -81,7 +83,7 @@ export default function QuestionConversation<Id extends string>({
             {answered && (
               <div className="question-conversation-answer">
                 <p>{answers[id]}</p>
-                {!readOnly && (
+                {!readOnly && allowEditing && (
                   <button
                     type="button"
                     aria-label={`Edit answer: ${prompt}`}

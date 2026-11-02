@@ -1,59 +1,21 @@
+/* eslint-disable react/require-default-props -- React 19 uses default function parameters. */
 import { useEffect, useState } from 'react';
 import type { Grade } from '../../../shared/grading';
 import { api } from './training-api';
 import './GradeResultView.css';
+import GradeFeedback from './GradeFeedback';
 
 const POLL_MS = 15_000;
 
-function ReportProblem({ taskId }: { taskId: string }) {
-  const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState('');
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
-  if (sent)
-    return <p role="status">Thanks. The study team will review your report.</p>;
-  if (!open)
-    return (
-      <button type="button" onClick={() => setOpen(true)}>
-        Report a problem
-      </button>
-    );
-  return (
-    <div className="grade-report">
-      <label htmlFor={`grade-report-${taskId}`}>
-        What looks wrong with this result?
-        <textarea
-          id={`grade-report-${taskId}`}
-          value={message}
-          maxLength={2000}
-          onChange={(event) => setMessage(event.target.value)}
-        />
-      </label>
-      {error && (
-        <p role="alert" className="training-error">
-          {error}
-        </p>
-      )}
-      <button
-        type="button"
-        disabled={!message.trim()}
-        onClick={async () => {
-          setError('');
-          try {
-            await api('study-grade-report', taskId, message);
-            setSent(true);
-          } catch (reason) {
-            setError(reason instanceof Error ? reason.message : String(reason));
-          }
-        }}
-      >
-        Send report
-      </button>
-    </div>
-  );
-}
-
-export default function GradeResultView({ taskId }: { taskId: string }) {
+export default function GradeResultView({
+  taskId,
+  awaitingSubmission = false,
+  attemptId,
+}: {
+  taskId: string;
+  attemptId?: string;
+  awaitingSubmission?: boolean;
+}) {
   const [grade, setGrade] = useState<Grade | null>(null);
   useEffect(() => {
     let active = true;
@@ -61,14 +23,20 @@ export default function GradeResultView({ taskId }: { taskId: string }) {
     const load = async () => {
       let next: Grade | null = null;
       try {
-        next = (await api('study-grade', taskId)) as Grade | null;
+        next = (await (attemptId
+          ? api('study-grade', taskId, attemptId)
+          : api('study-grade', taskId))) as Grade | null;
       } catch {
         // Results are additional to the submission, so a failed check stays
         // quiet and is tried again.
       }
       if (!active) return;
       if (next) setGrade(next);
-      if (!next || next.status === 'pending')
+      if (
+        !next ||
+        next.status === 'pending' ||
+        (awaitingSubmission && next.status === 'none')
+      )
         timer = window.setTimeout(load, POLL_MS);
     };
     load();
@@ -76,10 +44,10 @@ export default function GradeResultView({ taskId }: { taskId: string }) {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [taskId]);
+  }, [taskId, awaitingSubmission, attemptId]);
 
-  if (!grade || grade.status === 'none') return null;
-  if (grade.status === 'pending')
+  if ((!grade || grade.status === 'none') && !awaitingSubmission) return null;
+  if (!grade || grade.status === 'none' || grade.status === 'pending')
     return (
       <section className="grade-result" aria-label="Your results">
         <p role="status">
@@ -102,53 +70,61 @@ export default function GradeResultView({ taskId }: { taskId: string }) {
         )}
       </div>
       {grade.corrected && grade.correction_note && (
-        <p role="status">
+        <p className="grade-correction" role="status">
           <strong>Updated by the study team:</strong> {grade.correction_note}
         </p>
       )}
-      {grade.feedback && <p>{grade.feedback}</p>}
+      {grade.feedback && <GradeFeedback text={grade.feedback} />}
       {Boolean(grade.sections?.length) && (
-        <dl className="grade-sections">
-          {grade.sections!.map((section) => (
-            <div key={section.label}>
-              <dt>{section.label}</dt>
-              <dd>
-                {section.score} / {section.max_score}
-              </dd>
-            </div>
-          ))}
-          {Boolean(grade.bonus) && (
-            <div>
-              <dt>Bonus, reported separately</dt>
-              <dd>+{grade.bonus}</dd>
-            </div>
-          )}
-        </dl>
+        <div className="grade-breakdown">
+          <h4>Score breakdown</h4>
+          <dl className="grade-sections">
+            {grade.sections!.map((section) => (
+              <div key={section.label}>
+                <dt>{section.label}</dt>
+                <dd>
+                  <span>
+                    {section.score} / {section.max_score}
+                  </span>
+                  <span className="grade-section-track" aria-hidden="true">
+                    <span
+                      style={{
+                        width: `${section.max_score > 0 ? Math.min(100, Math.max(0, (section.score / section.max_score) * 100)) : 0}%`,
+                      }}
+                    />
+                  </span>
+                </dd>
+              </div>
+            ))}
+            {Boolean(grade.bonus) && (
+              <div>
+                <dt>Bonus, reported separately</dt>
+                <dd>+{grade.bonus}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
       )}
       {Boolean(grade.strengths?.length) && (
-        <>
+        <div className="grade-feedback-section grade-feedback-section--strengths">
           <h4>What went well</h4>
           <ul>
             {grade.strengths!.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-        </>
+        </div>
       )}
       {Boolean(grade.gaps?.length) && (
-        <>
+        <div className="grade-feedback-section">
           <h4>What to improve</h4>
           <ul>
             {grade.gaps!.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-        </>
+        </div>
       )}
-      <p className="grade-disclaimer">
-        This feedback is automated and may contain errors.
-      </p>
-      <ReportProblem taskId={taskId} />
     </section>
   );
 }

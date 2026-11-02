@@ -1,3 +1,4 @@
+import AssessmentMission from './training/AssessmentMission';
 /* eslint-disable react/require-default-props -- Optional shared task configuration. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -16,6 +17,11 @@ import FollowUpBriefing, {
   FOLLOW_UP_TOOLKIT,
 } from './training/FollowUpBriefing';
 import GradeResultView from './training/GradeResultView';
+import AssessmentCompleted from './training/AssessmentCompleted';
+import PreAssessmentBriefing, {
+  PRE_ASSESSMENT_TOOLKIT,
+} from './training/PreAssessmentBriefing';
+import SubmittedFiles from './training/SubmittedFiles';
 import QuestionConversation from './training/QuestionConversation';
 import SelfEfficacySection from './training/SelfEfficacySection';
 
@@ -125,13 +131,24 @@ function AiLiteracySection({
 
 function MissionBriefing() {
   return (
-    <div className="post-assessment-mission">
-      <div className="post-assessment-mission-title">
-        <span aria-hidden>🎯</span>
-        <div>
-          <h3>Trust, But Verify</h3>
-        </div>
-      </div>
+    <AssessmentMission
+      title="Trust, But Verify"
+      winConditions={
+        <>
+          <li>Your plan reaches at least 8%, using numbers you checked.</li>
+          <li>Every saving says where its number comes from.</li>
+          <li>Anything wrong in the chosen draft is fixed with evidence.</li>
+          <li>
+            You explain what your plan gives up and why you did not pick another
+            plan.
+          </li>
+          <li>
+            Submit the recorded activity report, answer sheet, and
+            questionnaire. Task duration is recorded automatically.
+          </li>
+        </>
+      }
+    >
       <p>
         You are a financial analyst at Meridian Analytics Inc. (a fictional
         company). Today is August 10, 2026. Leadership needs to cut this year’s
@@ -164,29 +181,14 @@ function MissionBriefing() {
         hold up. Savings are counted per year once the action takes effect. The
         target is at least 8% of the approved FY2026 budget.
       </p>
-      <div className="post-assessment-win-conditions">
-        <strong>Win conditions</strong>
-        <ul>
-          <li>Your plan reaches at least 8%, using numbers you checked.</li>
-          <li>Every saving says where its number comes from.</li>
-          <li>Anything wrong in the chosen draft is fixed with evidence.</li>
-          <li>
-            You explain what your plan gives up and why you did not pick another
-            plan.
-          </li>
-          <li>
-            Submit the recorded activity report, answer sheet, and
-            questionnaire. Task duration is recorded automatically.
-          </li>
-        </ul>
-      </div>
-    </div>
+    </AssessmentMission>
   );
 }
 
 export function ExecutionSection({
   state,
   followUp = false,
+  preAssessment = false,
   busy,
   onStart,
   onDownload,
@@ -195,22 +197,37 @@ export function ExecutionSection({
 }: {
   state: PostAssessmentState;
   followUp?: boolean;
+  preAssessment?: boolean;
   busy: boolean;
   onStart: () => Promise<void>;
   onDownload: () => Promise<void>;
   onChooseAnswerSheet: () => Promise<string | null>;
   onSubmit: (questionnaire: ExecutionQuestionnaire) => Promise<void>;
 }) {
-  const route = followUp ? 'follow-up-assessment' : 'post-assessment';
+  let route = 'post-assessment';
+  let missionTitle = 'Financial Analysis Mission';
+  let Mission = MissionBriefing;
+  let toolkit: readonly { filename: string }[] = POST_ASSESSMENT_TOOLKIT;
+  if (preAssessment) {
+    route = 'pre-assessment';
+    missionTitle = 'Supply Planning Mission';
+    Mission = PreAssessmentBriefing;
+    toolkit = PRE_ASSESSMENT_TOOLKIT;
+  } else if (followUp) {
+    route = 'follow-up-assessment';
+    missionTitle = 'Staffing Planning Mission';
+    Mission = FollowUpBriefing;
+    toolkit = FOLLOW_UP_TOOLKIT;
+  }
   const invokeTask = useCallback(
     (channel: Parameters<typeof invoke>[0], ...args: unknown[]) =>
       invoke(
-        (followUp
-          ? channel.replace('post-assessment', 'follow-up-assessment')
-          : channel) as Parameters<typeof invoke>[0],
+        channel.replace('post-assessment', route) as Parameters<
+          typeof invoke
+        >[0],
         ...args,
       ),
-    [followUp],
+    [route],
   );
   const complete = Boolean(state.sections.execution);
   const [questionnaire, setQuestionnaire] = useState(emptyQuestionnaire);
@@ -298,11 +315,7 @@ export function ExecutionSection({
     <section className="post-assessment-section">
       <div className="pre-assessment-challenge-header">
         <div>
-          <h3>
-            {followUp
-              ? 'Staffing Planning Mission'
-              : 'Financial Analysis Mission'}
-          </h3>
+          <h3>{missionTitle}</h3>
           <p>
             In this task, we’ll give you a brand-new work challenge and see how
             you tackle it—how you make decisions, use AI, verify its work, and
@@ -318,7 +331,7 @@ export function ExecutionSection({
         )}
       </div>
 
-      {followUp ? <FollowUpBriefing /> : <MissionBriefing />}
+      <Mission />
 
       <div className="post-assessment-toolkit">
         <div>
@@ -335,10 +348,7 @@ export function ExecutionSection({
             <div>
               <strong>Complete mission toolkit</strong>
               <small>
-                Includes{' '}
-                {(followUp ? FOLLOW_UP_TOOLKIT : POST_ASSESSMENT_TOOLKIT)
-                  .map((file) => file.filename)
-                  .join(', ')}
+                Includes {toolkit.map((file) => file.filename).join(', ')}
               </small>
             </div>
             <button
@@ -355,8 +365,15 @@ export function ExecutionSection({
       </div>
 
       {complete && state.sections.execution && (
-        <div className="post-assessment-submitted">
+        <div className="post-assessment-submitted post-assessment-submitted--mission">
           <strong>Mission submitted</strong>
+          <SubmittedFiles
+            taskId={route}
+            files={[
+              state.sections.execution.outcome_filename,
+              ...state.sections.execution.interaction_log_filenames,
+            ]}
+          />
         </div>
       )}
       {complete && <GradeResultView taskId={route} />}
@@ -770,32 +787,31 @@ export default function PostAssessmentPanel({
   return (
     <section
       className={`training-card post-assessment${state?.complete ? ' post-assessment--complete' : ''}`}
-      aria-labelledby="post-assessment-title"
+      aria-label="Final assessment"
     >
-      <div className="post-assessment-intro">
-        <div>
-          <h2 id="post-assessment-title">
-            {state?.complete
-              ? 'Post-assessment complete!'
-              : 'Complete your post-assessment'}
-          </h2>
-          <p>
-            Finish all three parts. Your responses and files are submitted
-            securely to the study team.
-          </p>
+      {state?.complete && <AssessmentCompleted />}
+      {!state?.complete && (
+        <div className="post-assessment-intro">
+          <div>
+            <h2 id="post-assessment-title">Complete your post-assessment</h2>
+            <p>
+              Finish all three parts. Your responses and files are submitted
+              securely to the study team.
+            </p>
+          </div>
+          <div
+            className="pre-assessment-progress"
+            role="progressbar"
+            aria-label="Post-assessment progress"
+            aria-valuemin={0}
+            aria-valuemax={3}
+            aria-valuenow={completedCount}
+          >
+            <strong>{completedCount}/3</strong>
+            <span>submitted</span>
+          </div>
         </div>
-        <div
-          className="pre-assessment-progress"
-          role="progressbar"
-          aria-label="Post-assessment progress"
-          aria-valuemin={0}
-          aria-valuemax={3}
-          aria-valuenow={completedCount}
-        >
-          <strong>{completedCount}/3</strong>
-          <span>submitted</span>
-        </div>
-      </div>
+      )}
       {error && (
         <p className="training-error" role="alert">
           {error}

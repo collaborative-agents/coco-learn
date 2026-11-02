@@ -1,8 +1,8 @@
 /* eslint-disable react/require-default-props -- React 19 uses default function parameters. */
 import { useEffect, useState, type ReactNode } from 'react';
 import type { TrainingDocument } from '../../../shared/training-materials';
-import extractPdfText from './extract-pdf-text';
-import parseTaskBrief, { briefParagraphs, type TaskBrief } from './task-brief';
+import { cachedTaskBrief, loadTaskBrief } from './task-brief-cache';
+import { briefParagraphs, type TaskBrief } from './task-brief';
 import './TaskBrief.css';
 
 function SectionText({ text }: { text: string }) {
@@ -20,11 +20,11 @@ function SectionText({ text }: { text: string }) {
         block.list ? (
           // These immutable blocks have no identity other than their order in the source.
           // eslint-disable-next-line react/no-array-index-key
-          <ul key={index}>
+          <ol className="training-brief-items" key={index}>
             {block.texts.map((item) => (
               <li key={item}>{item}</li>
             ))}
-          </ul>
+          </ol>
         ) : (
           // eslint-disable-next-line react/no-array-index-key
           <p key={index}>{block.texts[0]}</p>
@@ -41,16 +41,18 @@ export default function PdfTaskBrief({
   document: TrainingDocument;
   referenceDownload?: ReactNode;
 }) {
-  const [brief, setBrief] = useState<TaskBrief | null>(null);
+  const [brief, setBrief] = useState<TaskBrief | null>(() =>
+    cachedTaskBrief(document),
+  );
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
-    setBrief(null);
+    setBrief(cachedTaskBrief(document));
     setError('');
-    extractPdfText(document.content)
-      .then((text) => {
-        if (active) setBrief(parseTaskBrief(text, document.name));
+    loadTaskBrief(document)
+      .then((result) => {
+        if (active) setBrief(result);
         return undefined;
       })
       .catch((reason: unknown) => {
@@ -77,55 +79,94 @@ export default function PdfTaskBrief({
   const mission = brief.sections.filter(
     (section) => section.title === 'Your mission',
   );
-  const primary = mission.length
+  const background = brief.sections.filter(
+    (section) => section.title === 'Background',
+  );
+  const missionContent = mission.length
     ? mission
     : brief.sections.filter((section) => section.title === 'Your task');
+  const deliverables = brief.sections.filter(
+    (section) => section.title === 'Deliverables',
+  );
+  const outcomes = brief.sections.filter((section) =>
+    ['Success criteria', 'Success checklist', 'Keep in mind'].includes(
+      section.title,
+    ),
+  );
+  const references = brief.sections.filter(
+    (section) => section.title === 'Reference files',
+  );
+  const otherSections = brief.sections.filter(
+    (section) =>
+      ![
+        'Background',
+        'Your mission',
+        'Your task',
+        'Deliverables',
+        'Success criteria',
+        'Success checklist',
+        'Keep in mind',
+        'Reference files',
+        'What happens next',
+      ].includes(section.title),
+  );
   return (
     <article className="training-task-brief">
       <div className="post-assessment-mission">
         <h3>{brief.title}</h3>
-        {primary.map((section) => (
-          <SectionText key={section.title} text={section.text} />
-        ))}
-        {brief.sections
-          .filter((section) => section.title === 'Background')
-          .map((section) => (
-            <details key={section.title} open={primary.length === 0}>
-              <summary>Background</summary>
-              <SectionText text={section.text} />
-            </details>
-          ))}
-      </div>
-      {brief.sections
-        .filter(
-          (section) =>
-            !primary.includes(section) && section.title !== 'Background',
-        )
-        .map((section) => (
-          <section
-            className={
-              [
-                'Deliverables',
-                'Success criteria',
-                'Success checklist',
-              ].includes(section.title)
-                ? 'training-brief-outcome'
-                : ''
-            }
-            key={section.title}
-          >
-            <h4>{section.title}</h4>
+        {background.map((section) => (
+          <section className="training-brief-context" key={section.title}>
+            <h4>Background</h4>
             <SectionText text={section.text} />
-            {section.title === 'Reference files' && referenceDownload}
           </section>
         ))}
-      {!brief.sections.some((section) => section.title === 'Reference files') &&
-        referenceDownload && (
-          <section>
-            <h4>Reference files</h4>
-            {referenceDownload}
+        {missionContent.length > 0 && (
+          <section className="training-brief-context">
+            <h4>Your mission</h4>
+            {missionContent.map((section) => (
+              <SectionText key={section.title} text={section.text} />
+            ))}
           </section>
         )}
+        {deliverables.length > 0 && (
+          <section className="post-assessment-win-conditions">
+            <h4>Deliverables</h4>
+            {deliverables.map((section) => (
+              <SectionText key={section.title} text={section.text} />
+            ))}
+          </section>
+        )}
+        {outcomes.length > 0 && (
+          <section className="post-assessment-win-conditions">
+            <h4>Win conditions</h4>
+            {outcomes.map((section) => (
+              <div key={section.title}>
+                {section.title === 'Keep in mind' && (
+                  <strong>Keep in mind</strong>
+                )}
+                <SectionText text={section.text} />
+              </div>
+            ))}
+          </section>
+        )}
+      </div>
+      {(references.length > 0 || referenceDownload) && (
+        <section className="post-assessment-toolkit">
+          <div>
+            <h4>Reference files</h4>
+            {references.map((section) => (
+              <SectionText key={section.title} text={section.text} />
+            ))}
+          </div>
+          {referenceDownload}
+        </section>
+      )}
+      {otherSections.map((section) => (
+        <section key={section.title}>
+          <h4>{section.title}</h4>
+          <SectionText text={section.text} />
+        </section>
+      ))}
     </article>
   );
 }

@@ -109,3 +109,25 @@ test('hides blank saved messages and groups tools across whitespace', () => {
     '2 steps · Done',
   );
 });
+
+test('groups tool calls across approved requests while retaining denials', () => {
+  const permission = {
+    id: 'permission',
+    kind: 'action' as const,
+    tool: 'bash',
+    arguments: { command: 'ls' },
+    directory: '/work',
+    status: 'allowed' as const,
+  };
+  const groups = groupActivity([
+    { kind: 'tool', call: call('1', 'ls') },
+    { kind: 'permission', request: permission },
+    { kind: 'tool', call: call('2', 'pwd') },
+    {
+      kind: 'permission',
+      request: { ...permission, id: 'denied', status: 'denied' },
+    },
+  ]);
+  expect(groups.map((group) => group.kind)).toEqual(['tools', 'permission']);
+  expect(groups[0].kind === 'tools' && groups[0].calls).toHaveLength(2);
+});

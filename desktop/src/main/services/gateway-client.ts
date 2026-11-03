@@ -3,6 +3,24 @@ import { readHarnessVersion } from './harness-version';
 import type { HarnessVersion } from './harness-version';
 import type { SessionStartTrigger } from '../../shared/session-start';
 
+function gatewayErrorMessage(detail: unknown, status: number): string {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  const issues = Array.isArray(detail) ? detail : [detail];
+  const messages = issues.slice(0, 5).flatMap((issue) => {
+    if (!issue || typeof issue !== 'object') return [];
+    const item = issue as Record<string, unknown>;
+    const message = item.msg ?? item.message;
+    if (typeof message !== 'string') return [];
+    const field = Array.isArray(item.loc)
+      ? item.loc.filter((part) => part !== 'body').join('.')
+      : '';
+    return [(field ? `${field}: ${message}` : message).slice(0, 500)];
+  });
+  return messages.length
+    ? `HTTP ${status}: ${messages.join('; ')}`
+    : `HTTP ${status}`;
+}
+
 interface GatewayLogger {
   info(message: string): void;
   warn(message: string): void;
@@ -228,9 +246,7 @@ export class CocoGatewayClient {
       user_id: this.userId,
       started_at: startedAt.toISOString(),
       start_trigger: startTrigger,
-      ...(startMessage?.trim()
-        ? { start_message: startMessage.trim() }
-        : {}),
+      ...(startMessage?.trim() ? { start_message: startMessage.trim() } : {}),
       ...(tutorModel ? { tutor_model: tutorModel } : {}),
       ...(observerModel ? { observer_model: observerModel } : {}),
       ...(harness.gitCommitSha ? { git_commit_sha: harness.gitCommitSha } : {}),
@@ -416,9 +432,11 @@ export class CocoGatewayClient {
       try {
         result = (await response.json()) as Record<string, unknown>;
       } catch {
-        if (response.ok) throw new Error('The Coco backend returned an invalid response.');
+        if (response.ok)
+          throw new Error('The Coco backend returned an invalid response.');
       }
-      if (!response.ok) throw new Error(String(result.detail ?? `HTTP ${response.status}`));
+      if (!response.ok)
+        throw new Error(gatewayErrorMessage(result.detail, response.status));
       return result;
     } finally {
       clearTimeout(timeout);

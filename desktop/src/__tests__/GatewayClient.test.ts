@@ -365,3 +365,38 @@ describe('CocoGatewayClient', () => {
     });
   });
 });
+
+it.each([
+  ['An upload failed.', 'An upload failed.'],
+  [
+    [
+      {
+        loc: ['body', 'interaction_logs', 0, 'data'],
+        msg: 'String is too long',
+        input: 'PRIVATE BASE64',
+      },
+    ],
+    'HTTP 422: interaction_logs.0.data: String is too long',
+  ],
+  [
+    { message: 'Please retry.', input: 'PRIVATE BASE64' },
+    'HTTP 422: Please retry.',
+  ],
+  [{ input: 'PRIVATE BASE64' }, 'HTTP 422'],
+])(
+  'formats gateway errors without exposing rejected input',
+  async (detail, expected) => {
+    const client = new CocoGatewayClient({
+      gatewayUrl: 'https://gateway.example',
+      fetchImpl: jest.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        json: async () => ({ detail }),
+      }),
+    });
+    client.setAuthSession('test-token', 'test-user');
+    await expect(
+      client.requestJson('/api/study/pre-assessment/execution', 'POST', {}),
+    ).rejects.toThrow(expected);
+  },
+);

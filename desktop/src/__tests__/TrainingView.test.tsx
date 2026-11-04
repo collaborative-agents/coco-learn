@@ -206,9 +206,7 @@ it('preserves reflection drafts when Training becomes inactive and is reopened',
     .forEach((group) => {
       fireEvent.click(within(group).getByRole('radio', { name: '4 — Agree' }));
     });
-  fireEvent.click(
-    within(dialog).getByRole('button', { name: 'Next' }),
-  );
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
   const draft = within(dialog).getAllByRole('textbox')[0];
   fireEvent.change(draft, {
     target: { value: 'Keep my unfinished reflection.' },
@@ -285,9 +283,7 @@ it.each(['cancel', 'error'])(
     const ratings = within(dialog).getAllByRole('radio');
     for (let index = 0; index < ratings.length; index += 5)
       fireEvent.click(ratings[index]);
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: 'Next' }),
-    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
     answerConversation(dialog, () => 'Keep my answer');
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith(
@@ -374,8 +370,7 @@ it('keeps an unsent reflection answer when going back to the ratings', async () 
   const ratings = within(dialog).getAllByRole('radio');
   for (let index = 0; index < ratings.length; index += 5)
     fireEvent.click(ratings[index]);
-  const next = () =>
-    within(dialog).getByRole('button', { name: 'Next' });
+  const next = () => within(dialog).getByRole('button', { name: 'Next' });
   fireEvent.click(next());
   fireEvent.change(within(dialog).getByRole('textbox'), {
     target: { value: 'Not sent yet' },
@@ -1272,3 +1267,29 @@ it.each(['admin', 'super_admin'] as const)(
     ).toBeDisabled();
   },
 );
+
+it('opens the final check-in before training when the server allows it', async () => {
+  me.training_pacing = 'self_paced';
+  me.post_assessment_unlocked = true;
+  postAssessment.unlocked = true;
+  render(<TrainingView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: /Final check-in/ }),
+  );
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Complete your post-assessment',
+    }),
+  ).toBeInTheDocument();
+});
+
+it('honors a server lock even when local training appears complete', async () => {
+  me.days.forEach((day) => {
+    day.completed_at = '2026-10-07T12:00:00Z';
+  });
+  me.post_assessment_unlocked = false;
+  render(<TrainingView />);
+  expect(
+    await screen.findByRole('button', { name: /Final check-in/ }),
+  ).toBeDisabled();
+});

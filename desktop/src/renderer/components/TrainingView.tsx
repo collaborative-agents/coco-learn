@@ -118,7 +118,11 @@ export default function TrainingView({
   const trainingComplete = Boolean(
     state?.days.length === 7 && state.days.every((day) => day.completed_at),
   );
-  const postAssessmentUnlocked = adminMode || trainingComplete;
+  const postAssessmentUnlocked =
+    adminMode ||
+    (studentMode
+      ? state?.training_pacing === 'self_paced' || trainingComplete
+      : (state?.post_assessment_unlocked ?? trainingComplete));
   const orderedDays = [...(state?.days ?? [])].sort((a, b) => a.day - b.day);
   const nextDay = orderedDays.find((day) => !day.completed_at);
   const selectedDay = state?.days.find((day) => day.day === active);
@@ -268,10 +272,10 @@ export default function TrainingView({
             <details className="training-about">
               <summary>How it works</summary>
               <p>
-                During the three-week AI Literacy Camp, you’ll try a new AI
-                collaboration task each day in the first week. Start and final
-                check-ins, followed by a follow-up 14 days after your final
-                check-in, help you see how your skills grow.
+                {state?.training_pacing === 'self_paced'
+                  ? 'Complete the seven AI collaboration tasks at your own pace. Each task unlocks as soon as you finish the previous one. Take the final check-in whenever you feel ready.'
+                  : 'During the three-week AI Literacy Camp, you’ll try a new AI collaboration task each day in the first week. Start and final check-ins help you see how your skills grow.'}{' '}
+                A follow-up unlocks 14 days after your final check-in.
               </p>
             </details>
           </div>

@@ -15,6 +15,8 @@ export interface StudyState {
   role: 'super_admin' | 'admin' | 'participant';
   tutoring_allowed: boolean;
   pre_assessments_complete: boolean;
+  training_pacing?: 'daily' | 'self_paced';
+  post_assessment_unlocked?: boolean;
   post_assessment_complete?: boolean;
   follow_up_assessment?: {
     visible: boolean;

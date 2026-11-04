@@ -138,7 +138,7 @@ import {
   recordUnderstandingChecked,
 } from './session-event-store';
 import {
-  getSystemPermissionWarning,
+  readSystemPermissionWarning as readPlatformPermissionWarning,
   needsWindowsMicrophoneSettings,
   systemPermissionButtonLabel,
   systemPermissionExplanation,
@@ -1368,10 +1368,10 @@ ipcMain.on('quit-from-avatar', (event) => {
 });
 
 const readSystemPermissionWarning = () =>
-  getSystemPermissionWarning(process.platform, {
+  readPlatformPermissionWarning(process.platform, () => ({
     accessibilityTrusted: systemPreferences.isTrustedAccessibilityClient(false),
     screenCaptureStatus: systemPreferences.getMediaAccessStatus('screen'),
-  });
+  }));
 
 const readSystemPermissionHealth = () => {
   const warning = readSystemPermissionWarning();

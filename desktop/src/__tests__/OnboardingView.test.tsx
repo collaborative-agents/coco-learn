@@ -136,7 +136,9 @@ describe('onboarding window', () => {
   });
 
   it('keeps permissions blocked if their status cannot be loaded', async () => {
-    setup('routerManaged=1', { 'get-system-permissions': null });
+    const { responses } = setup('routerManaged=1', {
+      'get-system-permissions': null,
+    });
     await act(async () => {
       render(<OnboardingView />);
     });
@@ -145,6 +147,14 @@ describe('onboarding window', () => {
       'Could not check permissions',
     );
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.queryByText('Checking…')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Status unavailable')).toHaveLength(2);
+    responses['get-system-permissions'] = { missing: [] };
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });
 
   it('handles microphone denial without enabling voice and allows continuing', async () => {

@@ -37,6 +37,7 @@ export default function PermissionsStep({
   const [error, setError] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
   const isMac = /Mac/i.test(navigator.platform);
+  const unavailableStatus = error ? 'Status unavailable' : 'Checking…';
 
   const refresh = useCallback(async () => {
     try {
@@ -49,6 +50,7 @@ export default function PermissionsStep({
       onReady(result.missing.length === 0);
       setError('');
     } catch {
+      setHealth(null);
       onReady(false);
       setError('Could not check permissions. Please try again.');
     }
@@ -118,7 +120,7 @@ export default function PermissionsStep({
                       {opening === target ? 'Opening…' : 'Grant access'}
                     </button>
                     <span className="ob-permission-status">
-                      {health ? 'Permission required' : 'Checking…'}
+                      {health ? 'Permission required' : unavailableStatus}
                     </span>
                   </>
                 )}

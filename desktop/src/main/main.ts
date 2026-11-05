@@ -1,4 +1,8 @@
-import aggregateCallMetrics from '../shared/aggregate-call-metrics';
+import createProactiveNotifications from './proactive-notifications';
+import type { ChatSeed, InstantSuggestion, SuggestionObservation } from './proactive-types';
+import registerReactiveChat from './reactive-chat';
+import ensureChatConversation from './chat-conversation';
+import createAgent101Controller from './services/agent101-controller';
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -33,7 +37,7 @@ import {
   systemPreferences,
   desktopCapturer,
 } from 'electron';
-import type { IpcMainInvokeEvent, Rectangle, WebContents } from 'electron';
+import type { Rectangle, WebContents } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { DesktopAppUpdater } from './app-updater';
 import { installDockUpdateMenu } from './dock-menu';
@@ -55,12 +59,9 @@ import {
   SocialService,
   registerSocialIpcHandlers,
 } from './services/social-service';
-import { registerStudyIpc } from './services/study-service';
+import registerTrainingPanel from './training-panel-controller';
 import type { StudyState } from '../shared/study';
-import {
-  registerPreAssessmentIpc,
-  syncPreAssessmentState,
-} from './pre-assessment-store';
+import { syncPreAssessmentState } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import configureMainWindow, { resizeMainWindow } from './main-window-behavior';
 import log from 'electron-log';
@@ -72,7 +73,6 @@ import {
   retryOperation,
   RetryCancelledError,
 } from './services/retry-operation';
-import { shouldStartSessionFromUserMessage } from './services/session-start-policy';
 import {
   shouldOfferInstantSuggestion,
   shouldSurfaceObservation,
@@ -82,19 +82,8 @@ import {
   stopObservationStream,
 } from './services/observation-stream';
 import { NextDaySummaryScheduler } from './services/next-day-summary-scheduler';
-import {
-  consumeTutorStream,
-  TutorTurnTiming,
-  TutorStreamTimeoutError,
-} from './services/tutor-stream';
 import type { TutorStreamEvent } from './services/tutor-stream';
 import AgentRuns from './services/agent-runs';
-import registerContextTraining from './services/context-training';
-import registerTokenTraining from './services/token-training';
-import registerModelTraining from './services/model-training';
-import registerWorkflowTraining from './services/workflow-training';
-import registerToolExploration from './services/tool-exploration';
-import trackAgent101 from './services/agent101-tracking';
 import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
@@ -133,7 +122,7 @@ import {
   setConversationEnded,
   settleStoredReply,
 } from './conversation-store';
-import type { StoredConversation, StoredReply } from './conversation-store';
+import type { StoredConversation } from './conversation-store';
 import {
   recordSessionEnded,
   recordSessionStarted,
@@ -311,10 +300,7 @@ let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
 let wakeWordCaptureWindow: BrowserWindow | null = null;
-let notificationWindow: BrowserWindow | null = null;
 let nextDaySummaryScheduler: NextDaySummaryScheduler | null = null;
-let notificationHovered = false;
-let proactiveSuggestionOpen = false;
 let latestHiddenSuggestionObservationId: string | undefined;
 let authWindow: BrowserWindow | null = null;
 let onboardingWindow: BrowserWindow | null = null;
@@ -385,8 +371,8 @@ const setPostAssessmentActive = (active: boolean) => {
   );
   if (active) {
     latestHiddenSuggestionObservationId = undefined;
-    proactiveSuggestionOpen = false;
-    notificationWindow?.destroy();
+    proactive.setSuggestionOpen(false);
+    proactive.dismissNotification();
     clearAvatarInvite('ignored');
   }
   avatarWindow?.webContents.send('post-assessment-proactive-suppression', {
@@ -562,76 +548,54 @@ const interactions = new InteractionTracker((source) => {
 
 // Wrap a chat IPC handler so its turn is tracked as an interaction.
 const agentRuns = new AgentRuns();
-const withTutorTurn =
-  <
-    Payload extends {
-      requestId: string;
-      sessionId?: string;
-      requestKind?: string;
-    },
-    Result,
-  >(
-    handler: (event: IpcMainInvokeEvent, payload: Payload) => Promise<Result>,
-  ) =>
-  (
-    event: IpcMainInvokeEvent,
-    payload: Payload,
-  ): Promise<Result | { error: string }> => {
-    const sessionId = payload.sessionId || currentSessionId;
-    if (!sessionId)
-      return Promise.resolve({ error: 'Open a conversation first.' });
-    try {
-      agentRuns.begin(
-        sessionId,
-        payload.requestId,
-        payload.requestKind === 'practice_suggestions',
-      );
-    } catch (error) {
-      return Promise.resolve({ error: (error as Error).message });
-    }
-    activeChatRequests.add(payload.requestId);
-    return interactions
-      .trackTurn(() => handler(event, { ...payload, sessionId }))
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        sendChatStreamEvent(event.sender, {
-          sessionId,
-          requestId: payload.requestId,
-          type: 'error',
-          error: message,
-        });
-        return { error: message };
-      })
-      .finally(() => {
-        chatStreams.finish(payload.requestId);
-        activeChatRequests.delete(payload.requestId);
-        agentRuns.finish(payload.requestId);
-      });
-  };
-registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
-registerStudyIpc(
-  ipcMain,
-  () => gatewayClient,
-  undefined,
-  setPostAssessmentActive,
-);
-registerPreAssessmentIpc(
-  ipcMain,
-  () => app.getPath('userData'),
-  () => currentUserId,
-  () => gatewayClient,
-  async () => {
-    await refreshTutoringAccess();
-    createTray();
+const proactive = createProactiveNotifications({
+  ipc: ipcMain,
+  gateway: () => gatewayClient,
+  avatar: () => avatarWindow,
+  recapOpen: () =>
+    Boolean(sessionRecapWindow && !sessionRecapWindow.isDestroyed()),
+  allowed: () => tutoringAllowed,
+  sleeping: () => cocoSleeping,
+  assessmentActive: () => postAssessmentActive,
+  suspended: () => systemSuspended,
+  avatarHidden: () => hideAvatarMode,
+  sessionActive: () => isSessionActive,
+  sessionId: () => currentSessionId,
+  taskLabel: () => pendingTaskLabel,
+  setTaskLabel: (label) => {
+    pendingTaskLabel = label;
   },
-);
-ipcMain.handle('study-access', () => ({
-  tutoring_allowed: tutoringAllowed,
-  status: studyAccessStatus,
-}));
-ipcMain.handle('study-refresh-access', async () => {
-  await refreshTutoringAccess();
-  return { tutoring_allowed: tutoringAllowed, status: studyAccessStatus };
+  clearHiddenSuggestion: () => {
+    latestHiddenSuggestionObservationId = undefined;
+  },
+  preload: () => preloadPath(),
+  profile: () => readProfile(),
+  precompute: (event) => precomputeSuggestion(event),
+  availableTools: (id) => buildAvailableTools(id),
+  openChat: (sessionId, label, seed) =>
+    openChatForSession(sessionId, label, seed),
+  startSession: (...args) => createProactiveTutorSession(...args),
+});
+const { showNotification, showSessionInvite, clearAvatarInvite } = proactive;
+app.on('before-quit', () => proactive.dispose());
+
+registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
+const { openTraining, showPreAssessmentLockedMessage } = registerTrainingPanel({
+  ipc: ipcMain,
+  dialog,
+  root: () => app.getPath('userData'),
+  user: () => currentUserId,
+  authenticated: () => isAuthenticated,
+  gateway: () => gatewayClient,
+  access: () => ({ tutoring_allowed: tutoringAllowed, status: studyAccessStatus }),
+  refreshAccess: () => refreshTutoringAccess(),
+  refreshTray: () => createTray(),
+  showPanel: () => {
+    isFloatMode = false;
+    showChatPanel({ expanded: true });
+    sendToChat('open-training-panel', null);
+  },
+  postAssessmentChanged: setPostAssessmentActive,
 });
 ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   const available =
@@ -659,31 +623,6 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   }
   return { available, enabled: available && adminStudentMode };
 });
-const openTraining = () => {
-  if (!isAuthenticated) return;
-  isFloatMode = false;
-  showChatPanel({ expanded: true });
-  sendToChat('open-training-panel', null);
-};
-ipcMain.on('open-training', openTraining);
-
-const showPreAssessmentLockedMessage = () => {
-  void dialog
-    .showMessageBox({
-      type: 'info',
-      title: 'Finish your pre-assessments first',
-      message:
-        'Coco chat will unlock after you finish AI literacy and the execution task.',
-      detail:
-        'Complete AI literacy and the execution task in Training to unlock Coco chat, tutoring, and sensing.',
-      buttons: ['Open pre-assessments', 'Not now'],
-      defaultId: 0,
-      cancelId: 1,
-    })
-    .then(({ response }) => {
-      if (response === 0) openTraining();
-    });
-};
 let currentTutorModelId: string | null = null;
 const piBridgeToken = randomUUID();
 
@@ -848,416 +787,54 @@ ipcMain.handle(
   },
 );
 
-const agent101Tracking = trackAgent101({
+const agent101 = createAgent101Controller({
   ipc: ipcMain,
   root: () => app.getPath('userData'),
-  user: () => (isAuthenticated ? currentUserId : null),
+  currentUser: () => currentUserId,
+  authenticated: () => isAuthenticated,
+  allowed: () => tutoringAllowed,
+  isChatSender: (event) => event.sender === chatWindow?.webContents,
+  canSkipPrerequisites: () =>
+    !adminStudentMode &&
+    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
   gateway: () => gatewayClient,
-  warn: (error) => log.warn('Agent 101 progress sync deferred:', error),
-});
-app.on('before-quit', () => agent101Tracking.dispose());
-
-const contextTraining = registerContextTraining({
-  canSkipPrerequisites: () =>
-    !adminStudentMode &&
-    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: agent101Tracking.ipc,
-  root: () => app.getPath('userData'),
-  user: (event, run = false) => {
-    if (
-      !chatWindow ||
-      event.sender !== chatWindow.webContents ||
-      !isAuthenticated ||
-      !currentUserId
-    )
-      throw new Error('Sign in to use Agent 101.');
-    if (run && !tutoringAllowed)
-      throw new Error('AI tutoring is not available for this account yet.');
-    return currentUserId;
-  },
-  currentUser: () => currentUserId,
-  changed: () => sendToChat('context-chapter-progress-changed', null),
-  createConversation: (session) => {
-    saveConversation({
-      sessionId: session.sessionId,
-      problem: 'Chapter 2 · Context',
-      tutorModelId: currentTutorModelId ?? undefined,
-      messages: [
-        {
-          role: 'tutor',
-          text: 'Let’s explore what I can see. Choose a working folder below, then ask me about it.',
-          id: randomUUID(),
-          ts: Date.now(),
-        },
-      ],
-    });
-  },
-  openConversation: (session) => {
-    if (agentRuns.legacyBusy)
-      throw new Error('Wait for the practice suggestion to finish.');
-    currentSessionId = session.sessionId;
-    isSessionActive = false;
-    resumableSessionId = session.sessionId;
-    pendingTaskLabel = 'Chapter 2 · Context';
-    openChatForSession(session.sessionId, pendingTaskLabel);
-  },
-});
-
-const tokenTraining = registerTokenTraining({
-  canSkipPrerequisites: () =>
-    !adminStudentMode &&
-    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: agent101Tracking.ipc,
-  root: () => app.getPath('userData'),
-  user: (event, run = false) => {
-    if (
-      !chatWindow ||
-      event.sender !== chatWindow.webContents ||
-      !isAuthenticated ||
-      !currentUserId
-    )
-      throw new Error('Sign in to use Agent 101.');
-    if (run && !tutoringAllowed)
-      throw new Error('AI tutoring is not available for this account yet.');
-    return currentUserId;
-  },
-  currentUser: () => currentUserId,
-  // eslint-disable-next-line no-use-before-define -- Called after main initialization.
-  changed: () => sendToChat('token-chapter-progress-changed', null),
-  createConversation: (session) => {
-    saveConversation({
-      sessionId: session.sessionId,
-      problem: 'Chapter 3 · Token',
-      tutorModelId: currentTutorModelId ?? undefined,
-      messages: [
-        {
-          role: 'tutor',
-          text: 'Let’s see what a request uses. Send the one-sentence question below, then compare it with a more detailed follow-up.',
-          id: randomUUID(),
-          ts: Date.now(),
-        },
-      ],
-    });
-  },
-  openConversation: (session) => {
-    if (agentRuns.legacyBusy)
-      throw new Error('Wait for the practice suggestion to finish.');
-    currentSessionId = session.sessionId;
-    isSessionActive = false;
-    resumableSessionId = session.sessionId;
-    pendingTaskLabel = 'Chapter 3 · Token';
-    openChatForSession(session.sessionId, pendingTaskLabel);
-  },
-});
-
-const modelTraining = registerModelTraining({
-  canSkipPrerequisites: () =>
-    !adminStudentMode &&
-    (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: agent101Tracking.ipc,
-  root: () => app.getPath('userData'),
-  user: (event, run = false) => {
-    if (
-      !chatWindow ||
-      event.sender !== chatWindow.webContents ||
-      !isAuthenticated ||
-      !currentUserId
-    )
-      throw new Error('Sign in to use Agent 101.');
-    if (run && !tutoringAllowed)
-      throw new Error('AI tutoring is not available for this account yet.');
-    return currentUserId;
-  },
-  currentUser: () => currentUserId,
-  models: () => readModelConfiguration()?.tutors ?? [],
-  changed: (completion) => {
-    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
-    sendToChat('model-chapter-session-changed', null);
-    // eslint-disable-next-line no-use-before-define -- Called after main initialization.
-    if (completion) sendToChat('model-chapter-progress-changed', null);
-  },
-  open: (session, created) => {
-    if (agentRuns.legacyBusy)
-      throw new Error('Wait for the current practice suggestion to finish.');
-    if (created)
-      saveConversation({
-        sessionId: session.sessionId,
-        problem: 'Chapter 4 · Models',
-        messages: [],
-      });
-    currentSessionId = session.sessionId;
-    isSessionActive = false;
-    resumableSessionId = session.sessionId;
-    pendingTaskLabel = 'Chapter 4 · Models';
-    openChatForSession(session.sessionId, pendingTaskLabel);
-  },
-  stop: (id) => agentRuns.abort(id),
-  run: async (request) => {
-    if (currentUserId !== request.user || !isAuthenticated || !tutoringAllowed)
-      throw new Error('Your account changed. Reopen the quest to continue.');
-    agentRuns.begin(request.sessionId, request.requestId);
-    activeChatRequests.add(request.requestId);
-    const recordUsage = tokenTraining.observe(
-      request.questSessionId,
-      request.requestId,
-      request.user,
-    );
-    const emit = (event: TutorStreamEvent) => {
-      recordUsage(event);
-      request.emit(event);
-    };
-    try {
-      await interactions.trackTurn(() =>
-        agentRuns.get(request.sessionId).run({
-          requestId: request.requestId,
-          sessionId: request.sessionId,
-          directory: agentDirectory(request.questSessionId),
-          tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
-          token: piBridgeToken,
-          text: request.prompt,
-          images: [],
-          context: {
-            model: request.model,
-            scenario: '',
-            problem: 'Model comparison',
-            user_name: '',
-            ai_tools: [],
-            memory: '',
-            messages: [],
-          },
-          training: {
-            tools: 'none',
-            instructions:
-              'Answer the user’s request directly. Follow the requested format. Keep prose concise, at most 160 words; code is exempt from this limit. Do not add a quiz or claim quest completion. No tools are available.',
-          },
-          emit,
-        }),
-      );
-    } catch (error) {
-      recordUsage({
-        type: 'error',
-        llm_metrics: (error as { llm_metrics?: LLMCallMetrics })?.llm_metrics,
-      });
-      throw error;
-    } finally {
-      activeChatRequests.delete(request.requestId);
-      agentRuns.finish(request.requestId);
-      await agentRuns.release(request.sessionId);
-    }
-  },
-});
-
-const workflowChatTurns = new Map<
-  string,
-  {
-    requestId: string;
-    images: string[];
-    metrics: LLMCallMetrics[];
-    sender: WebContents;
-  }
->();
-const workflowTraining = registerWorkflowTraining({
-  ipc: agent101Tracking.ipc,
-  root: () => app.getPath('userData'),
-  currentUser: () => currentUserId,
-  user: (event, run = false) => {
-    if (
-      !chatWindow ||
-      event.sender !== chatWindow.webContents ||
-      !isAuthenticated ||
-      !currentUserId
-    )
-      throw new Error('Sign in to use your skills.');
-    if (run && !tutoringAllowed)
-      throw new Error('AI tutoring is not available for this account yet.');
-    return currentUserId;
-  },
-  canStart: (user) =>
-    (!adminStudentMode &&
-      (currentStudyRole === 'admin' || currentStudyRole === 'super_admin')) ||
-    modelTraining.canPick(user),
-  // eslint-disable-next-line no-use-before-define -- Called after initialization.
-  changed: () => sendToChat('workflow-chapter-progress-changed', null),
-  reveal: (directory) => shell.openPath(directory),
-  open: (session, created) => {
-    if (agentRuns.legacyBusy)
-      throw new Error('Wait for the current request to finish.');
-    const existing = readConversations().find(
-      (item) => item.sessionId === session.sessionId,
-    );
-    if (created || !existing?.messages.length)
-      saveConversation({
-        sessionId: session.sessionId,
-        problem: 'Chapter 5 · Build your own skill',
-        messages: [
-          {
-            role: 'tutor',
-            text: 'Let’s create a skill that works the way you do. What’s a task you do repeatedly that you’d like my help with?',
-            id: randomUUID(),
-            ts: Date.now(),
-          },
-          ...(session.messages ?? []).map((message) => ({
-            role:
-              message.role === 'assistant'
-                ? ('tutor' as const)
-                : ('user' as const),
-            text: message.text,
-            id: message.id,
-            ts: Date.now(),
-          })),
-        ],
-      });
-    currentSessionId = session.sessionId;
-    isSessionActive = false;
-    resumableSessionId = session.sessionId;
-    pendingTaskLabel = 'Chapter 5 · Build your own skill';
-    openChatForSession(session.sessionId, pendingTaskLabel);
-  },
-  run: async (user, questId, prompt, instructions, mode) => {
-    if (currentUserId !== user || !isAuthenticated || !tutoringAllowed)
-      throw new Error('Reopen the quest with your current account.');
-    const turn = workflowChatTurns.get(questId);
-    const requestId = turn?.requestId ?? randomUUID();
-    const runId = turn ? questId : randomUUID();
-    if (agentRuns.requests.get(requestId)?.stopped) throw new Error('Stopped.');
-    const config = readModelConfiguration();
-    const model =
-      config?.tutors.find((item) => item.id === currentTutorModelId) ??
-      config?.tutors[0];
-    if (!model) throw new Error('Configure a model before creating a skill.');
-    if (!turn) agentRuns.begin(runId, requestId);
-    activeChatRequests.add(requestId);
-    const record = tokenTraining.observe(questId, randomUUID(), user);
-    let output = '';
-    let failure = '';
-    try {
-      await interactions.trackTurn(() =>
-        agentRuns.get(runId).run({
-          requestId,
-          sessionId: runId,
-          directory: agentDirectory(questId),
-          tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
-          token: piBridgeToken,
-          text:
-            mode === 'execute'
-              ? `${instructions}\n\nUser example:\n${prompt}`
-              : prompt,
-          approvalRules: mode === 'execute' ? commandApprovalRules() : undefined,
-          images: turn?.images ?? [],
-          context: {
-            model: model.model,
-            scenario: '',
-            problem: 'Personal skill workshop',
-            user_name: '',
-            ai_tools: [],
-            memory: '',
-            messages: [],
-          },
-          training:
-            mode === 'execute'
-              ? undefined
-              : { tools: 'none', instructions, persist: false },
-          emit: (event) => {
-            record(event);
-            if (
-              turn &&
-              mode === 'execute' &&
-              ['agent_activity', 'tool_call_started', 'tool_call_completed'].includes(event.type)
-            ) {
-              sendChatStreamEvent(turn.sender, {
-                ...event,
-                sessionId: questId,
-                requestId,
-              });
-            }
-            if (event.type === 'text_delta' && typeof event.text === 'string')
-              output += event.text;
-            if (event.type === 'done') {
-              if (turn) {
-                turn.metrics.push(
-                  (event.llm_metrics as LLMCallMetrics | undefined) ?? {},
-                );
-                if (event.observer_metrics)
-                  turn.metrics.push(event.observer_metrics as LLMCallMetrics);
-              }
-              if (!output && typeof event.guidance === 'string')
-                output = event.guidance;
-              if (event.stopped) failure = 'Request stopped. Please try again.';
-            }
-            if (event.type === 'error')
-              failure = String(event.error || 'Request failed.');
-          },
-        }),
-      );
-      if (failure) throw new Error(failure);
-      if (!output.trim())
-        throw new Error('The model returned no content. Please try again.');
-      return output;
-    } finally {
-      if (!turn) {
-        activeChatRequests.delete(requestId);
-        agentRuns.finish(requestId);
-        await agentRuns.release(runId);
-      }
-    }
-  },
-});
-
-const toolTraining = registerToolExploration({
-  ipc: agent101Tracking.ipc,
+  models: readModelConfiguration,
   runs: agentRuns,
-  root: () => app.getPath('userData'),
-  user: (event, run = false) => {
-    if (
-      !chatWindow ||
-      event.sender !== chatWindow.webContents ||
-      !isAuthenticated ||
-      !currentUserId
-    )
-      throw new Error('Sign in to use Agent 101.');
-    if (run && !tutoringAllowed)
-      throw new Error('AI tutoring is not available for this account yet.');
-    return currentUserId;
+  activeRequests: activeChatRequests,
+  interactions,
+  directory: agentDirectory,
+  token: piBridgeToken,
+  approvalRules: commandApprovalRules,
+  stream: (sender, payload) => sendChatStreamEvent(sender, payload),
+  notify: (channel, payload) => sendToChat(channel, payload),
+  reveal: (directory) => shell.openPath(directory),
+  warn: (error) => log.warn('Agent 101 progress sync deferred:', error),
+  conversations: {
+    read: readConversations,
+    save: saveConversation,
+    saveDirectory: saveConversationDirectory,
+    model: () => currentTutorModelId,
+    open: (sessionId, label, restoreModel = false) => {
+      if (restoreModel)
+        currentTutorModelId =
+          readConversations().find((saved) => saved.sessionId === sessionId)
+            ?.tutorModelId ?? currentTutorModelId;
+      currentSessionId = sessionId;
+      isSessionActive = false;
+      resumableSessionId = sessionId;
+      pendingTaskLabel = label;
+      openChatForSession(sessionId, label);
+    },
   },
-  currentUser: () => currentUserId,
-  createConversation: (session) => {
-    const mode = session.mode === 'with' ? 'With tools' : 'Without tools';
-    saveConversation({
-      sessionId: session.sessionId,
-      problem: `Chapter 1 · Tool · ${mode}`,
-      tutorModelId: currentTutorModelId ?? undefined,
-      messages: [
-        {
-          role: 'tutor',
-          text:
-            session.mode === 'with'
-              ? 'In this session, Coco can make tool calls'
-              : 'In this session, Coco *cannot* make tool calls',
-          id: randomUUID(),
-          ts: Date.now(),
-        },
-      ],
-    });
-    saveConversationDirectory(session.sessionId, session.directory);
-  },
-  openConversation: (session) => {
-    if (agentRuns.legacyBusy)
-      throw new Error('Wait for the practice suggestion to finish.');
-    currentTutorModelId =
-      readConversations().find((saved) => saved.sessionId === session.sessionId)
-        ?.tutorModelId ?? currentTutorModelId;
-    currentSessionId = session.sessionId;
-    isSessionActive = false;
-    resumableSessionId = session.sessionId;
-    pendingTaskLabel = `Chapter 1 · Tool · ${session.mode === 'with' ? 'With tools' : 'Without tools'}`;
-    openChatForSession(session.sessionId, pendingTaskLabel);
-  },
-  connection: () => ({
-    tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
-    token: piBridgeToken,
-  }),
-  changed: () => sendToChat('tool-chapter-progress-changed', null),
 });
+const {
+  contextTraining,
+  tokenTraining,
+  modelTraining,
+  workflowTraining,
+  toolTraining,
+} = agent101;
+app.on('before-quit', () => agent101.dispose());
 
 // Preserve the original Upskilling session invitation cadence even though the
 // sensing-side Judge owns the decision itself.
@@ -2458,13 +2035,22 @@ const recordSuggestionWithTutor = (
 // user's existing window geometry, including when reopening a hidden window.
 const showChatPanel = (options: { expanded?: boolean } = {}) => {
   const isNewWindow = !chatWindow || chatWindow.isDestroyed();
+  const needsConversation = !currentSessionId;
+  initializeChatConversation();
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
+  if (needsConversation) {
+    sendToChat('session-init', {
+      sessionId: currentSessionId,
+      problemStatement: pendingTaskLabel || '',
+      tutorModelId: currentTutorModelId,
+    });
+  }
 
   // The pop-up's suggestion is already in the chat; don't show both.
   if (
     suggestionNotification &&
-    suggestionNotification.window === notificationWindow &&
+    suggestionNotification.window === proactive.window &&
     !suggestionNotification.window.isDestroyed()
   ) {
     const { window, observationId } = suggestionNotification;
@@ -2714,42 +2300,35 @@ async function openCoco(): Promise<void> {
     showPreAssessmentLockedMessage();
     return;
   }
-  if (isSessionActive && currentSessionId) {
-    openChatForSession(currentSessionId, pendingTaskLabel || '');
+  if (!currentSessionId) {
+    showChatPanel();
     return;
   }
-  if (currentSessionId) {
-    openChatForSession(
-      currentSessionId,
-      pendingTaskLabel || 'General help session',
-    );
-    log.info(`[Chat] Reopened existing draft: ${currentSessionId}`);
-    return;
-  }
-  // Return to the most recent conversation rather than a blank chat. Like a
-  // draft, it becomes a live session again only once the user sends.
-  const latest = latestConversation(readConversations().filter(conversation => !isQuestConversation(conversation)));
-  if (latest) {
-    currentSessionId = latest.sessionId;
-    resumableSessionId = latest.sessionId;
-    const modelConfig = readModelConfiguration();
-    currentTutorModelId =
-      modelConfig?.tutors.find((item) => item.id === latest.tutorModelId)?.id ??
-      (modelConfig ? defaultTutor(modelConfig).id : null);
-    openChatForSession(latest.sessionId, latest.problem);
-    log.info(`[Chat] Reopened latest conversation: ${latest.sessionId}`);
-    return;
-  }
-  // Merely opening the chat feed must not count as a learning session. Give
-  // the renderer a draft id so it can render and retain the empty chat; the id
-  // is activated and persisted only after the first non-empty user message.
-  const problemStatement = pendingTaskLabel || 'General help session';
-  const draftSessionId = randomUUID();
-  currentSessionId = draftSessionId;
-  const modelConfig = readModelConfiguration();
-  currentTutorModelId = modelConfig ? defaultTutor(modelConfig).id : null;
-  openChatForSession(draftSessionId, problemStatement);
-  log.info(`[Chat] Draft opened without starting a session: ${draftSessionId}`);
+  openChatForSession(currentSessionId, pendingTaskLabel || 'General help session');
+}
+
+// Window existence does not imply conversation readiness: startup creates a
+// hidden renderer, and Settings/Tasks can reveal it before Open Chat is used.
+function initializeChatConversation(): void {
+  ensureChatConversation({
+    current: () => currentSessionId,
+    latest: () =>
+      latestConversation(
+        readConversations().filter(conversation => !isQuestConversation(conversation)),
+      ),
+    draftId: () => randomUUID(),
+    select: (sessionId, saved) => {
+      currentSessionId = sessionId;
+      resumableSessionId = saved ? sessionId : null;
+      pendingTaskLabel =
+        saved?.problem || pendingTaskLabel || 'General help session';
+      const modelConfig = readModelConfiguration();
+      currentTutorModelId =
+        modelConfig?.tutors.find(item => item.id === saved?.tutorModelId)?.id ??
+        (modelConfig ? defaultTutor(modelConfig).id : null);
+      activateBridgeConversation(sessionId);
+    },
+  });
 }
 
 function setupPending(): boolean {
@@ -2787,6 +2366,10 @@ function revealCoco(): void {
   // Activation brings the existing page forward. Opening a conversation sends
   // session-init, which would switch Tasks or Settings back to Chat.
   if (!setupPending() && chatWindow && !chatWindow.isDestroyed()) {
+    if (!currentSessionId) {
+      showChatPanel();
+      return;
+    }
     if (chatWindow.isMinimized()) chatWindow.restore();
     chatWindow.show();
     chatWindow.focus();
@@ -2958,23 +2541,6 @@ const activateBridgeConversation = (sessionId: string) => {
     );
 };
 
-interface ChatSeed {
-  phrase: string;
-  label: string;
-  rawObservation: string;
-  /** Attach context to the user's next turn instead of sending immediately. */
-  deferUntilUserMessage?: boolean;
-  /** Text to prefill in the chat composer for the user to edit and send. */
-  draft?: string;
-  /** The suggestion the user chose to chat about, shown as Coco's message. */
-  suggestion?: ChatSuggestion;
-  /**
-   * What the observer saw on screen. Sent with the user's next message as
-   * separate, removable context, never as part of what they wrote.
-   */
-  screenObservation?: string;
-}
-
 // Open the chat panel for a session, pushing the session context (and an
 // optional observation to send now or attach to the user's next message).
 const openChatForSession = (
@@ -3119,509 +2685,6 @@ const showSessionRecapWindow = (
   });
 };
 
-// ── Notification bubble window ────────────────────────────────────────────────
-// Notification is pinned to the top-right corner of the primary display so it
-// is always fully visible and never clipped by the app window edge.
-
-const NOTIF_WIDTH = 360;
-// Keep the card compact; longer Markdown guidance scrolls inside the body.
-const NOTIF_HEIGHT = 220;
-// Two-page suggestions need enough room for the grounded 4D explanation and
-// the prompt/actions on page 2 without requiring manual window resizing.
-const NOTIF_SUGGESTION_WIDTH = 480;
-const NOTIF_SUGGESTION_HEIGHT = 420;
-// Bounds when a suggestion pop-up fits its window to the content.
-const NOTIF_SUGGESTION_MIN_HEIGHT = 180;
-const NOTIF_SUGGESTION_MAX_HEIGHT = 560;
-const NOTIF_DAILY_SUMMARY_WIDTH = 420;
-const NOTIF_DAILY_SUMMARY_HEIGHT = 300;
-const NOTIF_EXPANDED_WIDTH = 560;
-const NOTIF_EXPANDED_HEIGHT = 520;
-let notificationCollapsedSize = {
-  width: NOTIF_WIDTH,
-  height: NOTIF_HEIGHT,
-};
-
-type VizState = 'none' | 'success' | 'error';
-type NotifType =
-  | 'default'
-  | 'daily-summary'
-  | 'proactive-suggestion'
-  | 'instant-suggestion'
-  | 'session-start-prompt'
-  | 'session-end-prompt';
-
-type NotificationOutcome = 'accepted' | 'dismissed' | 'ignored';
-
-interface ActiveNotificationRecord {
-  id: string;
-  resolved: boolean;
-  created: Promise<void>;
-  ignoreTimer?: ReturnType<typeof setTimeout>;
-}
-
-let activeNotificationRecord: ActiveNotificationRecord | null = null;
-
-const resolveNotificationRecord = (
-  record: ActiveNotificationRecord | null,
-  outcome: NotificationOutcome,
-) => {
-  if (!record || record.resolved) return;
-  record.resolved = true;
-  if (record.ignoreTimer) clearTimeout(record.ignoreTimer);
-  void record.created.then(() =>
-    gatewayClient?.resolveNotification(record.id, outcome),
-  );
-};
-
-const notificationCategory = (notifType: NotifType | undefined): string => {
-  switch (notifType) {
-    case 'session-start-prompt':
-      return 'session_start';
-    case 'session-end-prompt':
-      return 'session_end';
-    case 'proactive-suggestion':
-    case 'instant-suggestion':
-      return 'proactive_suggestion';
-    default:
-      return 'general';
-  }
-};
-
-interface NotificationPayload {
-  message: string;
-  actionLabel: string;
-  vizState?: VizState;
-  notifType?: NotifType;
-  cancelLabel?: string;
-  observationId?: string;
-  status?: string;
-  rawObservation?: string;
-  suggestion?: InstantSuggestion;
-  scenario?: string;
-  category?: string;
-  /** Pre-session invite; recorded as a session-start prompt. */
-  sessionInvite?: boolean;
-}
-
-const NOTIFICATION_IGNORE_MS = 5 * 60_000;
-
-// Record a shown notification with the gateway. One left unanswered resolves
-// as ignored after NOTIFICATION_IGNORE_MS, and onIgnored then runs.
-const createNotificationRecord = (
-  payload: NotificationPayload,
-  {
-    id = randomUUID(),
-    onIgnored,
-  }: { id?: string; onIgnored?: () => void } = {},
-): ActiveNotificationRecord => {
-  const notifType = payload.sessionInvite
-    ? 'session-start-prompt'
-    : payload.notifType;
-  const record: ActiveNotificationRecord = {
-    id,
-    resolved: false,
-    created:
-      gatewayClient?.addNotification({
-        id,
-        category: payload.category ?? notificationCategory(notifType),
-        notificationType: notifType ?? 'default',
-        message: payload.message,
-        shownAt: new Date(),
-        sessionId:
-          isSessionActive && currentSessionId ? currentSessionId : undefined,
-        observationId: payload.observationId,
-        actionLabel: payload.actionLabel,
-        cancelLabel: payload.cancelLabel,
-        status: payload.status,
-        fourDDimension: payload.suggestion?.fourDDimension,
-        triggerType: payload.suggestion?.triggerType,
-      }) ?? Promise.resolve(),
-  };
-  record.ignoreTimer = setTimeout(() => {
-    resolveNotificationRecord(record, 'ignored');
-    onIgnored?.();
-  }, NOTIFICATION_IGNORE_MS);
-  return record;
-};
-
-const showNotification = (payload: NotificationPayload): boolean => {
-  if (!tutoringAllowed || (cocoSleeping && payload.category !== 'system'))
-    return false;
-  if (postAssessmentActive && payload.category !== 'system') {
-    log.info(
-      `[Post-assessment] Dropped proactive notification ${payload.notifType ?? payload.category ?? 'general'}`,
-    );
-    return false;
-  }
-  if (
-    payload.notifType === 'session-end-prompt' &&
-    sessionRecapWindow &&
-    !sessionRecapWindow.isDestroyed()
-  ) {
-    log.info(
-      '[Notification] Session recap is already open; dropping wrap-up prompt.',
-    );
-    return false;
-  }
-  if (proactiveSuggestionOpen) {
-    if (notificationWindow && !notificationWindow.isDestroyed()) {
-      log.info(
-        `[Notification] Interactive suggestion is open; dropping ${payload.notifType ?? 'default'} replacement.`,
-      );
-      return false;
-    }
-    // Recover from a stale lock if the window disappeared before its closed
-    // callback ran. A missing window must never suppress notifications forever.
-    proactiveSuggestionOpen = false;
-  }
-  if (payload.notifType !== 'proactive-suggestion') {
-    latestHiddenSuggestionObservationId = undefined;
-  }
-  if (
-    notificationHovered &&
-    notificationWindow &&
-    !notificationWindow.isDestroyed()
-  ) {
-    log.info(
-      '[Notification] Keeping hovered notification; dropping replacement.',
-    );
-    return false;
-  }
-  // Destroy any existing notification before showing a new one (dedup guard).
-  notificationHovered = false;
-  resolveNotificationRecord(activeNotificationRecord, 'ignored');
-  notificationWindow?.destroy();
-
-  const notificationRecord =
-    payload.notifType !== 'daily-summary'
-      ? createNotificationRecord(payload)
-      : null;
-  activeNotificationRecord = notificationRecord;
-
-  const isInteractiveSuggestion =
-    payload.notifType === 'proactive-suggestion' && payload.suggestion != null;
-  if (isInteractiveSuggestion) {
-    notificationCollapsedSize = {
-      width: NOTIF_SUGGESTION_WIDTH,
-      height: NOTIF_SUGGESTION_HEIGHT,
-    };
-  } else if (payload.notifType === 'daily-summary') {
-    notificationCollapsedSize = {
-      width: NOTIF_DAILY_SUMMARY_WIDTH,
-      height: NOTIF_DAILY_SUMMARY_HEIGHT,
-    };
-  } else {
-    notificationCollapsedSize = { width: NOTIF_WIDTH, height: NOTIF_HEIGHT };
-  }
-  const { width: initialWidth, height: initialHeight } =
-    notificationCollapsedSize;
-  const { workArea } = screen.getPrimaryDisplay();
-  const x = workArea.x + workArea.width - initialWidth - 16;
-  const y = workArea.y + 16;
-  const adjustable = hideAvatarMode;
-
-  const nextNotificationWindow = new BrowserWindow({
-    show: false,
-    x,
-    y,
-    width: initialWidth,
-    height: initialHeight,
-    transparent: true,
-    frame: false,
-    // The card draws its own CSS shadow; the native one would outline the
-    // full transparent window bounds, including space below compact cards.
-    hasShadow: false,
-    alwaysOnTop: true,
-    resizable: adjustable,
-    minimizable: false,
-    maximizable: false,
-    minWidth: adjustable ? 320 : undefined,
-    minHeight: adjustable ? 180 : undefined,
-    skipTaskbar: process.platform !== 'darwin',
-    webPreferences: { preload: preloadPath() },
-  });
-  if (process.platform === 'darwin') {
-    nextNotificationWindow.excludedFromShownWindowsMenu = true;
-  }
-  configureFullscreenCompanionWindow(nextNotificationWindow);
-  notificationWindow = nextNotificationWindow;
-
-  // AI-upskilling suggestions open directly on the interactive framework
-  // overview. Lock from the first page—not only after the user advances—so a
-  // later observation cannot replace the card while it is being read/rendered.
-  if (
-    payload.notifType === 'proactive-suggestion' &&
-    payload.scenario === 'ai_upskilling' &&
-    payload.suggestion
-  ) {
-    proactiveSuggestionOpen = true;
-  }
-
-  const url = `${resolveHtmlPath('index.html')}?view=notification`;
-  nextNotificationWindow.loadURL(url);
-
-  nextNotificationWindow.on('ready-to-show', () => {
-    if (notificationWindow !== nextNotificationWindow) return;
-    nextNotificationWindow.showInactive();
-    nextNotificationWindow.webContents.send('notification', {
-      ...payload,
-      notificationId: notificationRecord?.id,
-      adjustable,
-    });
-  });
-
-  nextNotificationWindow.on('closed', () => {
-    resolveNotificationRecord(notificationRecord, 'ignored');
-    // An older window can finish closing after its replacement was assigned.
-    // Only the window that still owns the slot may clear the active lock.
-    if (notificationWindow !== nextNotificationWindow) return;
-    notificationWindow = null;
-    if (activeNotificationRecord === notificationRecord) {
-      activeNotificationRecord = null;
-    }
-    notificationHovered = false;
-    proactiveSuggestionOpen = false;
-  });
-  return true;
-};
-
-// ── Session invite ────────────────────────────────────────────────────────────
-// Before a session exists, Coco offers one for the task the observer detected.
-// The invite previews a suggestion written for that moment: a bubble beside
-// Coco when the avatar is visible, otherwise the corner pop-up. Opening the
-// suggestion only shows it; "Chat with Coco" or "Run with Coco" starts the
-// session. If the writer abstains, the invite shows the detected task and
-// "Help me with this" starts the session. Either way it is recorded as a
-// session_start notification.
-
-const SESSION_INVITE_STRUGGLE_SECONDS = 120;
-
-interface SessionInviteContent {
-  taskLabel: string;
-  rawObservation: string;
-  observationId?: string;
-  suggestion?: InstantSuggestion;
-}
-
-// The invite bubble on the avatar. Its record is created only once the
-// renderer confirms the bubble is on screen, and shares the invite's id.
-let avatarInvite:
-  | (SessionInviteContent & {
-      id: string;
-      record: ActiveNotificationRecord | null;
-    })
-  | null = null;
-// The observation behind the latest invite, so a slow preview for an older
-// invite is dropped.
-let latestInviteObservationId: string | undefined;
-// What the observer saw when it detected the invited task. Attached to the
-// user's first chat message if they accept an invite without a preview.
-let pendingInviteObservation = '';
-
-const sessionInvitePayload = (
-  invite: SessionInviteContent,
-): NotificationPayload =>
-  invite.suggestion
-    ? {
-        message: invite.suggestion.title,
-        actionLabel: 'Reveal full suggestion',
-        notifType: 'proactive-suggestion',
-        observationId: invite.observationId,
-        status: 'task_suggested',
-        rawObservation: invite.rawObservation,
-        suggestion: invite.suggestion,
-        scenario: readProfile().scenario,
-        sessionInvite: true,
-      }
-    : {
-        message: invite.taskLabel,
-        actionLabel: 'Help me with this',
-        notifType: 'session-start-prompt',
-        sessionInvite: true,
-      };
-
-function clearAvatarInvite(outcome: NotificationOutcome) {
-  if (!avatarInvite) return;
-  const { id, record } = avatarInvite;
-  avatarInvite = null;
-  resolveNotificationRecord(record, outcome);
-  if (avatarWindow && !avatarWindow.isDestroyed()) {
-    avatarWindow.webContents.send('session-invite-clear', { inviteId: id });
-  }
-}
-
-const presentSessionInvite = (invite: SessionInviteContent) => {
-  clearAvatarInvite('ignored');
-  if (
-    hideAvatarMode ||
-    !avatarWindow ||
-    avatarWindow.isDestroyed() ||
-    !avatarWindow.isVisible()
-  ) {
-    showNotification(sessionInvitePayload(invite));
-    return;
-  }
-  avatarInvite = { ...invite, id: randomUUID(), record: null };
-  avatarWindow.webContents.send('session-invite', {
-    inviteId: avatarInvite.id,
-    taskLabel: invite.taskLabel,
-    observationId: invite.observationId,
-    rawObservation: invite.rawObservation,
-    suggestionTitle: invite.suggestion?.title,
-  });
-};
-
-const showSessionInvite = (
-  event: Parameters<typeof precomputeSuggestion>[0],
-  taskLabel: string,
-) => {
-  if (!tutoringAllowed || postAssessmentActive) return;
-  if (!event.observation_id) {
-    syntheticObsSeq += 1;
-    event.observation_id = `invite-${Date.now()}-${syntheticObsSeq}`;
-  }
-  const observationId = event.observation_id;
-  const rawObservation = event.observation
-    ? cleanObservation(event.observation)
-    : '';
-  latestInviteObservationId = observationId;
-  // Writing the preview takes several seconds; the invite waits for it.
-  (precomputeSuggestion(event) ?? Promise.resolve(null))
-    .then((value) => {
-      if (
-        latestInviteObservationId !== observationId ||
-        isSessionActive ||
-        isObservationPaused() ||
-        systemSuspended ||
-        postAssessmentActive
-      ) {
-        return;
-      }
-      pendingTaskLabel = taskLabel;
-      pendingInviteObservation = rawObservation;
-      let suggestion: InstantSuggestion | undefined;
-      if (value) {
-        suggestion =
-          value.kind === 'delegate'
-            ? {
-                ...value,
-                availableTools: buildAvailableTools(value.targetTool),
-              }
-            : value;
-      }
-      presentSessionInvite({
-        taskLabel,
-        rawObservation,
-        observationId: suggestion ? observationId : undefined,
-        suggestion,
-      });
-    })
-    .catch((err) => {
-      log.warn(`[SessionInvite] Could not show invite: ${err}`);
-    });
-};
-
-// Accepting an invite without a preview: prefill a message the user can edit
-// to correct the task, with the observation attached as removable context.
-const acceptSessionInvite = async () => {
-  const taskLabel = pendingTaskLabel || 'General help session';
-  const observation = pendingInviteObservation;
-  pendingInviteObservation = '';
-  const seed: ChatSeed = {
-    phrase: '',
-    label: taskLabel,
-    rawObservation: '',
-    ...(observation && { screenObservation: observation }),
-    deferUntilUserMessage: true,
-    draft: `I'm working on: ${taskLabel.replace(/[.\s]+$/, '')}. Help me with this.`,
-  };
-  // A session can begin some other way while the invite is up.
-  if (isSessionActive && currentSessionId) {
-    openChatForSession(currentSessionId, pendingTaskLabel || '', seed);
-    return;
-  }
-  await createProactiveTutorSession(
-    taskLabel,
-    SESSION_INVITE_STRUGGLE_SECONDS,
-    'proactive_suggestion',
-    seed,
-  );
-};
-
-ipcMain.removeAllListeners('session-invite-shown');
-ipcMain.on(
-  'session-invite-shown',
-  (_event, { inviteId }: { inviteId?: string }) => {
-    if (!avatarInvite || avatarInvite.id !== inviteId || avatarInvite.record) {
-      return;
-    }
-    const invite = avatarInvite;
-    invite.record = createNotificationRecord(sessionInvitePayload(invite), {
-      id: invite.id,
-      onIgnored: () => {
-        if (avatarInvite === invite) clearAvatarInvite('ignored');
-      },
-    });
-  },
-);
-
-// Once the user opens the full suggestion, the invite stays until they act
-// on it or close it, rather than expiring as ignored mid-read.
-ipcMain.removeAllListeners('session-invite-revealed');
-ipcMain.on(
-  'session-invite-revealed',
-  (_event, { inviteId }: { inviteId?: string }) => {
-    if (!inviteId) return;
-    let record: ActiveNotificationRecord | null = null;
-    if (avatarInvite && avatarInvite.id === inviteId) {
-      record = avatarInvite.record;
-    } else if (activeNotificationRecord?.id === inviteId) {
-      record = activeNotificationRecord;
-    }
-    if (record?.ignoreTimer) clearTimeout(record.ignoreTimer);
-  },
-);
-
-// The avatar bubble is holding a suggestion the user opened, so the invite
-// goes to the corner pop-up instead.
-ipcMain.removeAllListeners('session-invite-busy');
-ipcMain.on(
-  'session-invite-busy',
-  (_event, { inviteId }: { inviteId?: string }) => {
-    if (!avatarInvite || avatarInvite.id !== inviteId) return;
-    const invite = avatarInvite;
-    avatarInvite = null;
-    showNotification(sessionInvitePayload(invite));
-  },
-);
-
-// Dismissing an avatar invite, or accepting one without a preview. Previews
-// are accepted through chat-about-suggestion.
-ipcMain.removeAllListeners('session-invite-response');
-ipcMain.on(
-  'session-invite-response',
-  (
-    _event,
-    { inviteId, outcome }: { inviteId?: string; outcome?: NotificationOutcome },
-  ) => {
-    if (!avatarInvite || avatarInvite.id !== inviteId) return;
-    if (outcome !== 'accepted' && outcome !== 'dismissed') return;
-    const { record } = avatarInvite;
-    avatarInvite = null;
-    resolveNotificationRecord(record, outcome);
-    if (outcome === 'accepted') acceptSessionInvite();
-  },
-);
-
-// "Help me with this" on a corner invite without a preview. Its outcome is
-// reported through notification-response like any other notification.
-ipcMain.removeAllListeners('session-invite-accepted');
-ipcMain.on('session-invite-accepted', () => {
-  notificationWindow?.destroy();
-  acceptSessionInvite();
-});
-
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 // Use removeAllListeners before each .on() so hot-reloads in development never
 // accumulate duplicate handlers (which would fire multiple notifications).
@@ -3660,27 +2723,6 @@ ipcMain.handle('get-profile', () => {
     return null;
   }
 });
-
-ipcMain.removeAllListeners('notification-response');
-ipcMain.on(
-  'notification-response',
-  (
-    _event,
-    payload: { notificationId?: string; outcome?: NotificationOutcome },
-  ) => {
-    if (
-      !payload?.notificationId ||
-      payload.notificationId !== activeNotificationRecord?.id ||
-      !['accepted', 'dismissed', 'ignored'].includes(payload.outcome ?? '')
-    ) {
-      return;
-    }
-    resolveNotificationRecord(
-      activeNotificationRecord,
-      payload.outcome as NotificationOutcome,
-    );
-  },
-);
 
 ipcMain.handle('get-chat-content-zoom-factor', () => chatContentZoomFactor);
 
@@ -4308,7 +3350,7 @@ ipcMain.on(
       rawObservation?: string;
     },
   ) => {
-    notificationWindow?.destroy();
+    proactive.dismissNotification();
     const rawObservation = payload?.rawObservation?.trim() || '';
     const status = payload?.status || 'observing';
     const observationId = payload?.observationId;
@@ -4447,11 +3489,11 @@ async function setCocoSleepMode(sleeping: boolean) {
 
   if (sleeping) {
     clearAvatarInvite('ignored');
-    latestInviteObservationId = undefined;
+    proactive.invalidateInvite();
     latestHiddenSuggestionObservationId = undefined;
     suggestionCache.clear();
-    notificationHovered = false;
-    notificationWindow?.destroy();
+    proactive.setHovered(false);
+    proactive.dismissNotification();
     // Sensing may restart independently of the tutor, whose context must survive.
     serviceManager.configureServiceEnv('sensing-server', {
       COCO_RESET_TUTOR_ON_START: '0',
@@ -4653,102 +3695,6 @@ ipcMain.on('wake-word-audio-frame', (event, frame: unknown) => {
   }
 });
 
-ipcMain.removeAllListeners('notification');
-ipcMain.on('notification', (_event, args) => {
-  const { msg, buttonText } = args;
-  showNotification({
-    message: msg,
-    actionLabel: buttonText,
-    category: 'tutor_guidance',
-  });
-});
-
-ipcMain.removeAllListeners('notification-hover-state');
-ipcMain.on(
-  'notification-hover-state',
-  (_event, { hovered }: { hovered?: boolean }) => {
-    notificationHovered = hovered === true;
-  },
-);
-
-ipcMain.removeAllListeners('proactive-suggestion-open-state');
-ipcMain.on(
-  'proactive-suggestion-open-state',
-  (_event, { open }: { open?: boolean }) => {
-    proactiveSuggestionOpen = open === true;
-  },
-);
-
-ipcMain.removeAllListeners('set-notification-expanded');
-ipcMain.on(
-  'set-notification-expanded',
-  (_event, { expanded }: { expanded?: boolean }) => {
-    if (
-      !hideAvatarMode ||
-      !notificationWindow ||
-      notificationWindow.isDestroyed()
-    ) {
-      return;
-    }
-
-    const current = notificationWindow.getBounds();
-    const display = screen.getDisplayMatching(current);
-    const targetWidth = expanded
-      ? NOTIF_EXPANDED_WIDTH
-      : notificationCollapsedSize.width;
-    const targetHeight = expanded
-      ? NOTIF_EXPANDED_HEIGHT
-      : notificationCollapsedSize.height;
-    const width = Math.min(targetWidth, display.workArea.width);
-    const height = Math.min(targetHeight, display.workArea.height);
-
-    // Preserve a user-dragged position where possible, while ensuring the
-    // resized notification remains fully reachable on its current display.
-    const x = Math.max(
-      display.workArea.x,
-      Math.min(current.x, display.workArea.x + display.workArea.width - width),
-    );
-    const y = Math.max(
-      display.workArea.y,
-      Math.min(
-        current.y,
-        display.workArea.y + display.workArea.height - height,
-      ),
-    );
-    notificationWindow.setBounds({ x, y, width, height }, true);
-  },
-);
-
-// AI-upskilling suggestion pages ask for a window height that fits their card.
-// Only the top edge stays put, so the pop-up grows or shrinks downward.
-ipcMain.removeAllListeners('fit-notification-height');
-ipcMain.on(
-  'fit-notification-height',
-  (event, { height }: { height?: unknown } = {}) => {
-    if (
-      !notificationWindow ||
-      notificationWindow.isDestroyed() ||
-      event.sender !== notificationWindow.webContents ||
-      typeof height !== 'number' ||
-      !Number.isFinite(height)
-    ) {
-      return;
-    }
-    const current = notificationWindow.getBounds();
-    const { workArea } = screen.getDisplayMatching(current);
-    const maxHeight = Math.min(
-      NOTIF_SUGGESTION_MAX_HEIGHT,
-      workArea.y + workArea.height - current.y,
-    );
-    const fitted = Math.round(
-      Math.max(NOTIF_SUGGESTION_MIN_HEIGHT, Math.min(height, maxHeight)),
-    );
-    if (fitted !== current.height) {
-      notificationWindow.setBounds({ ...current, height: fitted });
-    }
-  },
-);
-
 // ── Chat-panel width toggle ────────────────────────────────────────────────────
 // The renderer sends this when the user clicks the expand / collapse button to
 // switch the chat between the narrow side panel and a wider reading width.
@@ -4861,26 +3807,6 @@ function readProfile(): {
 // observation_id. By the time the user clicks "Help me with this" (a few
 // seconds of reading later) the result is usually ready, so it can be revealed
 // instantly instead of waiting on a fresh LLM round-trip.
-interface InstantSuggestion {
-  kind: 'content' | 'delegate';
-  title: string;
-  body?: string;
-  targetTool?: string;
-  prompt?: string;
-  copyText: string;
-  availableTools?: AiToolButton[];
-  llm_metrics?: LLMCallMetrics;
-  fourDDimension?: 'delegation' | 'description' | 'discernment' | 'diligence';
-  teachingDepth?: 'introduce' | 'reinforce' | 'deepen';
-  /** One-sentence explanation shown before the suggestion's action. */
-  noticed?: string;
-  aiCan?: string;
-  why?: string;
-  check?: string;
-  triggerType?: string;
-  interventionSource?: 'judge' | 'observer';
-}
-
 // Suggestions the writer declined, so a click reports why nothing is ready.
 const abstainedSuggestionIds = new Set<string>();
 const suggestionCache = new Map<
@@ -4960,17 +3886,7 @@ function pruneSuggestionCache() {
 // Fire the suggestion request for a freshly shown Tier-2 observation and stash
 // the promise. Never throws — failures resolve to null so the click path falls
 // back to the existing chat flow.
-function precomputeSuggestion(event: {
-  observation_id?: string;
-  observation?: string;
-  status?: string;
-  task_label?: string;
-  scenario?: string;
-  image_paths?: string[];
-  intervention_source?: 'judge';
-  trigger_type?: string;
-  teaching_depth?: 'introduce' | 'reinforce' | 'deepen' | 'not_applicable';
-}): Promise<InstantSuggestion | null> | undefined {
+function precomputeSuggestion(event: SuggestionObservation): Promise<InstantSuggestion | null> | undefined {
   const id = event.observation_id;
   if (!id || isObservationPaused()) return undefined;
   const cached = suggestionCache.get(id);
@@ -5134,7 +4050,7 @@ ipcMain.on(
       sessionInviteId?: string;
     },
   ) => {
-    if (payload?.surface === 'notification') notificationWindow?.destroy();
+    if (payload?.surface === 'notification') proactive.dismissNotification();
 
     const suggestion = payload?.suggestion;
     if (!suggestion) return;
@@ -5188,16 +4104,12 @@ ipcMain.on(
     // Chatting about an invite's preview accepts the invite. (The pop-up
     // reports its own outcome.)
     let acceptsInvite = payload.sessionInvite === true;
-    if (avatarInvite && avatarInvite.id === payload.sessionInviteId) {
-      resolveNotificationRecord(avatarInvite.record, 'accepted');
-      avatarInvite = null;
-      acceptsInvite = true;
-    }
+    if (proactive.acceptPreview(payload.sessionInviteId)) acceptsInvite = true;
     if (acceptsInvite && !isSessionActive) {
-      pendingInviteObservation = '';
+      proactive.clearPendingObservation();
       await createProactiveTutorSession(
         pendingTaskLabel || suggestion.title,
-        SESSION_INVITE_STRUGGLE_SECONDS,
+        120,
         'proactive_suggestion',
         seed,
       );
@@ -5574,7 +4486,7 @@ ipcMain.handle(
 // User clicked "Yes" in the "task done?" notification — show the local recap.
 ipcMain.removeAllListeners('proactive-session-end-confirmed');
 ipcMain.on('proactive-session-end-confirmed', () => {
-  notificationWindow?.destroy();
+  proactive.dismissNotification();
   chatWindow?.hide();
   showSessionRecapWindow('end');
 });
@@ -5696,388 +4608,43 @@ function endCurrentSession() {
 // Chat requests run in a persistent pi session. The local tutor service supplies
 // the configured model, profile context, and existing screen/memory tools.
 // Images stay as data URLs; execution events stream back to the renderer.
-async function runWorkflowChatTurn(
-  event: IpcMainInvokeEvent,
-  sessionId: string,
-  requestId: string,
-  text: string,
-  images: string[] = [],
-) {
-  const metrics: LLMCallMetrics[] = [];
-  workflowChatTurns.set(sessionId, {
-    requestId,
-    images,
-    metrics,
-    sender: event.sender,
-  });
-  try {
-    const result = await workflowTraining.chat(event, sessionId, text);
-    const guidance = result.messages?.at(-1)?.text ?? '';
-    sendChatStreamEvent(event.sender, {
+registerReactiveChat({
+  ipc: ipcMain,
+  session: () => ({
+    id: currentSessionId,
+    model: currentTutorModelId,
+    active: isSessionActive,
+  }),
+  user: () => currentUserId,
+  authenticated: () => isAuthenticated,
+  allowed: () => tutoringAllowed,
+  isChatSender: (event) => event.sender === chatWindow?.webContents,
+  runs: agentRuns,
+  activeRequests: activeChatRequests,
+  interactions,
+  streams: chatStreams,
+  gateway: () => gatewayClient,
+  training: agent101,
+  context: executionContext,
+  directory: agentDirectory,
+  resume: resumeReopenedConversation,
+  startSession: (sessionId, text) =>
+    createProactiveTutorSession(text, 120, 'user_message', undefined, {
       sessionId,
-      requestId,
-      type: 'done',
-      guidance,
-      llm_metrics: aggregateCallMetrics(metrics),
-    });
-    gatewayClient?.addMessage(sessionId, 'coco', guidance);
-    return { streamed: true };
-  } catch (error) {
-    if (agentRuns.requests.get(requestId)?.stopped) {
-      sendChatStreamEvent(event.sender, {
-        sessionId,
-        requestId,
-        type: 'done',
-        guidance: 'Stopped.',
-        stopped: true,
-        llm_metrics: aggregateCallMetrics(metrics),
-      });
-      return { streamed: true };
-    }
-    throw error;
-  } finally {
-    workflowChatTurns.delete(sessionId);
-  }
-}
-
-ipcMain.removeHandler('send-chat-message');
-ipcMain.handle(
-  'send-chat-message',
-  withTutorTurn(
-    async (
-      ipcEvent,
-      {
-        requestId,
-        sessionId,
-        userText,
-        displayText,
-        isRetry,
-        images,
-        requestKind,
-        hotkeyImages,
-        screenContext,
-      }: {
-        requestId: string;
-        sessionId?: string;
-        userText: string;
-        displayText?: string;
-        isRetry?: boolean;
-        images?: string[];
-        requestKind?: 'chat' | 'practice_suggestions';
-        hotkeyImages?: string[];
-        /** Observer text the user chose to send along with this message. */
-        screenContext?: string;
-      },
-    ) => {
-      const gatewaySessionId = sessionId!;
-      if (modelTraining.get(gatewaySessionId, currentUserId))
-        return { error: 'Use the controls in this quest to continue.' };
-      const workflow = workflowTraining.get(gatewaySessionId, currentUserId);
-      if (workflow && !workflow.savedSkillId) {
-        if (
-          ipcEvent.sender !== chatWindow?.webContents ||
-          !isAuthenticated ||
-          !currentUserId
-        )
-          return { error: 'Sign in to continue.' };
-        if (requestKind === 'practice_suggestions')
-          return { error: 'Tell Coco about the skill you want to create.' };
-        chatStreams.begin(
-          gatewaySessionId,
-          requestId,
-          displayText ?? userText,
-          images ?? [],
-          isRetry,
-        );
-        gatewayClient?.addMessage(
-          gatewaySessionId,
-          'user',
-          displayText ?? userText,
-        );
-        return runWorkflowChatTurn(
-          ipcEvent,
-          gatewaySessionId,
-          requestId,
-          userText,
-          images,
-        );
-      }
-      if (
-        requestKind === 'practice_suggestions' &&
-        (toolTraining.training(gatewaySessionId, currentUserId) ||
-          contextTraining.get(gatewaySessionId, currentUserId) ||
-          tokenTraining.get(gatewaySessionId, currentUserId))
-      )
-        return { error: 'Ask your own question to explore this chapter.' };
-      const piHarness = agentRuns.get(gatewaySessionId);
-      const context = executionContext(
-        gatewaySessionId,
-        displayText ?? userText,
-      );
-      const directory = agentDirectory(gatewaySessionId);
-      const training =
-        toolTraining.training(gatewaySessionId, currentUserId) ??
-        contextTraining.training(
-          gatewaySessionId,
-          currentUserId,
-          directory,
-          userText,
-        ) ??
-        tokenTraining.training(gatewaySessionId, currentUserId);
-      const observeContextTraining = contextTraining.observe(
-        gatewaySessionId,
-        currentUserId,
-      );
-      const observeTokenTraining = tokenTraining.observe(
-        gatewaySessionId,
-        requestId,
-        currentUserId,
-      );
-      const observeTraining = toolTraining.observe(
-        gatewaySessionId,
-        currentUserId,
-        context,
-        userText,
-      );
-      chatStreams.begin(
-        gatewaySessionId,
-        requestId,
-        displayText ?? userText,
-        images ?? [],
-        isRetry,
-        gatewaySessionId === currentSessionId ? currentTutorModelId : undefined,
-        screenContext,
-      );
-      const tutorPort = process.env.TUTOR_PORT || '8081';
-      const tutor = `http://127.0.0.1:${tutorPort}`;
-      const sessionStartText = (displayText ?? userText).trim();
-      if (!tutoringAllowed)
-        return { error: 'AI tutoring is disabled for this account.' };
-      if (gatewaySessionId === currentSessionId)
-        await resumeReopenedConversation(displayText ?? userText);
-      if (
-        gatewaySessionId === currentSessionId &&
-        !isSessionActive &&
-        shouldStartSessionFromUserMessage(
-          sessionStartText,
-          requestKind ?? 'chat',
-        )
-      ) {
-        // Reuse the draft id already known by the renderer. Suppressing another
-        // session-init event prevents the first optimistic message from being
-        // cleared while this request is in flight.
-        await createProactiveTutorSession(
-          sessionStartText,
-          120,
-          'user_message',
-          undefined,
-          {
-            sessionId: gatewaySessionId,
-            openChat: false,
-          },
-        );
-      }
-      if (!isRetry && gatewaySessionId) {
-        gatewayClient?.addMessage(
-          gatewaySessionId,
-          'user',
-          displayText ?? userText,
-        );
-      }
-
-      const hotkeyImageSet = new Set(hotkeyImages ?? []);
-      const hotkeyImageCount = (images ?? []).filter((image) =>
-        hotkeyImageSet.has(image),
-      ).length;
-
-      const contextualizedUserText = [
-        userText,
-        ...(hotkeyImageCount > 0
-          ? [
-              '<hotkey_screenshot_context>',
-              `${hotkeyImageCount} attached image${hotkeyImageCount === 1 ? ' was' : 's were'} deliberately captured by the user with Coco's screenshot hotkey.`,
-              'Treat the attached hotkey capture as the primary visual state the user chose for this request. Do not call observe_screen merely to capture or inspect the same screen again. Only request a new live-screen observation if the user explicitly asks for an updated view after this capture.',
-              '</hotkey_screenshot_context>',
-            ]
-          : []),
-        ...(screenContext?.trim()
-          ? [
-              '<screen_observation>',
-              "What Coco's screen observer recorded before this request. The user did not write it; use it as background only where relevant.",
-              screenContext.trim(),
-              '</screen_observation>',
-            ]
-          : []),
-      ]
-        .filter(Boolean)
-        .join('\n');
-      let streamedText = '';
-      const settleReply = (reply: StoredReply) => {
-        if (gatewaySessionId) {
-          settleStoredReply(gatewaySessionId, requestId, reply, displayText);
-        }
-      };
-      activeChatRequests.add(requestId);
-      const progressReminder =
-        requestKind === 'practice_suggestions'
-          ? null
-          : startAgentProgressReminder(gatewaySessionId, requestId);
-      try {
-        // A plain chat can be opened without creating a proactive session. Sync
-        // the persisted profile on every turn so the tutor never falls back to
-        // its default scenario or recommends tools the user did not select.
-        if (requestKind === 'practice_suggestions') {
-          const { scenario, aiTools } = readProfile();
-          await axios.post(
-            `${tutor}/config/scenario`,
-            { scenario },
-            { timeout: 8000 },
-          );
-          await axios.post(
-            `${tutor}/context/ai_tools`,
-            { ai_tools: aiTools },
-            { timeout: 8000 },
-          );
-        }
-        const turnTiming = new TutorTurnTiming();
-        const onEvent = (streamEvent: TutorStreamEvent) => {
-          observeTraining(streamEvent);
-          observeContextTraining(streamEvent);
-          observeTokenTraining(streamEvent);
-          progressReminder?.update(streamEvent);
-          if (streamEvent.type === 'text_delta') {
-            const delta = String(streamEvent.text ?? '');
-            turnTiming.recordTextDelta(delta);
-            streamedText += delta;
-          }
-          if (streamEvent.type === 'done') {
-            settleReply({
-              text: String(streamEvent.guidance ?? streamedText),
-              tutorMetrics: streamEvent.llm_metrics as
-                | LLMCallMetrics
-                | undefined,
-              observerMetrics: streamEvent.observer_metrics as
-                | LLMCallMetrics
-                | undefined,
-            });
-          }
-          if (
-            streamEvent.type === 'done' &&
-            !streamEvent.stopped &&
-            requestKind !== 'practice_suggestions'
-          ) {
-            remindAgentReply(gatewaySessionId, requestId).catch((error) =>
-              log.warn('[Chat] Could not show reply reminder:', error),
-            );
-          }
-          if (streamEvent.type === 'error') {
-            settleReply({
-              text: String(
-                streamEvent.error ?? 'The tutor could not generate a response.',
-              ),
-              isError: true,
-            });
-          }
-          if (streamEvent.type === 'done' && gatewaySessionId) {
-            const metrics = streamEvent.llm_metrics as
-              | LLMCallMetrics
-              | undefined;
-            const model =
-              metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
-            gatewayClient?.addMessage(
-              gatewaySessionId,
-              'coco',
-              String(streamEvent.guidance ?? streamedText),
-              turnTiming.complete(model),
-              {
-                messageKind:
-                  requestKind === 'practice_suggestions'
-                    ? 'practice_suggestion'
-                    : 'user_response',
-                fourDDimension: streamEvent.four_d_dimension,
-                teachingDepth: streamEvent.teaching_depth,
-                interventionSource: 'user',
-              },
-            );
-          }
-          sendChatStreamEvent(ipcEvent.sender, {
-            requestId,
-            sessionId: gatewaySessionId,
-            ...streamEvent,
-            ...(streamEvent.type === 'done'
-              ? { observerMetrics: streamEvent.observer_metrics ?? null }
-              : {}),
-          });
-        };
-        if (requestKind === 'practice_suggestions') {
-          await consumeTutorStream(
-            `${tutor}/events/practice_suggestions/stream`,
-            {},
-            onEvent,
-            undefined,
-            { idleMs: 60_000, hardMs: 5 * 60_000 },
-          );
-        } else if (agentRuns.requests.get(requestId)?.stopped) {
-          onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
-        } else {
-          await piHarness.run({
-            approvalRules: training ? undefined : commandApprovalRules(),
-            curatedSkills: training
-              ? undefined
-              : workflowTraining.runtimeSkills(currentUserId),
-            requestId,
-            sessionId: gatewaySessionId,
-            context,
-            training,
-            directory,
-            tutorUrl: tutor,
-            token: piBridgeToken,
-            text: contextualizedUserText,
-            images: images ?? [],
-            emit: onEvent,
-          });
-        }
-        return { streamed: true };
-      } catch (err) {
-        const ax = err as { response?: { data?: unknown }; message?: string };
-        log.error(
-          '[Chat] streaming user prompt failed:',
-          JSON.stringify(ax?.response?.data ?? ax?.message),
-        );
-        const error =
-          err instanceof TutorStreamTimeoutError
-            ? 'The tutor took too long to respond. Please retry.'
-            : err instanceof Error
-              ? err.message
-              : 'Coco could not complete this request.';
-        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
-          ?.llm_metrics;
-        observeTokenTraining({
-          type: 'error',
-          error,
-          llm_metrics: failedMetrics,
-        });
-        settleReply({
-          text: error,
-          isError: true,
-          tutorMetrics: failedMetrics,
-        });
-        sendChatStreamEvent(ipcEvent.sender, {
-          requestId,
-          sessionId: gatewaySessionId,
-          type: 'error',
-          error,
-          llm_metrics: failedMetrics,
-        });
-        return { error };
-      } finally {
-        progressReminder?.dispose();
-        clearAgentProgressReminder(requestId);
-        activeChatRequests.delete(requestId);
-      }
-    },
-  ),
-);
+      openChat: false,
+    }),
+  dismissNotification: () => proactive.dismissNotification(),
+  approvalRules: commandApprovalRules,
+  token: piBridgeToken,
+  profile: readProfile,
+  emit: sendChatStreamEvent,
+  settle: settleStoredReply,
+  reminders: {
+    start: startAgentProgressReminder,
+    clear: clearAgentProgressReminder,
+    reply: remindAgentReply,
+  },
+});
 
 ipcMain.removeAllListeners('open-image-preview');
 ipcMain.on('open-image-preview', (event, payload: unknown) => {
@@ -6123,264 +4690,6 @@ ipcMain.on('close-image-preview', (event) => {
     imagePreviewWindow.close();
   }
 });
-
-ipcMain.removeHandler('send-audio-message');
-ipcMain.handle(
-  'send-audio-message',
-  withTutorTurn(
-    async (
-      ipcEvent,
-      {
-        requestId,
-        sessionId,
-        audioData,
-      }: {
-        requestId: string;
-        sessionId?: string;
-        audioData: string;
-      },
-    ) => {
-      const gatewaySessionId = sessionId!;
-      if (modelTraining.get(gatewaySessionId, currentUserId))
-        return { error: 'Use the controls in this quest to continue.' };
-      const workflow = workflowTraining.get(gatewaySessionId, currentUserId);
-      if (workflow && !workflow.savedSkillId) {
-        if (
-          ipcEvent.sender !== chatWindow?.webContents ||
-          !isAuthenticated ||
-          !currentUserId
-        )
-          return { error: 'Sign in to continue.' };
-        if (!tutoringAllowed)
-          return { error: 'AI tutoring is disabled for this account.' };
-        if (!audioData || audioData.length > 16_000_000)
-          return { error: 'The voice recording is empty or too large.' };
-        chatStreams.begin(gatewaySessionId, requestId, '[Voice message]');
-        const response = await axios.post(
-          `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/transcribe`,
-          { audio_data: audioData },
-          {
-            headers: {
-              Authorization: `Bearer ${piBridgeToken}`,
-              'X-Coco-Session': gatewaySessionId,
-            },
-            timeout: 120000,
-          },
-        );
-        const text = String(response.data.text ?? '').trim();
-        sendChatStreamEvent(ipcEvent.sender, {
-          sessionId: gatewaySessionId,
-          requestId,
-          type: 'transcription',
-          text,
-        });
-        gatewayClient?.addMessage(gatewaySessionId, 'user', text);
-        return runWorkflowChatTurn(ipcEvent, gatewaySessionId, requestId, text);
-      }
-      const piHarness = agentRuns.get(gatewaySessionId);
-      const context = executionContext(gatewaySessionId);
-      const directory = agentDirectory(gatewaySessionId);
-      const training =
-        toolTraining.training(gatewaySessionId, currentUserId) ??
-        contextTraining.training(gatewaySessionId, currentUserId, directory) ??
-        tokenTraining.training(gatewaySessionId, currentUserId);
-      const observeContextTraining = contextTraining.observe(
-        gatewaySessionId,
-        currentUserId,
-      );
-      const observeTokenTraining = tokenTraining.observe(
-        gatewaySessionId,
-        requestId,
-        currentUserId,
-      );
-      const observeTraining = toolTraining.observe(
-        gatewaySessionId,
-        currentUserId,
-        context,
-        '',
-      );
-      chatStreams.begin(
-        gatewaySessionId,
-        requestId,
-        '[Voice message]',
-        [],
-        false,
-        gatewaySessionId === currentSessionId ? currentTutorModelId : undefined,
-      );
-      if (!audioData || audioData.length > 16_000_000) {
-        return { error: 'The voice recording is empty or too large.' };
-      }
-      if (!tutoringAllowed)
-        return { error: 'AI tutoring is disabled for this account.' };
-      if (gatewaySessionId === currentSessionId)
-        await resumeReopenedConversation();
-      if (gatewaySessionId === currentSessionId && !isSessionActive) {
-        // A pre-session invite may already be visible from the last sensing tick.
-        // Voice input is itself an explicit session start, so remove that stale UI.
-        notificationWindow?.destroy();
-        await createProactiveTutorSession(
-          '[Voice message]',
-          120,
-          'user_message',
-          undefined,
-          {
-            // Reuse the draft already displayed by the wake-word/chat flow so
-            // activating the session does not clear the visible conversation.
-            sessionId: gatewaySessionId,
-            openChat: false,
-          },
-        );
-      }
-      let storedTranscription = false;
-      const tutorPort = process.env.TUTOR_PORT || '8081';
-      const turnTiming = new TutorTurnTiming();
-      let streamedText = '';
-      const settleReply = (reply: StoredReply) => {
-        if (gatewaySessionId) {
-          settleStoredReply(gatewaySessionId, requestId, reply);
-        }
-      };
-      activeChatRequests.add(requestId);
-      const progressReminder = startAgentProgressReminder(
-        gatewaySessionId,
-        requestId,
-      );
-      try {
-        const onEvent = (streamEvent: TutorStreamEvent) => {
-          observeTraining(streamEvent);
-          observeContextTraining(streamEvent);
-          observeTokenTraining(streamEvent);
-          progressReminder?.update(streamEvent);
-          if (
-            streamEvent.type === 'transcription' &&
-            gatewaySessionId &&
-            !storedTranscription
-          ) {
-            const transcription = String(streamEvent.text ?? '').trim();
-            if (transcription) {
-              storedTranscription = true;
-              gatewayClient?.addMessage(
-                gatewaySessionId,
-                'user',
-                transcription,
-                undefined,
-                { messageKind: 'voice_input' },
-              );
-            }
-          }
-          if (streamEvent.type === 'text_delta') {
-            const delta = String(streamEvent.text ?? '');
-            turnTiming.recordTextDelta(delta);
-            streamedText += delta;
-          }
-          if (streamEvent.type === 'done') {
-            settleReply({
-              text: String(streamEvent.guidance ?? streamedText),
-              tutorMetrics: streamEvent.llm_metrics as
-                | LLMCallMetrics
-                | undefined,
-              observerMetrics: streamEvent.observer_metrics as
-                | LLMCallMetrics
-                | undefined,
-            });
-          }
-          if (streamEvent.type === 'done' && !streamEvent.stopped) {
-            remindAgentReply(gatewaySessionId, requestId).catch((error) =>
-              log.warn('[Chat] Could not show reply reminder:', error),
-            );
-          }
-          if (streamEvent.type === 'error') {
-            settleReply({
-              text: String(
-                streamEvent.error ?? 'The tutor could not generate a response.',
-              ),
-              isError: true,
-            });
-          }
-          if (streamEvent.type === 'done' && gatewaySessionId) {
-            const metrics = streamEvent.llm_metrics as
-              | LLMCallMetrics
-              | undefined;
-            const model =
-              metrics?.model || process.env.TUTOR_MODEL?.trim() || undefined;
-            gatewayClient?.addMessage(
-              gatewaySessionId,
-              'coco',
-              String(streamEvent.guidance ?? streamedText),
-              turnTiming.complete(model),
-              {
-                messageKind: 'voice_response',
-                fourDDimension: streamEvent.four_d_dimension,
-                teachingDepth: streamEvent.teaching_depth,
-                interventionSource: 'user',
-              },
-            );
-          }
-          sendChatStreamEvent(ipcEvent.sender, {
-            requestId,
-            sessionId: gatewaySessionId,
-            ...streamEvent,
-          });
-        };
-        if (agentRuns.requests.get(requestId)?.stopped) {
-          onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
-        } else {
-          await piHarness.run({
-            approvalRules: training ? undefined : commandApprovalRules(),
-            curatedSkills: training
-              ? undefined
-              : workflowTraining.runtimeSkills(currentUserId),
-            requestId,
-            sessionId: gatewaySessionId,
-            context,
-            training,
-            directory,
-            tutorUrl: `http://127.0.0.1:${tutorPort}`,
-            token: piBridgeToken,
-            text: '',
-            images: [],
-            audioData,
-            emit: onEvent,
-          });
-        }
-        return { streamed: true };
-      } catch (err) {
-        log.error(
-          '[Chat] streaming audio prompt failed:',
-          err instanceof Error ? err.message : String(err),
-        );
-        const error =
-          err instanceof TutorStreamTimeoutError
-            ? 'The tutor took too long to respond to the voice message. Please retry.'
-            : 'The tutor could not process the voice message. Please try again.';
-        const failedMetrics = (err as { llm_metrics?: LLMCallMetrics })
-          ?.llm_metrics;
-        observeTokenTraining({
-          type: 'error',
-          error,
-          llm_metrics: failedMetrics,
-        });
-        settleReply({
-          text: error,
-          isError: true,
-          tutorMetrics: failedMetrics,
-        });
-        sendChatStreamEvent(ipcEvent.sender, {
-          requestId,
-          sessionId: gatewaySessionId,
-          type: 'error',
-          error,
-          llm_metrics: failedMetrics,
-        });
-        return { error };
-      } finally {
-        progressReminder?.dispose();
-        clearAgentProgressReminder(requestId);
-        activeChatRequests.delete(requestId);
-      }
-    },
-  ),
-);
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -6824,7 +5133,7 @@ async function stopTutoringForAccess(): Promise<void> {
     log.warn('[Study] Could not cancel active tutoring:', error);
   }
   delete process.env.LLM_ROUTER_API_KEY;
-  notificationWindow?.destroy();
+  proactive.dismissNotification();
   sessionRecapWindow?.destroy();
   suggestionCache.clear();
   stopObservationStream();
@@ -6901,11 +5210,7 @@ const authenticate = async (
         : await gatewayClient.signIn(request);
     currentUserId = session.participantId;
     isAuthenticated = true;
-    sendToChat('tool-chapter-progress-changed', null);
-    sendToChat('context-chapter-progress-changed', null);
-    sendToChat('token-chapter-progress-changed', null);
-    sendToChat('model-chapter-progress-changed', null);
-    sendToChat('workflow-chapter-progress-changed', null);
+    agent101.notifyAccountChanged();
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -6926,11 +5231,7 @@ const authenticate = async (
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
     currentUserId = null;
     isAuthenticated = false;
-    sendToChat('tool-chapter-progress-changed', null);
-    sendToChat('context-chapter-progress-changed', null);
-    sendToChat('token-chapter-progress-changed', null);
-    sendToChat('model-chapter-progress-changed', null);
-    sendToChat('workflow-chapter-progress-changed', null);
+    agent101.notifyAccountChanged();
     currentStudyRole = null;
     serverPreAssessmentsComplete = false;
     adminStudentMode = false;
@@ -7269,7 +5570,7 @@ const startObserver = () => {
       if (!tutoringAllowed || postAssessmentActive) return false;
       // Do not replace something time-sensitive. Returning false leaves the
       // date unhandled, so the next observation retries the summary.
-      if (notificationWindow && !notificationWindow.isDestroyed()) {
+      if (proactive.window && !proactive.window.isDestroyed()) {
         return false;
       }
 
@@ -7313,7 +5614,7 @@ const startObserver = () => {
       }).format(new Date(latestRecap.generatedAt * 1000));
       // Generation can take several seconds. Preserve any notification that
       // appeared while the daily review was being synthesized and retry later.
-      if (notificationWindow && !notificationWindow.isDestroyed()) {
+      if (proactive.window && !proactive.window.isDestroyed()) {
         return false;
       }
       showNotification({
@@ -7485,9 +5786,9 @@ const startObserver = () => {
                 suggestion,
                 scenario: readProfile().scenario,
               });
-              if (!shown || !notificationWindow) return;
+              if (!shown || !proactive.window) return;
               suggestionNotification = {
-                window: notificationWindow,
+                window: proactive.window,
                 observationId: event.observation_id,
               };
               // A folded copy keeps it findable after the pop-up closes.
@@ -7561,8 +5862,8 @@ app
       observationSleepGuard.suspend();
       latestHiddenSuggestionObservationId = undefined;
       suggestionCache.clear();
-      notificationHovered = false;
-      notificationWindow?.destroy();
+      proactive.setHovered(false);
+      proactive.dismissNotification();
       clearAvatarInvite('ignored');
       if (avatarWindow && !avatarWindow.isDestroyed()) {
         avatarWindow.webContents.send('system-suspend');
@@ -7577,8 +5878,8 @@ app
       observationSleepGuard.resume();
       latestHiddenSuggestionObservationId = undefined;
       suggestionCache.clear();
-      notificationHovered = false;
-      notificationWindow?.destroy();
+      proactive.setHovered(false);
+      proactive.dismissNotification();
       if (avatarWindow && !avatarWindow.isDestroyed()) {
         // Send this again in case the renderer was frozen before handling the
         // suspend event.
@@ -7605,11 +5906,7 @@ app
         );
         currentUserId = restored.participantId;
         isAuthenticated = true;
-        sendToChat('tool-chapter-progress-changed', null);
-        sendToChat('context-chapter-progress-changed', null);
-        sendToChat('token-chapter-progress-changed', null);
-        sendToChat('model-chapter-progress-changed', null);
-        sendToChat('workflow-chapter-progress-changed', null);
+        agent101.notifyAccountChanged();
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;
@@ -7619,11 +5916,7 @@ app
         clearAuthSession(app.getPath('userData'));
         currentUserId = null;
         isAuthenticated = false;
-        sendToChat('tool-chapter-progress-changed', null);
-        sendToChat('context-chapter-progress-changed', null);
-        sendToChat('token-chapter-progress-changed', null);
-        sendToChat('model-chapter-progress-changed', null);
-        sendToChat('workflow-chapter-progress-changed', null);
+        agent101.notifyAccountChanged();
         currentStudyRole = null;
         serverPreAssessmentsComplete = false;
         adminStudentMode = false;

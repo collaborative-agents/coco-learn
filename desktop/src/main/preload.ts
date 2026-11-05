@@ -198,6 +198,7 @@ export type Channels =
   | 'answer-agent-question'
   | 'list-command-approvals'
   | 'revoke-command-approval'
+  | 'revoke-file-approval'
   | 'answer-agent-permission'
   | 'send-chat-message'
   | 'send-audio-message'
@@ -212,6 +213,8 @@ export type Channels =
   | 'image-preview'
   | 'image-preview-ready'
   | 'close-image-preview'
+  | 'save-image-annotation'
+  | 'image-annotation-saved'
   // Renderer → main: chat's hot-key listener is mounted; flush buffered captures
   | 'hotkey-capture-ready'
   // Onboarding

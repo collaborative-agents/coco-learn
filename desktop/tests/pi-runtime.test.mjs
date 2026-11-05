@@ -155,7 +155,9 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
     history: [],
     tools,
   };
+  let workspaceRequests = 0;
   const options = {
+    requestWorkspaceAccess: async () => { workspaceRequests++; return true; },
     cwd: directory,
     sessionId: 'test-session',
     dataDir: directory,
@@ -163,14 +165,20 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
     token: 'test-token',
     context,
     requestApproval: async (action) => {
-      assert.equal(action.tool, 'bash');
-      assert.equal(action.arguments.command, 'touch shell-should-not-run');
+      if (action.tool === 'bash') {
+        assert.equal(action.arguments.command, 'touch shell-should-not-run');
+      } else {
+        assert.equal(action.tool, 'read');
+        assert.equal(action.fileAccess.path, path.resolve(fs.realpathSync(directory), '../outside.txt'));
+        assert.equal(action.fileAccess.mode, 'read');
+      }
       return false;
     },
   };
   let runtime;
   try {
     runtime = await createRuntime(options);
+    assert.equal(workspaceRequests, 0);
     const events = [];
     runtime.subscribe((event) => {
       events.push(event);
@@ -193,6 +201,7 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
       }
     });
     await runtime.prompt('Create the file.', [], context);
+    assert.ok(workspaceRequests > 0);
     assert.equal(
       fs.existsSync(path.join(directory, 'shell-should-not-run')),
       false,
@@ -206,6 +215,7 @@ test('pi executes built-in and Coco tools, resumes its session, and aborts', asy
             event.isError &&
             JSON.stringify(event.result).includes('Permission denied'),
         ),
+        JSON.stringify(events.filter(event => event.type === 'tool_execution_end')),
       );
     }
     const requestsBeforeInspect = requestCount;

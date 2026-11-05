@@ -32,7 +32,7 @@
 .workspace-access-dialog {
   width: min(540px, 100%);
 }
-.workspace-access-dialog .training-dialog-header h2 {
+.workspace-access-dialog .workspace-dialog-header h2 {
   font-size: var(--coco-text-lead);
 }
 .workspace-access-section {

@@ -31,6 +31,7 @@ interface Props {
   clearPendingScreenContext: () => void;
   pendingImages: string[];
   openImagePreview: (imageDataUrl: string) => void;
+  openImageAnnotator: (imageDataUrl: string) => void;
   pendingHotkeyImagesRef: React.RefObject<Set<string>>;
   setPendingImages: React.Dispatch<React.SetStateAction<string[]>>;
   understandingError: string;
@@ -67,6 +68,7 @@ export default function ChatComposer({
   clearPendingScreenContext,
   pendingImages,
   openImagePreview,
+  openImageAnnotator,
   pendingHotkeyImagesRef,
   setPendingImages,
   understandingError,
@@ -169,6 +171,16 @@ export default function ChatComposer({
                 >
                   <img src={src} alt={`Attachment ${i + 1}`} style={S.thumb} />
                 </button>
+                {pendingHotkeyImagesRef.current.has(src) && (
+                  <button
+                    type="button"
+                    style={S.pendingAnnotate}
+                    aria-label={`Annotate hotkey screenshot ${i + 1}`}
+                    onClick={() => openImageAnnotator(src)}
+                  >
+                    ✎ Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   style={S.pendingX}

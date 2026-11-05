@@ -1510,13 +1510,35 @@ describe('deferred suggestion context', () => {
     });
     sendMessage.mockClear();
 
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Annotate hotkey screenshot 1',
+      }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith('open-image-preview', {
+      imageDataUrl,
+      editable: true,
+    });
+
+    const annotatedImageDataUrl = 'data:image/png;base64,YW5ub3RhdGVk';
+    act(() => {
+      listeners.get('image-annotation-saved')?.({
+        originalImageDataUrl: imageDataUrl,
+        imageDataUrl: annotatedImageDataUrl,
+      });
+    });
+    expect(screen.getByAltText('Attachment 1')).toHaveAttribute(
+      'src',
+      annotatedImageDataUrl,
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
         'send-chat-message',
         expect.objectContaining({
-          images: [imageDataUrl],
-          hotkeyImages: [imageDataUrl],
+          images: [annotatedImageDataUrl],
+          hotkeyImages: [annotatedImageDataUrl],
         }),
       );
     });
@@ -1526,7 +1548,7 @@ describe('deferred suggestion context', () => {
       }),
     );
     expect(sendMessage).toHaveBeenCalledWith('open-image-preview', {
-      imageDataUrl,
+      imageDataUrl: annotatedImageDataUrl,
     });
   });
   it('lets the user scroll up while a reply streams and jump back to it', async () => {

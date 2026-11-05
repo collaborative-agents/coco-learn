@@ -1,3 +1,5 @@
+import PiHarness from './services/pi-harness';
+import WorkspacePermissions from './services/workspace-permissions';
 import createProactiveNotifications from './proactive-notifications';
 import type { ChatSeed, InstantSuggestion, SuggestionObservation } from './proactive-types';
 import registerReactiveChat from './reactive-chat';
@@ -299,6 +301,11 @@ const AVATAR_DRAG_END_MS = 150;
 let chatWindow: BrowserWindow | null = null;
 let imagePreviewWindow: BrowserWindow | null = null;
 let imagePreviewDataUrl: string | null = null;
+let imagePreviewEditable = false;
+let imagePreviewSourceWindow: BrowserWindow | null = null;
+let imagePreviewAnnotationResult: 'replace' | 'attach' = 'replace';
+let imagePreviewFullScreenOverlay = false;
+let hotkeyCaptureInProgress = false;
 let wakeWordCaptureWindow: BrowserWindow | null = null;
 let nextDaySummaryScheduler: NextDaySummaryScheduler | null = null;
 let latestHiddenSuggestionObservationId: string | undefined;
@@ -547,7 +554,7 @@ const interactions = new InteractionTracker((source) => {
 });
 
 // Wrap a chat IPC handler so its turn is tracked as an interaction.
-const agentRuns = new AgentRuns();
+const agentRuns = new AgentRuns(() => new PiHarness(workspacePermissions()));
 const proactive = createProactiveNotifications({
   ipc: ipcMain,
   gateway: () => gatewayClient,
@@ -668,6 +675,14 @@ function executionContext(
   };
 }
 
+function workspacePermissions() {
+  const user = currentUserId;
+  if (!user || !isAuthenticated) throw new Error('Sign in to manage permissions.');
+  return new WorkspacePermissions(app.getPath('userData'), user, () => {
+    if (currentUserId !== user || !isAuthenticated) throw new Error('Your account changed.');
+  });
+}
+
 function commandApprovalRules() {
   const user = currentUserId;
   if (!user || !isAuthenticated) throw new Error('Sign in to manage permissions.');
@@ -675,7 +690,7 @@ function commandApprovalRules() {
     if (currentUserId !== user || !isAuthenticated) throw new Error('Your account changed.');
   });
 }
-for (const channel of ['list-command-approvals', 'revoke-command-approval']) {
+for (const channel of ['list-command-approvals', 'revoke-command-approval', 'revoke-file-approval']) {
   ipcMain.handle(channel, (event, sessionId: string | null, ruleId?: string) => {
     if (!chatWindow || event.sender !== chatWindow.webContents) throw new Error('Open permissions from the chat window.');
     if (sessionId !== null && typeof sessionId !== 'string') throw new Error('Invalid conversation.');
@@ -685,7 +700,13 @@ for (const channel of ['list-command-approvals', 'revoke-command-approval']) {
       if (typeof ruleId !== 'string') throw new Error('Invalid permission rule.');
       rules.revoke(directory, ruleId);
     }
-    return { directory, rules: rules.list(directory) };
+    if (channel === 'revoke-file-approval') {
+      if (typeof ruleId !== 'string') throw new Error('Invalid permission rule.');
+      const grant = workspacePermissions().list(directory).find(rule => rule.id === ruleId);
+      if (grant?.kind !== 'path') throw new Error('Invalid file permission rule.');
+      workspacePermissions().revoke(directory, ruleId);
+    }
+    return { directory, rules: rules.list(directory), fileRules: workspacePermissions().list(directory).filter(rule => rule.kind === 'path') };
   });
 }
 
@@ -695,7 +716,7 @@ ipcMain.handle(
     directory: agentDirectory(sessionId),
     accessGranted: Boolean(
       sessionId &&
-        agentRuns.get(sessionId).hasWorkspaceAccess(agentDirectory(sessionId)),
+        workspacePermissions().hasWorkspace(agentDirectory(sessionId)),
     ),
   }),
 );
@@ -718,12 +739,12 @@ ipcMain.handle(
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     const directory = fs.realpathSync(result.filePaths[0]);
-    await agentRuns.get(sessionId).revokeWorkspaceAccess();
+    await agentRuns.release(sessionId);
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
     saveConversationDirectory(sessionId, directory);
     contextTraining.workspaceSelected(sessionId, currentUserId, directory);
-    return { directory, accessGranted: false };
+    return { directory, accessGranted: workspacePermissions().hasWorkspace(directory) };
   },
 );
 ipcMain.handle('revoke-agent-workspace', async (_event, sessionId: string) => {
@@ -731,8 +752,10 @@ ipcMain.handle('revoke-agent-workspace', async (_event, sessionId: string) => {
     throw new Error('Open a conversation first.');
   if (agentRuns.has(sessionId))
     throw new Error('Stop the current run before revoking access.');
-  await agentRuns.get(sessionId).revokeWorkspaceAccess();
-  return { directory: agentDirectory(sessionId), accessGranted: false };
+  const directory = agentDirectory(sessionId);
+  workspacePermissions().revokeWorkspace(directory);
+  await agentRuns.revokeWorkspace(directory);
+  return { directory, accessGranted: false };
 });
 // Explain supplied text without starting an agent run or changing a conversation.
 ipcMain.handle('explain-tool-command', async (_event, payload: unknown) => {
@@ -2094,26 +2117,89 @@ const showChatPanel = (options: { expanded?: boolean } = {}) => {
   }
 };
 
+const clearImagePreviewState = (target: BrowserWindow) => {
+  if (imagePreviewWindow !== target) return;
+  imagePreviewWindow = null;
+  imagePreviewDataUrl = null;
+  imagePreviewEditable = false;
+  imagePreviewSourceWindow = null;
+  imagePreviewAnnotationResult = 'replace';
+  imagePreviewFullScreenOverlay = false;
+};
+
+const dismissImagePreviewWindow = (target: BrowserWindow) => {
+  clearImagePreviewState(target);
+  if (!target.isDestroyed()) target.destroy();
+};
+
+const captureDisplayAtCursor = async (): Promise<string> => {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const pixelSize = {
+    width: Math.max(1, Math.round(display.size.width * display.scaleFactor)),
+    height: Math.max(1, Math.round(display.size.height * display.scaleFactor)),
+  };
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: pixelSize,
+  });
+  const source =
+    sources.find((candidate) => candidate.display_id === String(display.id)) ??
+    (sources.length === 1 ? sources[0] : undefined);
+  if (!source || source.thumbnail.isEmpty()) {
+    throw new Error(`No capture source found for display ${display.id}`);
+  }
+
+  const capturedSize = source.thumbnail.getSize();
+  log.info(
+    `[ImagePreview] Captured display ${display.id} at ` +
+      `${capturedSize.width}x${capturedSize.height} ` +
+      `(requested ${pixelSize.width}x${pixelSize.height}).`,
+  );
+  return source.thumbnail.toDataURL();
+};
+
 const openImagePreviewWindow = (
   sourceWindow: BrowserWindow | null,
   imageDataUrl: string,
+  editable = false,
+  annotationResult: 'replace' | 'attach' = 'replace',
+  displayAtCursor = false,
+  fullScreenOverlay = false,
 ) => {
   imagePreviewDataUrl = imageDataUrl;
-  const display = sourceWindow
-    ? screen.getDisplayMatching(sourceWindow.getBounds())
-    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  imagePreviewEditable = editable;
+  imagePreviewSourceWindow = sourceWindow;
+  imagePreviewAnnotationResult = annotationResult;
+  imagePreviewFullScreenOverlay = fullScreenOverlay;
+  const display =
+    sourceWindow && !displayAtCursor
+      ? screen.getDisplayMatching(sourceWindow.getBounds())
+      : screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 
   if (imagePreviewWindow && !imagePreviewWindow.isDestroyed()) {
+    if (
+      process.platform === 'darwin' &&
+      imagePreviewWindow.isSimpleFullScreen()
+    ) {
+      imagePreviewWindow.setSimpleFullScreen(false);
+    }
     imagePreviewWindow.setBounds(display.bounds);
+    if (process.platform === 'darwin') {
+      imagePreviewWindow.setSimpleFullScreen(true);
+    }
     if (!imagePreviewWindow.webContents.isLoadingMainFrame()) {
-      imagePreviewWindow.webContents.send('image-preview', { imageDataUrl });
+      imagePreviewWindow.webContents.send('image-preview', {
+        imageDataUrl,
+        editable,
+        fullScreenOverlay,
+      });
       imagePreviewWindow.show();
       imagePreviewWindow.focus();
     }
     return;
   }
 
-  imagePreviewWindow = new BrowserWindow({
+  const previewWindow = new BrowserWindow({
     show: false,
     ...display.bounds,
     frame: false,
@@ -2123,22 +2209,57 @@ const openImagePreviewWindow = (
     resizable: false,
     minimizable: false,
     maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: process.platform !== 'darwin',
+    fullscreenable: true,
+    skipTaskbar: true,
     hasShadow: false,
     webPreferences: { preload: preloadPath() },
   });
-  if (process.platform === 'darwin') {
-    imagePreviewWindow.excludedFromShownWindowsMenu = true;
-  }
-  imagePreviewWindow.setAlwaysOnTop(true, 'floating');
-  imagePreviewWindow.loadURL(
-    `${resolveHtmlPath('index.html')}?view=image-preview`,
+  imagePreviewWindow = previewWindow;
+  previewWindow.setAlwaysOnTop(
+    true,
+    process.platform === 'darwin' ? 'screen-saver' : 'floating',
   );
-  imagePreviewWindow.on('closed', () => {
-    imagePreviewWindow = null;
-    imagePreviewDataUrl = null;
+  if (process.platform === 'darwin') {
+    // A bounded frameless window is constrained below macOS's live menu bar,
+    // which leaves the captured menu bar visible underneath it. Simple
+    // fullscreen covers the menu bar and Dock without creating a new Space.
+    previewWindow.setSimpleFullScreen(true);
+  }
+  previewWindow.loadURL(`${resolveHtmlPath('index.html')}?view=image-preview`);
+  previewWindow.on('closed', () => {
+    // A rapid cancel → hotkey sequence can create the next preview before the
+    // old window emits `closed`. Never let the old callback clear the new one.
+    clearImagePreviewState(previewWindow);
   });
+};
+
+const beginHotkeyCapture = async (): Promise<void> => {
+  if (hotkeyCaptureInProgress) {
+    log.info('[ImagePreview] Capture already in progress; ignoring repeat.');
+    return;
+  }
+  if (imagePreviewWindow && !imagePreviewWindow.isDestroyed()) {
+    imagePreviewWindow.show();
+    imagePreviewWindow.focus();
+    return;
+  }
+
+  hotkeyCaptureInProgress = true;
+  const startedAt = Date.now();
+  try {
+    const dataUrl = await captureDisplayAtCursor();
+    createChatWindow();
+    openImagePreviewWindow(chatWindow, dataUrl, true, 'attach', true, true);
+    log.info(
+      `[ImagePreview] Annotation overlay opened in ${Date.now() - startedAt}ms.`,
+    );
+  } catch (error) {
+    log.error(
+      `[ImagePreview] Direct screenshot capture failed: ${(error as Error).message}`,
+    );
+  } finally {
+    hotkeyCaptureInProgress = false;
+  }
 };
 
 const deliverPendingWakeWordDetection = (): void => {
@@ -4648,8 +4769,11 @@ registerReactiveChat({
 
 ipcMain.removeAllListeners('open-image-preview');
 ipcMain.on('open-image-preview', (event, payload: unknown) => {
-  const imageDataUrl = (payload as { imageDataUrl?: unknown } | null)
-    ?.imageDataUrl;
+  const preview = (payload ?? {}) as {
+    imageDataUrl?: unknown;
+    editable?: unknown;
+  };
+  const { imageDataUrl } = preview;
   if (
     typeof imageDataUrl !== 'string' ||
     !imageDataUrl.startsWith('data:image/')
@@ -4660,6 +4784,7 @@ ipcMain.on('open-image-preview', (event, payload: unknown) => {
   openImagePreviewWindow(
     BrowserWindow.fromWebContents(event.sender),
     imageDataUrl,
+    preview.editable === true,
   );
 });
 
@@ -4675,7 +4800,15 @@ ipcMain.on('image-preview-ready', (event) => {
   }
   imagePreviewWindow.webContents.send('image-preview', {
     imageDataUrl: imagePreviewDataUrl,
+    editable: imagePreviewEditable,
+    fullScreenOverlay: imagePreviewFullScreenOverlay,
   });
+  if (
+    process.platform === 'darwin' &&
+    !imagePreviewWindow.isSimpleFullScreen()
+  ) {
+    imagePreviewWindow.setSimpleFullScreen(true);
+  }
   imagePreviewWindow.show();
   imagePreviewWindow.focus();
 });
@@ -4687,8 +4820,43 @@ ipcMain.on('close-image-preview', (event) => {
     !imagePreviewWindow.isDestroyed() &&
     imagePreviewWindow.webContents.id === event.sender.id
   ) {
-    imagePreviewWindow.close();
+    dismissImagePreviewWindow(imagePreviewWindow);
   }
+});
+
+ipcMain.removeAllListeners('save-image-annotation');
+ipcMain.on('save-image-annotation', (event, payload: unknown) => {
+  const annotatedImageDataUrl = (
+    payload as { imageDataUrl?: unknown } | null
+  )?.imageDataUrl;
+  if (
+    !imagePreviewEditable ||
+    !imagePreviewDataUrl ||
+    !imagePreviewWindow ||
+    imagePreviewWindow.isDestroyed() ||
+    imagePreviewWindow.webContents.id !== event.sender.id ||
+    typeof annotatedImageDataUrl !== 'string' ||
+    !annotatedImageDataUrl.startsWith('data:image/png;base64,') ||
+    annotatedImageDataUrl.length > 50_000_000
+  ) {
+    log.warn('[ImagePreview] Ignored an invalid annotation result.');
+    return;
+  }
+
+  if (imagePreviewAnnotationResult === 'attach') {
+    pendingHotkeyCaptures.push(annotatedImageDataUrl);
+    showChatPanel();
+    flushHotkeyCaptures();
+  } else if (
+    imagePreviewSourceWindow &&
+    !imagePreviewSourceWindow.isDestroyed()
+  ) {
+    imagePreviewSourceWindow.webContents.send('image-annotation-saved', {
+      originalImageDataUrl: imagePreviewDataUrl,
+      imageDataUrl: annotatedImageDataUrl,
+    });
+  }
+  dismissImagePreviewWindow(imagePreviewWindow);
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -5965,40 +6133,7 @@ app
         showPreAssessmentLockedMessage();
         return;
       }
-      // Open the chat panel immediately so the preview has somewhere to land
-      // (and the keypress feels responsive). If it was closed, this creates a
-      // fresh renderer whose readiness handshake drives the flush below.
-      showChatPanel();
-
-      const sensingPort = process.env.SENSING_PORT || '8080';
-      const req = require('http').request(
-        {
-          hostname: '127.0.0.1',
-          port: sensingPort,
-          path: '/hotkey/capture',
-          method: 'POST',
-        },
-        (res: import('http').IncomingMessage) => {
-          // Read the capture response and buffer its image, then flush to the
-          // chat input bar. flushHotkeyCaptures() no-ops until the renderer is
-          // ready, so a just-opened window still gets the capture once mounted.
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(c));
-          res.on('end', () => {
-            try {
-              const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-              const dataUrl = body?.image_data_url;
-              if (!dataUrl) return;
-              pendingHotkeyCaptures.push(dataUrl);
-              flushHotkeyCaptures();
-            } catch {
-              // Ignore malformed responses — capture still lands server-side.
-            }
-          });
-        },
-      );
-      req.on('error', () => {}); // silent if sensing server is not running
-      req.end();
+      void beginHotkeyCapture();
     });
 
     // Cmd/Ctrl+Shift+H — toggle the observation history panel on the avatar.

@@ -1,3 +1,5 @@
+import './theme/scrollbars.css';
+import './theme/controls.css';
 import { createRoot } from 'react-dom/client';
 import type { ReactElement } from 'react';
 import './global.css';

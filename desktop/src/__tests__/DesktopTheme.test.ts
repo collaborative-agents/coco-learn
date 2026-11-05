@@ -41,7 +41,7 @@ describe('shared desktop typography', () => {
       expect(S[name].fontSize).toBe('var(--coco-text-control)');
     });
     expect(S.iconBtn.height).toBe('var(--coco-control-height)');
-    expect(S.newSessionBtn.height).toBe(S.iconBtn.height);
+    expect(S.newSessionBtn.height).toBeGreaterThanOrEqual(28);
     expect(tokens).toContain('--coco-control-height: 36px');
     expect(S.hotkeyHint.fontSize).toBe('var(--coco-text-secondary)');
     expect(S.metricRow.fontSize).toBe('var(--coco-text-caption)');

@@ -68,6 +68,7 @@ export const S: Record<string, React.CSSProperties> = {
   errBubble: { background: 'var(--coco-color-danger-soft)', color: 'var(--coco-color-danger)', padding: 'var(--coco-space-3) var(--coco-space-4)', borderRadius: 'var(--coco-radius-control)', fontSize: 'var(--coco-text-body)', border: '1px solid var(--coco-color-danger-border)' },
   retryBtn: { marginTop: 7, border: '1px solid #fca5a5', background: 'var(--coco-color-surface)', color: 'var(--coco-color-danger)', borderRadius: 'var(--coco-radius-control)', padding: '4px 10px', fontSize: 'var(--coco-text-control)', fontWeight: 700, cursor: 'pointer', fontFamily: FONT },
   thumbRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  pendingAnnotate: { position: 'absolute', bottom: 5, left: 4, padding: '2px 5px', borderRadius: 4, border: `1px solid ${BORDER}`, background: 'var(--coco-color-surface)', color: ACCENT, fontSize: 11, cursor: 'pointer' },
   thumb: { width: 64, height: 64, objectFit: 'cover', borderRadius: 'var(--coco-radius-control)', border: `1px solid ${BORDER}` },
   example: { marginTop: 8, background: ACCENT_BG, border: `1px solid ${ACCENT_BORDER}`, borderRadius: 'var(--coco-radius-control)', padding: '8px 10px', fontSize: 'var(--coco-text-body)', color: ACCENT },
   exampleBtn: { marginTop: 6, border: `1px solid ${ACCENT_BORDER}`, background: 'var(--coco-color-surface)', borderRadius: 'var(--coco-radius-control)', padding: '3px 9px', fontSize: 'var(--coco-text-control)', cursor: 'pointer', color: ACCENT },

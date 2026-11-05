@@ -156,3 +156,49 @@ point one development run at a fresh temporary directory:
 export COCO_TEST_DATA="$(mktemp -d /tmp/coco-model-test.XXXXXX)"
 COCO_DESKTOP_USER_DATA_DIR="$COCO_TEST_DATA" npm start
 ```
+
+
+## Pi runtime dependencies and permissions
+
+The packaged runtime pins `@earendil-works/pi-coding-agent` to `1.5.0` and
+`@earendil-works/pi-server` to `1.1.0`. Its npm lockfile lives in
+`release/app/package-lock.json`; `release/app/.npmrc` keeps future additions
+exactly pinned. Install it with `npm --prefix release/app ci --ignore-scripts`
+when running compatibility tests without Electron native rebuilds.
+
+Workspace access is requested when a file tool first needs it. Ordinary chat
+and shell command approval do not require a separate folder prompt. Approved
+workspace access persists across chats and restarts for the signed-in account.
+File tools can also request read or read/write access to a specific external
+file or directory, either once or remembered for that workspace. One-time
+access is scoped to the tool invocation. Canonical paths and symlinks are
+checked before execution; directory grants cover their contents.
+
+Use the workspace permissions dialog to remove saved command or external-file
+rules, or revoke workspace access. Revoking the workspace disposes runtimes
+using it; removing an external-file rule affects future calls. Shell commands
+still require their own approval and are not sandboxed. Agent 101 retains its
+restricted training toolsets and does not reuse saved command approvals.
+
+Pending permission cards accept Enter to allow and Escape to deny. Shortcuts
+respect message editing, dialogs, and concurrent prompts. Screenshot capture
+(Cmd/Ctrl+Shift+Space) opens a selection/annotation overlay; saving attaches the
+result to chat. Pending captures can be edited again before sending.
+
+Dependabot groups weekly Pi and extension updates. The dependency compatibility
+workflow runs on Linux, macOS, and Windows, installing the locked dependency
+trees and running runtime tests, type-checking, builds, and host permission
+tests. For a dependency update, update the runtime manifest and npm lockfile
+together, then run from `desktop`:
+
+```bash
+npm --prefix release/app ls --depth=0
+npm run test:agent
+npm run build
+npm run test:agent-host
+```
+
+The runtime tests use local mock HTTP services and cover session restoration,
+concurrent runs, cancellation, extensions, permissions, and Agent 101 tool
+restrictions without contacting a live model provider. The study release
+workflow and its gateway configuration remain separate.

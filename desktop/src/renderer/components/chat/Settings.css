@@ -243,3 +243,30 @@
     flex-wrap: wrap;
   }
 }
+
+/* Let the memory card grow with its editor, up to the settings viewport. */
+#settings-page-memory {
+  height: 100%;
+}
+.settings-category > .memory-settings {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  max-height: 100%;
+  min-height: 0;
+}
+.memory-settings > :not(.settings-memory-editor) {
+  flex-shrink: 0;
+}
+.settings-memory-editor {
+  field-sizing: content;
+  flex: 0 1 auto;
+  overflow-y: auto;
+  max-height: 100dvh;
+}
+
+@media (max-width: 480px) {
+  .settings-toggle-row {
+    flex-wrap: wrap;
+  }
+}

@@ -37,4 +37,18 @@ describe('concurrent execution registry', () => {
     runs.begin('a', 'ra', true);
     expect(() => runs.begin('b', 'rb')).toThrow(/practice suggestion/);
   });
+  it('revokes every runtime using the folder without affecting other folders', async () => {
+    const runs = new AgentRuns();
+    const a = runs.get('a');
+    const b = runs.get('b');
+    const c = runs.get('c');
+    jest.mocked(a.usesWorkspace).mockReturnValue(true);
+    jest.mocked(b.usesWorkspace).mockReturnValue(true);
+    jest.mocked(c.usesWorkspace).mockReturnValue(false);
+    await runs.revokeWorkspace('/workspace');
+    expect(a.revokeWorkspaceAccess).toHaveBeenCalledWith('/workspace');
+    expect(b.revokeWorkspaceAccess).toHaveBeenCalledWith('/workspace');
+    expect(c.revokeWorkspaceAccess).not.toHaveBeenCalled();
+  });
+
 });

@@ -395,6 +395,13 @@ function SessionChatContent() {
     });
   };
 
+  const openImageAnnotator = (imageDataUrl: string) => {
+    window.electron?.ipcRenderer.sendMessage('open-image-preview', {
+      imageDataUrl,
+      editable: true,
+    });
+  };
+
   // New text follows the bottom of the transcript only while the user is
   // there; scrolling up to read stops it until they return or jump back.
   const followingRef = useRef(true);
@@ -1308,6 +1315,35 @@ function SessionChatContent() {
     };
   }, []);
 
+  // The full-screen annotator sends back a flattened PNG. Replace the original
+  // pending capture while retaining its hot-key provenance for the tutor.
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on(
+      'image-annotation-saved',
+      (data: any) => {
+        const original = (data ?? {}).originalImageDataUrl as
+          | string
+          | undefined;
+        const annotated = (data ?? {}).imageDataUrl as string | undefined;
+        if (
+          !original ||
+          !annotated?.startsWith('data:image/') ||
+          !pendingHotkeyImagesRef.current.has(original)
+        ) {
+          return;
+        }
+        pendingHotkeyImagesRef.current.delete(original);
+        pendingHotkeyImagesRef.current.add(annotated);
+        setPendingImages((current) =>
+          current.map((image) => (image === original ? annotated : image)),
+        );
+      },
+    );
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
+  }, []);
+
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -2001,6 +2037,7 @@ function SessionChatContent() {
                           setPendingScreenContext(null),
                         pendingImages,
                         openImagePreview,
+                        openImageAnnotator,
                         pendingHotkeyImagesRef,
                         setPendingImages,
                         understandingError,

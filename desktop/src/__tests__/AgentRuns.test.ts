@@ -1,6 +1,9 @@
 /** @jest-environment node */
 import AgentRuns from '../main/services/agent-runs';
 import PiHarness from '../main/services/pi-harness';
+// Jest inspects the real harness when generating its mock. CI deliberately
+// installs with --ignore-scripts, so importing Electron must not load a binary.
+jest.mock('electron', () => ({ app: {} }));
 jest.mock('../main/services/pi-harness');
 
 describe('concurrent execution registry', () => {

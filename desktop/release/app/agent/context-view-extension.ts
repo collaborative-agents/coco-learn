@@ -1,7 +1,7 @@
 // Reuse pi-context-view's analysis without its terminal UI or synthetic prompts.
 // Pinned internal imports are exercised by the real-SDK integration test.
 import { buildSessionContext } from '@earendil-works/pi-coding-agent';
-import { buildNativeSnapshot } from '../node_modules/pi-context-view/src/capture.ts';
+import { buildNativeSnapshot } from '../node_modules/pi-context-view/src/replay.ts';
 import {
   computeUsage,
   toReportedUsage,

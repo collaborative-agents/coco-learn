@@ -94,6 +94,7 @@ import registerTokenTraining from './services/token-training';
 import registerModelTraining from './services/model-training';
 import registerWorkflowTraining from './services/workflow-training';
 import registerToolExploration from './services/tool-exploration';
+import trackAgent101 from './services/agent101-tracking';
 import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
@@ -846,11 +847,20 @@ ipcMain.handle(
   },
 );
 
+const agent101Tracking = trackAgent101({
+  ipc: ipcMain,
+  root: () => app.getPath('userData'),
+  user: () => (isAuthenticated ? currentUserId : null),
+  gateway: () => gatewayClient,
+  warn: (error) => log.warn('Agent 101 progress sync deferred:', error),
+});
+app.on('before-quit', () => agent101Tracking.dispose());
+
 const contextTraining = registerContextTraining({
   canSkipPrerequisites: () =>
     !adminStudentMode &&
     (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: ipcMain,
+  ipc: agent101Tracking.ipc,
   root: () => app.getPath('userData'),
   user: (event, run = false) => {
     if (
@@ -896,7 +906,7 @@ const tokenTraining = registerTokenTraining({
   canSkipPrerequisites: () =>
     !adminStudentMode &&
     (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: ipcMain,
+  ipc: agent101Tracking.ipc,
   root: () => app.getPath('userData'),
   user: (event, run = false) => {
     if (
@@ -943,7 +953,7 @@ const modelTraining = registerModelTraining({
   canSkipPrerequisites: () =>
     !adminStudentMode &&
     (currentStudyRole === 'admin' || currentStudyRole === 'super_admin'),
-  ipc: ipcMain,
+  ipc: agent101Tracking.ipc,
   root: () => app.getPath('userData'),
   user: (event, run = false) => {
     if (
@@ -1046,7 +1056,7 @@ const workflowChatTurns = new Map<
   }
 >();
 const workflowTraining = registerWorkflowTraining({
-  ipc: ipcMain,
+  ipc: agent101Tracking.ipc,
   root: () => app.getPath('userData'),
   currentUser: () => currentUserId,
   user: (event, run = false) => {
@@ -1193,7 +1203,7 @@ const workflowTraining = registerWorkflowTraining({
 });
 
 const toolTraining = registerToolExploration({
-  ipc: ipcMain,
+  ipc: agent101Tracking.ipc,
   runs: agentRuns,
   root: () => app.getPath('userData'),
   user: (event, run = false) => {

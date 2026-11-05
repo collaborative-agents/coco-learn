@@ -69,3 +69,19 @@ test('ignores pending reads after the window unmounts', async () => {
   await Promise.resolve();
   expect(changed).not.toHaveBeenCalled();
 });
+
+test('reports denied access separately without putting Coco to sleep', async () => {
+  invoke.mockResolvedValue({ sleeping: false, tutoringAllowed: true });
+  const sleeping = jest.fn();
+  const access = jest.fn();
+  const dispose = subscribeCocoSleepMode(sleeping, access);
+  await Promise.resolve();
+  expect(access).toHaveBeenLastCalledWith(true);
+  listener({ sleeping: false, tutoringAllowed: false });
+  expect(sleeping).toHaveBeenLastCalledWith(false);
+  expect(access).toHaveBeenLastCalledWith(false);
+  listener({ sleeping: true, tutoringAllowed: true });
+  expect(sleeping).toHaveBeenLastCalledWith(true);
+  expect(access).toHaveBeenLastCalledWith(true);
+  dispose();
+});

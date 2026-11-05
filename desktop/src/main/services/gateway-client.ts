@@ -3,6 +3,13 @@ import { readHarnessVersion } from './harness-version';
 import type { HarnessVersion } from './harness-version';
 import type { SessionStartTrigger } from '../../shared/session-start';
 
+export class GatewayHttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'GatewayHttpError';
+  }
+}
+
 function gatewayErrorMessage(detail: unknown, status: number): string {
   if (typeof detail === 'string' && detail.trim()) return detail;
   const issues = Array.isArray(detail) ? detail : [detail];
@@ -436,7 +443,10 @@ export class CocoGatewayClient {
           throw new Error('The Coco backend returned an invalid response.');
       }
       if (!response.ok)
-        throw new Error(gatewayErrorMessage(result.detail, response.status));
+        throw new GatewayHttpError(
+          response.status,
+          gatewayErrorMessage(result.detail, response.status),
+        );
       return result;
     } finally {
       clearTimeout(timeout);

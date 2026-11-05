@@ -99,7 +99,8 @@ import ChatStreamStore from './services/chat-stream-store';
 import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
 import AgentProgressReminder from './services/agent-progress-reminder';
-import { CocoGatewayClient } from './services/gateway-client';
+import { CocoGatewayClient, GatewayHttpError } from './services/gateway-client';
+import { createTutoringAccessRefresher } from './services/tutoring-access';
 import {
   clearAuthSession,
   readAuthSession,
@@ -375,7 +376,7 @@ let pendingWakeWordDetection: {
 const WAKE_WORDS = ['COCO', 'HI COCO', 'HEY COCO'] as const;
 const WAKE_WORD_MODEL = 'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
 
-const isCocoSleeping = () => cocoSleeping || !tutoringAllowed;
+const isObservationPaused = () => cocoSleeping || !tutoringAllowed;
 const setPostAssessmentActive = (active: boolean) => {
   if (postAssessmentActive === active) return;
   postAssessmentActive = active;
@@ -2641,8 +2642,8 @@ const createWakeWordCaptureWindow = (): void => {
 
 const syncWakeWordService = (): void => {
   if (!wakeWordService) return;
-  if (!wakeWordEnabled) wakeWordService.stop('disabled');
-  else if (isCocoSleeping() || systemSuspended) {
+  if (!wakeWordEnabled || !tutoringAllowed) wakeWordService.stop('disabled');
+  else if (cocoSleeping || systemSuspended) {
     wakeWordService.stop('sleeping');
   } else wakeWordService.start();
 };
@@ -2673,7 +2674,7 @@ const initializeWakeWordService = (): void => {
     packagedExecutable: executable,
     onStatus: publishWakeWordStatus,
     onDetected: (keyword) => {
-      if (!wakeWordEnabled || isCocoSleeping() || systemSuspended) return;
+      if (!wakeWordEnabled || isObservationPaused() || systemSuspended) return;
       log.info(`[Wake word] Detected ${keyword}`);
       // The tutor service starts only after setup, so a voice turn here would
       // always fail. During onboarding, just confirm the phrase was heard.
@@ -2837,7 +2838,7 @@ function createTray(): void {
   let setupLabel = 'Continue Setup';
   if (authRequired) setupLabel = 'Sign in';
   else if (isOnboardingComplete()) setupLabel = 'Open Model Setup';
-  const sleeping = isCocoSleeping();
+  const sleeping = cocoSleeping;
   const showAvatarItems = avatarRecoveryItems(hideAvatarMode, () => {
     const result = updateAvatarVisibilitySetting(false);
     if (!result.success) {
@@ -2898,6 +2899,11 @@ function createTray(): void {
                 label: sleeping ? 'Status: Sleeping' : 'Status: Awake',
                 enabled: false,
               },
+              ...(studyAccessStatus === 'unavailable'
+                ? [{ label: 'Could not refresh study access — retrying…', enabled: false }]
+                : !tutoringAllowed
+                  ? [{ label: 'AI tutoring unavailable for this account', enabled: false }]
+                  : []),
               { type: 'separator' },
               ...cocoNavigationItems({
                 'open-main-window': openPrimaryTrayAction,
@@ -3486,7 +3492,7 @@ const showSessionInvite = (
       if (
         latestInviteObservationId !== observationId ||
         isSessionActive ||
-        isCocoSleeping() ||
+        isObservationPaused() ||
         systemSuspended ||
         postAssessmentActive
       ) {
@@ -3706,7 +3712,8 @@ ipcMain.handle(
   ) => {
     // Combined health checks are paused while sensing is intentionally stopped.
     // The tutor remains available for manual conversations.
-    if (isCocoSleeping()) {
+    if (!tutoringAllowed) throw new Error('AI tutoring is not available for this account.');
+    if (cocoSleeping) {
       return { checkedAt: Date.now(), sleeping: true };
     }
     type ModelAssessment = {
@@ -4010,7 +4017,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
     try {
       await Promise.all([
         axios.get(`${tutor}/health`, { timeout: 1000 }),
-        ...(!isCocoSleeping()
+        ...(!isObservationPaused()
           ? [axios.get(`${sensing}/health`, { timeout: 1000 })]
           : []),
       ]);
@@ -4047,7 +4054,7 @@ async function restoreSessionAfterModelRestart(): Promise<void> {
       { timeout: 8000 },
     );
   }
-  if (!isCocoSleeping())
+  if (!isObservationPaused())
     await axios.post(
       `${sensing}/session`,
       {
@@ -4104,7 +4111,7 @@ ipcMain.handle(
           runtime.config.sensing.model,
         );
         serviceManager.startService('tutor-server');
-        if (!isCocoSleeping()) serviceManager.startService('sensing-server');
+        if (!isObservationPaused()) serviceManager.startService('sensing-server');
         try {
           await restoreSessionAfterModelRestart();
         } catch (err) {
@@ -4369,7 +4376,7 @@ ipcMain.on('training-feedback', async (_event, payload) => {
 });
 
 function publishCocoSleepMode() {
-  const state = { sleeping: isCocoSleeping() };
+  const state = { sleeping: cocoSleeping, tutoringAllowed };
   avatarWindow?.webContents.send('coco-sleep-mode-changed', state);
   avatarMenuWindow?.webContents.send('coco-sleep-mode-changed', state);
   chatWindow?.webContents.send('coco-sleep-mode-changed', state);
@@ -4379,15 +4386,16 @@ function publishCocoSleepMode() {
 }
 
 function setTutoringAllowed(allowed: boolean) {
-  const wasSleeping = isCocoSleeping();
+  const changed = tutoringAllowed !== allowed;
   tutoringAllowed = allowed;
   process.env.COCO_TUTORING_ALLOWED = allowed ? '1' : '0';
-  if (isCocoSleeping() !== wasSleeping) publishCocoSleepMode();
+  if (changed) publishCocoSleepMode();
 }
 
 ipcMain.removeHandler('get-coco-sleep-mode');
 ipcMain.handle('get-coco-sleep-mode', () => ({
-  sleeping: isCocoSleeping(),
+  sleeping: cocoSleeping,
+  tutoringAllowed,
 }));
 
 async function restoreSensingSession() {
@@ -4414,7 +4422,7 @@ async function restoreSensingSession() {
         ),
       {
         shouldContinue: () =>
-          !isCocoSleeping() &&
+          !isObservationPaused() &&
           isSessionActive &&
           currentSessionId === sessionId,
       },
@@ -4426,12 +4434,6 @@ async function restoreSensingSession() {
 }
 
 async function setCocoSleepMode(sleeping: boolean) {
-  if (!sleeping && !tutoringAllowed)
-    return {
-      success: false,
-      sleeping: true,
-      error: 'AI tutoring is not available for this account.',
-    };
   if (cocoSleeping === sleeping) {
     return { success: true, sleeping };
   }
@@ -4439,6 +4441,7 @@ async function setCocoSleepMode(sleeping: boolean) {
   // Suppress observation events before stopping sensing, including suggestions
   // that were already being generated. Manual conversations keep running.
   cocoSleeping = sleeping;
+  log.info(`[Sleep] User selected ${sleeping ? 'sleep' : 'wake'}.`);
   publishCocoSleepMode();
   syncWakeWordService();
 
@@ -4454,14 +4457,14 @@ async function setCocoSleepMode(sleeping: boolean) {
       COCO_RESET_TUTOR_ON_START: '0',
     });
     await serviceManager.stopService('sensing-server');
-  } else if (observerStarted) {
+  } else if (tutoringAllowed && observerStarted) {
     serviceManager.startService('sensing-server');
     await restoreSensingSession();
-  } else if (isOnboardingComplete()) {
+  } else if (tutoringAllowed && isOnboardingComplete()) {
     startObserver();
   }
 
-  return { success: true, sleeping: isCocoSleeping() };
+  return { success: true, sleeping: cocoSleeping };
 }
 
 ipcMain.removeHandler('set-coco-sleep-mode');
@@ -4477,7 +4480,7 @@ ipcMain.handle(
       log.error('[Sleep] Could not change Coco sleep mode:', error);
       return {
         success: false,
-        sleeping: isCocoSleeping(),
+        sleeping: cocoSleeping,
         error: (error as Error).message,
       };
     }
@@ -4635,7 +4638,7 @@ ipcMain.removeAllListeners('wake-word-audio-frame');
 ipcMain.on('wake-word-audio-frame', (event, frame: unknown) => {
   if (
     !wakeWordEnabled ||
-    isCocoSleeping() ||
+    isObservationPaused() ||
     systemSuspended ||
     wakeWordCapturePaused ||
     !wakeWordCaptureWindow ||
@@ -4969,7 +4972,7 @@ function precomputeSuggestion(event: {
   teaching_depth?: 'introduce' | 'reinforce' | 'deepen' | 'not_applicable';
 }): Promise<InstantSuggestion | null> | undefined {
   const id = event.observation_id;
-  if (!id || isCocoSleeping()) return undefined;
+  if (!id || isObservationPaused()) return undefined;
   const cached = suggestionCache.get(id);
   if (cached) return cached.promise;
   pruneSuggestionCache();
@@ -5305,7 +5308,7 @@ async function createProactiveTutorSession(
   // Register sensing before configuring tutor context. During sleep only the
   // manual tutor is configured; sensing catches up when Coco wakes.
   try {
-    if (!isCocoSleeping())
+    if (!isObservationPaused())
       await retryLocalPost(
         'Sensing session setup',
         `${sensing}/session`,
@@ -6772,7 +6775,9 @@ interface DesktopAuthCredentials {
   keepSignedIn?: boolean;
 }
 
-const configureParticipantRouterCredential = async (): Promise<void> => {
+const configureParticipantRouterCredential = async (
+  confirmedPolicy?: StudyState,
+): Promise<void> => {
   if (!gatewayClient) throw new Error('The study server is unavailable.');
   if (currentUserId)
     await syncPreAssessmentState(
@@ -6780,10 +6785,10 @@ const configureParticipantRouterCredential = async (): Promise<void> => {
       currentUserId,
       gatewayClient,
     );
-  const policy = (await gatewayClient.requestJson(
+  const policy = confirmedPolicy ?? ((await gatewayClient.requestJson(
     '/api/study/me',
     'GET',
-  )) as unknown as StudyState;
+  )) as unknown as StudyState);
   applyStudyPolicy(policy);
   if (!tutoringAllowed) {
     delete process.env.LLM_ROUTER_API_KEY;
@@ -6812,7 +6817,12 @@ function applyEffectiveStudyAccess(): void {
 }
 
 async function stopTutoringForAccess(): Promise<void> {
-  await agentRuns.abort();
+  // A failed agent cancellation must not prevent stopping the other services.
+  try {
+    await agentRuns.abort();
+  } catch (error) {
+    log.warn('[Study] Could not cancel active tutoring:', error);
+  }
   delete process.env.LLM_ROUTER_API_KEY;
   notificationWindow?.destroy();
   sessionRecapWindow?.destroy();
@@ -6827,33 +6837,33 @@ async function stopTutoringForAccess(): Promise<void> {
   syncWakeWordService();
 }
 
-let policyRefreshRunning = false;
-async function refreshTutoringAccess() {
-  if (!isAuthenticated || !gatewayClient || policyRefreshRunning) return;
-  policyRefreshRunning = true;
-  const wasAllowed = tutoringAllowed;
-  try {
-    const policy = (await gatewayClient.requestJson(
-      '/api/study/me',
-      'GET',
-    )) as unknown as StudyState;
-    applyStudyPolicy(policy);
-    if (!wasAllowed && tutoringAllowed) {
-      await configureParticipantRouterCredential();
-      if (!cocoSleeping && isOnboardingComplete()) startObserver();
-    }
-  } catch (error) {
+const refreshTutoringAccess = createTutoringAccessRefresher<StudyState>({
+  canRefresh: () => isAuthenticated && gatewayClient !== null,
+  isAllowed: () => tutoringAllowed,
+  fetchPolicy: async () => {
+    const policy = await gatewayClient!.requestJson('/api/study/me', 'GET');
+    if (typeof policy.tutoring_allowed !== 'boolean')
+      throw new Error('The study server returned an invalid access policy.');
+    return policy as unknown as StudyState;
+  },
+  applyPolicy: applyStudyPolicy,
+  activate: async (policy) => {
+    await configureParticipantRouterCredential(policy);
+    if (!cocoSleeping && isOnboardingComplete()) startObserver();
+  },
+  deactivate: stopTutoringForAccess,
+  setAllowed: setTutoringAllowed,
+  isAuthorizationError: (error) =>
+    error instanceof GatewayHttpError && [401, 403].includes(error.status),
+  unavailable: (error) => {
     studyAccessStatus = 'unavailable';
-    void agentRuns.abort();
-    setTutoringAllowed(false); // Fail closed when authorization cannot be checked.
-    log.warn(`[Study] Could not verify tutoring access: ${String(error)}`);
-  } finally {
-    if (!tutoringAllowed) {
-      await stopTutoringForAccess();
-    } else syncWakeWordService();
-    policyRefreshRunning = false;
-  }
-}
+    log.warn(`[Study] Could not refresh tutoring access: ${String(error)}`);
+  },
+  settled: () => {
+    syncWakeWordService();
+    if (tray && !tray.isDestroyed()) createTray();
+  },
+});
 
 const authenticate = async (
   mode: 'signin' | 'signup',
@@ -7239,7 +7249,7 @@ const startObserver = () => {
       );
     }
     serviceManager.startService('tutor-server');
-    if (!isCocoSleeping()) serviceManager.startService('sensing-server');
+    if (!isObservationPaused()) serviceManager.startService('sensing-server');
   } catch (e) {
     console.warn('Failed to start services:', e);
   }
@@ -7333,7 +7343,7 @@ const startObserver = () => {
     url: `http://127.0.0.1:${sensingPort}/observations/stream`,
     onEvent: (event) => {
       const receivedAt = Date.now();
-      if (isCocoSleeping()) return;
+      if (isObservationPaused()) return;
       if (observationSleepGuard.shouldSuppress(event.ts)) {
         if (event.observation) {
           log.info(
@@ -7429,7 +7439,7 @@ const startObserver = () => {
             // rather than the observer diagnosis that led to it.
             if (
               !value ||
-              isCocoSleeping() ||
+              isObservationPaused() ||
               !hideAvatarMode ||
               !shouldOfferInstantSuggestion(
                 readProfile().scenario,
@@ -7620,6 +7630,8 @@ app
         log.warn(
           `[Auth] saved session could not be restored: ${String(error)}`,
         );
+        studyAccessStatus = 'unavailable';
+        setTutoringAllowed(false);
       }
     }
 

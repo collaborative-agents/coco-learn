@@ -252,6 +252,15 @@ describe('App', () => {
     }
   });
 
+  it('honors an explicit wake even when the avatar already thinks it is awake', async () => {
+    const invoke = jest.fn(async () => ({ success: true, sleeping: false }));
+    const { chooseMenuItem } = setupMenuIpc(invoke);
+    await act(async () => { render(<App />); });
+    await act(async () => chooseMenuItem('wake'));
+    expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', { sleeping: false });
+    expect(invoke).not.toHaveBeenCalledWith('set-coco-sleep-mode', { sleeping: true });
+  });
+
   it('dismisses reply reminders without negative suggestion feedback', async () => {
     jest.useFakeTimers();
     try {
@@ -319,11 +328,11 @@ describe('App', () => {
       expect.objectContaining({ suggestion }),
     );
 
-    await act(async () => chooseMenuItem('toggle-sleep'));
+    await act(async () => chooseMenuItem('sleep'));
     expect(lastBubbleState(sendMessage)).toBeNull();
     act(() => listeners.get('observation-update')?.(mistakeEvent()));
     expect(lastBubbleState(sendMessage)).toBeNull();
-    await act(async () => chooseMenuItem('toggle-sleep'));
+    await act(async () => chooseMenuItem('wake'));
 
     act(() =>
       listeners.get('observation-update')?.({
@@ -390,7 +399,7 @@ describe('App', () => {
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('get-coco-sleep-mode');
     });
-    chooseMenuItem('toggle-sleep');
+    chooseMenuItem('sleep');
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
         sleeping: true,
@@ -405,7 +414,7 @@ describe('App', () => {
       sleeping: false,
     });
 
-    chooseMenuItem('toggle-sleep');
+    chooseMenuItem('wake');
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('set-coco-sleep-mode', {
         sleeping: false,

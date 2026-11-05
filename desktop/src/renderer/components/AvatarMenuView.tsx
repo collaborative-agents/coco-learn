@@ -7,7 +7,8 @@ import { COCO_NAVIGATION } from '../../shared/coco-navigation';
 /** Actions the avatar renderer runs when a menu item is chosen. */
 export type AvatarMenuAction =
   | (typeof COCO_NAVIGATION)[number]['channel']
-  | 'toggle-sleep'
+  | 'sleep'
+  | 'wake'
   | 'quit';
 
 const runAction = (action: AvatarMenuAction) =>
@@ -155,7 +156,7 @@ export default function AvatarMenuView() {
         <button
           type="button"
           role="menuitem"
-          onClick={() => runAction('toggle-sleep')}
+          onClick={() => runAction(cocoSleeping ? 'wake' : 'sleep')}
         >
           <PetMenuIcon name={cocoSleeping ? 'wake' : 'sleep'} />
           <span>{cocoSleeping ? 'Wake Coco' : 'Sleep'}</span>

@@ -1,20 +1,25 @@
 /** Subscribe before reading, so a delayed initial reply cannot undo a wake event. */
 export default function subscribeCocoSleepMode(
   onChange: (sleeping: boolean) => void,
+  onAccessChange?: (allowed: boolean) => void,
 ) {
   let disposed = false;
   let revision = 0;
   const ipc = window.electron?.ipcRenderer;
   const remove = ipc?.on('coco-sleep-mode-changed', (value: unknown) => {
     revision += 1;
-    if (!disposed)
+    if (!disposed) {
       onChange((value as { sleeping?: boolean })?.sleeping === true);
+      onAccessChange?.(
+        (value as { tutoringAllowed?: boolean })?.tutoringAllowed === true,
+      );
+    }
   });
   const refresh = async () => {
     const startedAtRevision = revision;
     try {
       const state = (await ipc?.invoke('get-coco-sleep-mode')) as
-        | { sleeping?: boolean }
+        | { sleeping?: boolean; tutoringAllowed?: boolean }
         | undefined;
       if (
         !disposed &&
@@ -23,6 +28,7 @@ export default function subscribeCocoSleepMode(
       ) {
         revision += 1;
         onChange(state.sleeping);
+        onAccessChange?.(state.tutoringAllowed === true);
       }
     } catch {
       // Keep the last known state; the next refresh can recover a missed event.

@@ -83,17 +83,19 @@ describe('AvatarMenuView', () => {
       'open-main-window',
       'open-training',
       'open-chat-settings',
-      'toggle-sleep',
+      'sleep',
       'quit',
     ]);
   });
 
   it('offers Wake Coco while Coco is asleep', async () => {
-    const { open } = setup({ 'get-coco-sleep-mode': { sleeping: true } });
+    const { open, sendMessage } = setup({ 'get-coco-sleep-mode': { sleeping: true } });
     open();
     expect(
       await screen.findByRole('menuitem', { name: 'Wake Coco' }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Wake Coco' }));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-menu-action', 'wake');
   });
 
   it('hides the avatar without sleeping or quitting, then closes', async () => {

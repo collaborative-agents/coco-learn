@@ -679,8 +679,8 @@ function PetView() {
   // and Coco's mood live. Refreshed every render so the listener sees both.
   menuActionRef.current = (action: AvatarMenuAction) => {
     if (action === 'open-main-window') handleOpenChat();
-    else if (action === 'toggle-sleep')
-      setCocoSleepMode(!cocoSleeping).catch(() => undefined);
+    else if (action === 'sleep' || action === 'wake')
+      setCocoSleepMode(action === 'sleep').catch(() => undefined);
     else if (action === 'quit')
       window.electron?.ipcRenderer.sendMessage('quit-from-avatar');
     else window.electron?.ipcRenderer.sendMessage(action);

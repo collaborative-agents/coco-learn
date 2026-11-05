@@ -1,5 +1,20 @@
 import { CocoGatewayClient } from '../main/services/gateway-client';
 
+it.each([401, 403, 503])('preserves HTTP %s for access policy decisions', async (status) => {
+  const client = new CocoGatewayClient({
+    gatewayUrl: 'https://gateway.example',
+    fetchImpl: jest.fn().mockResolvedValue({
+      ok: false,
+      status,
+      json: async () => ({ detail: 'Request failed' }),
+    }),
+  });
+  client.setAuthSession('test-token', 'test-user');
+  await expect(client.requestJson('/api/study/me', 'GET')).rejects.toMatchObject({
+    name: 'GatewayHttpError', status,
+  });
+});
+
 describe('CocoGatewayClient', () => {
   const originalGatewayUrl = process.env.COCO_GATEWAY_URL;
   const originalGatewayEnabled = process.env.COCO_GATEWAY_ENABLED;

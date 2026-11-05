@@ -14,6 +14,7 @@ export default function WakeWordCaptureView() {
   const [enabled, setEnabled] = useState(false);
   const [paused, setPaused] = useState(false);
   const [sleeping, setSleeping] = useState(false);
+  const [tutoringAllowed, setTutoringAllowed] = useState(false);
   const [restartToken, setRestartToken] = useState(0);
   const listenerRef = useRef(new WakeWordListener());
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,12 +66,12 @@ export default function WakeWordCaptureView() {
     };
   }, []);
 
-  useEffect(() => subscribeCocoSleepMode(setSleeping), []);
+  useEffect(() => subscribeCocoSleepMode(setSleeping, setTutoringAllowed), []);
 
   useEffect(() => {
     let cancelled = false;
     const listener = listenerRef.current;
-    const shouldListen = windowReady && enabled && !paused && !sleeping;
+    const shouldListen = windowReady && enabled && !paused && !sleeping && tutoringAllowed;
     if (!shouldListen) {
       listener
         .stop()
@@ -138,7 +139,7 @@ export default function WakeWordCaptureView() {
       }
       listener.stop().catch(() => undefined);
     };
-  }, [enabled, paused, restartToken, sleeping, windowReady]);
+  }, [enabled, paused, restartToken, sleeping, windowReady, tutoringAllowed]);
 
   return null;
 }

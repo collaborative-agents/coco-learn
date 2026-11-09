@@ -1,0 +1,12 @@
+{
+  "visualCode": "849224",
+  "candidateDescription": "A grey pixel-art elephant with a round body, visible trunk curling downward, small white eye glint, orange ear flap, and chunky legs shown in four run frames plus a flattened crouch frame.",
+  "pass": true,
+  "observations": [
+    "The sprite is recognisable as an elephant: large rounded grey body, curled trunk, prominent ear, and tusks are all present and consistent across frames.",
+    "Deliberate dark outlines define every body part; the body uses at least three grey shades for volume, the eye has a white highlight, and the trunk tip and tusk receive accent colours — well above placeholder quality.",
+    "Against the dark Moonlit Meadow background the light-grey elephant silhouette reads cleanly at game scale; the chunky body mass contrasts clearly with the ground and foliage.",
+    "The crouch frame shows the body lowered and elongated horizontally with the legs tucked, closely mirroring the flattened pose Coco uses — the pose is coherent and recognisable as a crouch."
+  ],
+  "defects": []
+}

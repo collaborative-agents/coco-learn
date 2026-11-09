@@ -1,0 +1,119 @@
+[
+  {
+    "at": "2026-11-07T23:37:12.069Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794094632068,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:12.951Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "bounds": {
+      "x": 155,
+      "y": 33,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:14.579Z",
+    "step": "02-base-game",
+    "visible": true,
+    "bounds": {
+      "x": 155,
+      "y": 33,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.715Z",
+    "step": "FAIL",
+    "message": "Error: Coco introductory bubble timed out\n    at waitFor (/Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:9:214)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:35:18"
+  },
+  {
+    "at": "2026-11-07T23:37:44.759Z",
+    "step": "failure-window-6",
+    "visible": false,
+    "bounds": {
+      "x": 735,
+      "y": 478,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.762Z",
+    "step": "failure-window-5",
+    "visible": false,
+    "bounds": {
+      "x": 735,
+      "y": 478,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.766Z",
+    "step": "failure-window-4",
+    "visible": false,
+    "bounds": {
+      "x": 735,
+      "y": 478,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.773Z",
+    "step": "failure-window-3",
+    "visible": false,
+    "bounds": {
+      "x": 645,
+      "y": 324,
+      "width": 180,
+      "height": 180
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.776Z",
+    "step": "failure-window-2",
+    "visible": true,
+    "bounds": {
+      "x": 0,
+      "y": 33,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:37:44.838Z",
+    "step": "failure-window-1",
+    "visible": true,
+    "bounds": {
+      "x": 155,
+      "y": 33,
+      "width": 1160,
+      "height": 780
+    }
+  }
+]

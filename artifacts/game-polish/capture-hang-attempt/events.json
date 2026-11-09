@@ -1,0 +1,159 @@
+[
+  {
+    "at": "2026-11-08T06:24:32.387Z",
+    "step": "services-and-models-connected"
+  },
+  {
+    "at": "2026-11-08T06:24:32.388Z",
+    "step": "click",
+    "label": "Training tasks",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:24:32.549Z",
+    "step": "click",
+    "label": "Start Task",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:24:36.835Z",
+    "step": "click",
+    "label": "Let’s play",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:24:37.302Z",
+    "step": "play-original",
+    "index": 0,
+    "jumpHeight": 80.713106
+  },
+  {
+    "at": "2026-11-08T06:24:42.024Z",
+    "step": "click",
+    "label": "Make it yours",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:24:43.484Z",
+    "step": "click",
+    "label": "Send",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:00.949Z",
+    "step": "published",
+    "prompt": "Change it to a daylight game!",
+    "seconds": 16.34,
+    "version": "5c523a1f-ef7f-4de1-97a0-9045a273d535"
+  },
+  {
+    "at": "2026-11-08T06:25:00.949Z",
+    "step": "click",
+    "label": "Looks good",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:25:01.110Z",
+    "step": "click",
+    "label": "Continue",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:25:01.475Z",
+    "step": "click",
+    "label": "Training tasks",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:01.672Z",
+    "step": "click",
+    "label": "Start Task",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:01.856Z",
+    "step": "click",
+    "label": "Let’s play",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:25:02.319Z",
+    "step": "play-original",
+    "index": 1,
+    "jumpHeight": 80.28957999999999
+  },
+  {
+    "at": "2026-11-08T06:25:06.410Z",
+    "step": "click",
+    "label": "Make it yours",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:25:06.895Z",
+    "step": "click",
+    "label": "Send",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:21.463Z",
+    "step": "published",
+    "prompt": "Make a flying version, so I can fly, not just jump.",
+    "seconds": 9.77,
+    "version": "30436aa6-8b1d-4ff8-b61d-f69536312c39",
+    "flight": {
+      "heldHeight": 146.643944,
+      "releasedHeight": 0,
+      "blurClearsInput": true,
+      "pointerHeldHeight": 141.23595999999998,
+      "pointerReleasedHeight": 0
+    }
+  },
+  {
+    "at": "2026-11-08T06:25:21.464Z",
+    "step": "click",
+    "label": "Looks good",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:25:21.620Z",
+    "step": "click",
+    "label": "Continue",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:25:22.015Z",
+    "step": "click",
+    "label": "Training tasks",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:22.200Z",
+    "step": "click",
+    "label": "Start Task",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:25:22.398Z",
+    "step": "click",
+    "label": "Let’s play",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:25:22.861Z",
+    "step": "play-original",
+    "index": 2,
+    "jumpHeight": 87.019472
+  },
+  {
+    "at": "2026-11-08T06:25:26.852Z",
+    "step": "click",
+    "label": "Make it yours",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:25:27.314Z",
+    "step": "click",
+    "label": "Send",
+    "view": "session"
+  }
+]

@@ -35,7 +35,7 @@ export const S: Record<string, React.CSSProperties> = {
   },
   iconBtnActive: { background: ACCENT_BG, color: ACCENT },
   newSessionBtn: {
-    height: 28, display: 'inline-flex', alignItems: 'center', gap: 4,
+    height: 'var(--coco-control-height)', display: 'inline-flex', alignItems: 'center', gap: 4,
     boxSizing: 'border-box', border: `1px solid ${ACCENT_BORDER}`,
     background: 'var(--coco-color-surface)', cursor: 'pointer', fontSize: 'var(--coco-text-control)', color: ACCENT,
     padding: '0 8px', borderRadius: 'var(--coco-radius-control)', lineHeight: 1, fontFamily: FONT,
@@ -115,6 +115,7 @@ export const S: Record<string, React.CSSProperties> = {
   hotkeyHint: { marginTop: 6, fontSize: 'var(--coco-text-secondary)', color: 'var(--coco-color-text-subtle)', fontFamily: FONT, textAlign: 'center' },
   hotkeyKbd: { fontFamily: FONT, fontWeight: 600, color: 'var(--coco-color-text-muted)', background: 'var(--coco-color-surface-muted)', border: `1px solid ${BORDER}`, borderRadius: 5, padding: '1px 5px', fontSize: 'var(--coco-text-caption)' },
   feedbackRow: { display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 },
+  htmlPreviewBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, minWidth: 260, maxWidth: '100%', minHeight: 52, marginTop: 14, marginBottom: 8, padding: '12px 18px', border: '1px solid #1f4fa6', borderRadius: 13, background: '#255fca', color: '#fff', boxShadow: '0 8px 20px rgba(29, 77, 165, 0.24)', fontFamily: FONT, fontSize: 'var(--coco-text-body)', fontWeight: 700, lineHeight: 1.25, cursor: 'pointer' },
   userMessageActions: { display: 'flex', justifyContent: 'flex-end', marginTop: 3 },
   copyMessageBtn: { border: 'none', background: 'transparent', borderRadius: 6, padding: '1px 5px', color: 'var(--coco-color-text-subtle)', fontFamily: FONT, fontSize: 'var(--coco-text-caption)', lineHeight: '18px', cursor: 'pointer' },
   copyMessageBtnDone: { color: 'var(--coco-color-success)', fontWeight: 700 },

@@ -1,0 +1,47 @@
+[
+  {
+    "at": "2026-11-08T06:18:29.735Z",
+    "step": "services-and-models-connected"
+  },
+  {
+    "at": "2026-11-08T06:18:29.737Z",
+    "step": "click",
+    "label": "Training tasks",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:18:29.920Z",
+    "step": "click",
+    "label": "Start Task",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:18:41.356Z",
+    "step": "click",
+    "label": "Let’s play",
+    "view": "avatar-bubble"
+  },
+  {
+    "at": "2026-11-08T06:18:42.122Z",
+    "step": "play-original",
+    "index": 0,
+    "jumpHeight": 107.81542599999997
+  },
+  {
+    "at": "2026-11-08T06:18:46.644Z",
+    "step": "click",
+    "label": "Make it yours",
+    "view": "runner-game"
+  },
+  {
+    "at": "2026-11-08T06:18:48.994Z",
+    "step": "click",
+    "label": "Send",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:19:01.349Z",
+    "step": "FAIL",
+    "error": "Error: I couldn’t finish because the model or connection reported: Coco’s local tutor service is unavailable. Restart Coco and try again.. Your previous game is safe.\n    at /Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:66:159\n    at async wait (/Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:11:94)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:66:19"
+  }
+]

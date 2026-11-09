@@ -1,0 +1,100 @@
+[
+  {
+    "at": "2026-11-08T00:39:46.548Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794098386548,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:47.382Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:48.196Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:48.615Z",
+    "step": "direct-edit-composer",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:49.675Z",
+    "step": "persistent-game-edit-button",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:50.096Z",
+    "step": "retained-edit-draft",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T00:39:50.096Z",
+    "step": "PASS",
+    "stage": "direct-entry",
+    "state": {
+      "sessionId": "3b64a981-2007-4a30-9c34-177335c34c4f",
+      "version": "c295f070-3dad-4da0-a904-ad0aac95a66e",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null
+    },
+    "draftRetained": true
+  }
+]

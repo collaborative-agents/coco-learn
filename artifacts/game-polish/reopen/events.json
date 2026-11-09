@@ -1,0 +1,27 @@
+[
+  {
+    "at": "2026-11-08T07:02:20.592Z",
+    "step": "services-and-models-connected"
+  },
+  {
+    "at": "2026-11-08T07:02:22.113Z",
+    "step": "capture",
+    "name": "restored-custom-game"
+  },
+  {
+    "at": "2026-11-08T07:02:22.406Z",
+    "step": "PASS-reopen",
+    "state": {
+      "sessionId": "cf7b53f6-b125-44ee-a15b-7cfc9db4a2f1",
+      "version": "77ca0cde-51b2-4685-b51e-fe2dcc1d9c3c",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Make the fox a cat running through a snowy night.",
+      "introAcknowledged": true,
+      "previewRevision": "77ca0cde-51b2-4685-b51e-fe2dcc1d9c3c",
+      "previewKind": "updated"
+    }
+  }
+]

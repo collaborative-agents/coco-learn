@@ -267,3 +267,57 @@ it('keeps practice suggestions on the legacy stream', async () => {
   );
   expect(t.deps.reminders.reply).not.toHaveBeenCalled();
 });
+
+it.each(['text','voice'])('routes a real %s agent turn through tutorial preparation and validation', async kind => {
+  const t=setup();
+  const runner={begin:jest.fn(()=> 'Actually edit and test the game.'),finish:jest.fn(async()=>{})};
+  Object.assign(t.deps,{runner});
+  const payload=kind==='text'?{requestId:'runner-test',userText:'Make the fox pink'}:{requestId:'runner-test',audioData:'audio'};
+  await t.handlers[kind==='text'?'send-chat-message':'send-audio-message'](t.event,payload);
+  expect(runner.begin).toHaveBeenCalledWith('session','runner-test', ...(kind==='text'?['Make the fox pink']:[]));
+  expect(t.run).toHaveBeenCalledWith(expect.objectContaining({instructions:'Actually edit and test the game.'}));
+  expect(runner.finish).toHaveBeenCalledWith('session',true,undefined);
+});
+it('rolls the tutorial back when the real agent turn fails',async()=>{
+  const t=setup();const runner={begin:jest.fn(()=> 'Make it.'),finish:jest.fn(async()=>{})};
+  Object.assign(t.deps,{runner});t.run.mockRejectedValueOnce(Error('provider unavailable'));
+  await t.handlers['send-chat-message'](t.event,{requestId:'failed-game',userText:'Change the world'});
+  expect(runner.finish).toHaveBeenCalledWith('session',false,'provider unavailable');
+});
+
+it('waits for game validation before delivering the final completion',async()=>{
+  const t=setup();let release:(value:boolean)=>void=()=>{};
+  const validated=new Promise<boolean>(resolve=>{release=resolve});
+  Object.assign(t.deps,{runner:{begin:()=> 'Edit the real game.',finish:()=>validated}});
+  const pending=t.handlers['send-chat-message'](t.event,{requestId:'validating-game',userText:'Make it pink'});
+  await new Promise(resolve=>setImmediate(resolve));
+  expect(t.deps.emit.mock.calls.some(([,event]:any)=>event.type==='done')).toBe(false);
+  release(false);await pending;
+  expect(t.deps.emit).toHaveBeenCalledWith(t.event.sender,expect.objectContaining({type:'error',error:expect.stringContaining('previous game')}));
+});
+
+it('repairs a validation failure up to twice before publishing',async()=>{
+ const t=setup();const check=jest.fn().mockRejectedValueOnce(Error('bad grid')).mockRejectedValueOnce(Error('bad palette')).mockResolvedValue({changed:true});
+ const runner={begin:()=> 'Edit the theme.',check,repair:jest.fn(()=> 'Repair the reported theme problem.'),finish:jest.fn(async()=>true),summary:()=> 'I painted the sky.'};Object.assign(t.deps,{runner});
+ await t.handlers['send-chat-message'](t.event,{requestId:'repair',userText:'make it daylight'});
+ expect(t.run).toHaveBeenCalledTimes(3);expect(runner.repair).toHaveBeenCalledTimes(2);expect(runner.finish).toHaveBeenCalledWith('session',true,undefined);
+});
+it('stops after two repairs and reports the actual validation diagnostic',async()=>{
+ const t=setup();const runner={begin:()=> 'Edit the theme.',check:jest.fn(async()=>{throw Error('bad grid')}),repair:()=> 'Repair grid.',finish:jest.fn(async()=>false),failure:()=> 'The sprite grid is not rectangular. Previous game retained.'};Object.assign(t.deps,{runner});
+ await t.handlers['send-chat-message'](t.event,{requestId:'repair-failed',userText:'make it daylight'});
+ expect(t.run).toHaveBeenCalledTimes(3);expect(runner.finish).toHaveBeenCalledWith('session',false,'bad grid');expect(t.deps.emit).toHaveBeenCalledWith(t.event.sender,expect.objectContaining({type:'error',error:expect.stringContaining('not rectangular')}));
+});
+
+it('retries an empty model response instead of asking the user for a smaller idea',async()=>{
+ const t=setup();t.run.mockRejectedValueOnce(Error('The model returned no reply or action'));
+ const runner={begin:()=> 'Edit theme.',check:jest.fn().mockRejectedValueOnce(Error('No change')).mockResolvedValue({changed:true}),repair:()=> 'Finish the original request.',finish:jest.fn(async()=>true),summary:()=> 'I painted the sky.'};Object.assign(t.deps,{runner});
+ await t.handlers['send-chat-message'](t.event,{requestId:'empty',userText:'make it cuter'});
+ expect(t.run).toHaveBeenCalledTimes(2);expect(runner.finish).toHaveBeenCalledWith('session',true,undefined);
+});
+it('can publish actual validated edits even if the model explanation cuts off',async()=>{
+ const t=setup();t.run.mockRejectedValueOnce(Error('The model returned no reply or action'));
+ const runner={begin:()=> 'Edit theme.',check:jest.fn(async()=>({changed:true})),finish:jest.fn(async()=>true),summary:()=> 'I drew your cat.'};Object.assign(t.deps,{runner});
+ await t.handlers['send-chat-message'](t.event,{requestId:'cutoff',userText:'make a cat'});
+ expect(t.run).toHaveBeenCalledTimes(1);expect(runner.finish).toHaveBeenCalledWith('session',true,undefined);
+ expect(t.deps.emit).toHaveBeenCalledWith(t.event.sender,expect.objectContaining({type:'done',guidance:'I drew your cat.'}));
+});

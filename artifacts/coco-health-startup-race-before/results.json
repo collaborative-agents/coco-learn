@@ -1,0 +1,62 @@
+[
+  {
+    "step": "initial-health",
+    "health": {
+      "checkedAt": 1794183465793,
+      "sensing": {
+        "connected": false,
+        "status": "unavailable",
+        "detail": "Service is not running.",
+        "modelAssessment": {
+          "status": "failed",
+          "detail": "Anthropic requires an API key."
+        }
+      },
+      "tutor": {
+        "connected": false,
+        "status": "unavailable",
+        "detail": "Service is not running.",
+        "modelAssessment": {
+          "status": "failed",
+          "detail": "DeepSeek requires an API key."
+        }
+      }
+    }
+  },
+  {
+    "step": "forced-model-check",
+    "seconds": 0.002,
+    "health": {
+      "checkedAt": 1794183465795,
+      "sensing": {
+        "connected": false,
+        "status": "unavailable",
+        "detail": "Service is not running.",
+        "modelAssessment": {
+          "status": "failed",
+          "detail": "Anthropic requires an API key."
+        }
+      },
+      "tutor": {
+        "connected": false,
+        "status": "unavailable",
+        "detail": "Service is not running.",
+        "modelAssessment": {
+          "status": "failed",
+          "detail": "DeepSeek requires an API key."
+        }
+      }
+    }
+  },
+  {
+    "step": "visible-health",
+    "labels": [
+      "Sensing server: Not connected (service); Not connected (model)",
+      "Tutor agent: Not connected (service); Not connected (model)"
+    ]
+  },
+  {
+    "step": "FAIL",
+    "error": "Error: A real service/model check failed; see recorded health details\n    at /Users/apple/Documents/coco-learn/desktop/tests/health-diagnostic.e2e.cjs:29:120"
+  }
+]

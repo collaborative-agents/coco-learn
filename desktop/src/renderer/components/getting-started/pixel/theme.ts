@@ -1,0 +1,27 @@
+/** World colors are separate from physics and can be safely remixed. */
+export const moonlitTheme = {
+  sky: '#111d35',
+  horizon: '#263d51',
+  stars: '#d5dac1',
+  moon: '#ffe8aa',
+  mountainFar: '#25394b',
+  mountainNear: '#294b52',
+  pineFar: '#24444a',
+  pineNear: '#18363e',
+  trunk: '#172c36',
+  bark: '#28434a',
+  leaves: '#274944',
+  ground: '#29352f',
+  soil: '#3f4235',
+  soilLight: '#68614a',
+  grass: '#81a875',
+  grassLight: '#b0c28b',
+  moss: '#4c7557',
+  water: '#486b76',
+  firefly: '#f1d892',
+  ink: '#0c172b',
+  cream: '#fff3cb',
+  accent: '#f6ae67',
+  panel: '#182b40',
+};
+export type PixelTheme = typeof moonlitTheme;

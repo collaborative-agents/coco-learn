@@ -1,0 +1,1335 @@
+[
+  {
+    "prompt": "Change it to a daylight game!",
+    "success": true,
+    "seconds": 21.73,
+    "version": "50ce1c41-d909-403c-bae2-ee81c2343894",
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Sunny Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "day",
+      "detail": "detailed",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#76bdd8",
+          "#add9e0",
+          "#e7ecd0"
+        ]
+      },
+      "textColor": "#fff9df",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffdb79",
+          "accent": "#d8c68d",
+          "x": 70,
+          "y": 20,
+          "size": 30,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#96b7b6",
+          "accent": "#b8ccc0",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#477d61",
+          "accent": "#689760",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 70,
+        "top": "#7a9e54",
+        "soil": "#997452",
+        "speckle": "#b98e63",
+        "grass": "#b3c46d"
+      },
+      "spritePalette": {
+        "o": "#f58a45",
+        "O": "#cf6237",
+        "w": "#fff0cd",
+        "s": "#dfc694",
+        "k": "#3c3034",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc",
+        "a": "#ffb36a",
+        "i": "#e9a38a"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkwwwkkkkkkkkkkwwwk....",
+            "............kwwwkkkk.....kwwwk....",
+            "............kkkkk........kkkkk....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkkwwwkkkkkkwwwk......",
+            "............kkkwwwkk...kwwwk......",
+            "..............kkkkk....kkkkk......",
+            ".................................."
+          ]
+        ],
+        "duck": [
+          "...................k..............",
+          "..................kokk.......kkk..",
+          "..................kiiokk...kkoik..",
+          "kkwkk...........kkooooooooooooik..",
+          "kwwwwk..........kkoaaaaaaaaaaaok..",
+          "kwwwwwk.........kooaoowkooooowkokk",
+          ".kwoowwk........kkowookkoooookkwk.",
+          ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+          "..koooooookkooooooookkwwwwwwwwk...",
+          "....kkOOOOkOOOoooooooooooookk.....",
+          ".........kkkkkwwwkkkkkkkkwwwk.....",
+          ".............kkkkk......kkkkk....."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false,
+      "scene": {
+        "sky": [
+          "#76bdd8",
+          "#add9e0",
+          "#e7ecd0"
+        ],
+        "celestial": {
+          "kind": "moon",
+          "color": "#ffdb79",
+          "x": 0.7,
+          "y": 0.2,
+          "radius": 20,
+          "rays": true
+        },
+        "clouds": {
+          "color": "#fff8e6",
+          "shade": "#d9e9df",
+          "speed": 3,
+          "count": 0
+        },
+        "stars": {
+          "color": "#d5dac1",
+          "count": 45
+        },
+        "birds": {
+          "color": "#7d9fa7",
+          "count": 4
+        },
+        "layers": [
+          {
+            "kind": "mountains",
+            "speed": 0.05,
+            "height": 0.41,
+            "colors": [
+              "#96b7b6",
+              "#b8ccc0",
+              "#7d9fa7"
+            ],
+            "seed": 8
+          },
+          {
+            "kind": "hills",
+            "speed": 0.14,
+            "height": 0.62,
+            "colors": [
+              "#6f9f86",
+              "#8cb18c",
+              "#588975"
+            ],
+            "seed": 21
+          },
+          {
+            "kind": "forest",
+            "speed": 0.29,
+            "height": 0.69,
+            "colors": [
+              "#477d61",
+              "#689760",
+              "#9fb966"
+            ],
+            "trunk": "#71614b",
+            "seed": 32
+          },
+          {
+            "kind": "meadow",
+            "speed": 0.65,
+            "height": 0.82,
+            "colors": [
+              "#7a9e54",
+              "#b3c46d",
+              "#e4d992"
+            ],
+            "seed": 17
+          }
+        ],
+        "ground": {
+          "grass": [
+            "#7a9e54",
+            "#b3c46d",
+            "#e4d992"
+          ],
+          "soil": [
+            "#997452",
+            "#b98e63",
+            "#d5b07b"
+          ],
+          "flowers": [
+            "#f4d779",
+            "#e9b3ac"
+          ],
+          "rock": "#b8ccc0"
+        },
+        "ambience": {
+          "kind": "leaves",
+          "color": "#f9e8ae",
+          "count": 10
+        },
+        "effects": {
+          "dust": "#d5b07b",
+          "flash": "#fff9df"
+        },
+        "hud": {
+          "surface": "#375e61",
+          "text": "#fff9df",
+          "muted": "#d5e8dc",
+          "accent": "#ffdb79",
+          "overTitle": "Nice run!",
+          "overLabel": "GAME OVER",
+          "readyTitle": "Ready when you are",
+          "restartLabel": "Space or click to play again"
+        }
+      },
+      "controls": {
+        "mode": "run",
+        "lift": 2400,
+        "riseSpeed": 320
+      }
+    },
+    "screenshot": "1-updated-game.png",
+    "autoApprovals": 0
+  },
+  {
+    "prompt": "Make a flying version, so I can fly, not just jump.",
+    "success": true,
+    "seconds": 9.63,
+    "version": "63a75317-f49e-4af1-8ed9-f3840be7fb78",
+    "flight": {
+      "heldHeight": 141.331768,
+      "releasedHeight": 0,
+      "blurClearsInput": true
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Meadow",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "detailed",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#172944",
+          "#35516b",
+          "#79929a"
+        ]
+      },
+      "textColor": "#fff3d0",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#f7e9b2",
+          "accent": "#d8c68d",
+          "x": 70,
+          "y": 20,
+          "size": 30,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#536b81",
+          "accent": "#677f91",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#274f56",
+          "accent": "#3d6966",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        },
+        {
+          "kind": "clouds",
+          "color": "#738da4",
+          "accent": "#526f89",
+          "x": 0,
+          "y": 22,
+          "size": 25,
+          "count": 7,
+          "speed": 3
+        }
+      ],
+      "ground": {
+        "height": 70,
+        "top": "#456c5b",
+        "soil": "#604f4a",
+        "speckle": "#7b6355",
+        "grass": "#71916a"
+      },
+      "spritePalette": {
+        "o": "#f58a45",
+        "O": "#cf6237",
+        "w": "#fff0cd",
+        "s": "#dfc694",
+        "k": "#3c3034",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc",
+        "a": "#ffb36a",
+        "i": "#e9a38a"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkwwwkkkkkkkkkkwwwk....",
+            "............kwwwkkkk.....kwwwk....",
+            "............kkkkk........kkkkk....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".kkk.............kkiiiokkkkkoiik..",
+            "kkwkk...........kkooooooooooooik..",
+            "kwwwk...........kkooaaaaaaaaaook..",
+            "kwwwwk..........kkoaaaaaaaaaaaok..",
+            "kwwwwwk.........kooaaooooooooookk.",
+            "kwwwwwk.........kooaoowkooooowkokk",
+            "kkwwwwok........koooookkoooookkook",
+            ".kwoowwk........kkowookkoooookkwk.",
+            ".koooooo.....kkkkkkwiiwoookkwwwik.",
+            ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+            ".kkooooook.koooooookkwwwwwwwwwwk..",
+            "..koooooookkooooooookkwwwwwwwwk...",
+            "..kkOoooookooooooooookkkkkkkkk....",
+            "...kkOOoookoOoooooooooooookk......",
+            "....kkOOOOkOOOoooooooooooookk.....",
+            ".....kkOOOkOOOOOOOOOOOOOOookk.....",
+            ".......kkkkkOOOOOOOOOOOOOOkk......",
+            ".........kkkkkkwwwkkkkkkwwwk......",
+            "............kkkwwwkk...kwwwk......",
+            "..............kkkkk....kkkkk......",
+            ".................................."
+          ]
+        ],
+        "duck": [
+          "...................k..............",
+          "..................kokk.......kkk..",
+          "..................kiiokk...kkoik..",
+          "kkwkk...........kkooooooooooooik..",
+          "kwwwwk..........kkoaaaaaaaaaaaok..",
+          "kwwwwwk.........kooaoowkooooowkokk",
+          ".kwoowwk........kkowookkoooookkwk.",
+          ".kooooook..kkkkoookkwwwwwwwOwwwwk.",
+          "..koooooookkooooooookkwwwwwwwwk...",
+          "....kkOOOOkOOOoooooooooooookk.....",
+          ".........kkkkkwwwkkkkkkkkwwwk.....",
+          ".............kkkkk......kkkkk....."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false,
+      "scene": {
+        "sky": [
+          "#172944",
+          "#35516b",
+          "#79929a"
+        ],
+        "celestial": {
+          "kind": "moon",
+          "color": "#f7e9b2",
+          "x": 0.7,
+          "y": 0.2,
+          "radius": 20,
+          "rays": false
+        },
+        "clouds": {
+          "color": "#738da4",
+          "shade": "#526f89",
+          "speed": 3,
+          "count": 7
+        },
+        "stars": {
+          "color": "#d5dac1",
+          "count": 45
+        },
+        "birds": {
+          "color": "#405970",
+          "count": 0
+        },
+        "layers": [
+          {
+            "kind": "mountains",
+            "speed": 0.05,
+            "height": 0.41,
+            "colors": [
+              "#536b81",
+              "#677f91",
+              "#405970"
+            ],
+            "seed": 8
+          },
+          {
+            "kind": "hills",
+            "speed": 0.14,
+            "height": 0.62,
+            "colors": [
+              "#3e636d",
+              "#527979",
+              "#315660"
+            ],
+            "seed": 21
+          },
+          {
+            "kind": "forest",
+            "speed": 0.29,
+            "height": 0.69,
+            "colors": [
+              "#274f56",
+              "#3d6966",
+              "#5b8174"
+            ],
+            "trunk": "#345251",
+            "seed": 32
+          },
+          {
+            "kind": "meadow",
+            "speed": 0.65,
+            "height": 0.82,
+            "colors": [
+              "#456c5b",
+              "#71916a",
+              "#a0af78"
+            ],
+            "seed": 17
+          }
+        ],
+        "ground": {
+          "grass": [
+            "#456c5b",
+            "#71916a",
+            "#a0af78"
+          ],
+          "soil": [
+            "#604f4a",
+            "#7b6355",
+            "#9c7c60"
+          ],
+          "flowers": [
+            "#ead39b",
+            "#a5b5c8"
+          ],
+          "rock": "#677f91"
+        },
+        "ambience": {
+          "kind": "fireflies",
+          "color": "#f4dc88",
+          "count": 20
+        },
+        "effects": {
+          "dust": "#9c7c60",
+          "flash": "#fff3d0"
+        },
+        "hud": {
+          "surface": "#21394d",
+          "text": "#fff3d0",
+          "muted": "#b9cbd0",
+          "accent": "#f7e9b2",
+          "overTitle": "Nice run!",
+          "overLabel": "GAME OVER",
+          "readyTitle": "Ready when you are",
+          "restartLabel": "Space or click to play again"
+        }
+      },
+      "controls": {
+        "mode": "fly",
+        "lift": 2400,
+        "riseSpeed": 320
+      }
+    },
+    "screenshot": "2-updated-game.png",
+    "autoApprovals": 0
+  },
+  {
+    "prompt": "Make the fox a cat running through a snowy night.",
+    "success": true,
+    "seconds": 13.59,
+    "version": "92d5f166-039b-4dd3-aaf2-ac1fd7cd5156",
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Meadow",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "detailed",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#172944",
+          "#35516b",
+          "#79929a"
+        ]
+      },
+      "textColor": "#fff3d0",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#f7e9b2",
+          "accent": "#d8c68d",
+          "x": 70,
+          "y": 20,
+          "size": 30,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#536b81",
+          "accent": "#677f91",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#274f56",
+          "accent": "#3d6966",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        },
+        {
+          "kind": "clouds",
+          "color": "#738da4",
+          "accent": "#526f89",
+          "x": 0,
+          "y": 22,
+          "size": 25,
+          "count": 7,
+          "speed": 3
+        }
+      ],
+      "ground": {
+        "height": 70,
+        "top": "#456c5b",
+        "soil": "#604f4a",
+        "speckle": "#7b6355",
+        "grass": "#71916a"
+      },
+      "spritePalette": {
+        "o": "#f58a45",
+        "O": "#cf6237",
+        "w": "#fff0cd",
+        "s": "#dfc694",
+        "k": "#3c3034",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc",
+        "a": "#ffb36a",
+        "i": "#e9a38a"
+      },
+      "player": {
+        "name": "Cat",
+        "scale": 3,
+        "frames": [
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".................kkiiiokkkkkoiik..",
+            "....k...........kkooooooOoOoooik..",
+            "...kkk..........kkooaaaaOaOaOook..",
+            "..kokk..........kkoaaaaaOaaaOaok..",
+            "..kok...........kooaaooooooooookk.",
+            "..kok...........kooaoowkooooowkokk",
+            "..kok...........koooookkoooookkook",
+            "...kk...........kkowookkoooookkwk.",
+            "...kok.......kkkkkkwiiwoookkwwwik.",
+            "...kookkkkkkkkkoosssswwwwwwOwwwsss",
+            "....kooooookoooooookkwwwwwwwwwwk..",
+            ".....koooookooooooookkwwwwwwwwk...",
+            "......kkkkkooooooooookkkkkkkkk....",
+            "..........koOoooooooooooookk......",
+            "..........kOOOoooooooooooookk.....",
+            "..........kOOOOOOOOOOOOOOookk.....",
+            "..........kkOOOOOOOOOOOOOOkk......",
+            "...........kkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".................kkiiiokkkkkoiik..",
+            "....k...........kkooooooOoOoooik..",
+            "...kkk..........kkooaaaaOaOaOook..",
+            "..kokk..........kkoaaaaaOaaaOaok..",
+            "..kok...........kooaaooooooooookk.",
+            "..kok...........kooaoowkooooowkokk",
+            "..kok...........koooookkoooookkook",
+            "...kk...........kkowookkoooookkwk.",
+            "...kok.......kkkkkkwiiwoookkwwwik.",
+            "...kookkkkkkkkkoosssswwwwwwOwwwsss",
+            "....kooooookoooooookkwwwwwwwwwwk..",
+            ".....koooookooooooookkwwwwwwwwk...",
+            "......kkkkkooooooooookkkkkkkkk....",
+            "..........koOoooooooooooookk......",
+            "..........kOOOoooooooooooookk.....",
+            "..........kOOOOOOOOOOOOOOookk.....",
+            "..........kkOOOOOOOOOOOOOOkk......",
+            "...........kkwwwkkkkkkkkkkwwwk....",
+            "............kwwwkkkk.....kwwwk....",
+            "............kkkkk........kkkkk....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".................kkiiiokkkkkoiik..",
+            "....k...........kkooooooOoOoooik..",
+            "...kkk..........kkooaaaaOaOaOook..",
+            "..kokk..........kkoaaaaaOaaaOaok..",
+            "..kok...........kooaaooooooooookk.",
+            "..kok...........kooaoowkooooowkokk",
+            "..kok...........koooookkoooookkook",
+            "...kk...........kkowookkoooookkwk.",
+            "...kok.......kkkkkkwiiwoookkwwwik.",
+            "...kookkkkkkkkkoosssswwwwwwOwwwsss",
+            "....kooooookoooooookkwwwwwwwwwwk..",
+            ".....koooookooooooookkwwwwwwwwk...",
+            "......kkkkkooooooooookkkkkkkkk....",
+            "..........koOoooooooooooookk......",
+            "..........kOOOoooooooooooookk.....",
+            "..........kOOOOOOOOOOOOOOookk.....",
+            "..........kkOOOOOOOOOOOOOOkk......",
+            "...........kkkwwwkkkkkkkkwwwk.....",
+            "............kkwwwkkk....kwwwk.....",
+            ".............kkkkk......kkkkk.....",
+            ".................................."
+          ],
+          [
+            "...................k..............",
+            "..................kkk.........k...",
+            "..................kokk.......kkk..",
+            "..................kiokk.....kkok..",
+            "..................kiiokk...kkoik..",
+            ".................kkiiiokkkkkoiik..",
+            "....k...........kkooooooOoOoooik..",
+            "...kkk..........kkooaaaaOaOaOook..",
+            "..kokk..........kkoaaaaaOaaaOaok..",
+            "..kok...........kooaaooooooooookk.",
+            "..kok...........kooaoowkooooowkokk",
+            "..kok...........koooookkoooookkook",
+            "...kk...........kkowookkoooookkwk.",
+            "...kok.......kkkkkkwiiwoookkwwwik.",
+            "...kookkkkkkkkkoosssswwwwwwOwwwsss",
+            "....kooooookoooooookkwwwwwwwwwwk..",
+            ".....koooookooooooookkwwwwwwwwk...",
+            "......kkkkkooooooooookkkkkkkkk....",
+            "..........koOoooooooooooookk......",
+            "..........kOOOoooooooooooookk.....",
+            "..........kOOOOOOOOOOOOOOookk.....",
+            "..........kkOOOOOOOOOOOOOOkk......",
+            "...........kkkkwwwkkkkkkwwwk......",
+            "............kkkwwwkk...kwwwk......",
+            "..............kkkkk....kkkkk......",
+            ".................................."
+          ]
+        ],
+        "duck": [
+          "...................k..............",
+          "..................kokk.......kkk..",
+          "..................kiiokk...kkoik..",
+          "....k...........kkooooooOoOoooik..",
+          "..kokk..........kkoaaaaaOaaaOaok..",
+          "..kok...........kooaoowkooooowkokk",
+          "...kk...........kkowookkoooookkwk.",
+          "...kookkkkkkkkkoosssswwwwwwOwwwsss",
+          ".....koooookooooooookkwwwwwwwwk...",
+          "..........kOOOoooooooooooookk.....",
+          "...........kkkwwwkkkkkkkkwwwk.....",
+          ".............kkkkk......kkkkk....."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "snow",
+        "color": "#edf5ff",
+        "intensity": 65,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false,
+      "scene": {
+        "sky": [
+          "#172944",
+          "#35516b",
+          "#79929a"
+        ],
+        "celestial": {
+          "kind": "moon",
+          "color": "#f7e9b2",
+          "x": 0.7,
+          "y": 0.2,
+          "radius": 20,
+          "rays": false
+        },
+        "clouds": {
+          "color": "#738da4",
+          "shade": "#526f89",
+          "speed": 3,
+          "count": 7
+        },
+        "stars": {
+          "color": "#d5dac1",
+          "count": 45
+        },
+        "birds": {
+          "color": "#405970",
+          "count": 0
+        },
+        "layers": [
+          {
+            "kind": "mountains",
+            "speed": 0.05,
+            "height": 0.41,
+            "colors": [
+              "#536b81",
+              "#677f91",
+              "#405970"
+            ],
+            "seed": 8
+          },
+          {
+            "kind": "hills",
+            "speed": 0.14,
+            "height": 0.62,
+            "colors": [
+              "#3e636d",
+              "#527979",
+              "#315660"
+            ],
+            "seed": 21
+          },
+          {
+            "kind": "forest",
+            "speed": 0.29,
+            "height": 0.69,
+            "colors": [
+              "#274f56",
+              "#3d6966",
+              "#5b8174"
+            ],
+            "trunk": "#345251",
+            "seed": 32
+          },
+          {
+            "kind": "meadow",
+            "speed": 0.65,
+            "height": 0.82,
+            "colors": [
+              "#456c5b",
+              "#71916a",
+              "#a0af78"
+            ],
+            "seed": 17
+          }
+        ],
+        "ground": {
+          "grass": [
+            "#456c5b",
+            "#71916a",
+            "#a0af78"
+          ],
+          "soil": [
+            "#604f4a",
+            "#7b6355",
+            "#9c7c60"
+          ],
+          "flowers": [
+            "#ead39b",
+            "#a5b5c8"
+          ],
+          "rock": "#677f91"
+        },
+        "ambience": {
+          "kind": "fireflies",
+          "color": "#f4dc88",
+          "count": 20
+        },
+        "effects": {
+          "dust": "#9c7c60",
+          "flash": "#fff3d0"
+        },
+        "hud": {
+          "surface": "#21394d",
+          "text": "#fff3d0",
+          "muted": "#b9cbd0",
+          "accent": "#f7e9b2",
+          "overTitle": "Nice run!",
+          "overLabel": "GAME OVER",
+          "readyTitle": "Ready when you are",
+          "restartLabel": "Space or click to play again"
+        }
+      },
+      "controls": {
+        "mode": "run",
+        "lift": 2400,
+        "riseSpeed": 320
+      }
+    },
+    "screenshot": "3-updated-game.png",
+    "autoApprovals": 0
+  }
+]

@@ -1,0 +1,109 @@
+[
+  {
+    "at": "2026-11-07T23:52:43.757Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794095563756,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:44.636Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:45.455Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:46.078Z",
+    "step": "03-first-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:46.232Z",
+    "step": "companion-action-input",
+    "label": "Try it",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-07T23:52:46.482Z",
+    "step": "first-bubble-action",
+    "chatVisibleBefore": true,
+    "chatVisibleAfter": true
+  },
+  {
+    "at": "2026-11-07T23:52:50.015Z",
+    "step": "04-game-over-invitation",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:50.188Z",
+    "step": "companion-action-input",
+    "label": "Make it mine",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-07T23:52:50.482Z",
+    "step": "05-empty-agent-composer",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:52:50.483Z",
+    "step": "PASS",
+    "stage": "handoff"
+  }
+]

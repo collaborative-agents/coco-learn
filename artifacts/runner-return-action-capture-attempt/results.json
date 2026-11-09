@@ -1,0 +1,30 @@
+[
+  {
+    "step": "button-contrast",
+    "name": "normal",
+    "background": "rgb(32, 74, 121)",
+    "color": "rgb(255, 255, 255)",
+    "card": "rgb(233, 239, 255)",
+    "ratio": 9.063357291802244
+  },
+  {
+    "step": "button-contrast",
+    "name": "hover",
+    "background": "rgb(23, 61, 104)",
+    "color": "rgb(255, 255, 255)",
+    "card": "rgb(233, 239, 255)",
+    "ratio": 11.030429546625085
+  },
+  {
+    "step": "contextual-return-action",
+    "hiddenInGameChat": true,
+    "shownInTraining": true,
+    "shownInSettings": true,
+    "hiddenOnWelcomeBack": true,
+    "dismissalPreserved": true
+  },
+  {
+    "step": "FAIL",
+    "error": "Error: Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\n    at node:electron/js2c/sandbox_bundle:2:127949\n    at IpcRendererInternal.<anonymous> (node:electron/js2c/sandbox_bundle:2:122217)\n    at IpcRendererInternal.emit (node:electron/js2c/sandbox_bundle:2:45997)\n    at Object.onMessage (node:electron/js2c/sandbox_bundle:2:121276)"
+  }
+]

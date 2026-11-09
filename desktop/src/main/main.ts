@@ -1,8 +1,16 @@
+import { designCharacter } from './game/character-artist';
+import { captureCharacterArt } from './game/art-evidence';
+import { reviewCharacterArt } from './game/art-review';
+import validateGameInBrowser from './game/browser-validator';
 import PiHarness from './services/pi-harness';
 import WorkspacePermissions from './services/workspace-permissions';
 import createProactiveNotifications from './proactive-notifications';
 import type { ChatSeed, InstantSuggestion, SuggestionObservation } from './proactive-types';
 import registerReactiveChat from './reactive-chat';
+import RunnerTutorial from './services/runner-tutorial';
+import type { RunnerGuide, RunnerAction } from '../shared/runner-tutorial';
+import type { UnderstandingCheckResult } from '../shared/understanding-check';
+import presentRunnerGuide from '../shared/runner-guide-presentation';
 import ensureChatConversation from './chat-conversation';
 import createAgent101Controller from './services/agent101-controller';
 /* eslint global-require: off, no-console: off, promise/always-return: off */
@@ -56,6 +64,7 @@ import {
 import setupWindowOptions from './setup-window-options';
 import { InteractionTracker } from './interaction-tracker';
 import { chatSuggestionText } from '../shared/chat-suggestion';
+import { getGettingStartedArticle } from '../shared/getting-started';
 import type { ChatSuggestion } from '../shared/chat-suggestion';
 import {
   SocialService,
@@ -70,6 +79,9 @@ import log from 'electron-log';
 import axios from 'axios';
 import { resolveHtmlPath } from './util';
 import { serviceManager } from './services/manager';
+import { developmentPython, pythonEnvironment } from './services/python-runtime';
+import ServiceSupervisor from './services/service-supervisor';
+import { runModelProbe, modelFailureMessage } from './services/model-probe';
 import { configureServiceModelArguments } from './services/model-arguments';
 import {
   retryOperation,
@@ -187,8 +199,8 @@ const isNightlyBuild =
   app.isPackaged && /-nightly\.\d{14}$/.test(app.getVersion());
 app.setName(isNightlyBuild ? 'Coco Learn Nightly' : 'Coco Learn');
 
-// Set before the instance lock so Coco Learn can coexist with CoCo. Existing
-// CoCo profiles stay in their original directory; users sign in here once.
+// Set before the instance lock so Coco Learn can coexist with Coco. Existing
+// Coco profiles stay in their original directory; users sign in here once.
 if (app.isPackaged) {
   const packagedUserDataDir = path.join(
     app.getPath('appData'),
@@ -306,6 +318,10 @@ let imagePreviewSourceWindow: BrowserWindow | null = null;
 let imagePreviewAnnotationResult: 'replace' | 'attach' = 'replace';
 let imagePreviewFullScreenOverlay = false;
 let hotkeyCaptureInProgress = false;
+let htmlPreviewWindow: BrowserWindow | null = null;
+let htmlPreviewDocument: string | null = null;
+let gettingStartedAwaitingHtml: { articleId: string; participantId: string } | null = null;
+let gettingStartedChatInviteArticleId: string | null = null;
 let wakeWordCaptureWindow: BrowserWindow | null = null;
 let nextDaySummaryScheduler: NextDaySummaryScheduler | null = null;
 let latestHiddenSuggestionObservationId: string | undefined;
@@ -598,6 +614,11 @@ const { openTraining, showPreAssessmentLockedMessage } = registerTrainingPanel({
   refreshAccess: () => refreshTutoringAccess(),
   refreshTray: () => createTray(),
   showPanel: () => {
+    if (!isOnboardingComplete()) {
+      if (!onboardingWindow || onboardingWindow.isDestroyed()) createOnboardingWindow();
+      else { onboardingWindow.show(); onboardingWindow.focus(); }
+      return;
+    }
     isFloatMode = false;
     showChatPanel({ expanded: true });
     sendToChat('open-training-panel', null);
@@ -630,8 +651,486 @@ ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   }
   return { available, enabled: available && adminStudentMode };
 });
+ipcMain.on('getting-started-guide', (event, payload: { articleId?: unknown; phase?: unknown } = {}) => {
+  if (!isAuthenticated || event.sender !== chatWindow?.webContents) return;
+  const articleId = typeof payload.articleId === 'string' && getGettingStartedArticle(payload.articleId)
+    ? payload.articleId : null;
+  if (payload.phase === 'intro') {
+    gettingStartedAwaitingHtml = null;
+    gettingStartedChatInviteArticleId = null;
+    sendToChat('getting-started-chat-invite', { articleId: null });
+  }
+  const newAvatar = !avatarWindow || avatarWindow.isDestroyed();
+  if (newAvatar) createAvatarWindow();
+  avatarWindow?.show();
+  const allowedPhases = new Set(['intro', 'reading', 'first', 'first-done', 'create']);
+  const phase = typeof payload.phase === 'string' && allowedPhases.has(payload.phase) && (payload.phase === 'intro' || articleId)
+    ? payload.phase : 'intro';
+  const sendGuide = () => avatarWindow?.webContents.send('getting-started-guide', { articleId, phase });
+  if (newAvatar || avatarWindow?.webContents.isLoadingMainFrame()) {
+    avatarWindow?.webContents.once('did-finish-load', () => setTimeout(sendGuide, CHAT_RENDERER_READY_DELAY_MS));
+  } else sendGuide();
+});
+
+ipcMain.on('getting-started-chat-invite', (event, payload: { articleId?: unknown } = {}) => {
+  if (!isAuthenticated || event.sender !== avatarWindow?.webContents) return;
+  const articleId = payload.articleId;
+  if (typeof articleId !== 'string' || !getGettingStartedArticle(articleId)) return;
+  gettingStartedChatInviteArticleId = articleId;
+  sendToChat('getting-started-chat-invite', { articleId });
+});
+
+ipcMain.on('getting-started-open-article', (event) => {
+  if (!isAuthenticated || event.sender !== avatarWindow?.webContents) return;
+  openTraining();
+  sendToChat('getting-started-open-article', null);
+});
+
+ipcMain.on('getting-started-open-chat', (event, payload: { articleId?: unknown; phase?: unknown } = {}) => {
+  const fromAvatar = event.sender === avatarWindow?.webContents;
+  const fromChat = event.sender === chatWindow?.webContents;
+  if (!isAuthenticated || (!fromAvatar && !fromChat)) return;
+  if (typeof payload.articleId !== 'string' || !getGettingStartedArticle(payload.articleId)) return;
+  if (fromChat && (payload.phase !== 'chat' || gettingStartedChatInviteArticleId !== payload.articleId)) return;
+  if (payload.phase === 'chat') {
+    gettingStartedChatInviteArticleId = null;
+    sendToChat('getting-started-chat-invite', { articleId: null });
+    if (fromChat) avatarWindow?.webContents.send('getting-started-guide', { articleId: payload.articleId, phase: 'first' });
+  }
+  if (payload.phase === 'create' && currentUserId) gettingStartedAwaitingHtml = { articleId: payload.articleId, participantId: currentUserId };
+  void openCoco().catch((error) => log.warn(`[Getting Started] Could not open Chat: ${String(error)}`));
+});
+
+ipcMain.on('getting-started-guide-dismiss', (event) => {
+  if (event.sender === avatarWindow?.webContents && readHideAvatarSetting()) avatarWindow?.hide();
+});
+
+const gettingStartedStatusPath = () => path.join(
+  app.getPath('userData'),
+  `getting-started-${encodeURIComponent(currentUserId ?? '')}.json`,
+);
+function markGettingStartedComplete(user: string) {
+  fs.writeFileSync(gettingStartedStatusPath(), JSON.stringify({
+    participantId: user, completedAt: new Date().toISOString(), activity: 'agent-game',
+  }), 'utf8');
+  sendToChat('getting-started-complete', { activity: 'agent-game' });
+}
+ipcMain.handle('getting-started-status', () => {
+  if (!isAuthenticated || !currentUserId) return { complete: false };
+  if (runnerTutorial.state(currentUserId)?.tour === 'finished') return { complete: true };
+  try {
+    const saved = JSON.parse(fs.readFileSync(gettingStartedStatusPath(), 'utf-8'));
+    return { complete: saved?.participantId === currentUserId && saved?.activity === 'agent-game' && Boolean(saved?.completedAt) };
+  } catch { return { complete: false }; }
+});
+
+ipcMain.handle('get-coco-mascot-data-url', (event) => {
+  if (!isAuthenticated || event.sender !== htmlPreviewWindow?.webContents) return null;
+  const assetPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'pet1.png')
+    : path.join(app.getAppPath(), 'assets', 'pet1.png');
+  try {
+    return `data:image/png;base64,${fs.readFileSync(assetPath).toString('base64')}`;
+  } catch (error) {
+    log.warn(`[HTML Preview] Could not load Coco mascot: ${String(error)}`);
+    return null;
+  }
+});
+
+ipcMain.handle('save-html-preview', async (event, payload: { html?: unknown } = {}) => {
+  if (!isAuthenticated || event.sender !== htmlPreviewWindow?.webContents) return { success: false, error: 'Unavailable.' };
+  if (typeof payload.html !== 'string' || payload.html.length > 2_000_000 || !/^<!doctype html>/i.test(payload.html.trim())) {
+    return { success: false, error: 'Invalid HTML page.' };
+  }
+  const result = await dialog.showSaveDialog(htmlPreviewWindow!, {
+    title: 'Save HTML page',
+    defaultPath: 'coco-page.html',
+    filters: [{ name: 'HTML page', extensions: ['html'] }],
+  });
+  if (result.canceled || !result.filePath) return { success: false, canceled: true };
+  try {
+    fs.writeFileSync(result.filePath, payload.html, 'utf-8');
+    if (currentUserId && gettingStartedAwaitingHtml?.participantId === currentUserId) {
+      try {
+        fs.writeFileSync(gettingStartedStatusPath(), JSON.stringify({
+          participantId: currentUserId,
+          articleId: gettingStartedAwaitingHtml.articleId,
+          completedAt: new Date().toISOString(),
+        }), 'utf-8');
+        sendToChat('getting-started-complete', { articleId: gettingStartedAwaitingHtml.articleId });
+        gettingStartedAwaitingHtml = null;
+      } catch (error) {
+        log.warn(`[Getting Started] Could not record completion: ${String(error)}`);
+      }
+    }
+    return { success: true, path: result.filePath };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
 let currentTutorModelId: string | null = null;
 const piBridgeToken = randomUUID();
+
+let runnerGameWindow: BrowserWindow | null = null;
+let runnerDisplayedVersion: string | null = null;
+let activeRunnerGuide: RunnerGuide | null = null;
+let runnerChatView = { sessionId: null as string | null, inChat: false };
+let lastRunnerGuidePresentation: string | null = null;
+let runnerGuideRendererReady = false;
+let runnerAvatarOriginalBounds: Rectangle | null = null;
+function placeRunnerAvatar() {
+  if (!avatarWindow || avatarWindow.isDestroyed() || !runnerGameWindow || runnerGameWindow.isDestroyed()) return;
+  runnerAvatarOriginalBounds ??= avatarWindow.getBounds();
+  const b = runnerGameWindow.getContentBounds(), area = screen.getDisplayMatching(b).workArea;
+  avatarWindow.setPosition(Math.max(area.x, Math.min(area.x+area.width-AVATAR_BASE_SIZE,b.x+b.width-AVATAR_BASE_SIZE-12)), Math.max(area.y,Math.min(area.y+area.height-AVATAR_BASE_SIZE,b.y+b.height-AVATAR_BASE_SIZE-8)));
+  avatarWindow.showInactive();
+}
+function restoreRunnerAvatar() {
+  if (runnerAvatarOriginalBounds && avatarWindow && !avatarWindow.isDestroyed()) avatarWindow.setBounds(runnerAvatarOriginalBounds);
+  runnerAvatarOriginalBounds = null;
+}
+function showRunnerGuide(user: string, guide: RunnerGuide) {
+  if (user !== currentUserId || !isAuthenticated || onboardingWindow?.isVisible()) return;
+  activeRunnerGuide = guide;
+  if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
+  // A teaching bubble must not steal focus or minimize the user's chat/game.
+  avatarWindow?.showInactive();
+  publishRunnerGuide();
+}
+function publishRunnerGuide(force = false) {
+  if (!activeRunnerGuide || !isAuthenticated || !runnerGuideRendererReady || !avatarWindow || avatarWindow.isDestroyed()) return;
+  const guide = presentRunnerGuide(activeRunnerGuide, {
+    ...runnerChatView,
+    visible: Boolean(chatWindow && !chatWindow.isDestroyed() && chatWindow.isVisible() && !chatWindow.isMinimized()),
+    focused: Boolean(chatWindow && !chatWindow.isDestroyed() && chatWindow.isFocused()),
+  });
+  const presentation = JSON.stringify(guide);
+  if (!force && presentation === lastRunnerGuidePresentation) return;
+  lastRunnerGuidePresentation = presentation;
+  avatarWindow.webContents.send('runner-guide', guide);
+}
+ipcMain.on('runner-chat-view', (event, value: unknown) => {
+  if (event.sender !== chatWindow?.webContents || !value || typeof value !== 'object') return;
+  const view = value as { sessionId?: unknown; inChat?: unknown };
+  if ((view.sessionId !== null && typeof view.sessionId !== 'string') || typeof view.inChat !== 'boolean') return;
+  runnerChatView = { sessionId: view.sessionId, inChat: view.inChat };
+  publishRunnerGuide();
+});
+ipcMain.on('runner-guide-ready', event => {
+  if (event.sender !== avatarWindow?.webContents) return;
+  runnerGuideRendererReady = true;
+  if (activeRunnerGuide) {
+    avatarWindow?.showInactive();
+    publishRunnerGuide(true);
+  }
+});
+const runnerTurnOwners = new Map<string, string>();
+const runnerTutorial = new RunnerTutorial({
+  dataDir: app.getPath('userData'),
+  node: process.execPath,
+  validate: validateGameInBrowser,
+  captureArt: captureCharacterArt,
+  designArt: (sessionId, request, theme, evidence) => designCharacter(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`, piBridgeToken, sessionId, request, theme, evidence),
+  reviewArt: (sessionId, request, evidence) => reviewCharacterArt(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`, piBridgeToken, sessionId, request, evidence),
+  guide: showRunnerGuide,
+  changed: (user, state) => {
+    if (user !== currentUserId || !isAuthenticated) return;
+    void axios.post(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/tutorial-status`, { sessionId: state.sessionId, phase: state.phase, failure: state.failure ?? null }, { headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000 }).catch(error => log.warn('[Runner] Could not update coaching context:', String(error)));
+    chatWindow?.webContents.send('runner-state-changed', state);
+    runnerGameWindow?.webContents.send('runner-state-changed', state);
+    if (state.phase === 'review' && state.version !== runnerDisplayedVersion) {
+      runnerDisplayedVersion = state.version;
+      openRunnerGameWindow();
+      runnerGameWindow?.focus();
+    }
+  },
+});
+function requireRunnerSender(
+  event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
+) {
+  if (
+    !isAuthenticated ||
+    !currentUserId ||
+    !tutoringAllowed ||
+    ![
+      chatWindow?.webContents,
+      runnerGameWindow?.webContents,
+      avatarWindow?.webContents,
+    ].includes(event.sender)
+  )
+    throw new Error('Open Coco and sign in to play.');
+  return currentUserId;
+}
+function openRunnerGameWindow() {
+  if (runnerGameWindow && !runnerGameWindow.isDestroyed()) {
+    runnerGameWindow.show();
+    return;
+  }
+  runnerGameWindow = new BrowserWindow({
+    width: 1200,
+    height: 920,
+    minWidth: 860,
+    minHeight: 740,
+    title: 'Your Coco game',
+    backgroundColor: '#f9fafb',
+    webPreferences: {
+      preload: preloadPath(),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  });
+  runnerGameWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  runnerGameWindow.webContents.on('will-navigate', (event) =>
+    event.preventDefault(),
+  );
+  runnerGameWindow.on('closed', () => {
+    restoreRunnerAvatar();
+    runnerGameWindow = null;
+  });
+  runnerGameWindow.on('focus', placeRunnerAvatar);
+  runnerGameWindow.on('moved', placeRunnerAvatar);
+  runnerGameWindow.on('resized', placeRunnerAvatar);
+  runnerGameWindow.once('ready-to-show', placeRunnerAvatar);
+  void runnerGameWindow.loadURL(
+    `${resolveHtmlPath('index.html')}?view=runner-game`,
+  );
+}
+function focusRunnerComposer(user: string) {
+  const state = runnerTutorial.state(user);
+  if (!state) return;
+  const sameSession = currentSessionId === state.sessionId;
+  if (!sameSession) {
+    const saved = readConversations().find(
+      (item) => item.sessionId === state.sessionId,
+    );
+    currentSessionId = state.sessionId;
+    currentTutorModelId =
+      saved?.tutorModelId ?? readModelConfiguration()?.defaultTutorId ?? null;
+    isSessionActive = false;
+    resumableSessionId = saved?.messages.length ? state.sessionId : null;
+    pendingTaskLabel = 'Make your own game with Coco';
+  }
+  openChatForSession(
+    state.sessionId,
+    'Make your own game with Coco',
+    undefined,
+    sameSession,
+  );
+  // The renderer's initial state request can precede restored authentication.
+  // Re-send the authorized state on every tutorial resume/focus so retry and
+  // publish status cannot disappear after reopening the app.
+  sendToChat('runner-state-changed', state);
+  sendToChat('runner-focus-composer', { sessionId: state.sessionId });
+}
+// Setup teaches Coco's desktop behavior; the game is an optional Training task.
+let welcomedUser: string | null = null;
+const setupGuideSession = 'coco-setup';
+let pendingTrainingWelcome: string | null = null;
+let trainingPanelVisible = false;
+function clearSetupGuide() {
+  if (activeRunnerGuide?.sessionId !== setupGuideSession) return;
+  activeRunnerGuide = null;
+  lastRunnerGuidePresentation = null;
+  avatarWindow?.webContents.send('runner-guide', null);
+  if (!isOnboardingComplete() || readHideAvatarSetting()) avatarWindow?.hide();
+}
+function showTrainingWelcome() {
+  if (!pendingTrainingWelcome || pendingTrainingWelcome !== currentUserId || !trainingPanelVisible || !chatWindow?.isVisible() || onboardingWindow?.isVisible() || !isOnboardingComplete()) return;
+  const user = pendingTrainingWelcome;
+  pendingTrainingWelcome = null;
+  applyAvatarVisibility(readHideAvatarSetting());
+  showRunnerGuide(user, {
+    sessionId: setupGuideSession, label: 'WELCOME TO COCO',
+    text: 'Welcome to Coco! Please try the Getting Started task and play with Coco!',
+    action: 'open-training', actionLabel: 'Getting Started',
+  });
+}
+ipcMain.on('training-panel-visible', (event, visible: unknown) => {
+  if (event.sender !== chatWindow?.webContents || typeof visible !== 'boolean') return;
+  trainingPanelVisible = visible;
+  showTrainingWelcome();
+});
+function welcomeToCoco() {
+  if (!isAuthenticated || !currentUserId || !isOnboardingComplete() || welcomedUser === currentUserId) return;
+  welcomedUser = currentUserId;
+  pendingTrainingWelcome = currentUserId;
+  openTraining();
+  showTrainingWelcome();
+}
+function openAfterSetup() {
+  clearSetupGuide();
+  welcomeToCoco();
+}
+ipcMain.on('onboarding-step', (event) => {
+  if (event.sender !== onboardingWindow?.webContents) return;
+  clearSetupGuide();
+  avatarWindow?.hide();
+});
+ipcMain.handle('runner-start', (event) => {
+  const user = requireRunnerSender(event);
+  const state = runnerTutorial.startTour(user);
+  openRunnerGameWindow();
+  if (state.tour === 'active' && ['writing', 'building'].includes(state.phase)) focusRunnerComposer(user);
+  return { state };
+});
+ipcMain.handle('runner-state', (event) =>
+  runnerTutorial.state(requireRunnerSender(event)),
+);
+ipcMain.handle('runner-preview', (event) =>
+  runnerTutorial.preview(requireRunnerSender(event)),
+);
+ipcMain.on(
+  'runner-draft',
+  (event, payload: { sessionId?: unknown; draft?: unknown } = {}) => {
+    if (
+      !isAuthenticated ||
+      !currentUserId ||
+      !tutoringAllowed ||
+      event.sender !== chatWindow?.webContents
+    )
+      return;
+    const user = currentUserId;
+    if (
+      typeof payload.sessionId !== 'string' ||
+      typeof payload.draft !== 'string' ||
+      payload.draft.length > 10000
+    )
+      return;
+    runnerTutorial.coach(user, payload.sessionId, payload.draft);
+  },
+);
+ipcMain.handle(
+  'runner-action',
+  async (
+    event,
+    payload: {
+      sessionId?: unknown;
+      action?: RunnerAction | 'game-over' | 'undo' | 'open-game' | 'new-game';
+      score?: unknown;
+      version?: unknown;
+    } = {},
+  ) => {
+    if (payload.sessionId === setupGuideSession) {
+      if (!isAuthenticated || !currentUserId || event.sender !== avatarWindow?.webContents)
+        return { error: 'Open Coco and sign in first.' };
+      if (payload.action === 'open-training' && isOnboardingComplete()) {
+        clearSetupGuide();
+        openTraining();
+      } else if (payload.action === 'dismiss') clearSetupGuide();
+      return {};
+    }
+    const user = requireRunnerSender(event),
+      state = runnerTutorial.state(user);
+    if (!state || payload.sessionId !== state.sessionId)
+      return { error: 'This game is no longer active.' };
+    if (payload.action && ['tour-play', 'why-tips', 'explain-buttons', 'skip-tour', 'finish-setup'].includes(payload.action)) {
+      if (payload.action === 'skip-tour' && state.phase === 'building') {
+        for (const [id, request] of agentRuns.requests) {
+          if (request.sessionId === state.sessionId) await agentRuns.abort(id);
+        }
+        await runnerTutorial.finish(user, state.sessionId, false, 'The tour was skipped before this change finished.');
+      }
+      const next = runnerTutorial.tourAction(user, payload.action as 'tour-play' | 'why-tips' | 'explain-buttons' | 'skip-tour' | 'finish-setup');
+      if (payload.action === 'finish-setup') markGettingStartedComplete(user);
+      if (payload.action === 'skip-tour' || payload.action === 'finish-setup') {
+        runnerGameWindow?.hide();
+        restoreRunnerAvatar();
+        activeRunnerGuide = null;
+        lastRunnerGuidePresentation = null;
+        avatarWindow?.webContents.send('runner-guide', null);
+        if (readHideAvatarSetting()) avatarWindow?.hide();
+        openTraining();
+      }
+      return { state: next };
+    }
+    if (payload.action === 'new-game') { if(agentRuns.busy)return {error:'Wait for Coco to finish.'};return {state:runnerTutorial.newGame(user)}; }
+    if (payload.action === 'game-over') {
+      if (typeof payload.version === 'string')
+        runnerTutorial.recordScore(
+          user,
+          state.sessionId,
+          payload.version,
+          payload.score,
+        );
+      runnerTutorial.firstGameOver(user);
+    }
+    if (payload.action === 'customize') {
+      if (state.tour === 'active' && !state.firstGameOver && !state.hasChanges)
+        return { error: 'Play a round first. Make it yours unlocks after your first game over.' };
+      if (agentRuns.busy)
+        return { error: 'Wait for Coco to finish the current task.' };
+      runnerTutorial.writing(user);
+      const existing = readConversations().find(item => item.sessionId === state.sessionId);
+      const directory = runnerTutorial.workspace(user, state.sessionId)!;
+      if (!existing) {
+        // This seeded conversation is resumed on Send. Register it now so its
+        // first real messages have an owned server session to attach to.
+        if (gatewayClient) {
+          try {
+            await gatewayClient.requestJson('/api/storage/sessions', 'POST', {
+              _id: state.sessionId, user_id: user,
+              started_at: new Date().toISOString(), start_trigger: 'user_message',
+              start_message: 'Make your own game with Coco',
+            }, 8000);
+          } catch (error) {
+            log.warn('[Runner] Could not register game conversation:', String(error));
+            return { error: 'Your game is safe, but Coco couldn’t connect this chat to your account. Please try Make it yours again.' };
+          }
+        }
+        if (user !== currentUserId) return { error: 'Your account changed. Reopen Coco to continue.' };
+        saveConversation({
+        sessionId: state.sessionId,
+        problem: 'Make your own game with Coco',
+        messages: [{role:'tutor',text:'What do you want to change about your game?',id:'runner-intro',ts:Date.now()}],
+        tutorModelId: readModelConfiguration()?.defaultTutorId ?? null,
+      });
+      }
+      saveConversationDirectory(state.sessionId, directory);
+      openRunnerGameWindow();
+      focusRunnerComposer(user);
+      sendToChat('runner-open-composer', { sessionId: state.sessionId, reset: !existing });
+    }
+    if (payload.action === 'open-game') openRunnerGameWindow();
+    if (payload.action === 'undo') {
+      if (agentRuns.has(state.sessionId))
+        return { error: 'Wait for Coco to finish before undoing.' };
+      runnerTutorial.undo(user);
+    }
+    if (payload.action === 'play' || (payload.action === 'focus' && state.phase === 'play')) {
+      chatWindow?.show();
+      openRunnerGameWindow();
+      runnerGameWindow?.focus();
+      runnerTutorial.playing(user);
+    } else if (payload.action === 'focus' || payload.action === 'retry') {
+      focusRunnerComposer(user);
+      if(payload.action==='retry'&&state.lastRequest)sendToChat('runner-retry-request',{sessionId:state.sessionId,text:state.lastRequest});
+    }
+    if (payload.action === 'finish') {
+      if (state.phase === 'complete') {
+        markGettingStartedComplete(user);
+        runnerGameWindow?.hide();
+        restoreRunnerAvatar();
+        openTraining();
+        activeRunnerGuide = null;
+        avatarWindow?.webContents.send('runner-guide', null);
+        if (readHideAvatarSetting()) avatarWindow?.hide();
+      } else {
+        runnerTutorial.complete(user);
+        openRunnerGameWindow();
+        runnerGameWindow?.focus();
+      }
+    }
+    if (payload.action === 'dismiss') {
+      activeRunnerGuide = null;
+      lastRunnerGuidePresentation = null;
+      avatarWindow?.webContents.send('runner-guide', null);
+      if (readHideAvatarSetting()) avatarWindow?.hide();
+    }
+    return { state: runnerTutorial.state(user) };
+  },
+);
 
 function agentDirectory(sessionId: string | null = currentSessionId): string {
   const conversation = sessionId
@@ -715,8 +1214,7 @@ ipcMain.handle(
   (_event, { sessionId }: { sessionId?: string | null } = {}) => ({
     directory: agentDirectory(sessionId),
     accessGranted: Boolean(
-      sessionId &&
-        workspacePermissions().hasWorkspace(agentDirectory(sessionId)),
+      sessionId && ((currentUserId && runnerTutorial.owns(currentUserId,sessionId) && path.resolve(agentDirectory(sessionId))===path.resolve(runnerTutorial.workspace(currentUserId,sessionId)!)) || workspacePermissions().hasWorkspace(agentDirectory(sessionId))),
     ),
   }),
 );
@@ -1030,6 +1528,8 @@ ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
 // and the normal avatar + webapp windows are created.
 
 const createOnboardingWindow = (modelsOnly = false) => {
+  clearSetupGuide();
+  avatarWindow?.hide();
   onboardingWindow = new BrowserWindow({
     ...setupWindowOptions(screen.getPrimaryDisplay().workArea),
     webPreferences: { preload: preloadPath() },
@@ -1044,12 +1544,15 @@ const createOnboardingWindow = (modelsOnly = false) => {
     onboardingWindow?.show();
   });
 
+  onboardingWindow.on('hide', clearSetupGuide);
+
   onboardingWindow.on('closed', () => {
+    clearSetupGuide();
     onboardingWindow = null;
   });
 
   onboardingWindow.on('close', (event) => {
-    if (isQuitting || (isOnboardingComplete() && readModelConfiguration())) {
+    if (isQuitting || (isOnboardingComplete() && (!modelsOnly || readModelConfiguration()))) {
       return;
     }
     event.preventDefault();
@@ -1583,6 +2086,8 @@ const createAvatarWindow = () => {
   }
   configureFullscreenCompanionWindow(avatarWindow);
 
+  runnerGuideRendererReady = false;
+  avatarWindow.webContents.on('did-start-loading', () => { runnerGuideRendererReady = false; });
   avatarWindow.loadURL(resolveHtmlPath('index.html'));
   avatarWindow.setIgnoreMouseEvents(true, { forward: true });
   // Screen coordinates and content bounds are both DIP units. Polling also
@@ -1604,7 +2109,7 @@ const createAvatarWindow = () => {
   }, 33);
 
   avatarWindow.on('ready-to-show', () => {
-    if (hideAvatarMode) {
+    if (onboardingWindow?.isVisible() || ((hideAvatarMode || !isOnboardingComplete()) && !activeRunnerGuide)) {
       avatarWindow?.hide();
     } else if (process.env.START_MINIMIZED) {
       avatarWindow?.minimize();
@@ -1735,6 +2240,7 @@ const createChatWindow = () => {
   // readiness handshake before flushing any buffered captures.
   hotkeyRendererReady = false;
 
+  trainingPanelVisible = false;
   chatWindow = new BrowserWindow({
     show: false,
     width: isFloatMode ? CHAT_PANEL_W : CHAT_EXPANDED_W,
@@ -1756,6 +2262,13 @@ const createChatWindow = () => {
   });
 
   configureMainWindow(chatWindow);
+  const refreshRunnerGuide = () => publishRunnerGuide();
+  chatWindow.on('focus', refreshRunnerGuide);
+  chatWindow.on('blur', refreshRunnerGuide);
+  chatWindow.on('show', refreshRunnerGuide);
+  chatWindow.on('hide', refreshRunnerGuide);
+  chatWindow.on('minimize', refreshRunnerGuide);
+  chatWindow.on('restore', refreshRunnerGuide);
   chatWindow.setAlwaysOnTop(chatWindowPinned);
   chatWindow.loadURL(`${resolveHtmlPath('index.html')}?view=session`);
 
@@ -2262,6 +2775,44 @@ const beginHotkeyCapture = async (): Promise<void> => {
   }
 };
 
+const openHtmlPreviewWindow = (sourceWindow: BrowserWindow | null, html: string) => {
+  htmlPreviewDocument = html;
+  if (htmlPreviewWindow && !htmlPreviewWindow.isDestroyed()) {
+    if (!htmlPreviewWindow.webContents.isLoadingMainFrame()) {
+      htmlPreviewWindow.webContents.send('html-preview', { html });
+      htmlPreviewWindow.show();
+      htmlPreviewWindow.focus();
+    }
+    return;
+  }
+  htmlPreviewWindow = new BrowserWindow({
+    width: 1100,
+    height: 780,
+    minWidth: 620,
+    minHeight: 440,
+    show: false,
+    title: 'Coco · HTML Preview',
+    backgroundColor: '#eaf2ff',
+    webPreferences: { preload: preloadPath() },
+  });
+  if (sourceWindow) {
+    const area = screen.getDisplayMatching(sourceWindow.getBounds()).workArea;
+    const width = Math.min(1100, area.width);
+    const height = Math.min(780, area.height);
+    htmlPreviewWindow.setBounds({
+      x: Math.max(area.x, Math.min(sourceWindow.getBounds().x + 56, area.x + area.width - width)),
+      y: Math.max(area.y, Math.min(sourceWindow.getBounds().y + 56, area.y + area.height - height)),
+      width,
+      height,
+    });
+  }
+  htmlPreviewWindow.loadURL(`${resolveHtmlPath('index.html')}?view=html-preview`);
+  htmlPreviewWindow.on('closed', () => {
+    htmlPreviewWindow = null;
+    htmlPreviewDocument = null;
+  });
+};
+
 const deliverPendingWakeWordDetection = (): void => {
   const pending = pendingWakeWordDetection;
   if (!pending) return;
@@ -2463,10 +3014,6 @@ function openPrimaryTrayAction(): void {
     createAuthWindow();
     return;
   }
-  if (!areRequiredPreAssessmentsComplete()) {
-    showPreAssessmentLockedMessage();
-    return;
-  }
   if (setupPending()) {
     if (!onboardingWindow || onboardingWindow.isDestroyed()) {
       createOnboardingWindow(isOnboardingComplete());
@@ -2474,6 +3021,10 @@ function openPrimaryTrayAction(): void {
       onboardingWindow.show();
       onboardingWindow.focus();
     }
+    return;
+  }
+  if (!areRequiredPreAssessmentsComplete()) {
+    showPreAssessmentLockedMessage();
     return;
   }
   openCoco().catch((err) => log.warn(`[Tray] Could not open Coco: ${err}`));
@@ -2496,6 +3047,10 @@ function revealCoco(): void {
     chatWindow.focus();
     return;
   }
+  if (setupPending()) {
+    openPrimaryTrayAction();
+    return;
+  }
   if (!areRequiredPreAssessmentsComplete()) {
     openTraining();
     return;
@@ -2510,12 +3065,12 @@ function revealCoco(): void {
 function handleTrayClick(): void {
   // Preserve the setup-window recovery path, but once setup is complete let
   // the user choose an explicit action instead of opening chat immediately.
-  if (!areRequiredPreAssessmentsComplete()) {
-    openTraining();
-    return;
-  }
   if (setupPending()) {
     openPrimaryTrayAction();
+    return;
+  }
+  if (!areRequiredPreAssessmentsComplete()) {
+    openTraining();
     return;
   }
   tray?.popUpContextMenu();
@@ -2857,7 +3412,7 @@ ipcMain.handle('get-llm-router-status', () => ({
 }));
 
 type ModelHealthAssessment = {
-  status: 'verified' | 'failed' | 'legacy_unassessed' | 'not_configured';
+  status: 'verified' | 'failed' | 'connecting' | 'legacy_unassessed' | 'not_configured';
   detail: string;
 };
 const modelHealthCache = new Map<
@@ -2887,6 +3442,10 @@ ipcMain.handle(
     const assessModelConfiguration = async (
       role: 'sensing' | 'tutor',
     ): Promise<ModelAssessment> => {
+      // Account policy can become available before its router credential.
+      // Do not fall through to provider-key checks during that sign-in window.
+      if (process.env.LLM_ROUTER_URL?.trim() && !process.env.LLM_ROUTER_API_KEY?.trim())
+        return {status:'connecting',detail:'Coco is connecting your account to its model service. Please wait a moment.'};
       const connection =
         role === 'sensing'
           ? savedConfig?.sensing
@@ -2902,7 +3461,7 @@ ipcMain.handle(
         if (
           !forceModelTest &&
           cached &&
-          Date.now() - cached.checkedAt < MODEL_HEALTH_CACHE_MS
+          Date.now() - cached.checkedAt < (cached.assessment.status === 'verified' ? MODEL_HEALTH_CACHE_MS : 5000)
         ) {
           return cached.assessment;
         }
@@ -3023,7 +3582,10 @@ ipcMain.handle(
       ),
     ]);
 
-    return { checkedAt: Date.now(), sensing, tutor };
+    const starting = <T extends {connected:boolean;status:string;modelAssessment:ModelAssessment}>(health:T) =>
+      !health.connected && health.status === 'unavailable' && health.modelAssessment.status === 'connecting'
+        ? {...health,status:'starting',detail:'Coco’s local service will start when sign-in finishes.'} : health;
+    return { checkedAt: Date.now(), sensing:starting(sensing), tutor:starting(tutor) };
   },
 );
 
@@ -3078,7 +3640,7 @@ async function testModelConnection(
           'coco-services',
           `tutor-server${process.platform === 'win32' ? '.exe' : ''}`,
         )
-      : 'uv';
+      : developmentPython(path.resolve(app.getAppPath(), '..'));
     const args = app.isPackaged
       ? [
           '--test-model-connection',
@@ -3087,8 +3649,6 @@ async function testModelConnection(
           ...(role === 'sensing' ? ['--include-image'] : []),
         ]
       : [
-          'run',
-          'python',
           '-m',
           'proactive_tutor.model_connection_test',
           '--model',
@@ -3097,38 +3657,9 @@ async function testModelConnection(
         ];
     const cwd = app.isPackaged
       ? path.dirname(executable)
-      : path.resolve(process.cwd(), '..');
-    const result = await new Promise<{
-      code: number | null;
-      stdout: string;
-      stderr: string;
-    }>((resolve, reject) => {
-      const child = spawn(executable, args, {
-        cwd,
-        env: childEnv,
-        shell: false,
-      });
-      let stdout = '';
-      let stderr = '';
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error('Connection test timed out after 60 seconds.'));
-      }, 60_000);
-      child.stdout?.on('data', (chunk) => {
-        stdout = `${stdout}${String(chunk)}`.slice(-32_000);
-      });
-      child.stderr?.on('data', (chunk) => {
-        stderr = `${stderr}${String(chunk)}`.slice(-32_000);
-      });
-      child.on('error', (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        resolve({ code, stdout, stderr });
-      });
-    });
+      : path.resolve(app.getAppPath(), '..');
+    const probeEnv = app.isPackaged ? { ...childEnv, LITELLM_LOCAL_MODEL_COST_MAP: 'True' } : pythonEnvironment(cwd, childEnv);
+    const result = await runModelProbe(executable, args, { cwd, env: probeEnv });
     const parsed = result.stdout
       .trim()
       .split('\n')
@@ -3155,12 +3686,13 @@ async function testModelConnection(
     const redactedError = apiKey
       ? rawError.split(apiKey).join('[redacted]')
       : rawError;
-    return { success: false, error: redactedError };
+    log.warn(`[ModelHealth] ${role}: ${redactedError}`);
+    return { success: false, error: modelFailureMessage(redactedError) };
   } catch (err) {
     const rawError = (err as Error).message;
     return {
       success: false,
-      error: apiKey ? rawError.split(apiKey).join('[redacted]') : rawError,
+      error: modelFailureMessage(apiKey ? rawError.split(apiKey).join('[redacted]') : rawError),
     };
   }
 }
@@ -3238,6 +3770,7 @@ ipcMain.handle(
   async (_event, input: ModelConfigurationInput) => {
     try {
       const config = saveModelConfiguration(input);
+      sendToChat('model-configuration-updated', null);
       modelHealthCache.clear();
       const runtime = resolveModelRuntime();
       if (observerStarted && runtime) {
@@ -3359,6 +3892,10 @@ ipcMain.handle('save-profile', (_event, profile: object) => {
 });
 
 ipcMain.on('onboarding-complete', (_event, profile: object) => {
+  if (
+    !isAuthenticated ||
+    (profile as { onboardingComplete?: unknown }).onboardingComplete !== true
+  ) return;
   // Write the profile so isOnboardingComplete() returns true on next launch.
   try {
     const participantProfile = {
@@ -3376,18 +3913,25 @@ ipcMain.on('onboarding-complete', (_event, profile: object) => {
     log.info('[Onboarding] Profile saved:', profilePath());
   } catch (err) {
     log.error('[Onboarding] Failed to save profile:', err);
+    return;
   }
 
   // Start the observer now that the user has completed or skipped onboarding.
   startObserver();
 
-  // Onboarding window closes itself (window.close() in renderer). Start the
-  // avatar now that setup is complete; the chat panel is created on demand.
-  applyAvatarVisibility(readHideAvatarSetting());
+  // Close setup first. The avatar joins only after Training has rendered.
+  const completedWindow = onboardingWindow;
+  if (completedWindow && !completedWindow.isDestroyed()) {
+    completedWindow.once('closed', openAfterSetup);
+    completedWindow.close();
+  } else {
+    openAfterSetup();
+  }
 });
 
 ipcMain.removeAllListeners('hide-onboarding');
 ipcMain.on('hide-onboarding', () => {
+  clearSetupGuide();
   onboardingWindow?.hide();
   createTray();
 });
@@ -3398,7 +3942,8 @@ ipcMain.on('model-configuration-complete', () => {
   // models are saved, start (or restart) the services and reveal the app
   // without making them repeat the rest of onboarding.
   startObserver();
-  applyAvatarVisibility(readHideAvatarSetting());
+  if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.once('closed', openAfterSetup);
+  else openAfterSetup();
 });
 
 // The chat renderer announces (on mount) that its hot-key-capture listener is
@@ -4419,6 +4964,16 @@ async function createProactiveTutorSession(
 // Start a fresh conversation directly from the chat header. Reuse the regular
 // session setup path so tutor context, sensing, profile settings, and long-term
 // memory all move to the same new session boundary.
+ipcMain.handle('ensure-chat-conversation', (event) => {
+  if (!isAuthenticated || event.sender !== chatWindow?.webContents) return { error: 'Chat is unavailable.' };
+  if (!currentSessionId) {
+    currentSessionId = randomUUID();
+    const modelConfig = readModelConfiguration();
+    currentTutorModelId = modelConfig ? defaultTutor(modelConfig).id : null;
+  }
+  return { sessionId: currentSessionId };
+});
+
 ipcMain.removeHandler('start-new-chat-session');
 ipcMain.handle(
   'start-new-chat-session',
@@ -4617,7 +5172,7 @@ ipcMain.on('proactive-session-end-confirmed', () => {
 ipcMain.removeHandler('check-understanding');
 ipcMain.handle(
   'check-understanding',
-  (_event, { sessionId }: { sessionId?: string | null } = {}) => {
+  async (_event, { sessionId, draft }: { sessionId?: string | null; draft?: string } = {}): Promise<UnderstandingCheckResult> => {
     if (agentRuns.busy)
       return {
         success: false,
@@ -4628,6 +5183,35 @@ ipcMain.handle(
         success: false,
         error: 'AI tutoring is not available for this account.',
       };
+    if (currentUserId && typeof draft === 'string' && runnerTutorial.owns(currentUserId, sessionId ?? currentSessionId)) {
+      if (_event.sender !== chatWindow?.webContents || !isAuthenticated) return { success: false, error: 'Open the chat to check your idea.' };
+      if (!draft.trim()) return { success: false, error: 'Write your game idea first, then check it before sending.' };
+      if (draft.length > 10000) return { success: false, error: 'This check supports up to 10,000 characters. Your draft is still here.' };
+      try { await axios.get(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/health`, {timeout:2000}); }
+      catch { return {success:false,error:'Coco’s local tutor isn’t responding. Open Settings → Health and choose Retry, then try this check again.'}; }
+      const user = currentUserId, target = sessionId ?? currentSessionId!;
+      const requestId = randomUUID(), checker = new PiHarness();
+      let timedOut = false;
+      const timer = setTimeout(() => { timedOut=true;void checker.abort(); }, 35000);
+      agentRuns.begin(target, requestId);
+      try {
+        let reply = '', done = false;
+        await checker.run({ recordTurn: false, requestId, sessionId: target, directory: runnerTutorial.workspace(user, target)!, tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`, token: piBridgeToken,
+          context: executionContext(target), text: draft, images: [],
+          training: { tools: 'none', instructions: 'The user is about to ask you to change a pixel runner game. Restate their unsent idea warmly in at most 18 words and 110 characters, phrased as a question checking that you understood. Do not edit anything, use tools, give code, or add features they did not request. This is a check before sending, not permission to execute.' },
+          emit: event => { if (event.type === 'text_delta') reply += String(event.text ?? ''); if (event.type === 'done') { done = !event.stopped; reply = String(event.guidance ?? reply); } },
+        });
+        if (!done || !reply.trim()) throw new Error('Coco returned no explanation of your idea. Please try again.');
+        if (currentUserId !== user || !isAuthenticated) return { success: false, error: 'Sign in again to continue.' };
+        const interpretation = reply.replace(/[`#*]/g, '').trim();
+        runnerTutorial.checked(user, target, interpretation);
+        return { success: true, kind:'idea', interpretation };
+      } catch (error) {
+        log.warn('[UnderstandingCheck] Idea check failed:',String(error));
+        return { success: false, error: timedOut ? 'The understanding check took too long. Your draft is safe; please try again.' : `I couldn’t check your idea. ${error instanceof Error ? error.message : 'Please try again.'}` };
+      }
+      finally { clearTimeout(timer); agentRuns.finish(requestId); await checker.dispose(); }
+    }
     if (readProfile().scenario !== 'ai_upskilling')
       return {
         success: false,
@@ -4650,7 +5234,7 @@ ipcMain.handle(
       };
     }
     showSessionRecapWindow('check', conversation);
-    return { success: true };
+    return { success: true, kind:'quiz' };
   },
 );
 
@@ -4730,6 +5314,26 @@ function endCurrentSession() {
 // the configured model, profile context, and existing screen/memory tools.
 // Images stay as data URLs; execution events stream back to the renderer.
 registerReactiveChat({
+  runner: {
+    check: async sessionId => { const owner=runnerTurnOwners.get(sessionId);if(owner)return runnerTutorial.check(owner,sessionId); },
+    repair: (sessionId,detail,attempt) => { const owner=runnerTurnOwners.get(sessionId);return owner?runnerTutorial.repair(owner,sessionId,detail,attempt):undefined; },
+    summary: sessionId => { const user=currentUserId;return user?runnerTutorial.summary(user,sessionId):undefined; },
+    tools: sessionId => { const user = currentUserId; if (!user || !runnerTutorial.owns(user, sessionId)) throw Error('This game is no longer active.'); return runnerTutorial.tools(user, sessionId); },
+    permission: (sessionId, request) => { const user = runnerTurnOwners.get(sessionId); if (user) runnerTutorial.permission(user, sessionId, request); },
+    failure: sessionId => { const user = currentUserId; return user && runnerTutorial.state(user)?.sessionId === sessionId ? runnerTutorial.state(user)?.error ?? undefined : undefined; },
+    begin: (sessionId, requestId, text) => {
+      const user = currentUserId;
+      if (!user || !runnerTutorial.owns(user, sessionId)) return null;
+      if (path.resolve(agentDirectory(sessionId)) !== path.resolve(runnerTutorial.workspace(user, sessionId)!)) throw new Error('Choose your game folder before changing this game.');
+      const instructions = runnerTutorial.begin(user, sessionId, () => { void agentRuns.abort(requestId); }, text);
+      if (instructions) runnerTurnOwners.set(sessionId, user);
+      return instructions;
+    },
+    finish: async (sessionId, success, detail) => {
+      const owner = runnerTurnOwners.get(sessionId); runnerTurnOwners.delete(sessionId);
+      if (owner) return runnerTutorial.finish(owner, sessionId, success, detail);
+    },
+  },
   ipc: ipcMain,
   session: () => ({
     id: currentSessionId,
@@ -4822,6 +5426,24 @@ ipcMain.on('close-image-preview', (event) => {
   ) {
     dismissImagePreviewWindow(imagePreviewWindow);
   }
+});
+
+ipcMain.on('open-html-preview', (event, payload: { html?: unknown } = {}) => {
+  if (!isAuthenticated || event.sender !== chatWindow?.webContents) return;
+  if (typeof payload.html !== 'string' || payload.html.length > 2_000_000 || !/^<!doctype html>/i.test(payload.html.trim())) return;
+  openHtmlPreviewWindow(chatWindow, payload.html);
+});
+
+ipcMain.on('html-preview-ready', (event) => {
+  if (!htmlPreviewWindow || htmlPreviewWindow.isDestroyed()
+    || event.sender !== htmlPreviewWindow.webContents || !htmlPreviewDocument) return;
+  htmlPreviewWindow.webContents.send('html-preview', { html: htmlPreviewDocument });
+  htmlPreviewWindow.show();
+  htmlPreviewWindow.focus();
+});
+
+ipcMain.on('close-html-preview', (event) => {
+  if (event.sender === htmlPreviewWindow?.webContents) htmlPreviewWindow?.close();
 });
 
 ipcMain.removeAllListeners('save-image-annotation');
@@ -5327,6 +5949,7 @@ const refreshTutoringAccess = createTutoringAccessRefresher<StudyState>({
   activate: async (policy) => {
     await configureParticipantRouterCredential(policy);
     if (!cocoSleeping && isOnboardingComplete()) startObserver();
+    welcomeToCoco();
   },
   deactivate: stopTutoringForAccess,
   setAllowed: setTutoringAllowed,
@@ -5397,6 +6020,7 @@ const authenticate = async (
     return { success: true, participantId: session.participantId };
   } catch (error) {
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
+    runnerGameWindow?.close();
     currentUserId = null;
     isAuthenticated = false;
     agent101.notifyAccountChanged();
@@ -5426,16 +6050,15 @@ ipcMain.on('authentication-ui-complete', () => {
   const launch = pendingAuthLaunch;
   pendingAuthLaunch = null;
   authWindow?.destroy();
-  if (studyAccessStatus === 'preassessment') {
-    applyAvatarVisibility(readHideAvatarSetting());
-    openTraining();
+  if (launch === 'signup' || !isOnboardingComplete()) {
+    // Every new account finishes app setup before entering Training, even when
+    // the server already marks its pre-assessments as pending.
+    createOnboardingWindow();
     createTray();
     return;
   }
-  if (launch === 'signup') {
-    // Every newly created account sees the full onboarding, even when this
-    // computer has an older local profile from a previous installation.
-    createOnboardingWindow();
+  if (studyAccessStatus === 'preassessment') {
+    welcomeToCoco();
     createTray();
     return;
   }
@@ -5462,26 +6085,26 @@ const createWindow = async () => {
     await installExtensions();
   }
 
+  const onboardingComplete = isOnboardingComplete();
+  if (!onboardingComplete) {
+    // First launch — keep the original setup, with its floating Coco introduction.
+    createOnboardingWindow();
+    createTray();
+    return;
+  }
   if (!tutoringAllowed) {
-    applyAvatarVisibility(readHideAvatarSetting());
-    openTraining();
+    welcomeToCoco();
     return;
   }
 
-  const onboardingComplete = isOnboardingComplete();
   const modelConfiguration = readModelConfiguration();
-  if (!onboardingComplete) {
-    // First launch — show onboarding. The avatar is created after the user
-    // completes or skips onboarding (see 'onboarding-complete' handler).
-    createOnboardingWindow();
-    createTray();
-  } else if (!modelConfiguration) {
+  if (!modelConfiguration) {
     // Legacy environment variables may be sufficient to start the services,
     // but users still need an explicit, inspectable model configuration.
     createOnboardingWindow(true);
     createTray();
   } else {
-    applyAvatarVisibility(readHideAvatarSetting());
+    welcomeToCoco();
   }
 };
 
@@ -5619,6 +6242,7 @@ const ensureRouterManagedModels = (): void => {
       return;
     }
     saveModelConfiguration(normalized);
+    sendToChat('model-configuration-updated', null);
     log.info(
       `[Models] Applied Router-managed configuration: tutor=${normalized.defaultTutorId} observer=${normalized.sensing.model}`,
     );
@@ -5626,6 +6250,32 @@ const ensureRouterManagedModels = (): void => {
     log.error(`[Models] Could not apply Router-managed defaults: ${error}`);
   }
 };
+
+const serviceSupervisor = new ServiceSupervisor({
+  services: [
+    { id: 'tutor-server', enabled: () => tutoringAllowed && isAuthenticated && observerStarted && !isQuitting },
+    { id: 'sensing-server', enabled: () => tutoringAllowed && isAuthenticated && observerStarted && !isQuitting && !isObservationPaused() },
+  ],
+  probe: async id => {
+    const port = id === 'tutor-server' ? process.env.TUTOR_PORT || '8081' : process.env.SENSING_PORT || '8080';
+    const response = await axios.get(`http://127.0.0.1:${port}/health`, { timeout: 1200 });
+    return response.data?.service === (id === 'tutor-server' ? 'coco-tutor' : 'coco-sensing');
+  },
+  start: id => serviceManager.startService(id),
+  stop: id => serviceManager.stopService(id, { timeoutMs: 1000, force: true }),
+  report: (id, detail) => log.warn(`[ServiceRecovery] ${id}: ${detail}`),
+});
+app.on('before-quit', () => serviceSupervisor.dispose());
+ipcMain.handle('retry-services', async event => {
+  if (event.sender !== chatWindow?.webContents || !isAuthenticated || !tutoringAllowed) return { error: 'Sign in to reconnect Coco.' };
+  if (process.env.LLM_ROUTER_URL?.trim() && !isLlmRouterConfigured())
+    return {error:'Coco is still connecting your account to its model service. Please wait a moment.'};
+  if (!observerStarted) startObserver();
+  serviceSupervisor.start();
+  await serviceSupervisor.retry();
+  modelHealthCache.clear();
+  return { success: true };
+});
 
 // Starts the sensing services and observation stream. Called once onboarding
 // is complete (or immediately on subsequent launches where it's already done),
@@ -5717,18 +6367,18 @@ const startObserver = () => {
         true,
       );
     }
-    serviceManager.startService('tutor-server');
-    if (!isObservationPaused()) serviceManager.startService('sensing-server');
+    serviceSupervisor.start();
   } catch (e) {
-    console.warn('Failed to start services:', e);
+    observerStarted = false;
+    log.error('[ServiceStartup] Failed to configure services:', e);
   }
 
   // Trim old activity history once per launch so the JSONL stays bounded.
   pruneActivity(Math.floor(Date.now() / 1000));
 
-  // Unlike the public CoCo evening scheduler, this transition is driven by an
+  // Unlike the public Coco evening scheduler, this transition is driven by an
   // actual observation. That makes the learning review appear on the next day
-  // the participant uses the computer, even if CoCo stayed open overnight.
+  // the participant uses the computer, even if Coco stayed open overnight.
   nextDaySummaryScheduler = new NextDaySummaryScheduler({
     statePath: path.join(
       app.getPath('userData'),
@@ -6082,7 +6732,8 @@ app
         log.info(`[Auth] restored session for ${restored.participantId}`);
       } catch (error) {
         clearAuthSession(app.getPath('userData'));
-        currentUserId = null;
+        runnerGameWindow?.close();
+    currentUserId = null;
         isAuthenticated = false;
         agent101.notifyAccountChanged();
         currentStudyRole = null;
@@ -6151,6 +6802,8 @@ app
   .catch(console.log);
 
 app.on('before-quit', (event) => {
+  runnerTutorial.interrupt();
+  for(const requestId of agentRuns.requests.keys())void agentRuns.abort(requestId);
   if (isQuitting) return;
   event.preventDefault();
   isQuitting = true;

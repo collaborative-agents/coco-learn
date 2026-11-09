@@ -92,6 +92,16 @@ function commandLabel(words: string[]): string | null {
 }
 
 export default function toolSummary(call: TutorToolCall): string {
+  if (call.name === 'design_game_character') return 'Drawing your character';
+  if (call.name === 'inspect_game_art') return 'Inspecting the character artwork';
+  if (call.name === 'update_game_theme') {
+    const c=(call.arguments.changes ?? {}) as Record<string, any>;
+    return [c.behaviorPreset === 'flight' && 'Adding hold-to-fly controls',c.behaviorPreset === 'run' && 'Restoring jumping',c.timeOfDay && `Painting a ${c.timeOfDay === 'day' ? 'daylight' : c.timeOfDay} sky`,(c.player || c.playerPreset) && 'Drawing your runner',c.obstacles && 'Drawing the obstacles',c.weather && `Adding ${c.weather.kind}`,c.physics && 'Tuning the challenge'].filter(Boolean).join(' · ') || 'Painting your game';
+  }
+  if (String(call.arguments.path ?? '').includes('runner-tutorial')) {
+    if (call.name === 'read' || call.name === 'ls') return 'Reading your game';
+    if (call.name === 'write' || call.name === 'edit') return String(call.arguments.path).endsWith('behavior.js') ? 'Updating the game rules' : 'Painting your game';
+  }
   const labels: Record<string, string> = {
     read: 'Read a file',
     write: 'Write a file',

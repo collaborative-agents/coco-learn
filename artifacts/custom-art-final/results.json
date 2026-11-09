@@ -1,0 +1,130 @@
+[
+  {
+    "animal": "turtle",
+    "success": true,
+    "seconds": 49.495,
+    "approvals": 0,
+    "previews": 0,
+    "checks": [
+      {
+        "visualCode": "605894",
+        "candidateDescription": "A pixel-art turtle with a domed green shell featuring darker panel lines, a tan/cream plastron (underside), stubby legs, a round head with a white eye highlight, and a small tail. Four run frames show leg variation at rows 22\u201325, and a separate crouch frame shows the turtle flattened low to the ground. The sprite is roughly the same height as Coco and sits on the ground line in the scene.",
+        "pass": true,
+        "observations": [
+          "Recognition: The turtle is immediately identifiable at both contact-sheet scale and actual game scale \u2014 domed shell with panel markings, distinct head, white eye highlight, and tan belly are all legible. No identity ambiguity across any frame.",
+          "Finish and detail: Shell has multi-tone green shading with darker segment lines, the plastron uses a contrasting tan, limbs have individual pixel shaping, and the eye carries a white highlight dot \u2014 polish level is comparable to Coco's outline-and-highlight treatment.",
+          "Animation coherence: Frame data shows four distinct animation states (frame 1 unique, frames 2 & 4 identical at 34 changed pixels, frame 3 unique at 49 changed pixels, all changes confined to leg rows 22\u201325). This is a valid 4-frame stride cycle with leg alternation; repeated frame pairs are normal pixel-art practice and the changed-row range matches limb movement. The crouch frame visually lowers and flattens the turtle convincingly.",
+          "Scene fit: In the Moonlit Meadow screenshot the turtle sits squarely on the grass ground line, its green tones contrast adequately against the dark blue-grey background, and its scale relative to the terrain and tree line is consistent with a Coco-sized runner \u2014 no floating, sinking, or size mismatch visible."
+        ],
+        "defects": []
+      }
+    ],
+    "error": null
+  },
+  {
+    "animal": "robot",
+    "success": true,
+    "seconds": 49.978,
+    "approvals": 0,
+    "previews": 0,
+    "checks": [
+      {
+        "visualCode": "417122",
+        "candidateDescription": "A quadrupedal robot character rendered in dark grey/silver metallic armor with glowing cyan visor eyes, gold antenna/crown detail on the head, articulated leg panels, and blue energy accents on the torso. The crouch pose shows the robot flattened low. The sprite is roughly the same bounding-box size as Coco.",
+        "pass": true,
+        "observations": [
+          "Recognition: The robot is immediately readable as a distinct original character \u2014 metallic plating, glowing blue eyes, gold crown antenna, and segmented legs are all legible at contact-sheet scale and remain coherent at the smaller in-game scale shown in the scene screenshot.",
+          "Finish & detail: Highlights, shadows, and mid-tones are consistently applied across all five poses; the armour panels show pixel-level shading gradients comparable in polish to the Coco reference. No stray or orphaned pixels are visible around the silhouette.",
+          "Animation: The pixel-difference data confirms four distinct animation states (frames 1, 2/4 shared, 3 unique) with changes confined to rows 22\u201325 \u2014 the leg region \u2014 producing a convincing stride cycle. The reference uses the same lower-body row band for its leg motion, so the candidate's approach is structurally equivalent. Repeated frame pairing (2 = 4) mirrors the reference pattern (1 = 3).",
+          "Scene fit & ground alignment: In the Moonlit Meadow screenshot the robot sits cleanly on the ground plane, its base aligns with the grass edge, contrast against the dark background is strong due to the cyan eye glow and light grey armour, and the sprite scale relative to the trees and terrain is consistent with Coco's expected runner scale.",
+          "Crouch pose: The robot's crouch shows a convincingly flattened silhouette with the body lowered and legs tucked, matching the functional purpose of the crouch frame without merely duplicating Coco's fox crouch shape."
+        ],
+        "defects": []
+      }
+    ],
+    "error": null
+  },
+  {
+    "animal": "owl",
+    "success": true,
+    "seconds": 48.993,
+    "approvals": 0,
+    "previews": 0,
+    "checks": [
+      {
+        "visualCode": "154758",
+        "candidateDescription": "A pixel-art owl with large round spectacled eyes, a hooked beak, brown feathered body with wing-stripe shading, green legs, and a distinct crouched frame showing the owl flattened horizontally.",
+        "pass": true,
+        "observations": [
+          "The character is clearly recognizable as an owl: large facial disc, round bespectacled eyes, hooked beak, and feathered brown body read immediately at both zoomed and game scales.",
+          "Deliberate dark pixel outlines frame every body region; the wing has layered brown shading and highlight striping, the face has white eye rings with pupils and glints, and the beak is a distinct contrasting color \u2014 all matching Coco's level of finish.",
+          "At actual game scale the owl's silhouette reads cleanly against the dark Moonlit Meadow background; the lighter cream chest and white eye circles provide strong internal contrast that keeps the character legible.",
+          "The crouch frame shows the owl rotated nearly horizontal with the head tucked forward and limbs compressed, forming a recognizable low-profile pose analogous to Coco's crouch."
+        ],
+        "defects": []
+      }
+    ],
+    "error": null
+  },
+  {
+    "animal": "elephant",
+    "success": true,
+    "seconds": 54.645,
+    "approvals": 0,
+    "previews": 0,
+    "checks": [
+      {
+        "visualCode": "849224",
+        "candidateDescription": "A grey pixel-art elephant with a round body, visible trunk curling downward, small white eye glint, orange ear flap, and chunky legs shown in four run frames plus a flattened crouch frame.",
+        "pass": true,
+        "observations": [
+          "The sprite is recognisable as an elephant: large rounded grey body, curled trunk, prominent ear, and tusks are all present and consistent across frames.",
+          "Deliberate dark outlines define every body part; the body uses at least three grey shades for volume, the eye has a white highlight, and the trunk tip and tusk receive accent colours \u2014 well above placeholder quality.",
+          "Against the dark Moonlit Meadow background the light-grey elephant silhouette reads cleanly at game scale; the chunky body mass contrasts clearly with the ground and foliage.",
+          "The crouch frame shows the body lowered and elongated horizontally with the legs tucked, closely mirroring the flattened pose Coco uses \u2014 the pose is coherent and recognisable as a crouch."
+        ],
+        "defects": []
+      }
+    ],
+    "error": null
+  },
+  {
+    "animal": "dragon",
+    "success": true,
+    "seconds": 166.288,
+    "approvals": 0,
+    "previews": 0,
+    "checks": [
+      {
+        "visualCode": "800609",
+        "candidateDescription": "A stocky green dragon with a yellow belly, purple dorsal spines, red eyes, yellow horns, and articulated legs running and crouching across all five frames.",
+        "pass": false,
+        "observations": [
+          "The character is a green scaly creature with horns, spines, red eyes and a yellow underbelly \u2014 dragon features are present and the species is broadly recognizable as a dragon, satisfying criterion 1.",
+          "Deliberate dark outlines are visible on every frame, the belly has a contrasting yellow panel, dorsal spines are purple, eyes are red with detail, and shading differentiates scales from the underbelly \u2014 polish is comparable to Coco, satisfying criterion 2.",
+          "In the actual game-scene screenshot the dragon reads clearly against the dark blue/green background; the green body contrasts well and the silhouette is distinct, satisfying criterion 3.",
+          "The crouch frame shows the dragon flattened low to the ground with a clearly compressed profile, legs tucked, and the same distinctive head features intact \u2014 the crouch pose is recognizable and coherent, satisfying criterion 4."
+        ],
+        "defects": [
+          "The dragon reads more like a turtle/tortoise than a dragon: the body is domed like a shell, there are no wings (even folded stubs), no visible tail, and no elongated neck \u2014 key dragon anatomy is absent or dominated by chelonian body shape. Add a visible tail, suggest wing stubs or frills, and reduce the shell-dome silhouette to make the dragon identity unambiguous."
+        ]
+      },
+      {
+        "diagnostic": "The dragon reads more like a turtle/tortoise than a dragon: the body is domed like a shell, there are no wings (even folded stubs), no visible tail, and no elongated neck \u2014 key dragon anatomy is absent or dominated by chelonian body shape. Add a visible tail, suggest wing stubs or frills, and reduce the shell-dome silhouette to make the dragon identity unambiguous."
+      },
+      {
+        "visualCode": "679233",
+        "candidateDescription": "A green-and-yellow armored dragon with purple spinal frills, a red eye, clawed limbs, and a scaly belly running and crouching across four run frames plus one crouch frame.",
+        "pass": true,
+        "observations": [
+          "The sprite is clearly a dragon \u2014 scaly green body, armored yellow belly, clawed feet, purple dorsal spines, and a reptilian head with a red eye; the requested species is immediately recognizable.",
+          "Deliberate dark-green outlines enclose every body part; the belly has highlight/shading contrast from the darker scales, the spines are individually rendered in purple, and the red eye with a white glint provides clear facial detail matching Coco's level of finish.",
+          "In the actual game-scene screenshot the dragon reads cleanly against the dark blue/grey night background; the yellow belly and green body provide strong contrast, and the silhouette is distinct and unambiguous at play scale.",
+          "The crouch frame shows the dragon flattened low to the ground with limbs tucked, spines visible but lowered, matching the same low-profile crouching silhouette convention Coco uses."
+        ],
+        "defects": []
+      }
+    ],
+    "error": null
+  }
+]

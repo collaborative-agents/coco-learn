@@ -1,0 +1,12 @@
+{
+  "visualCode": "605894",
+  "candidateDescription": "A pixel-art turtle with a domed green shell featuring darker panel lines, a tan/cream plastron (underside), stubby legs, a round head with a white eye highlight, and a small tail. Four run frames show leg variation at rows 22–25, and a separate crouch frame shows the turtle flattened low to the ground. The sprite is roughly the same height as Coco and sits on the ground line in the scene.",
+  "pass": true,
+  "observations": [
+    "Recognition: The turtle is immediately identifiable at both contact-sheet scale and actual game scale — domed shell with panel markings, distinct head, white eye highlight, and tan belly are all legible. No identity ambiguity across any frame.",
+    "Finish and detail: Shell has multi-tone green shading with darker segment lines, the plastron uses a contrasting tan, limbs have individual pixel shaping, and the eye carries a white highlight dot — polish level is comparable to Coco's outline-and-highlight treatment.",
+    "Animation coherence: Frame data shows four distinct animation states (frame 1 unique, frames 2 & 4 identical at 34 changed pixels, frame 3 unique at 49 changed pixels, all changes confined to leg rows 22–25). This is a valid 4-frame stride cycle with leg alternation; repeated frame pairs are normal pixel-art practice and the changed-row range matches limb movement. The crouch frame visually lowers and flattens the turtle convincingly.",
+    "Scene fit: In the Moonlit Meadow screenshot the turtle sits squarely on the grass ground line, its green tones contrast adequately against the dark blue-grey background, and its scale relative to the terrain and tree line is consistent with a Coco-sized runner — no floating, sinking, or size mismatch visible."
+  ],
+  "defects": []
+}

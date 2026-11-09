@@ -51,6 +51,18 @@ describe('onboarding window', () => {
   beforeEach(() => jest.spyOn(window, 'close').mockImplementation(() => {}));
   afterEach(() => jest.restoreAllMocks());
 
+  it('introduces Coco inside the welcome window without the stuck example', async () => {
+    const {sendMessage, invoke} = setup();
+    await act(async () => {render(<OnboardingView />);});
+    expect(sendMessage).toHaveBeenCalledWith('onboarding-step', 'welcome');
+    expect(screen.getByText(/I’m Coco, your floating desktop companion/)).toBeInTheDocument();
+    expect(screen.queryByText(/Comparing options/)).not.toBeInTheDocument();
+    expect(screen.queryByText('STUCK?')).not.toBeInTheDocument();
+    await next();
+    expect(sendMessage).toHaveBeenCalledWith('onboarding-step', 'name');
+    expect(invoke).not.toHaveBeenCalledWith('runner-start');
+  });
+
   it('skips model selection when the packaged Router manages credentials', async () => {
     setup();
     await act(async () => {
@@ -222,7 +234,7 @@ describe('onboarding window', () => {
         screen.getByRole('radio', { name: /Avatar \+ menu bar/ }),
       ).toBeChecked();
       expect(
-        screen.getByText(/menu-bar icon is always available/),
+        screen.getByRole('radiogroup', { name: 'Avatar visibility' }),
       ).toBeVisible();
       if (hidden)
         fireEvent.click(screen.getByRole('radio', { name: /Menu bar only/ }));

@@ -6,6 +6,7 @@ import './global.css';
 import App from './App';
 import NotificationView from './components/NotificationView';
 import ImagePreviewView from './components/ImagePreviewView';
+import HtmlPreviewView from './components/HtmlPreviewView';
 import TrainingView from './components/TrainingView';
 import OnboardingView from './components/OnboardingView';
 import SessionChatView from './components/SessionChatView';
@@ -14,6 +15,7 @@ import AuthView from './components/AuthView';
 import WakeWordCaptureView from './components/WakeWordCaptureView';
 import AvatarMenuView from './components/AvatarMenuView';
 import AvatarBubbleView from './components/AvatarBubbleView';
+import RunnerGameView from './components/getting-started/RunnerGameView';
 import AvatarHistoryView from './components/AvatarHistoryView';
 
 const container = document.getElementById('root') as HTMLElement;
@@ -21,7 +23,9 @@ const root = createRoot(container);
 const view = new URLSearchParams(window.location.search).get('view');
 
 let rendered: ReactElement;
-if (view === 'auth') {
+if (view === 'runner-game') {
+  rendered = <RunnerGameView />;
+} else if (view === 'auth') {
   rendered = <AuthView />;
 } else if (view === 'onboarding') {
   rendered = <OnboardingView />;
@@ -35,6 +39,8 @@ if (view === 'auth') {
   rendered = <SessionRecapView />;
 } else if (view === 'image-preview') {
   rendered = <ImagePreviewView />;
+} else if (view === 'html-preview') {
+  rendered = <HtmlPreviewView />;
 } else if (view === 'wake-word-capture') {
   rendered = <WakeWordCaptureView />;
 } else if (view === 'avatar-menu') {

@@ -7,6 +7,8 @@ import { app } from 'electron';
 import type { AgentContextSnapshot } from '../../shared/agent-context';
 import PiEventTranslator from './pi-events';
 import type { TutorStreamEvent } from './tutor-stream';
+import ActiveRunClock from './active-run-clock';
+import type { PermissionRequest } from '../../shared/agent-execution';
 import AgentPermissions, { type ActionApproval } from './agent-permissions';
 
 export interface SessionContextInput {
@@ -79,6 +81,7 @@ export default class PiHarness {
     stopped: boolean;
     controller: AbortController;
     permissions: AgentPermissions;
+    game?: { schema: object; designCharacter?: (description: string) => Promise<unknown>; inspectArtwork?: () => Promise<{contactSheet: string; scene: string; groundingCode: string; description?: string}>; updateTheme: (changes: unknown) => unknown };
     workspaceApproval?: Promise<boolean>;
   };
 
@@ -122,6 +125,10 @@ export default class PiHarness {
   }
 
   async run(options: {
+    instructions?: string;
+    game?: { schema: object; designCharacter?: (description: string) => Promise<unknown>; inspectArtwork?: () => Promise<{contactSheet: string; scene: string; groundingCode: string; description?: string}>; updateTheme: (changes: unknown) => unknown };
+    onPermission?: (request: PermissionRequest) => void;
+    recordTurn?: boolean;
     requestId: string;
     sessionId: string;
     directory: string;
@@ -133,7 +140,7 @@ export default class PiHarness {
     approvalRules?: CommandApprovalRules;
     curatedSkills?: { paths: string[]; revision: string };
     training?: {
-      tools: 'none' | 'bash' | 'read';
+      tools: 'none' | 'bash' | 'read' | 'game';
       instructions: string;
       persist?: boolean;
     };
@@ -145,12 +152,14 @@ export default class PiHarness {
     if (this.active)
       throw new Error('Coco is already working. Stop the current run first.');
     const translator = new PiEventTranslator(options.emit);
+    const clock = new ActiveRunClock([{ after: 30 * 60_000, action: () => { void this.abort(options.requestId); } }]);
     const active = {
       requestId: options.requestId,
+      game: options.game,
       stopped: false,
       controller: new AbortController(),
       permissions: new AgentPermissions(
-        (request) => translator.permission(request),
+        (request) => { clock.permission(request.id, request.status === 'pending'); options.onPermission?.(request); translator.permission(request); },
         options.training ? undefined : options.approvalRules,
         this.workspacePermissions,
       ),
@@ -158,21 +167,28 @@ export default class PiHarness {
     this.active = active;
     let unsubscribe: (() => void) | undefined;
     let usageModel = 'Unknown model';
-    const timer = setTimeout(() => this.abort(options.requestId), 30 * 60_000);
+
     const request = async (route: string, body?: unknown) => {
-      const response = await fetch(`${options.tutorUrl}/agent/${route}`, {
-        method: body === undefined ? 'GET' : 'POST',
-        headers: {
-          Authorization: `Bearer ${options.token}`,
-          'Content-Type': 'application/json',
-          'X-Coco-Session': options.sessionId,
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.any([
-          active.controller.signal,
-          AbortSignal.timeout(route === 'transcribe' ? 120_000 : 30_000),
-        ]),
-      });
+      let response: Response;
+      try {
+        response = await fetch(`${options.tutorUrl}/agent/${route}`, {
+          method: body === undefined ? 'GET' : 'POST',
+          headers: {
+            Authorization: `Bearer ${options.token}`,
+            'Content-Type': 'application/json',
+            'X-Coco-Session': options.sessionId,
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          signal: AbortSignal.any([
+            active.controller.signal,
+            AbortSignal.timeout(route === 'transcribe' ? 120_000 : 30_000),
+          ]),
+        });
+      } catch (error) {
+        if (error instanceof TypeError)
+          throw new Error('Coco’s local tutor service is unavailable. Restart Coco and try again.');
+        throw error;
+      }
       if (!response.ok)
         throw new Error(
           `Coco's agent service is unavailable (HTTP ${response.status}).`,
@@ -188,6 +204,15 @@ export default class PiHarness {
         `sessions/${encodeURIComponent(options.sessionId)}`,
         options.context,
       );
+      if (
+        !context ||
+        typeof context.model !== 'string' ||
+        typeof context.instructions !== 'string' ||
+        typeof context.profile !== 'string' ||
+        !Array.isArray(context.history) ||
+        !Array.isArray(context.tools)
+      )
+        throw new Error('Coco’s local tutor service returned incomplete agent context. Restart Coco and try again.');
       usageModel = context.model;
       if (options.training) {
         context.instructions = options.training.instructions;
@@ -195,6 +220,7 @@ export default class PiHarness {
         context.history = [];
         context.tools = [];
       }
+      if (options.instructions) context.instructions += `\n\n${options.instructions}`;
       let userText = options.text;
       if (options.audioData) {
         const transcription = await request('transcribe', {
@@ -234,6 +260,10 @@ export default class PiHarness {
           token: options.token,
           context,
           toolMode: options.training?.tools,
+          gameSchema: options.game?.schema,
+          designGameCharacter: (description: string) => { if (!this.active?.game?.designCharacter || this.active.stopped) throw Error('The character artist is unavailable.'); return this.active.game.designCharacter(description); },
+          inspectGameArtwork: () => { if (!this.active?.game?.inspectArtwork || this.active.stopped) throw Error('Artwork preview is unavailable.'); return this.active.game.inspectArtwork(); },
+          updateGameTheme: (changes: unknown) => { if (!this.active?.game || this.active.stopped) throw Error('This game run is no longer active.'); return this.active.game.updateTheme(changes); },
           skillPaths: options.training
             ? []
             : (options.curatedSkills?.paths ?? []),
@@ -241,6 +271,7 @@ export default class PiHarness {
           requestWorkspaceAccess: async (signal?: AbortSignal) => {
             const run = this.active;
             if (!run || run.stopped || signal?.aborted) return false;
+            if (options.training?.tools === 'game') return true; // Explicitly selected app-owned game workspace only.
             if (this.hasWorkspaceAccess(cwd)) return true;
             const workspaceSignal = signal
               ? AbortSignal.any([signal, run.controller.signal])
@@ -300,7 +331,7 @@ export default class PiHarness {
       if (!active.stopped)
         await runtime.prompt(userText, options.images, context);
       const guidance = translator.finish(active.stopped);
-      if (!active.stopped) {
+      if (!active.stopped && options.recordTurn !== false) {
         const recorded = await request('turn', {
           user_text: userText,
           text: guidance,
@@ -339,7 +370,7 @@ export default class PiHarness {
       }
     } finally {
       active.permissions.cancel();
-      clearTimeout(timer);
+      clock.stop();
       unsubscribe?.();
       if (this.active === active) this.active = undefined;
     }

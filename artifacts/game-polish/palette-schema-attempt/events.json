@@ -1,0 +1,28 @@
+[
+  {
+    "at": "2026-11-08T06:57:26.062Z",
+    "step": "services-and-models-connected"
+  },
+  {
+    "at": "2026-11-08T06:57:26.063Z",
+    "step": "click",
+    "label": "Training tasks",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:57:26.228Z",
+    "step": "click",
+    "label": "Start Task",
+    "view": "session"
+  },
+  {
+    "at": "2026-11-08T06:57:51.690Z",
+    "step": "FAIL",
+    "error": "TypeError: Object has been destroyed\n    at /Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:22:78\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:12:114)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:43:13"
+  },
+  {
+    "at": "2026-11-08T06:57:51.691Z",
+    "step": "capture",
+    "name": "failure-5"
+  }
+]

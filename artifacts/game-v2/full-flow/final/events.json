@@ -1,0 +1,288 @@
+[
+  {
+    "at": "2026-11-08T04:58:44.333Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794113924332,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:45.291Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:47.235Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:50.044Z",
+    "step": "03-first-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:50.199Z",
+    "step": "companion-action-input",
+    "label": "Try it",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-08T04:58:50.693Z",
+    "step": "first-bubble-action",
+    "chatVisibleBefore": true,
+    "chatVisibleAfter": true
+  },
+  {
+    "at": "2026-11-08T04:58:51.914Z",
+    "step": "03b-playable-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:52.175Z",
+    "step": "game-focus",
+    "native": false,
+    "frame": false,
+    "active": "CANVAS"
+  },
+  {
+    "at": "2026-11-08T04:58:52.388Z",
+    "step": "immediate-keyboard-play",
+    "standing": 298,
+    "jumping": 205,
+    "inputMethod": "DOM keyboard input in the actual sandbox canvas"
+  },
+  {
+    "at": "2026-11-08T04:58:52.434Z",
+    "step": "03c-keyboard-jump",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:56.726Z",
+    "step": "04-game-over-invitation",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 1452,
+      "y": 192,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:56.880Z",
+    "step": "companion-action-input",
+    "label": "Make it yours",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-08T04:58:57.250Z",
+    "step": "05-empty-agent-composer",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:58.770Z",
+    "step": "06-own-prompt",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:58.796Z",
+    "step": "06b-draft-coaching",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 1444,
+      "y": 250,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-08T04:58:58.797Z",
+    "step": "own-prompt",
+    "prompt": "Make it a bright sunny morning with a golden sun and a light blue sky. Keep the fox and controls the same."
+  },
+  {
+    "at": "2026-11-08T04:59:07.299Z",
+    "step": "06c-understanding-check",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 1444,
+      "y": 229,
+      "width": 338,
+      "height": 220
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:11.823Z",
+    "step": "07-agent-working",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:20.992Z",
+    "step": "agent-published-actual-changes",
+    "beforeVersion": "550bc3a1-9ddc-4a28-aa69-68e775ed5434",
+    "afterVersion": "28244421-44aa-4830-9fd1-4ab6df0cd363"
+  },
+  {
+    "at": "2026-11-08T04:59:21.745Z",
+    "step": "08-custom-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:21.761Z",
+    "step": "08b-custom-game-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 1444,
+      "y": 250,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:21.834Z",
+    "step": "08c-agent-result",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:22.349Z",
+    "step": "custom-game-animation",
+    "changed": true
+  },
+  {
+    "at": "2026-11-08T04:59:22.761Z",
+    "step": "09-wrap-up",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 1444,
+      "y": 229,
+      "width": 338,
+      "height": 220
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:22.917Z",
+    "step": "companion-action-input",
+    "label": "Continue",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-08T04:59:23.249Z",
+    "step": "10-training-complete",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T04:59:23.250Z",
+    "step": "PASS",
+    "stage": "full",
+    "state": {
+      "sessionId": "109202b8-9202-45df-9517-58ae27b110ea",
+      "version": "28244421-44aa-4830-9fd1-4ab6df0cd363",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Make it a bright sunny morning with a golden sun and a light blue sky. Keep the fox and controls the same.",
+      "previewRevision": "28244421-44aa-4830-9fd1-4ab6df0cd363",
+      "previewKind": "updated"
+    }
+  }
+]

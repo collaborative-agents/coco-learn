@@ -1,0 +1,13 @@
+[
+  {
+    "at": "2026-11-08T04:56:18.290Z",
+    "step": "start",
+    "id": "interrupt",
+    "prompt": "Make a detailed daylight scene with a cat and snow"
+  },
+  {
+    "at": "2026-11-08T04:56:23.175Z",
+    "step": "closed-mid-run",
+    "beforeVersion": "491cf55a-4e8c-4300-9dac-d99b00e15603"
+  }
+]

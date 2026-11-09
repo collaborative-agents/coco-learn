@@ -1,0 +1,39 @@
+[
+  {
+    "at": "2026-11-08T04:11:32.626Z",
+    "step": "start",
+    "id": "cuter",
+    "prompt": "make it cuter"
+  },
+  {
+    "at": "2026-11-08T04:11:40.426Z",
+    "step": "result",
+    "id": "cuter",
+    "success": false,
+    "seconds": 7.32,
+    "changed": [],
+    "error": "That feature isn’t supported by this game yet. litellm.UnsupportedParamsError: openai does not support parameters: ['reasoning_effort'], for model=deepseek-ai/deepseek-v4-pro. To drop these, set `litellm.drop_params=True` or for proxy:\n\n`litellm_settings:\n drop_params: true`\n. \n If you want to use these params dynamically send allowed_openai_params=['reasoning_effort'] in your request."
+  },
+  {
+    "at": "2026-11-08T04:11:40.710Z",
+    "step": "start",
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones"
+  },
+  {
+    "at": "2026-11-08T04:11:46.915Z",
+    "step": "result",
+    "id": "dog-bones",
+    "success": false,
+    "seconds": 5.71,
+    "changed": [],
+    "error": "That feature isn’t supported by this game yet. litellm.UnsupportedParamsError: openai does not support parameters: ['reasoning_effort'], for model=deepseek-ai/deepseek-v4-pro. To drop these, set `litellm.drop_params=True` or for proxy:\n\n`litellm_settings:\n drop_params: true`\n. \n If you want to use these params dynamically send allowed_openai_params=['reasoning_effort'] in your request."
+  },
+  {
+    "at": "2026-11-08T04:11:47.117Z",
+    "step": "complete",
+    "successes": 0,
+    "total": 2,
+    "autoApprovals": 0
+  }
+]

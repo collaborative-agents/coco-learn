@@ -1,0 +1,42 @@
+[
+  {
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794193193550,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "step": "PASS-finished-reopen",
+    "state": {
+      "sessionId": "08a80402-77ee-43e3-b90a-c36b249a94ca",
+      "version": "9becf4a3-b734-4e58-85e7-8443d0990253",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "finished",
+      "previewRevision": "9becf4a3-b734-4e58-85e7-8443d0990253",
+      "previewKind": "updated"
+    }
+  }
+]

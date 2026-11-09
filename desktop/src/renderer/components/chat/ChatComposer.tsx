@@ -198,7 +198,7 @@ export default function ChatComposer({
           </div>
         )}
         {understandingError && (
-          <div style={S.understandingError}>{understandingError}</div>
+          <div role="alert" style={S.understandingError}>{understandingError}</div>
         )}
         {attachmentError && (
           <div role="alert" style={S.understandingError}>

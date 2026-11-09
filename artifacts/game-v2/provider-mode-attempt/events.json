@@ -1,0 +1,228 @@
+[
+  {
+    "at": "2026-11-08T04:06:06.277Z",
+    "step": "start",
+    "id": "daylight",
+    "prompt": "change the background to daylight"
+  },
+  {
+    "at": "2026-11-08T04:06:24.695Z",
+    "step": "result",
+    "id": "daylight",
+    "success": true,
+    "seconds": 17.82,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:06:25.207Z",
+    "step": "start",
+    "id": "nov7-theme",
+    "prompt": "I want to make coco run in a daylight theme, but not a moon light"
+  },
+  {
+    "at": "2026-11-08T04:06:40.339Z",
+    "step": "result",
+    "id": "nov7-theme",
+    "success": true,
+    "seconds": 14.59,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:06:40.706Z",
+    "step": "start",
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !"
+  },
+  {
+    "at": "2026-11-08T04:06:55.504Z",
+    "step": "result",
+    "id": "nov7-background",
+    "success": true,
+    "seconds": 14.22,
+    "changed": [
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:06:55.794Z",
+    "step": "start",
+    "id": "cuter",
+    "prompt": "make it cuter"
+  },
+  {
+    "at": "2026-11-08T04:07:48.423Z",
+    "step": "result",
+    "id": "cuter",
+    "success": false,
+    "seconds": 52.15,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: The model returned no reply or action. Retry your message; if this repeats, choose another tutor model.. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:07:48.729Z",
+    "step": "start",
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones"
+  },
+  {
+    "at": "2026-11-08T04:08:33.619Z",
+    "step": "result",
+    "id": "dog-bones",
+    "success": false,
+    "seconds": 44.38,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: The model returned no reply or action. Retry your message; if this repeats, choose another tutor model.. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:08:33.904Z",
+    "step": "start",
+    "id": "snow-stars",
+    "prompt": "make it night with stars and snow"
+  },
+  {
+    "at": "2026-11-08T04:08:51.313Z",
+    "step": "result",
+    "id": "snow-stars",
+    "success": true,
+    "seconds": 16.9,
+    "changed": [
+      "decorations",
+      "weather"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:08:51.585Z",
+    "step": "start",
+    "id": "harder",
+    "prompt": "make it way harder"
+  },
+  {
+    "at": "2026-11-08T04:09:08.395Z",
+    "step": "result",
+    "id": "harder",
+    "success": true,
+    "seconds": 16.21,
+    "changed": [
+      "physics"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:09:08.716Z",
+    "step": "start",
+    "id": "platform-style",
+    "prompt": "make it look like Mario, but make your own original character and scenery"
+  },
+  {
+    "at": "2026-11-08T04:09:54.809Z",
+    "step": "result",
+    "id": "platform-style",
+    "success": true,
+    "seconds": 45.45,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "spritePalette",
+      "player",
+      "obstacles"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:09:55.199Z",
+    "step": "start",
+    "id": "ambitious-cat",
+    "prompt": "Make it a detailed daylight world with a cat"
+  },
+  {
+    "at": "2026-11-08T04:10:11.166Z",
+    "step": "result",
+    "id": "ambitious-cat",
+    "success": true,
+    "seconds": 15.34,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "player"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:10:11.501Z",
+    "step": "start",
+    "id": "pastel-morning",
+    "prompt": "a cozy morning with pastel colors and lots of clouds please"
+  },
+  {
+    "at": "2026-11-08T04:10:33.048Z",
+    "step": "result",
+    "id": "pastel-morning",
+    "success": true,
+    "seconds": 20.89,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:10:33.336Z",
+    "step": "start",
+    "id": "neon-rain",
+    "prompt": "make the world rainy and neon blue and pink like a cyberpunk city"
+  },
+  {
+    "at": "2026-11-08T04:10:58.601Z",
+    "step": "result",
+    "id": "neon-rain",
+    "success": true,
+    "seconds": 24.49,
+    "changed": [
+      "title",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "weather"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:10:58.937Z",
+    "step": "start",
+    "id": "sunset",
+    "prompt": "make it sunset with orange skies and mountains"
+  }
+]

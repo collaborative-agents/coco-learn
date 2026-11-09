@@ -1,0 +1,20 @@
+[
+  {
+    "animal": "turtle",
+    "success": false,
+    "seconds": 120.351,
+    "approvals": 3,
+    "previews": 1,
+    "checks": [],
+    "error": "Artist timed out after 120 seconds"
+  },
+  {
+    "animal": "robot",
+    "success": false,
+    "seconds": 123.728,
+    "approvals": 0,
+    "previews": 1,
+    "checks": [],
+    "error": "Artist timed out after 120 seconds"
+  }
+]

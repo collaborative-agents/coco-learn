@@ -180,31 +180,52 @@ const configuration: webpack.Configuration = {
     historyApiFallback: {
       verbose: true,
     },
-    setupMiddlewares(middlewares) {
+    setupMiddlewares(middlewares, devServer) {
+      const children: ReturnType<typeof spawn>[] = [];
+      let shuttingDown = false;
+      const stopChildren = () => {
+        for (const child of children) {
+          if (!child.pid) continue;
+          try {
+            // npm spawns watchers and Electron grandchildren. Stop their whole
+            // group so freeing the renderer port cannot orphan the old app.
+            if (process.platform === 'win32') child.kill('SIGTERM');
+            else process.kill(-child.pid, 'SIGTERM');
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') console.error(error);
+          }
+        }
+      };
+      const shutdown = (code = 0) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        stopChildren();
+        process.exit(code);
+      };
+      process.once('SIGINT', () => shutdown());
+      process.once('SIGTERM', () => shutdown());
+      process.once('exit', stopChildren);
+      const startChild = (args: string[]) => {
+        const child = spawn('npm', args, {
+          shell: true, stdio: 'inherit', detached: process.platform !== 'win32',
+        });
+        children.push(child);
+        child.on('close', (code) => shutdown(code ?? 0));
+        child.on('error', (error) => { console.error(error); shutdown(1); });
+      };
       console.log('Starting preload.js builder...');
-      const preloadProcess = spawn('npm', ['run', 'start:preload'], {
-        shell: true,
-        stdio: 'inherit',
-      })
-        .on('close', (code: number) => process.exit(code!))
-        .on('error', (spawnError) => console.error(spawnError));
-
-      console.log('Starting Main Process...');
-      let args = ['run', 'start:main'];
-      if (process.env.MAIN_ARGS) {
-        args = args.concat(
-          ['--', ...process.env.MAIN_ARGS.matchAll(/"[^"]+"|[^\s"]+/g)].flat(),
-        );
-      }
-      spawn('npm', args, {
-        shell: true,
-        stdio: 'inherit',
-      })
-        .on('close', (code: number) => {
-          preloadProcess.kill();
-          process.exit(code!);
-        })
-        .on('error', (spawnError) => console.error(spawnError));
+      startChild(['run', 'start:preload']);
+      let mainStarted = false;
+      devServer.compiler.hooks.done.tap('StartCocoWhenRendererReady', (stats) => {
+        if (mainStarted || shuttingDown || stats.hasErrors()) return;
+        mainStarted = true;
+        console.log('Renderer ready. Starting Coco...');
+        let args = ['run', 'start:main'];
+        if (process.env.MAIN_ARGS) {
+          args = args.concat(['--', ...process.env.MAIN_ARGS.matchAll(/"[^"]+"|[^\s"]+/g)].flat());
+        }
+        startChild(args);
+      });
       return middlewares;
     },
   },

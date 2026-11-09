@@ -1,0 +1,11 @@
+{
+  "verified": [
+    "Opening onboarding window without a native popup",
+    "Welcome introduction replaces STUCK comparison example",
+    "Real visible desktop fox positioned in top-right of Ready to go",
+    "No duplicate bottom-right illustration",
+    "11 onboarding tests passed",
+    "TypeScript and development main build passed"
+  ],
+  "account": "Normal account login, settings, and completed game task preserved; backed-up onboarding flag reset for preview."
+}

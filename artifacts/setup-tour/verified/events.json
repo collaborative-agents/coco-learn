@@ -1,0 +1,286 @@
+[
+  {
+    "step": "prior-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "prior-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "existing-os-permissions",
+    "missing": []
+  },
+  {
+    "step": "prior-setup",
+    "title": "Hey Coco"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "undo-verified",
+    "state": {
+      "sessionId": "606e79f1-a4e1-4886-bdc6-e52271cbd944",
+      "version": "2e744149-3821-4841-ba3d-d750feeef9c9",
+      "phase": "review",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "2e744149-3821-4841-ba3d-d750feeef9c9",
+      "previewKind": "original"
+    }
+  },
+  {
+    "step": "tour-complete",
+    "state": {
+      "sessionId": "606e79f1-a4e1-4886-bdc6-e52271cbd944",
+      "version": "da5fe546-11c0-451e-a735-ba89bbeba43a",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "finished",
+      "previewRevision": "da5fe546-11c0-451e-a735-ba89bbeba43a",
+      "previewKind": "updated"
+    }
+  },
+  {
+    "step": "prompt-result",
+    "id": "suggested-daylight",
+    "prompt": "Change it to a daylight game!",
+    "success": true,
+    "seconds": 7.92,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "suggested-daylight.png"
+  },
+  {
+    "step": "flight",
+    "held": 130.09854399999992,
+    "released": 0
+  },
+  {
+    "step": "prompt-result",
+    "id": "flying",
+    "prompt": "Make a flying version, so I can fly, not just jump.",
+    "success": true,
+    "seconds": 8.09,
+    "changed": [
+      "controls"
+    ],
+    "screenshot": "flying.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "cat-snow",
+    "prompt": "Make the fox a cat running through a snowy night.",
+    "success": true,
+    "seconds": 13.47,
+    "changed": [
+      "player",
+      "weather"
+    ],
+    "screenshot": "cat-snow.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "daylight",
+    "prompt": "change the background to daylight",
+    "expect": "day",
+    "success": true,
+    "seconds": 10.38,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "daylight.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "nov7-theme",
+    "prompt": "I want to make coco run in a daylight theme, but not a moon light",
+    "expect": "day",
+    "success": true,
+    "seconds": 8.61,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "nov7-theme.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !",
+    "expect": "day",
+    "success": true,
+    "seconds": 8.94,
+    "changed": [
+      "background",
+      "scene"
+    ],
+    "screenshot": "nov7-background.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "cuter",
+    "prompt": "make it cuter",
+    "expect": "visual",
+    "success": true,
+    "seconds": 9.67,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "player",
+      "obstacles",
+      "weather",
+      "scene"
+    ],
+    "screenshot": "cuter.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones",
+    "expect": "dog",
+    "success": true,
+    "seconds": 9.59,
+    "changed": [
+      "spritePalette",
+      "player",
+      "obstacles"
+    ],
+    "screenshot": "dog-bones.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "harder",
+    "prompt": "make it way harder",
+    "expect": "harder",
+    "success": true,
+    "seconds": 10.73,
+    "changed": [
+      "physics"
+    ],
+    "screenshot": "harder.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "ambitious-cat",
+    "prompt": "Make it a detailed daylight world with a cat",
+    "expect": "detailed-cat",
+    "success": true,
+    "seconds": 8.44,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "player",
+      "scene"
+    ],
+    "screenshot": "ambitious-cat.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "sunset",
+    "prompt": "make it sunset with orange skies and mountains",
+    "expect": "sunset",
+    "success": true,
+    "seconds": 7.96,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "sunset.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "misspelled-day",
+    "prompt": "chnge the bakgrond to daylite plz",
+    "expect": "day",
+    "success": true,
+    "seconds": 7.48,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "misspelled-day.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "misspelled-cat-snow",
+    "prompt": "can u make a lil cat runing in sno at nite",
+    "expect": "snow-cat",
+    "success": true,
+    "seconds": 8.91,
+    "changed": [
+      "player",
+      "weather"
+    ],
+    "screenshot": "misspelled-cat-snow.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "score-sounds",
+    "prompt": "turn sounds off and change the score label to DISTANCE",
+    "expect": "score",
+    "success": true,
+    "seconds": 10.09,
+    "changed": [
+      "scoreLabel"
+    ],
+    "screenshot": "score-sounds.png"
+  },
+  {
+    "step": "PASS",
+    "count": 14,
+    "autoApprovals": 0
+  }
+]

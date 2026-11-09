@@ -34,3 +34,39 @@
   left: -6px;
   transform: rotate(-135deg);
 }
+
+.avatar-bubble-view .getting-started-bubble {
+  --bubble-accent: #4165dd;
+  --bubble-accent-soft: rgba(65, 101, 221, 0.2);
+  box-sizing: border-box;
+  width: 320px;
+  max-width: 320px;
+  max-height: var(--bubble-max-height, 520px);
+}
+
+.getting-started-bubble-intro {
+  margin-top: var(--coco-space-2);
+}
+
+.getting-started-bubble-prompt {
+  max-height: 170px;
+  overflow: auto;
+  margin: var(--coco-space-2) 0 0;
+  padding: var(--coco-space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--bubble-accent-soft);
+  border-radius: var(--coco-radius-control);
+  background: #f6f8ff;
+  color: var(--coco-color-text);
+  font: var(--coco-text-control)/1.45 var(--coco-font-family);
+}
+
+.getting-started-bubble-tip {
+  margin: var(--coco-space-2) 0 0;
+  color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-caption);
+  line-height: 1.4;
+}
+.avatar-bubble-view .observation-bubble.is-guide { max-width: 290px; }
+.avatar-bubble-view .is-guide .guide-decline { width: auto; height: auto; margin: 6px auto 0; font-size: 11px; padding: 3px 6px; line-height: 1.5; }

@@ -1,0 +1,41 @@
+[
+  {
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794191244155,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "step": "PASS-finished-reopen",
+    "state": {
+      "sessionId": "59090706-3c32-47ed-939c-afc4bf7fe095",
+      "version": "f79535c3-8144-4d11-b1a0-adbb9dd1c275",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "turn sounds off and change the score label to DISTANCE",
+      "firstGameOver": false,
+      "tour": "finished",
+      "previewRevision": "f79535c3-8144-4d11-b1a0-adbb9dd1c275",
+      "previewKind": "updated"
+    }
+  }
+]

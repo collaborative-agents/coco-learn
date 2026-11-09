@@ -1,0 +1,229 @@
+[
+  {
+    "step": "prior-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "prior-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "existing-os-permissions",
+    "missing": []
+  },
+  {
+    "step": "prior-setup",
+    "title": "Hey Coco"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "prompt-result",
+    "id": "suggested-daylight",
+    "prompt": "Change it to a daylight game!",
+    "success": false,
+    "seconds": 24.157,
+    "error": "Error: game frame timed out"
+  },
+  {
+    "step": "flight",
+    "held": 130.67204,
+    "released": 0
+  },
+  {
+    "step": "prompt-result",
+    "id": "flying",
+    "prompt": "Make a flying version, so I can fly, not just jump.",
+    "success": true,
+    "seconds": 10.24,
+    "changed": [
+      "controls"
+    ],
+    "screenshot": "flying.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "cat-snow",
+    "prompt": "Make the fox a cat running through a snowy night.",
+    "success": true,
+    "seconds": 10.93,
+    "changed": [
+      "player",
+      "weather"
+    ],
+    "screenshot": "cat-snow.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "daylight",
+    "prompt": "change the background to daylight",
+    "expect": "day",
+    "success": true,
+    "seconds": 7.79,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "daylight.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "nov7-theme",
+    "prompt": "I want to make coco run in a daylight theme, but not a moon light",
+    "expect": "day",
+    "success": false,
+    "seconds": 22.743,
+    "error": "Error: game frame timed out"
+  },
+  {
+    "step": "prompt-result",
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !",
+    "expect": "day",
+    "success": true,
+    "seconds": 10.29,
+    "changed": [
+      "background",
+      "scene"
+    ],
+    "screenshot": "nov7-background.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "cuter",
+    "prompt": "make it cuter",
+    "expect": "visual",
+    "success": true,
+    "seconds": 14.06,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "player",
+      "obstacles",
+      "scene"
+    ],
+    "screenshot": "cuter.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones",
+    "expect": "dog",
+    "success": true,
+    "seconds": 11.35,
+    "changed": [
+      "spritePalette",
+      "player",
+      "obstacles"
+    ],
+    "screenshot": "dog-bones.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "harder",
+    "prompt": "make it way harder",
+    "expect": "harder",
+    "success": true,
+    "seconds": 9.73,
+    "changed": [
+      "physics"
+    ],
+    "screenshot": "harder.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "ambitious-cat",
+    "prompt": "Make it a detailed daylight world with a cat",
+    "expect": "detailed-cat",
+    "success": true,
+    "seconds": 12.53,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "player",
+      "scene"
+    ],
+    "screenshot": "ambitious-cat.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "sunset",
+    "prompt": "make it sunset with orange skies and mountains",
+    "expect": "sunset",
+    "success": true,
+    "seconds": 10.34,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "sunset.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "misspelled-day",
+    "prompt": "chnge the bakgrond to daylite plz",
+    "expect": "day",
+    "success": true,
+    "seconds": 9.66,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "misspelled-day.png"
+  },
+  {
+    "step": "prompt-result",
+    "id": "misspelled-cat-snow",
+    "prompt": "can u make a lil cat runing in sno at nite",
+    "expect": "snow-cat",
+    "success": false,
+    "seconds": 27.041,
+    "error": "Error: game frame timed out"
+  },
+  {
+    "step": "prompt-result",
+    "id": "score-sounds",
+    "prompt": "turn sounds off and change the score label to DISTANCE",
+    "expect": "score",
+    "success": true,
+    "seconds": 12.91,
+    "changed": [
+      "scoreLabel"
+    ],
+    "screenshot": "score-sounds.png"
+  },
+  {
+    "step": "FAIL-prompts",
+    "count": 15,
+    "autoApprovals": 0
+  }
+]

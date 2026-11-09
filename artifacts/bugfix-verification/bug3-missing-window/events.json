@@ -1,0 +1,151 @@
+[
+  {
+    "at": "2026-11-07T23:53:28.899Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794095608899,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:29.760Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:30.559Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:31.195Z",
+    "step": "03-first-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:31.356Z",
+    "step": "companion-action-input",
+    "label": "Try it",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-07T23:53:31.607Z",
+    "step": "first-bubble-action",
+    "chatVisibleBefore": true,
+    "chatVisibleAfter": true
+  },
+  {
+    "at": "2026-11-07T23:53:36.689Z",
+    "step": "FAIL",
+    "message": "Error: Try it opens playable game window timed out\n    at waitFor (/Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:10:214)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:53:16"
+  },
+  {
+    "at": "2026-11-07T23:53:36.694Z",
+    "step": "failure-window-6",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-history",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:36.716Z",
+    "step": "failure-window-5",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:36.720Z",
+    "step": "failure-window-4",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-menu",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:36.727Z",
+    "step": "failure-window-3",
+    "visible": true,
+    "url": "http://localhost:1212/index.html",
+    "bounds": {
+      "x": 870,
+      "y": 386,
+      "width": 180,
+      "height": 180
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:36.730Z",
+    "step": "failure-window-2",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=wake-word-capture",
+    "bounds": {
+      "x": 0,
+      "y": 30,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:53:36.773Z",
+    "step": "failure-window-1",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  }
+]

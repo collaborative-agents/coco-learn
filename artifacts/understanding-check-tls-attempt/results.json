@@ -1,0 +1,6 @@
+[
+  {
+    "step": "FAIL",
+    "error": "Error: services/models timed out\n    at Timeout.<anonymous> (/Users/apple/Documents/coco-learn/desktop/tests/understanding-check.e2e.cjs:9:150)\n    at listOnTimeout (node:internal/timers:585:17)\n    at process.processTimers (node:internal/timers:521:7)"
+  }
+]

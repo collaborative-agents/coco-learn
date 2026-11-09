@@ -1,6 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import {
+  act,
   render,
   screen,
   fireEvent,
@@ -165,7 +166,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'electron', {
     configurable: true,
     value: {
-      ipcRenderer: { invoke },
+      ipcRenderer: { invoke, on: jest.fn(() => () => {}), sendMessage: jest.fn() },
       webUtils: { getPathForFile: jest.fn(() => '/chosen/file') },
     },
   });
@@ -188,6 +189,15 @@ const answerConversation = (
     textbox = within(container).queryByRole('textbox');
   }
 };
+
+it('offers the game as a Getting Started task without launching it automatically', async () => {
+  render(<TrainingView />);
+  await screen.findByRole('button', {name:/Day 1 Practice task/});
+  expect(screen.getByRole('button',{name:/Start Task/i})).toBeInTheDocument();
+  expect(invoke).not.toHaveBeenCalledWith('runner-start');
+  expect(screen.getByRole('heading',{name:'AI Literacy Challenge'})).toBeInTheDocument();
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+});
 
 it('preserves reflection drafts when Training becomes inactive and is reopened', async () => {
   assessments = completedAssessments();

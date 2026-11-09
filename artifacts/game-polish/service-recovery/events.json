@@ -1,0 +1,107 @@
+[
+  {
+    "at": "2026-11-08T06:48:53.417Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794120533416,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T06:48:54.338Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 155,
+      "y": 33,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T06:48:54.399Z",
+    "step": "service-killed-for-recovery-test",
+    "name": "sensing",
+    "pid": 17988,
+    "port": "52480"
+  },
+  {
+    "at": "2026-11-08T06:49:04.868Z",
+    "step": "service-recovered",
+    "name": "sensing",
+    "health": {
+      "checkedAt": 1794120544868,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T06:49:04.920Z",
+    "step": "service-killed-for-recovery-test",
+    "name": "tutor",
+    "pid": 17987,
+    "port": "52481"
+  },
+  {
+    "at": "2026-11-08T06:49:16.506Z",
+    "step": "service-recovered",
+    "name": "tutor",
+    "health": {
+      "checkedAt": 1794120556506,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T06:49:16.506Z",
+    "step": "PASS",
+    "stage": "services"
+  }
+]

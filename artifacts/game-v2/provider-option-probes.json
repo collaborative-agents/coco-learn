@@ -1,0 +1,23 @@
+[
+  {
+    "variant": "template-envelope",
+    "seconds": 3.1,
+    "finish": "length",
+    "visibleChars": 0,
+    "reasoningChars": 982,
+    "completionTokens": 256
+  },
+  {
+    "variant": "reasoning-envelope",
+    "seconds": 2.25,
+    "finish": "stop",
+    "visibleChars": 436,
+    "reasoningChars": 0,
+    "completionTokens": 136
+  },
+  {
+    "variant": "allowed-reasoning",
+    "seconds": 1.17,
+    "error": "{\"detail\":\"litellm.UnsupportedParamsError: openai does not support parameters: ['reasoning_effort'], for model=nvidia/deepseek-ai/deepseek-v4-pro. To drop these, set `litellm.drop_params=True` or for proxy:\\n\\n`litellm_settings:\\n drop_params: true`\\n. \\n If you want to use these params dynamically send allowed_openai_params=['reasoning_effort'] in your request.\"}"
+  }
+]

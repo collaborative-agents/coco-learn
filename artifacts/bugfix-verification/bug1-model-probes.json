@@ -1,0 +1,22 @@
+[
+  {
+    "model": "deepseek-ai/deepseek-v4-pro",
+    "image": false,
+    "seconds": 3.33,
+    "exitCode": 0,
+    "result": "{\"success\": true, \"reply\": \"OK\"}"
+  },
+  {
+    "model": "anthropic/claude-sonnet-4-6",
+    "image": true,
+    "seconds": 2.46,
+    "exitCode": 0,
+    "result": "{\"success\": true, \"reply\": \"OK.\"}"
+  },
+  {
+    "case": "unreachable endpoint",
+    "seconds": 0.11,
+    "exitCode": 1,
+    "result": "{\"success\": false, \"error\": \"<urlopen error [Errno 61] Connection refused>\"}"
+  }
+]

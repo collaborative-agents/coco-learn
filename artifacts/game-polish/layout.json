@@ -1,0 +1,140 @@
+[
+  {
+    "name": "night",
+    "layout": {
+      "card": {
+        "x": 268.5703125,
+        "y": 120.8984375,
+        "width": 742.8515625,
+        "height": 509.1875,
+        "bottom": 630.0859375
+      },
+      "companion": {
+        "x": 268.5703125,
+        "y": 652.0859375,
+        "width": 749.8515625,
+        "height": 126,
+        "bottom": 778.0859375
+      },
+      "bodyHeight": 810,
+      "viewport": 810
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  },
+  {
+    "name": "day",
+    "layout": {
+      "card": {
+        "x": 268.5703125,
+        "y": 120.8984375,
+        "width": 742.8515625,
+        "height": 509.1875,
+        "bottom": 630.0859375
+      },
+      "companion": {
+        "x": 268.5703125,
+        "y": 652.0859375,
+        "width": 749.8515625,
+        "height": 126,
+        "bottom": 778.0859375
+      },
+      "bodyHeight": 810,
+      "viewport": 810
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  },
+  {
+    "name": "morning",
+    "layout": {
+      "card": {
+        "x": 268.5703125,
+        "y": 120.8984375,
+        "width": 742.8515625,
+        "height": 509.1875,
+        "bottom": 630.0859375
+      },
+      "companion": {
+        "x": 268.5703125,
+        "y": 652.0859375,
+        "width": 749.8515625,
+        "height": 126,
+        "bottom": 778.0859375
+      },
+      "bodyHeight": 810,
+      "viewport": 810
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  },
+  {
+    "name": "sunset",
+    "layout": {
+      "card": {
+        "x": 268.5703125,
+        "y": 120.8984375,
+        "width": 742.8515625,
+        "height": 509.1875,
+        "bottom": 630.0859375
+      },
+      "companion": {
+        "x": 268.5703125,
+        "y": 652.0859375,
+        "width": 749.8515625,
+        "height": 126,
+        "bottom": 778.0859375
+      },
+      "bodyHeight": 810,
+      "viewport": 810
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  },
+  {
+    "name": "night-over",
+    "layout": {
+      "card": {
+        "x": 268.5703125,
+        "y": 120.8984375,
+        "width": 742.8515625,
+        "height": 509.1875,
+        "bottom": 630.0859375
+      },
+      "companion": {
+        "x": 268.5703125,
+        "y": 652.0859375,
+        "width": 749.8515625,
+        "height": 126,
+        "bottom": 778.0859375
+      },
+      "bodyHeight": 810,
+      "viewport": 810
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  },
+  {
+    "name": "day-compact",
+    "layout": {
+      "card": {
+        "x": 117.1484375,
+        "y": 120.8984375,
+        "width": 765.703125,
+        "height": 519.1875,
+        "bottom": 640.0859375
+      },
+      "companion": {
+        "x": 117.1484375,
+        "y": 662.0859375,
+        "width": 772.703125,
+        "height": 126,
+        "bottom": 788.0859375
+      },
+      "bodyHeight": 820,
+      "viewport": 820
+    },
+    "actualChromium": true,
+    "isolatedDesignPreview": true
+  }
+]

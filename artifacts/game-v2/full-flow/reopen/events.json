@@ -1,0 +1,78 @@
+[
+  {
+    "at": "2026-11-08T05:00:06.957Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794114006956,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T05:00:07.968Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T05:00:10.582Z",
+    "step": "11-restored-custom-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T05:00:11.256Z",
+    "step": "12-chat-reopened",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T05:00:11.256Z",
+    "step": "PASS",
+    "stage": "reopen",
+    "state": {
+      "sessionId": "109202b8-9202-45df-9517-58ae27b110ea",
+      "version": "28244421-44aa-4830-9fd1-4ab6df0cd363",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Make it a bright sunny morning with a golden sun and a light blue sky. Keep the fox and controls the same.",
+      "previewRevision": "28244421-44aa-4830-9fd1-4ab6df0cd363",
+      "previewKind": "updated"
+    }
+  }
+]

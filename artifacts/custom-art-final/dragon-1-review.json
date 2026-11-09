@@ -1,0 +1,12 @@
+{
+  "visualCode": "679233",
+  "candidateDescription": "A green-and-yellow armored dragon with purple spinal frills, a red eye, clawed limbs, and a scaly belly running and crouching across four run frames plus one crouch frame.",
+  "pass": true,
+  "observations": [
+    "The sprite is clearly a dragon — scaly green body, armored yellow belly, clawed feet, purple dorsal spines, and a reptilian head with a red eye; the requested species is immediately recognizable.",
+    "Deliberate dark-green outlines enclose every body part; the belly has highlight/shading contrast from the darker scales, the spines are individually rendered in purple, and the red eye with a white glint provides clear facial detail matching Coco's level of finish.",
+    "In the actual game-scene screenshot the dragon reads cleanly against the dark blue/grey night background; the yellow belly and green body provide strong contrast, and the silhouette is distinct and unambiguous at play scale.",
+    "The crouch frame shows the dragon flattened low to the ground with limbs tucked, spines visible but lowered, matching the same low-profile crouching silhouette convention Coco uses."
+  ],
+  "defects": []
+}

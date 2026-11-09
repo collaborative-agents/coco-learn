@@ -19,6 +19,8 @@ function runGit(args: string[]): string | undefined {
     return execFileSync('git', args, {
       cwd: process.cwd(),
       encoding: 'utf8',
+      timeout: 1000,
+      killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {

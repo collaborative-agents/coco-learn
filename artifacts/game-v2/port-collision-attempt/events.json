@@ -1,0 +1,214 @@
+[
+  {
+    "at": "2026-11-08T04:03:15.267Z",
+    "step": "start",
+    "id": "daylight",
+    "prompt": "change the background to daylight"
+  },
+  {
+    "at": "2026-11-08T04:03:20.419Z",
+    "step": "result",
+    "id": "daylight",
+    "success": false,
+    "seconds": 4.25,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:20.684Z",
+    "step": "start",
+    "id": "nov7-theme",
+    "prompt": "I want to make coco run in a daylight theme, but not a moon light"
+  },
+  {
+    "at": "2026-11-08T04:03:25.810Z",
+    "step": "result",
+    "id": "nov7-theme",
+    "success": false,
+    "seconds": 4.65,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:26.070Z",
+    "step": "start",
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !"
+  },
+  {
+    "at": "2026-11-08T04:03:30.678Z",
+    "step": "result",
+    "id": "nov7-background",
+    "success": false,
+    "seconds": 4.13,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:30.921Z",
+    "step": "start",
+    "id": "cuter",
+    "prompt": "make it cuter"
+  },
+  {
+    "at": "2026-11-08T04:03:35.562Z",
+    "step": "result",
+    "id": "cuter",
+    "success": false,
+    "seconds": 4.17,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:35.818Z",
+    "step": "start",
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones"
+  },
+  {
+    "at": "2026-11-08T04:03:40.943Z",
+    "step": "result",
+    "id": "dog-bones",
+    "success": false,
+    "seconds": 4.65,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:41.204Z",
+    "step": "start",
+    "id": "snow-stars",
+    "prompt": "make it night with stars and snow"
+  },
+  {
+    "at": "2026-11-08T04:03:46.368Z",
+    "step": "result",
+    "id": "snow-stars",
+    "success": false,
+    "seconds": 4.68,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:46.606Z",
+    "step": "start",
+    "id": "harder",
+    "prompt": "make it way harder"
+  },
+  {
+    "at": "2026-11-08T04:03:51.247Z",
+    "step": "result",
+    "id": "harder",
+    "success": false,
+    "seconds": 4.16,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:51.496Z",
+    "step": "start",
+    "id": "platform-style",
+    "prompt": "make it look like Mario, but make your own original character and scenery"
+  },
+  {
+    "at": "2026-11-08T04:03:56.099Z",
+    "step": "result",
+    "id": "platform-style",
+    "success": false,
+    "seconds": 4.12,
+    "changed": [],
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe."
+  },
+  {
+    "at": "2026-11-08T04:03:56.337Z",
+    "step": "start",
+    "id": "ambitious-cat",
+    "prompt": "Make it a detailed daylight world with a cat"
+  },
+  {
+    "at": "2026-11-08T04:04:16.415Z",
+    "step": "result",
+    "id": "ambitious-cat",
+    "success": true,
+    "seconds": 19.59,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "player"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:04:16.683Z",
+    "step": "start",
+    "id": "pastel-morning",
+    "prompt": "a cozy morning with pastel colors and lots of clouds please"
+  },
+  {
+    "at": "2026-11-08T04:04:37.355Z",
+    "step": "result",
+    "id": "pastel-morning",
+    "success": true,
+    "seconds": 19.47,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:04:37.640Z",
+    "step": "start",
+    "id": "neon-rain",
+    "prompt": "make the world rainy and neon blue and pink like a cyberpunk city"
+  },
+  {
+    "at": "2026-11-08T04:04:59.616Z",
+    "step": "result",
+    "id": "neon-rain",
+    "success": true,
+    "seconds": 21.47,
+    "changed": [
+      "title",
+      "background",
+      "textColor",
+      "decorations",
+      "weather"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:04:59.887Z",
+    "step": "start",
+    "id": "sunset",
+    "prompt": "make it sunset with orange skies and mountains"
+  },
+  {
+    "at": "2026-11-08T04:05:20.687Z",
+    "step": "result",
+    "id": "sunset",
+    "success": true,
+    "seconds": 20.3,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T04:05:20.985Z",
+    "step": "start",
+    "id": "space",
+    "prompt": "a dark purple space world with lots of stars"
+  }
+]

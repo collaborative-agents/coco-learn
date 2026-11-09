@@ -1,0 +1,13 @@
+{
+  "visualCode": "417122",
+  "candidateDescription": "A quadrupedal robot character rendered in dark grey/silver metallic armor with glowing cyan visor eyes, gold antenna/crown detail on the head, articulated leg panels, and blue energy accents on the torso. The crouch pose shows the robot flattened low. The sprite is roughly the same bounding-box size as Coco.",
+  "pass": true,
+  "observations": [
+    "Recognition: The robot is immediately readable as a distinct original character — metallic plating, glowing blue eyes, gold crown antenna, and segmented legs are all legible at contact-sheet scale and remain coherent at the smaller in-game scale shown in the scene screenshot.",
+    "Finish & detail: Highlights, shadows, and mid-tones are consistently applied across all five poses; the armour panels show pixel-level shading gradients comparable in polish to the Coco reference. No stray or orphaned pixels are visible around the silhouette.",
+    "Animation: The pixel-difference data confirms four distinct animation states (frames 1, 2/4 shared, 3 unique) with changes confined to rows 22–25 — the leg region — producing a convincing stride cycle. The reference uses the same lower-body row band for its leg motion, so the candidate's approach is structurally equivalent. Repeated frame pairing (2 = 4) mirrors the reference pattern (1 = 3).",
+    "Scene fit & ground alignment: In the Moonlit Meadow screenshot the robot sits cleanly on the ground plane, its base aligns with the grass edge, contrast against the dark background is strong due to the cyan eye glow and light grey armour, and the sprite scale relative to the trees and terrain is consistent with Coco's expected runner scale.",
+    "Crouch pose: The robot's crouch shows a convincingly flattened silhouette with the body lowered and legs tucked, matching the functional purpose of the crouch frame without merely duplicating Coco's fox crouch shape."
+  ],
+  "defects": []
+}

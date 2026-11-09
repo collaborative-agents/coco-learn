@@ -94,6 +94,33 @@ it('activates Training only when opened and refreshes repeated menu requests', a
   await act(async () => {});
 });
 
+it('lights the Chat rail button during the pet invitation and opens the same Chat', async () => {
+  render(<SessionChatView />);
+  await act(async () => listeners.get('open-training-panel')?.());
+  await act(async () => listeners.get('getting-started-chat-invite')?.({ articleId: 'ai-copilot' }));
+  const chat = screen.getByRole('button', { name: 'Chat' });
+  expect(chat).toHaveAttribute('data-guided-target', 'true');
+  expect(chat).not.toHaveAttribute('aria-current');
+  fireEvent.click(chat);
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-open-chat', { articleId: 'ai-copilot', phase: 'chat' });
+  await act(async () => listeners.get('getting-started-chat-invite')?.({ articleId: null }));
+  expect(chat).not.toHaveAttribute('data-guided-target');
+});
+
+it('creates a normal conversation before sending when Chat has no session', async () => {
+  invoke.mockImplementation(async (channel) => {
+    if (channel === 'get-chat-conversations') return [];
+    if (channel === 'ensure-chat-conversation') return { sessionId: 'ready-chat' };
+    if (channel === 'send-chat-message') return { guidance: 'Ready.' };
+    return null;
+  });
+  render(<SessionChatView />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'Hello Coco' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.objectContaining({ sessionId: 'ready-chat', userText: 'Hello Coco' })));
+  expect(screen.queryByText('Open a conversation first.')).toBeNull();
+});
+
 it('keeps training accessible while tutoring remains locked', async () => {
   mockStudyAccess = false;
   render(<SessionChatView />);
@@ -111,6 +138,32 @@ it('keeps training accessible while tutoring remains locked', async () => {
     screen.getByText(/AI tutoring is currently unavailable/),
   ).not.toBeVisible();
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('get-profile'));
+});
+
+it('keeps Chat independent of the Getting Started task', async () => {
+  invoke.mockImplementation(async (channel) => channel === 'get-chat-conversations' ? [] : { guidance: 'A normal answer.' });
+  render(<SessionChatView />);
+  await act(async () => listeners.get('session-init')?.({ sessionId: 'normal-chat', problemStatement: 'Conversation' }));
+  expect(listeners.has('getting-started-open-chat')).toBe(false);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'How does this work?' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.objectContaining({ userText: 'How does this work?' })));
+  expect(sendMessage).not.toHaveBeenCalledWith('getting-started-guide', expect.anything());
+});
+
+it('offers the generic HTML preview action for a completed HTML reply', async () => {
+  invoke.mockImplementation(async (channel) => channel === 'get-chat-conversations' ? [] : { streamed: true });
+  render(<SessionChatView />);
+  await act(async () => listeners.get('session-init')?.({ sessionId: 'normal-chat', problemStatement: 'Conversation' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'Make a web page' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.anything()));
+  const request = invoke.mock.calls.find(([channel]) => channel === 'send-chat-message')?.[1];
+  await act(async () => listeners.get('chat-stream-event')?.({ type: 'done', requestId: request.requestId, sessionId: 'normal-chat', guidance: '<!doctype html><html><body><main>Model page</main></body></html>' }));
+  const preview = await screen.findByRole('button', { name: /Preview HTML page/i });
+  expect(preview).toHaveStyle({ minHeight: '52px', minWidth: '260px' });
+  fireEvent.click(preview);
+  expect(sendMessage).toHaveBeenCalledWith('open-html-preview', expect.objectContaining({ html: expect.stringContaining('Model page') }));
 });
 
 it('shows only the selected tab and preserves the chat draft across navigation', async () => {

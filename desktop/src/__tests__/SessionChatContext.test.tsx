@@ -21,6 +21,38 @@ jest.mock('../renderer/components/TrainingView', () => ({
 }));
 
 describe('deferred suggestion context', () => {
+  it('reports which conversation is visible so the avatar does not offer to return to the current chat',async()=>{
+    const listeners=new Map<string,(value:any)=>void>();const sendMessage=jest.fn();
+    (window as any).electron={ipcRenderer:{invoke:jest.fn(async()=>null),sendMessage,on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>{};}}};
+    render(<SessionChatView/>);
+    await act(async()=>listeners.get('session-init')?.({sessionId:'game',problemStatement:'Your game'}));
+    await waitFor(()=>expect(sendMessage).toHaveBeenCalledWith('runner-chat-view',{sessionId:'game',inChat:true}));
+    fireEvent.click(screen.getByRole('button',{name:'Training tasks'}));
+    expect(sendMessage).toHaveBeenLastCalledWith('runner-chat-view',{sessionId:'game',inChat:false});
+    fireEvent.click(screen.getByRole('button',{name:'Chat'}));
+    expect(sendMessage).toHaveBeenLastCalledWith('runner-chat-view',{sessionId:'game',inChat:true});
+    fireEvent.click(screen.getByRole('button',{name:'Settings'}));
+    expect(sendMessage).toHaveBeenCalledWith('runner-chat-view',{sessionId:'game',inChat:false});
+  });
+  it('restores tutorial failure and retry when initial state preceded sign-in', async () => {
+    const listeners = new Map<string, (data: unknown) => void>();
+    let signedIn = false;
+    const invoke = jest.fn(async (channel: string) => {
+      if (channel !== 'runner-state') return null;
+      if (!signedIn) throw Error('Open Coco and sign in to play.');
+      return {sessionId:'restored-game',phase:'writing',error:'Coco closed before finishing. I kept your previous game and your request.',lastRequest:'Make the game daylight',hasChanges:false,canUndo:false};
+    });
+    (window as any).electron = {ipcRenderer:{invoke,on:jest.fn((channel:string,callback:(data:unknown)=>void)=>{listeners.set(channel,callback);return jest.fn();}),sendMessage:jest.fn()}};
+    render(<SessionChatView />);
+    await waitFor(()=>expect(invoke).toHaveBeenCalledWith('runner-state'));
+    signedIn = true;
+    await act(async()=>{
+      listeners.get('session-init')?.({sessionId:'restored-game',problemStatement:'Make your own game with Coco'});
+      listeners.get('runner-focus-composer')?.({sessionId:'restored-game'});
+    });
+    expect(await screen.findByText('Coco closed before finishing. I kept your previous game and your request.')).toBeVisible();
+    expect(screen.getByRole('button',{name:'Try again'})).toBeEnabled();
+  });
   it('does not display the task banner for the active chat', async () => {
     const listeners = new Map<string, (data: unknown) => void>();
     (window as any).electron = {
@@ -258,7 +290,8 @@ describe('deferred suggestion context', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Service is not running/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check again' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('retry-services'));
     await waitFor(() => {
       expect(
         invoke.mock.calls.filter(
@@ -269,6 +302,60 @@ describe('deferred suggestion context', () => {
         forceModelTest: true,
       });
     });
+  });
+
+  it('keeps a newer healthy result when an older connection check finishes late',async()=>{
+    let finishOld:(value:unknown)=>void=()=>{};
+    const old=new Promise(resolve=>{finishOld=resolve;});
+    const service={connected:true,status:'healthy',modelAssessment:{status:'verified',detail:'Connected.'}};
+    let healthCalls=0;
+    const invoke=jest.fn(async(channel:string)=>{
+      if(channel==='get-coco-sleep-mode')return {sleeping:false};
+      if(channel==='get-service-health'){
+        healthCalls+=1;
+        return healthCalls===1?old:{checkedAt:2,sensing:service,tutor:service};
+      }
+      return null;
+    });
+    (window as any).electron={ipcRenderer:{invoke,on:jest.fn(()=>jest.fn()),sendMessage:jest.fn()}};
+    render(<SessionChatView/>);
+    await waitFor(()=>expect(healthCalls).toBe(1));
+    fireEvent.click(screen.getByRole('button',{name:'Settings'}));
+    fireEvent.click(screen.getByRole('button',{name:'Health'}));
+    await screen.findByLabelText('Tutor agent: Connected (service); Connected (model)');
+    await act(async()=>finishOld({checkedAt:1,sensing:{...service,connected:false,detail:'Service is not running.'},tutor:{...service,connected:false,modelAssessment:{status:'failed',detail:'Old timeout.'}}}));
+    expect(screen.getByLabelText('Tutor agent: Connected (service); Connected (model)')).toBeVisible();
+    expect(screen.queryByText(/Old timeout/)).not.toBeInTheDocument();
+  });
+
+  it('shows sign-in connection progress and automatically checks again when the router becomes ready',async()=>{
+    jest.useFakeTimers();
+    try{
+      let stage=0;
+      const invoke=jest.fn(async(channel:string)=>{
+        if(channel==='get-coco-sleep-mode')return {sleeping:false};
+        if(channel==='get-service-health'){
+          const service=stage===2?{connected:true,status:'healthy',modelAssessment:{status:'verified',detail:'Connected.'}}
+            :stage===1?{connected:false,status:'unavailable',detail:'Service is starting.',modelAssessment:{status:'verified',detail:'Connected.'}}
+            :{connected:false,status:'starting',detail:'Coco’s local service will start when sign-in finishes.',modelAssessment:{status:'connecting',detail:'Coco is connecting your account to its model service.'}};
+          return {checkedAt:1,sensing:service,tutor:service};
+        }
+        return null;
+      });
+      (window as any).electron={ipcRenderer:{invoke,on:jest.fn(()=>jest.fn()),sendMessage:jest.fn()}};
+      render(<SessionChatView/>);
+      fireEvent.click(screen.getByRole('button',{name:'Settings'}));fireEvent.click(screen.getByRole('button',{name:'Health'}));
+      await screen.findByLabelText('Sensing server: Starting… (service); Connecting… (model)');
+      expect(screen.getByRole('button',{name:'Connecting…'})).toBeDisabled();
+      expect(screen.queryByText(/requires an API key/)).not.toBeInTheDocument();
+      stage=1;
+      await act(async()=>jest.advanceTimersByTime(2100));
+      expect(screen.getByLabelText('Sensing server: Not connected (service); Connected (model)')).toBeVisible();
+      stage=2;
+      await act(async()=>jest.advanceTimersByTime(2100));
+      expect(screen.getByLabelText('Sensing server: Connected (service); Connected (model)')).toBeVisible();
+      expect(screen.getByRole('button',{name:'Retry'})).toBeEnabled();
+    }finally{jest.useRealTimers();}
   });
 
   it('shows sleep state without checking intentionally stopped services', async () => {
@@ -1627,4 +1714,70 @@ describe('deferred suggestion context', () => {
   });
 
 
+});
+
+it('uses the real empty composer for the game and checks the unsent idea without submitting it',async()=>{
+  const listeners=new Map<string,(value:any)=>void>();
+  const sendMessage=jest.fn();
+  const invoke=jest.fn(async(channel:string)=>{
+    if(channel==='get-profile')return {tutorScenario:'ai_upskilling',aiTools:[]};
+    if(channel==='get-supported-modes')return ['ai_upskilling'];
+    if(channel==='check-understanding')return {success:true,kind:'idea',interpretation:'A pink fox jumping over crystals in space—is that right?'};
+    if(channel==='runner-state')return {sessionId:'runner',phase:'writing'};
+    return null;
+  });
+  (window as any).electron={ipcRenderer:{on:jest.fn((channel,callback)=>{listeners.set(channel,callback);return ()=>listeners.delete(channel)}),invoke,sendMessage}};
+  render(<SessionChatView/>);
+  await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Make your own game with Coco'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
+  const input=screen.getByPlaceholderText(/Ask Coco/);
+  expect(input).toHaveValue('');
+  const idea='Make a cute pink fox jump over crystals in space';
+  fireEvent.change(input,{target:{value:idea}});
+  await waitFor(()=>expect(sendMessage).toHaveBeenCalledWith('runner-draft',{sessionId:'runner',draft:idea}),{timeout:2500});
+  fireEvent.click(screen.getByRole('button',{name:'Check my understanding'}));
+  await waitFor(()=>expect(invoke).toHaveBeenCalledWith('check-understanding',{sessionId:'runner',draft:idea}));
+  expect(input).toHaveValue(idea);
+  expect(await screen.findByText('A pink fox jumping over crystals in space—is that right?')).toBeVisible();
+  expect(screen.getByRole('region',{name:'About Check my understanding'})).toHaveTextContent('repeat your game idea back');
+  fireEvent.change(input,{target:{value:'Make the fox blue instead'}});
+  expect(screen.queryByText('A pink fox jumping over crystals in space—is that right?')).not.toBeInTheDocument();
+  expect(invoke.mock.calls.some(([channel])=>channel==='send-chat-message')).toBe(false);
+});
+
+it.each([
+  {success:false,error:'Coco’s local tutor isn’t responding. Open Settings → Health and choose Retry.'},
+  {success:true},
+])('makes a failed or empty game-idea check visible and preserves the draft: %j',async response=>{
+  const listeners=new Map<string,(value:any)=>void>();
+  const invoke=jest.fn(async(channel:string)=>{
+    if(channel==='get-profile')return {tutorScenario:'ai_upskilling',aiTools:[]};
+    if(channel==='runner-state')return {sessionId:'runner',phase:'writing'};
+    if(channel==='check-understanding')return response;
+    return null;
+  });
+  (window as any).electron={ipcRenderer:{on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>{};},invoke,sendMessage:jest.fn()}};
+  render(<SessionChatView/>);
+  await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Your game'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
+  const button=screen.getByRole('button',{name:'Check my understanding'});
+  fireEvent.click(button);
+  expect(screen.getByRole('alert')).toHaveTextContent('Write your game idea first');
+  expect(invoke.mock.calls.some(([channel])=>channel==='check-understanding')).toBe(false);
+  const input=screen.getByPlaceholderText(/Ask Coco/);
+  fireEvent.change(input,{target:{value:'Make a snowy cat world'}});
+  fireEvent.click(button);
+  await waitFor(()=>expect(screen.getByRole('alert')).not.toHaveTextContent('Write your game idea first'));
+  expect(screen.getByRole('alert')).toHaveTextContent(response.success?'Coco didn’t return an explanation':response.error!);
+  expect(input).toHaveValue('Make a snowy cat world');
+  expect(screen.queryByText('Did Coco get your idea?')).not.toBeInTheDocument();
+});
+
+it('shows the game link only for a published version and replaces it with retry on failure',async()=>{
+ const listeners=new Map<string,(value:any)=>void>();const invoke=jest.fn(async(channel:string)=>channel==='runner-state'?{sessionId:'runner',phase:'writing',hasChanges:false,error:null}:null);
+ (window as any).electron={ipcRenderer:{on:(channel:string,cb:any)=>{listeners.set(channel,cb);return()=>{}},invoke,sendMessage:jest.fn()}};
+ render(<SessionChatView/>);await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Game'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
+ expect(screen.queryByRole('button',{name:'Open my game'})).toBeNull();
+ await act(async()=>listeners.get('runner-state-changed')?.({sessionId:'runner',phase:'review',hasChanges:true,error:null}));
+ expect(screen.getByRole('button',{name:'Open my game'})).toBeInTheDocument();
+ await act(async()=>listeners.get('runner-state-changed')?.({sessionId:'runner',phase:'writing',hasChanges:true,error:'The model connection failed.',lastRequest:'make it sunny'}));
+ expect(screen.queryByRole('button',{name:'Open my game'})).toBeNull();expect(screen.getByRole('button',{name:'Try again'})).toBeInTheDocument();expect(screen.getByText('The model connection failed.')).toBeVisible();
 });

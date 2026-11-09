@@ -1,0 +1,12 @@
+{
+  "visualCode": "154758",
+  "candidateDescription": "A pixel-art owl with large round spectacled eyes, a hooked beak, brown feathered body with wing-stripe shading, green legs, and a distinct crouched frame showing the owl flattened horizontally.",
+  "pass": true,
+  "observations": [
+    "The character is clearly recognizable as an owl: large facial disc, round bespectacled eyes, hooked beak, and feathered brown body read immediately at both zoomed and game scales.",
+    "Deliberate dark pixel outlines frame every body region; the wing has layered brown shading and highlight striping, the face has white eye rings with pupils and glints, and the beak is a distinct contrasting color — all matching Coco's level of finish.",
+    "At actual game scale the owl's silhouette reads cleanly against the dark Moonlit Meadow background; the lighter cream chest and white eye circles provide strong internal contrast that keeps the character legible.",
+    "The crouch frame shows the owl rotated nearly horizontal with the head tucked forward and limbs compressed, forming a recognizable low-profile pose analogous to Coco's crouch."
+  ],
+  "defects": []
+}

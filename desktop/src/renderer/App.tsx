@@ -2,7 +2,7 @@ import subscribeCocoSleepMode from './services/coco-sleep-mode';
 import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
-import type { BubbleState } from './components/ObservationBubble';
+import type { BubbleState, GettingStartedPhase } from './components/ObservationBubble';
 import PetSprite from './components/PetSprite';
 import usePetPointer from './components/usePetPointer';
 import {
@@ -172,7 +172,7 @@ function PetView() {
   const applySleepMode = useCallback((sleeping: boolean) => {
     sleepingRef.current = sleeping;
     setCocoSleeping(sleeping);
-    if (!sleeping || bubbleRef.current?.agentReply || bubbleRef.current?.agentWorking) return;
+    if (!sleeping || bubbleRef.current?.agentReply || bubbleRef.current?.agentWorking || bubbleRef.current?.runnerTutorial || bubbleRef.current?.gettingStarted) return;
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -184,6 +184,42 @@ function PetView() {
   }, []);
 
   useEffect(() => subscribeCocoSleepMode(applySleepMode), [applySleepMode]);
+
+  useEffect(() => {
+    const off = window.electron?.ipcRenderer.on('runner-guide', (value: unknown) => {
+      if (value === null) { bubblePinnedRef.current = false; setBubble(null); setMood('idle'); return; }
+      const guide = value as import('../shared/runner-tutorial').RunnerGuide;
+      if (!guide?.sessionId || typeof guide.text !== 'string') return;
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      bubblePinnedRef.current = true;
+      setBubble({ status: guide.status ?? 'observing', phrase: guide.text, fadingOut: false,
+        guide: { label: guide.label, action: guide.actionLabel, dismissible: true },
+        runnerTutorial: { sessionId: guide.sessionId, action: guide.action } });
+      setMood(guide.status === 'progress' ? 'write' : 'idle');
+    });
+    window.electron?.ipcRenderer.sendMessage('runner-guide-ready');
+    return () => { if (typeof off === 'function') off(); };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('getting-started-guide', (value: unknown) => {
+      const articleId = (value as { articleId?: unknown } | undefined)?.articleId;
+      const phase = (value as { phase?: unknown } | undefined)?.phase;
+      const phases: GettingStartedPhase[] = ['intro', 'choose', 'reading', 'invite', 'first', 'first-done', 'create'];
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      bubblePinnedRef.current = true;
+      setBubble({
+        status: 'observing',
+        phrase: '',
+        fadingOut: false,
+        gettingStarted: { articleId: typeof articleId === 'string' ? articleId : null, phase: phases.includes(phase as GettingStartedPhase) ? phase as GettingStartedPhase : 'intro' },
+      });
+      setMood('idle');
+    });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
 
   const setCocoSleepMode = async (sleeping: boolean) => {
     const result = (await window.electron?.ipcRenderer.invoke(
@@ -202,6 +238,8 @@ function PetView() {
       (value) => {
         const state = value as { active?: boolean } | undefined;
         if (state?.active !== true) return;
+        // User-started lessons are explicit guidance, not proactive observations.
+        if (bubbleRef.current?.runnerTutorial || bubbleRef.current?.gettingStarted) return;
         if (hideTimer.current) clearTimeout(hideTimer.current);
         if (fadeTimer.current) clearTimeout(fadeTimer.current);
         if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -363,6 +401,7 @@ function PetView() {
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on('agent-reply-ready', (data: any) => {
       if (!data?.sessionId || !data?.requestId) return;
+      if (bubblePinnedRef.current || bubbleRef.current?.gettingStarted) return;
       if (hideTimer.current) clearTimeout(hideTimer.current);
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
       if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -504,6 +543,15 @@ function PetView() {
   // immediately so the transition into the full chat feels intentional.
   const handleHelpMe = async () => {
     if (!bubble) return;
+    if (bubble.runnerTutorial) {
+      try {
+        const result = await window.electron?.ipcRenderer.invoke('runner-action', bubble.runnerTutorial);
+        if (result?.error) setBubble({ ...bubble, phrase: result.error });
+      } catch (error) {
+        setBubble({ ...bubble, phrase: error instanceof Error ? error.message : 'Coco couldn’t open that step. Please try again.' });
+      }
+      return;
+    }
     const current = bubble;
     if (current.invite) {
       const { inviteId } = current.invite;
@@ -619,12 +667,14 @@ function PetView() {
   const handleDismiss = () => {
     if (!bubble) return;
     bubblePinnedRef.current = false;
+    if (bubble.runnerTutorial) void window.electron?.ipcRenderer.invoke('runner-action', { ...bubble.runnerTutorial, action: 'dismiss' });
+    if (bubble.gettingStarted) window.electron?.ipcRenderer.sendMessage('getting-started-guide-dismiss');
     if (bubble.invite) {
       window.electron?.ipcRenderer.sendMessage('session-invite-response', {
         inviteId: bubble.invite.inviteId,
         outcome: 'dismissed',
       });
-    } else if (!bubble.agentReply && !bubble.agentWorking) {
+    } else if (!bubble.runnerTutorial && !bubble.gettingStarted && !bubble.agentReply && !bubble.agentWorking) {
       window.electron?.ipcRenderer.sendMessage('training-feedback', {
         kind: 'dismiss',
         surface: 'bubble',
@@ -643,6 +693,31 @@ function PetView() {
   };
 
   const handleChatAboutSuggestion = (execute = false) => {
+    if (bubble?.gettingStarted) {
+      const { articleId, phase } = bubble.gettingStarted;
+      const advance = (next: GettingStartedPhase) => setBubble((current) => current?.gettingStarted
+        ? { ...current, gettingStarted: { articleId: current.gettingStarted.articleId, phase: next } }
+        : current);
+      if (phase === 'intro') {
+        window.electron?.ipcRenderer.sendMessage('getting-started-open-article');
+        advance('choose');
+      } else if (phase === 'reading') {
+        advance('invite');
+        if (articleId) window.electron?.ipcRenderer.sendMessage('getting-started-chat-invite', { articleId });
+      }
+      else if (phase === 'invite' && articleId) {
+        window.electron?.ipcRenderer.sendMessage('getting-started-open-chat', { articleId, phase: 'chat' });
+        advance('first');
+      } else if (phase === 'first') advance('first-done');
+      else if (phase === 'first-done') advance('create');
+      else if (phase === 'create' && articleId) {
+        window.electron?.ipcRenderer.sendMessage('getting-started-open-chat', { articleId, phase: 'create' });
+        bubblePinnedRef.current = false;
+        setBubble(null);
+        setMood('idle');
+      }
+      return;
+    }
     if (!bubble?.suggestion) return;
     const current = bubble;
     window.electron?.ipcRenderer.sendMessage('chat-about-suggestion', {
@@ -723,7 +798,7 @@ function PetView() {
           openActionsMenu();
         }}
       >
-        <PetSprite mood={cocoSleeping && !bubble?.agentReply && !bubble?.agentWorking ? 'sleep' : mood} />
+        <PetSprite mood={cocoSleeping && !bubble?.agentReply && !bubble?.agentWorking && !bubble?.runnerTutorial && !bubble?.gettingStarted ? 'sleep' : mood} />
         <span className="pet-drag-hint" aria-hidden>
           Right-click for menu
         </span>

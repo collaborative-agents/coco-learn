@@ -1,0 +1,13 @@
+{
+  "pass": false,
+  "observations": [
+    "The custom turtle design is recognizable with a distinct shell, four legs, and a rounded body shape, matching the requested species substitution.",
+    "Pixel outlines and internal shading are cleanly rendered with consistent dark outlines and highlights, giving the turtle a polished cartoon look comparable to Coco.",
+    "In both running and crouching poses, the limbs reposition coherently (legs extend for running, retract slightly for crouching) without disconnected pixels or major body warping.",
+    "When placed in the actual game scene, the turtle's darker green tone and solid silhouette maintain contrast against the desert ground, but a visible misalignment with shadow/ground position is present."
+  ],
+  "defects": [
+    "Running frame: The turtle sprite is shifted one pixel too low relative to its shadow, causing a floating effect where feet do not touch the ground shadow, unlike Coco's precise ground contact.",
+    "Crouching frame: The sprite is similarly displaced downward by one pixel, breaking the consistent stance height with the shadow, whereas Coco's crouch aligns correctly."
+  ]
+}

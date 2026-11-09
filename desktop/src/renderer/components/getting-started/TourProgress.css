@@ -1,0 +1,17 @@
+.coco-tour-progress { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; color:var(--coco-color-text-muted); font-family:var(--coco-font-family); }
+.coco-tour-progress ol { display:flex; flex-wrap:wrap; gap:14px; list-style:none; padding:0; margin:0; }
+.coco-tour-progress li { display:flex; align-items:center; gap:6px; font-size:12px; }
+.coco-tour-progress li span { display:grid; place-items:center; border-radius:50%; background:var(--coco-color-surface-subtle); width:23px; height:23px; }
+.coco-tour-progress [aria-current="step"] { color:var(--coco-color-accent); font-weight:700; }
+.coco-tour-progress [aria-current="step"] span { background:var(--coco-color-accent); color:white; }
+.coco-tour-skip { border:0; background:none; text-decoration:underline; color:var(--coco-color-text-muted); font:inherit; font-size:12px; cursor:pointer; white-space:nowrap; }
+.coco-tour-screen { max-width:850px; margin:24px auto 180px; }
+.coco-tour-screen h1 { font-size:36px; letter-spacing:-.8px; margin:12px 0; }
+.coco-tour-screen > p { color:var(--coco-color-text-secondary); line-height:1.6; max-width:600px; }
+.coco-tour-habits { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:30px 0; }
+.coco-tour-habits article { background:var(--coco-color-surface); border:1px solid var(--coco-color-border); border-radius:18px; padding:22px; box-shadow:0 8px 26px #20334b06; }
+.coco-tour-habits h2 { font-size:17px; color:var(--coco-color-accent); margin:0 0 10px; }
+.coco-tour-habits p { color:var(--coco-color-text-secondary); font-size:14px; line-height:1.6; margin:0; }
+.coco-tour-buttons { display:flex; gap:12px; margin-top:24px; }
+.coco-game-context { margin:8px 16px; padding:10px 14px; border-radius:12px; background:var(--coco-color-accent-soft, #eaf0fc); color:var(--coco-color-accent); font-size:13px; }
+@media(max-width:700px) { .coco-tour-habits { grid-template-columns:1fr; } }

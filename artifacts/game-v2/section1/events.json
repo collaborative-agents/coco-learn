@@ -1,0 +1,189 @@
+[
+  {
+    "at": "2026-11-08T03:37:43.111Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794109063111,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:43.985Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:44.783Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:44.805Z",
+    "step": "03-first-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:44.960Z",
+    "step": "companion-action-input",
+    "label": "Try it",
+    "method": "DOM input in non-focusable companion; real IPC action"
+  },
+  {
+    "at": "2026-11-08T03:37:45.213Z",
+    "step": "first-bubble-action",
+    "chatVisibleBefore": true,
+    "chatVisibleAfter": true
+  },
+  {
+    "at": "2026-11-08T03:37:45.768Z",
+    "step": "03b-playable-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.030Z",
+    "step": "game-focus",
+    "native": true,
+    "frame": true,
+    "active": "CANVAS"
+  },
+  {
+    "at": "2026-11-08T03:37:46.231Z",
+    "step": "immediate-keyboard-play",
+    "standing": 288,
+    "jumping": 288,
+    "inputMethod": "Electron input"
+  },
+  {
+    "at": "2026-11-08T03:37:46.231Z",
+    "step": "FAIL",
+    "message": "Error: Space did not make the fox jump immediately\n    at /Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:101:100"
+  },
+  {
+    "at": "2026-11-08T03:37:46.253Z",
+    "step": "failure-window-7",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=runner-game",
+    "bounds": {
+      "x": 460,
+      "y": 240,
+      "width": 1000,
+      "height": 600
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.255Z",
+    "step": "failure-window-6",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-history",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.268Z",
+    "step": "failure-window-5",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 406,
+      "width": 338,
+      "height": 160
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.271Z",
+    "step": "failure-window-4",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-menu",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.276Z",
+    "step": "failure-window-3",
+    "visible": true,
+    "url": "http://localhost:1212/index.html",
+    "bounds": {
+      "x": 870,
+      "y": 386,
+      "width": 180,
+      "height": 180
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.279Z",
+    "step": "failure-window-2",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=wake-word-capture",
+    "bounds": {
+      "x": 0,
+      "y": 30,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-08T03:37:46.315Z",
+    "step": "failure-window-1",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  }
+]

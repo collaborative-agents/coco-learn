@@ -1,0 +1,3556 @@
+[
+  {
+    "id": "daylight",
+    "prompt": "change the background to daylight",
+    "success": false,
+    "seconds": 4.25,
+    "under30": true,
+    "changed": [],
+    "screenshot": "01-daylight.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "045720ff-23fc-4396-9011-a65af0a97a41",
+      "version": "5e1a0e07-f2b4-4e15-9721-b5609f7c004a",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "change the background to daylight",
+      "previewRevision": "5e1a0e07-f2b4-4e15-9721-b5609f7c004a",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "nov7-theme",
+    "prompt": "I want to make coco run in a daylight theme, but not a moon light",
+    "success": false,
+    "seconds": 4.65,
+    "under30": true,
+    "changed": [],
+    "screenshot": "02-nov7-theme.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "3a5b2d58-5ccc-427f-8ec2-c21139eb01cb",
+      "version": "31b59b6d-2930-4767-a7fe-f691bf4f314c",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "I want to make coco run in a daylight theme, but not a moon light",
+      "previewRevision": "31b59b6d-2930-4767-a7fe-f691bf4f314c",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !",
+    "success": false,
+    "seconds": 4.13,
+    "under30": true,
+    "changed": [],
+    "screenshot": "03-nov7-background.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "0cd08aee-2f6c-4e77-9f58-f55ea5845a7b",
+      "version": "87536521-0d58-4ea7-9b9f-7a96dcac15df",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "hmmm maybe change only the background to daylight !",
+      "previewRevision": "87536521-0d58-4ea7-9b9f-7a96dcac15df",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "cuter",
+    "prompt": "make it cuter",
+    "success": false,
+    "seconds": 4.17,
+    "under30": true,
+    "changed": [],
+    "screenshot": "04-cuter.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "3b91fbd7-fcf5-4d36-9a2c-1e8354a857f8",
+      "version": "6c04ef86-9d91-4d14-a4b5-4ee6679a6ff7",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "make it cuter",
+      "previewRevision": "6c04ef86-9d91-4d14-a4b5-4ee6679a6ff7",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones",
+    "success": false,
+    "seconds": 4.65,
+    "under30": true,
+    "changed": [],
+    "screenshot": "05-dog-bones.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "bb7f6484-399e-4593-881f-0a1eaa866a76",
+      "version": "27f01399-1a66-4143-a0c1-a135ed8e0db8",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "make the runner my dog and the obstacles bones",
+      "previewRevision": "27f01399-1a66-4143-a0c1-a135ed8e0db8",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "snow-stars",
+    "prompt": "make it night with stars and snow",
+    "success": false,
+    "seconds": 4.68,
+    "under30": true,
+    "changed": [],
+    "screenshot": "06-snow-stars.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "a8f22220-4f94-4237-a2b1-8b3675b0e218",
+      "version": "afa5b68c-847b-4968-9541-c34b3b31af78",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "make it night with stars and snow",
+      "previewRevision": "afa5b68c-847b-4968-9541-c34b3b31af78",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "harder",
+    "prompt": "make it way harder",
+    "success": false,
+    "seconds": 4.16,
+    "under30": true,
+    "changed": [],
+    "screenshot": "07-harder.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "04eb8cdb-2a7c-4cc1-8d65-6b3043fa4cb7",
+      "version": "56006389-8944-4983-bea9-dff8471d5a01",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "make it way harder",
+      "previewRevision": "56006389-8944-4983-bea9-dff8471d5a01",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "platform-style",
+    "prompt": "make it look like Mario, but make your own original character and scenery",
+    "success": false,
+    "seconds": 4.12,
+    "under30": true,
+    "changed": [],
+    "screenshot": "08-platform-style.png",
+    "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+    "state": {
+      "sessionId": "6a13fdf6-aa14-4ebe-9529-1426920d96ab",
+      "version": "f34416a3-fa78-454f-a8e8-950724e17602",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+      "failure": {
+        "kind": "model",
+        "message": "I couldn’t finish because the model or connection reported: Coco's agent service is unavailable (HTTP 401).. Your previous game is safe.",
+        "detail": "Coco's agent service is unavailable (HTTP 401)."
+      },
+      "lastRequest": "make it look like Mario, but make your own original character and scenery",
+      "previewRevision": "f34416a3-fa78-454f-a8e8-950724e17602",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "ambitious-cat",
+    "prompt": "Make it a detailed daylight world with a cat",
+    "success": true,
+    "seconds": 19.59,
+    "under30": true,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "player"
+    ],
+    "screenshot": "09-ambitious-cat.png",
+    "error": null,
+    "state": {
+      "sessionId": "eeb0630f-e866-4762-8e8f-b3d8bd88af21",
+      "version": "46a465d3-885a-433c-b6fb-fec80cdc0f2e",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Make it a detailed daylight world with a cat",
+      "previewRevision": "46a465d3-885a-433c-b6fb-fec80cdc0f2e",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Sunny Cat Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "day",
+      "detail": "detailed",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#78c8ef",
+          "#d7f4ff"
+        ]
+      },
+      "textColor": "#24334d",
+      "decorations": [
+        {
+          "kind": "sun",
+          "color": "#ffd64d",
+          "accent": "#fff0a3",
+          "x": 78,
+          "y": 20,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "clouds",
+          "color": "#ffffff",
+          "accent": "#d9f2ff",
+          "x": 0,
+          "y": 25,
+          "size": 25,
+          "count": 6,
+          "speed": 9
+        },
+        {
+          "kind": "mountains",
+          "color": "#a7cce0",
+          "accent": "#7eadcf",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#77ac6a",
+          "accent": "#438658",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Cat",
+        "scale": 3,
+        "frames": [
+          [
+            "................",
+            "................",
+            "...kk.....kk....",
+            "...kk.....kk....",
+            "...kk.....kk....",
+            "...ooooooooo....",
+            "...ooooooooo....",
+            "...okoooooko..o.",
+            "...ooooooooo..o.",
+            "...ooowwwoooooo.",
+            "...oooooooooooo.",
+            "....oooooooo....",
+            "....oooooooo....",
+            "...kkkooookkk...",
+            "...kkk....kkk...",
+            "................"
+          ]
+        ],
+        "duck": [
+          "...ooooooooo....",
+          "...ooooooooo....",
+          "...okoooooko..o.",
+          "...ooooooooo..o.",
+          "...ooowwwoooooo.",
+          "...oooooooooooo.",
+          "....oooooooo....",
+          "....oooooooo....",
+          "...kkkooookkk...",
+          "...kkk....kkk...",
+          "................"
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "pastel-morning",
+    "prompt": "a cozy morning with pastel colors and lots of clouds please",
+    "success": true,
+    "seconds": 19.47,
+    "under30": true,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "screenshot": "10-pastel-morning.png",
+    "error": null,
+    "state": {
+      "sessionId": "fa5ffa9d-f6cb-4f84-aee1-ae7476ebeef5",
+      "version": "8bde02e6-0cc7-4279-8d3f-dbe6c84e1727",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "a cozy morning with pastel colors and lots of clouds please",
+      "previewRevision": "8bde02e6-0cc7-4279-8d3f-dbe6c84e1727",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Cozy Morning",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "morning",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#ffe9f2",
+          "#fff6e0",
+          "#d6ecff"
+        ]
+      },
+      "textColor": "#28344d",
+      "decorations": [
+        {
+          "kind": "clouds",
+          "color": "#ffffff",
+          "accent": "#ffe4f0",
+          "x": 15,
+          "y": 12,
+          "size": 70,
+          "count": 8,
+          "speed": 6
+        },
+        {
+          "kind": "clouds",
+          "color": "#fff7e6",
+          "accent": "#ffd6e8",
+          "x": 55,
+          "y": 22,
+          "size": 55,
+          "count": 7,
+          "speed": 4
+        },
+        {
+          "kind": "clouds",
+          "color": "#f3e8ff",
+          "accent": "#ffffff",
+          "x": 35,
+          "y": 8,
+          "size": 80,
+          "count": 5,
+          "speed": 5
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "neon-rain",
+    "prompt": "make the world rainy and neon blue and pink like a cyberpunk city",
+    "success": true,
+    "seconds": 21.47,
+    "under30": true,
+    "changed": [
+      "title",
+      "background",
+      "textColor",
+      "decorations",
+      "weather"
+    ],
+    "screenshot": "11-neon-rain.png",
+    "error": null,
+    "state": {
+      "sessionId": "6a17ac90-f205-479c-9289-673363792130",
+      "version": "3bc6bfa6-63c9-4a1f-88df-2480398c0eec",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "make the world rainy and neon blue and pink like a cyberpunk city",
+      "previewRevision": "3bc6bfa6-63c9-4a1f-88df-2480398c0eec",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Neon Rain Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#050214",
+          "#12043a",
+          "#2b0a6b",
+          "#ff2fb3"
+        ]
+      },
+      "textColor": "#00e5ff",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#00e5ff",
+          "accent": "#ff2fb3",
+          "x": 50,
+          "y": 22,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ff2fb3",
+          "accent": "#ff6ec7",
+          "x": 82,
+          "y": 14,
+          "size": 42,
+          "count": 1,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "rain",
+        "color": "#00e5ff",
+        "intensity": 75,
+        "speed": 70
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "sunset",
+    "prompt": "make it sunset with orange skies and mountains",
+    "success": true,
+    "seconds": 20.3,
+    "under30": true,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations"
+    ],
+    "screenshot": "12-sunset.png",
+    "error": null,
+    "state": {
+      "sessionId": "f90d28fc-e8bc-410a-a02a-2da5a1588f4d",
+      "version": "75e608bc-cfb7-415e-af8f-b16591b52587",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "make it sunset with orange skies and mountains",
+      "previewRevision": "75e608bc-cfb7-415e-af8f-b16591b52587",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Sunset Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "sunset",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#ff9a3d",
+          "#ff6b4a",
+          "#5a2a5e"
+        ]
+      },
+      "textColor": "#fff1cc",
+      "decorations": [
+        {
+          "kind": "mountains",
+          "color": "#8a5a44",
+          "accent": "#c97b4a",
+          "x": 50,
+          "y": 74,
+          "size": 68,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#5d3a2e",
+          "accent": "#a85f3d",
+          "x": 30,
+          "y": 84,
+          "size": 52,
+          "count": 3,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  }
+]

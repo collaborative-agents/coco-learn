@@ -1,0 +1,96 @@
+.training-page--getting-started {
+  background: var(--coco-color-surface-subtle);
+}
+.getting-started-task {
+  position: relative;
+  max-width: 860px;
+  margin: 0 auto 20px;
+  padding: 24px 28px;
+  border: 1px solid var(--coco-color-accent-border);
+  border-radius: 16px;
+  background: var(--coco-color-accent-soft);
+  color: var(--coco-color-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.getting-started-kicker {
+  color: var(--coco-color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.getting-started-task h2 {
+  margin: 8px 0 0;
+  font-size: 23px;
+}
+.getting-started-description {
+  max-width: 52ch;
+  margin: 10px 0 0;
+  color: var(--coco-color-text-secondary);
+  font-size: var(--coco-text-control);
+  line-height: var(--coco-leading-body);
+}
+.getting-started-primary,
+.training-page button.getting-started-primary {
+  background: var(--coco-color-primary, #234f80);
+  border: 0;
+  color: white;
+  padding: 12px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.getting-started-primary:not(:disabled):hover,
+.training-page button.getting-started-primary:not(:disabled):hover {
+  background: var(--coco-color-primary-hover);
+  color: white;
+}
+.getting-started-primary:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+.pixel-onboarding-page {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 20px 30px 40px;
+}
+.pixel-onboarding-page header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--coco-color-text-muted);
+}
+.training-page .pixel-onboarding-page header button {
+  border: none;
+  background: none;
+  padding: 8px 0;
+  color: var(--coco-color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .pixel-onboarding-page {
+    padding: 12px 12px 30px;
+  }
+  .getting-started-task {
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+}
+
+.getting-started-completed {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--coco-color-primary);
+  font-weight: 600;
+}
+.getting-started-task.is-complete h2 {
+  color: var(--coco-color-text-secondary);
+}

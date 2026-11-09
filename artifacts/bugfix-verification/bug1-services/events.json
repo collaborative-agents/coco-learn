@@ -1,0 +1,72 @@
+[
+  {
+    "at": "2026-11-07T23:34:58.853Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794094498852,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:35:00.466Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "bounds": {
+      "x": 155,
+      "y": 33,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:35:00.530Z",
+    "step": "service-killed-for-recovery-test",
+    "pid": 4863,
+    "port": "49152"
+  },
+  {
+    "at": "2026-11-07T23:35:05.052Z",
+    "step": "service-recovered",
+    "health": {
+      "checkedAt": 1794094505052,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:35:05.052Z",
+    "step": "PASS",
+    "stage": "services"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "at": "2026-11-08T06:59:33.233Z",
+    "step": "FAIL",
+    "error": "Error: services and models timed out\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:12:188)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/game-polish.e2e.cjs:28:5"
+  },
+  {
+    "at": "2026-11-08T06:59:33.235Z",
+    "step": "capture",
+    "name": "failure-3"
+  },
+  {
+    "at": "2026-11-08T06:59:33.481Z",
+    "step": "capture",
+    "name": "failure-2"
+  },
+  {
+    "at": "2026-11-08T06:59:33.785Z",
+    "step": "capture",
+    "name": "failure-1"
+  }
+]

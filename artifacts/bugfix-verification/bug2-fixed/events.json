@@ -1,0 +1,139 @@
+[
+  {
+    "at": "2026-11-07T23:49:32.359Z",
+    "step": "services-connected",
+    "health": {
+      "checkedAt": 1794095372359,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:33.216Z",
+    "step": "01-services-connected",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:34.061Z",
+    "step": "02-base-game",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.537Z",
+    "step": "03-first-bubble",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.695Z",
+    "step": "FAIL",
+    "message": "Error: Bubble never enabled native pointer input\n    at click (/Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:22:101)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/runner-onboarding.e2e.cjs:49:79"
+  },
+  {
+    "at": "2026-11-07T23:49:35.698Z",
+    "step": "failure-window-6",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-history",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.716Z",
+    "step": "failure-window-5",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=avatar-bubble",
+    "bounds": {
+      "x": 574,
+      "y": 367,
+      "width": 338,
+      "height": 199
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.719Z",
+    "step": "failure-window-4",
+    "visible": false,
+    "url": "http://localhost:1212/index.html?view=avatar-menu",
+    "bounds": {
+      "x": 960,
+      "y": 540,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.726Z",
+    "step": "failure-window-3",
+    "visible": true,
+    "url": "http://localhost:1212/index.html",
+    "bounds": {
+      "x": 870,
+      "y": 386,
+      "width": 180,
+      "height": 180
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.729Z",
+    "step": "failure-window-2",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=wake-word-capture",
+    "bounds": {
+      "x": 0,
+      "y": 30,
+      "width": 1,
+      "height": 1
+    }
+  },
+  {
+    "at": "2026-11-07T23:49:35.779Z",
+    "step": "failure-window-1",
+    "visible": true,
+    "url": "http://localhost:1212/index.html?view=session",
+    "bounds": {
+      "x": 380,
+      "y": 86,
+      "width": 1160,
+      "height": 780
+    }
+  }
+]

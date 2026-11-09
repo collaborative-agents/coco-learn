@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useMemo } from 'react';
 import { S } from './styles';
 import './ChatTranscript.css';
 import type { SavedConversation, ChatMessage } from './types';
@@ -9,6 +10,7 @@ import { ScreenContextTag } from './ScreenContext';
 import RatingButtons from '../RatingButtons';
 import { messageCopyKey } from './message-format';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
+import { extractPreviewHtml } from './html-preview';
 import {
   SCREEN_TASK_PROMPT,
   SECONDARY_CHAT_PROMPTS,
@@ -57,6 +59,22 @@ interface Props {
   following: boolean;
   onScroll: () => void;
   onJumpToLatest: () => void;
+}
+
+function HtmlPreviewButton({ text }: { text: string }) {
+  const html = useMemo(() => extractPreviewHtml(text), [text]);
+  if (!html) return null;
+  return (
+    <button
+      type="button"
+      style={S.htmlPreviewBtn}
+      aria-label="Preview HTML page"
+      onClick={() => window.electron?.ipcRenderer.sendMessage('open-html-preview', { html })}
+    >
+      <span>Preview HTML page</span>
+      <span aria-hidden="true">↗</span>
+    </button>
+  );
 }
 
 export default function ChatTranscript({
@@ -239,6 +257,7 @@ export default function ChatTranscript({
                       ))}
                     </div>
                   )}
+                {!m.isError && !m.isStreaming && <HtmlPreviewButton text={m.text} />}
                 {!m.suggestion &&
                   !isWorkspaceDenial(m) &&
                   (m.text.trim() || m.isError) && (

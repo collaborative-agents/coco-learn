@@ -182,7 +182,7 @@ export default function ModelsStep({
       </p>
       {routerManaged && (
         <div className="ob-model-warning">
-          Models are provided through the CoCo Router. No personal API key is
+          Models are provided through the Coco Router. No personal API key is
           required.
         </div>
       )}

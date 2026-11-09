@@ -1,0 +1,52 @@
+.coco-game-page {
+  min-height: 100vh;
+  padding: 36px 40px 20px;
+  color: var(--coco-color-text);
+  background: var(--coco-color-surface-subtle);
+  font-family: var(--coco-font-family);
+  box-sizing: border-box;
+}
+.coco-game-content { width: min(100%, 1000px, max(640px, calc((100vh - 485px) * 2.2857))); margin: 0 auto; }
+.coco-game-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; gap: 24px; }
+.coco-game-eyebrow { color: var(--coco-color-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .13em; line-height: 1.5; }
+.coco-game-heading h1 { margin: 7px 0 0; font-size: var(--coco-text-title); font-weight: 750; letter-spacing: -.8px; line-height: 1.3; }
+.coco-game-version { display: inline-flex; align-items: center; gap: 7px; font-size: var(--coco-text-caption); color: var(--coco-color-text-muted); background: white; border: 1px solid var(--coco-color-border); border-radius: var(--coco-radius-pill); padding: 7px 12px; }
+.coco-game-version > span { color: var(--coco-color-accent); font-size: 16px; line-height: 1; }
+.coco-game-version.is-updated { background: #eef6f0; border-color: #d7e7db; color: #486d54; }
+.coco-game-version.is-updated > span { color: inherit; }
+.coco-game-card { padding: 0 14px; background: var(--coco-color-surface); border: 1px solid var(--coco-color-border); border-radius: 22px; box-shadow: 0 4px 8px #20334b04, 0 16px 40px #20334b0a; overflow: hidden; }
+.coco-game-card-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 5px; gap: 16px; }
+.coco-game-world { display: flex; align-items: center; gap: 10px; font-size: var(--coco-text-secondary); color: var(--coco-color-text-secondary); font-weight: 650; }
+.coco-game-world-icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; background: #edf3ef; border-radius: 8px; color: #5b7e67; }
+.coco-game-world-icon svg { width: 18px; height: 18px; }
+.coco-game-setting { display: flex; align-items: center; gap: 6px; font-size: var(--coco-text-caption); color: var(--coco-color-text-muted); padding-right: 8px; }
+.coco-game-setting > span { font-size: 16px; }
+.coco-game-frame { container-type: inline-size; overflow: hidden; border: 1px solid var(--coco-color-border); border-radius: 13px; background: var(--coco-color-surface); }
+.coco-game-frame iframe { display: block; width: 100%; height: calc(43.75cqw + 58px); border: 0; }
+.coco-game-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 5px 18px; }
+.coco-game-page .coco-button { border-radius: var(--coco-radius-pill); min-height: 40px; padding: 10px 18px; font-size: 13px; gap: 8px; line-height: 1.4; }
+.coco-game-page .coco-button svg { width: 17px; height: 17px; flex-shrink: 0; }
+.coco-game-page .coco-button--primary { box-shadow: 0 3px 5px #204a7912; }
+.coco-game-page .coco-game-undo { border-color: transparent; background: transparent; padding-left: 3px; color: var(--coco-color-text-muted); }
+.coco-game-page .coco-game-undo:disabled { opacity: .43; }
+.coco-game-next-actions { display: flex; gap: 10px; align-items: center; }
+.coco-game-companion { display: flex; align-items: flex-end; justify-content: flex-end; gap: 12px; margin-top: 22px; margin-right: -7px; min-height: 126px; }
+.coco-game-companion img { width: 102px; height: 102px; object-fit: contain; align-self: flex-end; margin: 0 -7px -9px -5px; }
+.coco-game-companion .observation-bubble { position: relative; right: auto; bottom: auto; max-width: 290px; padding: 12px 15px 14px; margin-bottom: 17px; font-size: 14px; box-shadow: 0 3px 6px #1f293708, 0 8px 24px #1f29370b; }
+.coco-game-companion .observation-bubble-tail { bottom: 20px; right: -6px; transform: rotate(-45deg); }
+.coco-game-companion .observation-bubble-text { font-size: 14px; line-height: 1.55; }
+.coco-game-companion .observation-bubble-label { font-size: 10px; }
+@media (max-width: 900px) {
+  .coco-game-page { padding: 26px 24px 16px; }
+  .coco-game-heading { margin-bottom: 20px; }
+  .coco-game-companion { margin-top: 16px; }
+}
+@media (max-width: 600px) {
+  .coco-game-page { padding: 20px 12px 12px; }
+  .coco-game-heading h1 { font-size: 24px; }
+  .coco-game-version { font-size: 11px; }
+  .coco-game-card { padding: 0 8px; border-radius: 17px; }
+  .coco-game-card-heading { padding: 12px 3px; }
+  .coco-game-page .coco-button { padding: 9px 13px; font-size: 12px; }
+  .coco-game-companion .observation-bubble { max-width: 240px; }
+}

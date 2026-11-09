@@ -1,0 +1,10 @@
+{
+  "flow": [
+    "Onboarding window only; floating avatar and bubble hidden on each setup page",
+    "Start Coco closes onboarding",
+    "Training renders",
+    "Floating Coco appears with Getting Started invitation"
+  ],
+  "verification": "Live Electron walkthrough passed; 12 focused tests passed; TypeScript and development build passed.",
+  "normalProfile": "Not reset or modified."
+}

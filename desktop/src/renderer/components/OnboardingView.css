@@ -417,3 +417,16 @@
     gap: 10px;
   }
 }
+
+/* Miniature ObservationBubble surfaces anchored to the chosen home. */
+.ob-preview-advice { position: absolute; display: block; width: 260px; transform: scale(.25); transform-origin: bottom right; right: 30px; bottom: 30px; opacity: .45; pointer-events: none; }
+.ob-preview-advice .observation-bubble { position: relative; right: auto; bottom: auto; width: 260px; max-width: none; opacity: 1; animation: none; transform: none; }
+.ob-preview-advice .bubble-action-btn { width: 100%; margin-top: 10px; }
+.is-menu-only .ob-preview-advice { right: 9px; top: 24px; bottom: auto; transform-origin: top right; }
+.is-menu-only .observation-bubble-tail { top: -6px; bottom: auto; right: 16px; transform: rotate(-45deg); }
+.is-selected .ob-preview-advice { animation: coco-preview-advice 4s ease-in-out infinite; }
+@keyframes coco-preview-advice { 0%, 12%, 100% { opacity: 0; } 24%, 78% { opacity: 1; } 90% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .is-selected .ob-preview-advice { animation: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ob-preview-advice .observation-bubble-label::before { animation: none; }
+}

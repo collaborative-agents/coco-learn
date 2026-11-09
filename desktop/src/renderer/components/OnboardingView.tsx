@@ -39,7 +39,7 @@ const PAGES = {
   avatar: {
     title: 'Ready to go',
     description:
-      'Choose where Coco lives on your desktop. Your menu-bar icon will always be there for quick access to chat, history, and settings.',
+      '',
   },
 } as const;
 type StepKey = keyof typeof PAGES;
@@ -65,6 +65,7 @@ export default function OnboardingView() {
   }, []);
 
   useEffect(() => {
+    if (!modelsOnly) window.electron?.ipcRenderer.sendMessage('onboarding-step', currentKey);
     document.getElementById('coco-setup-title')?.focus();
     document.querySelector('.coco-setup-shell')?.scrollTo?.(0, 0);
   }, [currentKey]);

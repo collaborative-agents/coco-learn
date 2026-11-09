@@ -1,0 +1,194 @@
+[
+  {
+    "name": "original",
+    "passed": true,
+    "seconds": 1.182,
+    "error": null
+  },
+  {
+    "name": "make it daylight",
+    "passed": true,
+    "seconds": 0.336,
+    "error": null
+  },
+  {
+    "name": "make the runner a cat and the obstacles bones",
+    "passed": true,
+    "seconds": 0.287,
+    "error": null
+  },
+  {
+    "name": "make it snowy at night",
+    "passed": true,
+    "seconds": 0.299,
+    "error": null
+  },
+  {
+    "name": "make it harder",
+    "passed": true,
+    "seconds": 0.265,
+    "error": null
+  },
+  {
+    "name": "Make a flying version, so I can fly, not just jump.",
+    "passed": true,
+    "seconds": 0.26,
+    "error": null
+  },
+  {
+    "name": "morning palette",
+    "passed": true,
+    "seconds": 0.282,
+    "error": null
+  },
+  {
+    "name": "sunset palette",
+    "passed": true,
+    "seconds": 0.355,
+    "error": null
+  },
+  {
+    "name": "solid sky",
+    "passed": true,
+    "seconds": 0.236,
+    "error": null
+  },
+  {
+    "name": "flight label without flight behavior",
+    "passed": true,
+    "seconds": 0.204,
+    "error": "Flying controls did not rise while held and fall after release. Check behavior.js."
+  },
+  {
+    "name": "published: daylight",
+    "passed": true,
+    "seconds": 0.279,
+    "error": null
+  },
+  {
+    "name": "published: nov7-theme",
+    "passed": true,
+    "seconds": 0.213,
+    "error": null
+  },
+  {
+    "name": "published: nov7-background",
+    "passed": true,
+    "seconds": 0.203,
+    "error": null
+  },
+  {
+    "name": "published: cuter",
+    "passed": true,
+    "seconds": 0.243,
+    "error": null
+  },
+  {
+    "name": "published: dog-bones",
+    "passed": true,
+    "seconds": 0.243,
+    "error": null
+  },
+  {
+    "name": "published: snow-stars",
+    "passed": true,
+    "seconds": 0.211,
+    "error": null
+  },
+  {
+    "name": "published: harder",
+    "passed": true,
+    "seconds": 0.206,
+    "error": null
+  },
+  {
+    "name": "published: platform-style",
+    "passed": true,
+    "seconds": 0.681,
+    "error": null
+  },
+  {
+    "name": "published: ambitious-cat",
+    "passed": true,
+    "seconds": 1.126,
+    "error": null
+  },
+  {
+    "name": "published: pastel-morning",
+    "passed": true,
+    "seconds": 0.462,
+    "error": null
+  },
+  {
+    "name": "published: neon-rain",
+    "passed": true,
+    "seconds": 0.39,
+    "error": null
+  },
+  {
+    "name": "published: sunset",
+    "passed": true,
+    "seconds": 0.323,
+    "error": null
+  },
+  {
+    "name": "published: space",
+    "passed": true,
+    "seconds": 0.324,
+    "error": null
+  },
+  {
+    "name": "published: rabbit",
+    "passed": true,
+    "seconds": 0.344,
+    "error": null
+  },
+  {
+    "name": "published: desert",
+    "passed": true,
+    "seconds": 0.516,
+    "error": null
+  },
+  {
+    "name": "published: blue-only",
+    "passed": true,
+    "seconds": 0.269,
+    "error": null
+  },
+  {
+    "name": "published: misspelled-day",
+    "passed": true,
+    "seconds": 0.279,
+    "error": null
+  },
+  {
+    "name": "published: misspelled-cat-snow",
+    "passed": true,
+    "seconds": 0.259,
+    "error": null
+  },
+  {
+    "name": "published: score-sounds",
+    "passed": true,
+    "seconds": 0.26,
+    "error": null
+  },
+  {
+    "name": "published: higher-jump",
+    "passed": true,
+    "seconds": 0.233,
+    "error": null
+  },
+  {
+    "name": "throwing behavior",
+    "passed": true,
+    "seconds": 0.252,
+    "error": "Uncaught Error: Intentional broken behavior"
+  },
+  {
+    "name": "infinite behavior",
+    "passed": true,
+    "seconds": 8.03,
+    "error": "Browser validation timed out. Check the behavior hooks for a loop."
+  }
+]

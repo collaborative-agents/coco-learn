@@ -1,0 +1,41 @@
+[
+  {
+    "step": "prior-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "no-companion-during-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "prior-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "no-companion-during-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "existing-os-permissions",
+    "missing": []
+  },
+  {
+    "step": "no-companion-during-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "no-companion-during-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "PASS-companion-only-after-setup"
+  }
+]

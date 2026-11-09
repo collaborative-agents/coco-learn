@@ -57,6 +57,11 @@
   background: #eceef1;
   color: #151619;
 }
+.workspace-rail button[data-guided-target='true'] {
+  background: #dceaff;
+  color: #2457c5;
+  box-shadow: 0 0 0 2px #79a4ff, 0 0 18px #5689f266;
+}
 .workspace-rail .workspace-settings-button {
   margin-top: auto;
 }

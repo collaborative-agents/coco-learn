@@ -180,3 +180,84 @@ def test_only_foreground_execution_updates_coaching_history(bridge):
         )
     assert any("reply-b" in message for message in foreground.conversation_history)
     assert not any("reply-a" in message for message in foreground.conversation_history)
+
+
+def test_deepseek_agent_disables_untracked_thinking(bridge, monkeypatch):
+    client, tutor, _ = bridge
+    tutor.tutor_agent.model = "deepseek-ai/deepseek-v4-pro"
+    client.headers["Authorization"] = "Bearer secret"
+    received = {}
+
+    def completion(messages, **kwargs):
+        received.update(kwargs)
+        return LiteLLMMessage(role="assistant", content=[{"type": "text", "text": "I changed the scene."}]), {}
+
+    monkeypatch.setattr(pi_bridge, "chat_completion", completion)
+    client.post("/agent/v1/chat/completions", json={"messages": []})
+    assert received["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_empty_model_turn_is_an_error_instead_of_fake_completion(bridge, monkeypatch):
+    client, _, _ = bridge
+    client.headers["Authorization"] = "Bearer secret"
+    monkeypatch.setattr(pi_bridge, "chat_completion", lambda *a, **kw: (LiteLLMMessage(role="assistant", content=[{"type": "text", "text": "\n\n"}]), {"completion_tokens": 8192}))
+    response = client.post("/agent/v1/chat/completions", json={"messages": []})
+    assert '"error"' in response.text
+    assert "no reply or action" in response.text
+
+
+def test_completion_preserves_provider_token_limit(bridge, monkeypatch):
+    client, _, _ = bridge
+    client.headers["Authorization"] = "Bearer secret"
+    monkeypatch.setattr(pi_bridge, "chat_completion", lambda *a, **kw: (LiteLLMMessage(role="assistant", content=[{"type": "text", "text": "An unfinished change"}], finish_reason="length"), {}))
+    response = client.post("/agent/v1/chat/completions", json={"messages": []})
+    assert '"finish_reason": "length"' in response.text
+
+
+def test_desktop_passes_actual_game_failure_to_coach(bridge):
+    client, tutor, _ = bridge
+    client.headers["Authorization"] = "Bearer secret"
+    response = client.post('/agent/tutorial-status', json={
+        'sessionId': 'game', 'phase': 'writing',
+        'failure': {'kind': 'timeout', 'detail': 'Approval wait expired', 'message': 'My check timed out.'},
+    })
+    assert response.status_code == 200
+    assert tutor.tutorial_status['failure']['kind'] == 'timeout'
+
+
+def test_router_deepseek_forwards_nim_non_thinking_mode(bridge, monkeypatch):
+    client, tutor, _ = bridge
+    monkeypatch.setenv('LLM_ROUTER_URL', 'https://router.example')
+    tutor.tutor_agent.model='deepseek-ai/deepseek-v4-pro'
+    client.headers['Authorization']='Bearer secret'
+    received={}
+    def completion(messages, **kwargs):
+        received.update(kwargs)
+        return LiteLLMMessage(role='assistant',content=[{'type':'text','text':'Ready'}]), {}
+    monkeypatch.setattr(pi_bridge,'chat_completion',completion)
+    client.post('/agent/v1/chat/completions',json={'messages':[]})
+    assert received['extra_body']['extra_body']['chat_template_kwargs']=={'thinking':False}
+    assert received['extra_body']['extra_body']['reasoning_effort']=='none'
+
+
+def test_art_review_uses_configured_vision_model_not_chat_model(bridge, monkeypatch):
+    client, _, _ = bridge
+    client.headers['Authorization'] = 'Bearer secret'
+    monkeypatch.setenv('OBSERVER_MODEL', 'configured/vision')
+    seen = {}
+    def completion(messages, **kwargs):
+        seen.update(kwargs)
+        return LiteLLMMessage(role='assistant', content='Reviewed'), {}
+    monkeypatch.setattr(pi_bridge, 'chat_completion', completion)
+    response = client.post('/agent/v1/chat/completions', json={'messages': [], 'purpose': 'art_review', 'model': 'untrusted/override'})
+    assert response.status_code == 200
+    assert seen['model'] == 'configured/vision'
+    assert seen['tools'] is None
+    assert client.post('/agent/v1/chat/completions', json={'messages': [], 'purpose': 'art_review', 'tools': [{'type': 'function'}]}).status_code == 400
+
+
+def test_art_review_requires_configured_vision_model(bridge, monkeypatch):
+    client, _, _ = bridge
+    client.headers['Authorization'] = 'Bearer secret'
+    monkeypatch.delenv('OBSERVER_MODEL', raising=False)
+    assert client.post('/agent/v1/chat/completions', json={'messages': [], 'purpose': 'art_review'}).status_code == 503

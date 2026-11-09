@@ -1,0 +1,76 @@
+{
+  "status": "completed_with_documented_limits",
+  "fullSession": {
+    "passed": 3,
+    "total": 3,
+    "autoApprovals": 0,
+    "seconds": [
+      14.5,
+      8.66,
+      10.02
+    ],
+    "events": "live/events.json"
+  },
+  "benchmark": {
+    "validatedPublishes": 20,
+    "total": 20,
+    "under30": 19,
+    "medianSeconds": 11.545,
+    "maxSeconds": 43.77,
+    "creativeQualityCaveat": "platform-inspired title Goomba Hop was not entirely original"
+  },
+  "browser": {
+    "passed": 32,
+    "total": 32
+  },
+  "focusedJest": {
+    "passed": 51,
+    "total": 51
+  },
+  "build": {
+    "typecheck": true,
+    "productionMain": true,
+    "productionRenderer": true
+  },
+  "sdkPermissions": {
+    "passed": 15,
+    "total": 15
+  },
+  "services": {
+    "crashRecovery": true,
+    "sensingSeconds": 10.469,
+    "tutorSeconds": 11.586
+  },
+  "reopen": {
+    "completedGame": true,
+    "midRunRetainsRequest": true,
+    "realRetryPublishes": true,
+    "publishedPreview": true
+  },
+  "extras": {
+    "questionWithoutEdits": true,
+    "invalidPhysicsDoesNotPublish": true
+  },
+  "blockedSpotChecks": "Final process inventory and repeated normal-service HTTP check were not executed because automatic approval review hit its usage limit. Earlier normal-service health checks returned 200.",
+  "knownLimits": [
+    "Transient gateway sign-in restore failure clears the stored session and can require sign-in again.",
+    "Background-only edits preserve title/time-of-day metadata unless also changed.",
+    "App-level input tests do not certify physical macOS focus/input."
+  ],
+  "fullJest": {
+    "passed": 808,
+    "failed": 6,
+    "total": 814,
+    "suitesPassed": 130,
+    "suitesFailed": 5,
+    "suitesTotal": 135,
+    "seconds": 79.174,
+    "failures": [
+      "ChatComparison.test.tsx: curated skill selection/send assertion",
+      "TutorModelPicker.test.tsx: quest-link assertion",
+      "OnboardingView.test.tsx: two avatar-completion assertions",
+      "ToolTrainingBanner.test.tsx: locked-details assertion",
+      "DesktopTheme.test.ts: shared control typography assertion"
+    ]
+  }
+}

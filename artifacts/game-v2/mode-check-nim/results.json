@@ -1,0 +1,417 @@
+[
+  {
+    "id": "cuter",
+    "prompt": "make it cuter",
+    "success": true,
+    "seconds": 67.78,
+    "under30": false,
+    "changed": [
+      "title",
+      "scoreLabel",
+      "timeOfDay",
+      "detail",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "spritePalette",
+      "player",
+      "obstacles"
+    ],
+    "screenshot": "01-cuter.png",
+    "error": null,
+    "state": {
+      "sessionId": "f01f2507-cdbc-49c4-b49c-51ce1307a7fd",
+      "version": "31da6be2-f9b6-4617-b765-26b5c1da9b1d",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "make it cuter",
+      "previewRevision": "31da6be2-f9b6-4617-b765-26b5c1da9b1d",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Coco's Cute Run",
+      "scoreLabel": "Cuteness",
+      "timeOfDay": "morning",
+      "detail": "detailed",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#ffd8ad",
+          "#ace5fa"
+        ]
+      },
+      "textColor": "#5b4a52",
+      "decorations": [
+        {
+          "kind": "clouds",
+          "color": "#ffffff",
+          "accent": "#e3ecff",
+          "x": 18,
+          "y": 12,
+          "size": 24,
+          "count": 3,
+          "speed": 5
+        },
+        {
+          "kind": "clouds",
+          "color": "#ffffff",
+          "accent": "#e3ecff",
+          "x": 68,
+          "y": 6,
+          "size": 18,
+          "count": 2,
+          "speed": 8
+        }
+      ],
+      "ground": {
+        "height": 60,
+        "top": "#7fbf6b",
+        "soil": "#b88a5a",
+        "speckle": "#8a5a3a",
+        "grass": "#8fd06b"
+      },
+      "spritePalette": {
+        "o": "#ffb7d5",
+        "O": "#d66e40",
+        "w": "#fff7f2",
+        "s": "#e6c993",
+        "k": "#5b4a52",
+        "b": "#ff9ec7",
+        "B": "#436978",
+        "r": "#ff6b8a",
+        "R": "#a85968",
+        "g": "#7fbf6b",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#ffd66b",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#ffb7d5"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "................",
+            "...pp.....pp....",
+            "...ppp...ppp....",
+            "...ppp...ppp....",
+            "...pppp.pppp....",
+            "....wwwwwww.....",
+            "....wwwwwww.....",
+            "...wkkw.wkkw....",
+            "...wkkw.wkkw....",
+            "....wbbwbbw.....",
+            "....wwwwwww.....",
+            "....wwwwwww.....",
+            "...wwww.wwww....",
+            "...wwww.wwww....",
+            "................",
+            "................"
+          ]
+        ],
+        "duck": [
+          "....wwwwwww.....",
+          "...wkkw.wkkw....",
+          "...wkkw.wkkw....",
+          "....wbbwbbw.....",
+          "....wwwwwww.....",
+          "...wwww.wwww....",
+          "...wwww.wwww...."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "heart",
+          "name": "Heart",
+          "scale": 3,
+          "flying": false,
+          "frames": [
+            [
+              "................",
+              "..rr.....rr.....",
+              ".rrrr...rrrr....",
+              ".rrrrr.rrrrr....",
+              ".rrrrrrrrrrr....",
+              "..rrrrrrrrr.....",
+              "...rrrrrrr......",
+              "....rrrrr.......",
+              ".....rrr........",
+              "......r.........",
+              "................",
+              "................",
+              "................",
+              "................",
+              "................",
+              "................"
+            ]
+          ]
+        },
+        {
+          "id": "flower",
+          "name": "Flower",
+          "scale": 3,
+          "flying": false,
+          "frames": [
+            [
+              "................",
+              "......pp........",
+              "..pp..pp..pp....",
+              ".pppp.ppp.ppp...",
+              "..pppppppppp....",
+              "...pppyyyppp....",
+              "...pppyyyppp....",
+              "..pppppppppp....",
+              ".pppp.ppp.ppp...",
+              "..pp..pp..pp....",
+              "......pp........",
+              "......gg........",
+              "......gg........",
+              "................",
+              "................",
+              "................"
+            ]
+          ]
+        },
+        {
+          "id": "star",
+          "name": "Star",
+          "scale": 3,
+          "flying": true,
+          "frames": [
+            [
+              "................",
+              ".......yy.......",
+              ".......yy.......",
+              "......yyyy......",
+              ".yyyyyyyyyyyy...",
+              "..yyyyyyyyyy....",
+              "...yyyyyyyy.....",
+              "....yyyyyy......",
+              "...yyyyyyyy.....",
+              "..yyy....yyy....",
+              ".yyy......yyy...",
+              "................",
+              "................",
+              "................",
+              "................",
+              "................"
+            ]
+          ]
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones",
+    "success": true,
+    "seconds": 91.9,
+    "under30": false,
+    "changed": [
+      "spritePalette",
+      "player",
+      "obstacles"
+    ],
+    "screenshot": "02-dog-bones.png",
+    "error": null,
+    "state": {
+      "sessionId": "3916c8f5-46f9-43a9-bf20-e004a5cffa96",
+      "version": "8a2d323a-d07e-45e6-88da-9fa92b22d7b6",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "make the runner my dog and the obstacles bones",
+      "previewRevision": "8a2d323a-d07e-45e6-88da-9fa92b22d7b6",
+      "previewKind": "updated"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#f2e3c9",
+        "s": "#e6c993",
+        "k": "#3a2417",
+        "b": "#8b5a2b",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc",
+        "n": "#1c1c1c"
+      },
+      "player": {
+        "name": "Dog",
+        "scale": 3,
+        "frames": [
+          [
+            "................",
+            "................",
+            "..kk......kk....",
+            ".kkk......kkk...",
+            ".kkkbbbbbbkkk...",
+            ".kkbbbbbbbbkk...",
+            ".kkbbbbbbbbkk...",
+            ".kkbnnbbnnbkk...",
+            ".kkbbbbbbbbkk...",
+            ".kkbwwwwwwbkk...",
+            ".kkbbbbbbbbkk...",
+            "..bbbbbbbbbb....",
+            "..bbbbbbbbbb....",
+            "...bbbbbbbb.....",
+            "..kkk....kkk....",
+            "................"
+          ]
+        ],
+        "duck": [
+          "..bbbbbbbbbb....",
+          ".kkbbbbbbbbkk...",
+          ".kkbnnbbnnbkk...",
+          ".kkbbbbbbbbkk...",
+          ".kkbwwwwwwbkk...",
+          ".kkbbbbbbbbkk...",
+          "..bbbbbbbbbb....",
+          "...bbbbbbbb.....",
+          "..kkk....kkk....",
+          "................",
+          "................"
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "bone",
+          "name": "bone",
+          "frames": [
+            [
+              "................",
+              "................",
+              "................",
+              "................",
+              "................",
+              "..www......www..",
+              "..www......www..",
+              "..wwwwwwwwwwww..",
+              "....wwwwwwww....",
+              "..wwwwwwwwwwww..",
+              "..www......www..",
+              "..www......www..",
+              "................",
+              "................",
+              "................",
+              "................"
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  }
+]

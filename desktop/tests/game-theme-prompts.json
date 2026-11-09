@@ -1,0 +1,22 @@
+[
+ {"id":"daylight","prompt":"change the background to daylight","expect":"day"},
+ {"id":"nov7-theme","prompt":"I want to make coco run in a daylight theme, but not a moon light","expect":"day"},
+ {"id":"nov7-background","prompt":"hmmm maybe change only the background to daylight !","expect":"day"},
+ {"id":"cuter","prompt":"make it cuter","expect":"visual"},
+ {"id":"dog-bones","prompt":"make the runner my dog and the obstacles bones","expect":"dog"},
+ {"id":"snow-stars","prompt":"make it night with stars and snow","expect":"snow-night"},
+ {"id":"harder","prompt":"make it way harder","expect":"harder"},
+ {"id":"platform-style","prompt":"make it look like Mario, but make your own original character and scenery","expect":"original-platform"},
+ {"id":"ambitious-cat","prompt":"Make it a detailed daylight world with a cat","expect":"detailed-cat"},
+ {"id":"pastel-morning","prompt":"a cozy morning with pastel colors and lots of clouds please","expect":"morning"},
+ {"id":"neon-rain","prompt":"make the world rainy and neon blue and pink like a cyberpunk city","expect":"rain"},
+ {"id":"sunset","prompt":"make it sunset with orange skies and mountains","expect":"sunset"},
+ {"id":"space","prompt":"a dark purple space world with lots of stars","expect":"space"},
+ {"id":"rabbit","prompt":"make my runner a pink rabbit","expect":"rabbit"},
+ {"id":"desert","prompt":"make it a sandy desert and change the obstacles to cactuses","expect":"cactus"},
+ {"id":"blue-only","prompt":"make only the runner blue, keep everything else the same","expect":"blue-only"},
+ {"id":"misspelled-day","prompt":"chnge the bakgrond to daylite plz","expect":"day"},
+ {"id":"misspelled-cat-snow","prompt":"can u make a lil cat runing in sno at nite","expect":"snow-cat"},
+ {"id":"score-sounds","prompt":"turn sounds off and change the score label to DISTANCE","expect":"score"},
+ {"id":"higher-jump","prompt":"make it easier to jump over things, with lower gravity and higher jumps","expect":"jump"}
+]

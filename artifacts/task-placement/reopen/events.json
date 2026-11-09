@@ -1,0 +1,6 @@
+[
+  {
+    "step": "FAIL",
+    "error": "Error: verified service and model connections timed out\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/setup-tour.e2e.cjs:10:201)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/setup-tour.e2e.cjs:63:20"
+  }
+]

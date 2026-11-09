@@ -1,0 +1,59 @@
+[
+  {
+    "step": "undo-verified",
+    "state": {
+      "sessionId": "d4ae11eb-1e1c-4260-88ec-36deeb1870b2",
+      "version": "d929afe7-4e27-4bdd-becd-bfa3d5f93226",
+      "phase": "review",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null,
+      "lastRequest": "hmmm maybe change only the background to daylight !",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "d929afe7-4e27-4bdd-becd-bfa3d5f93226",
+      "previewKind": "original"
+    }
+  },
+  {
+    "step": "tour-complete",
+    "state": {
+      "sessionId": "d4ae11eb-1e1c-4260-88ec-36deeb1870b2",
+      "version": "cd63d5fd-92e9-4be0-8135-b60eece87c05",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "finished",
+      "previewRevision": "cd63d5fd-92e9-4be0-8135-b60eece87c05",
+      "previewKind": "updated"
+    }
+  },
+  {
+    "step": "prompt-result",
+    "id": "nov7-background",
+    "prompt": "hmmm maybe change only the background to daylight !",
+    "expect": "day",
+    "success": true,
+    "seconds": 19.4,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "nov7-background.png"
+  },
+  {
+    "step": "PASS",
+    "count": 1,
+    "autoApprovals": 0
+  }
+]

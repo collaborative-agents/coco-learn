@@ -1,3 +1,8 @@
+import type { RunnerTutorialState } from '../../shared/runner-tutorial';
+import RunnerPromptSuggestions from './getting-started/RunnerPromptSuggestions';
+import TourProgress from './getting-started/TourProgress';
+import GameIdeaCheck from './getting-started/GameIdeaCheck';
+import type { UnderstandingCheckResult } from '../../shared/understanding-check';
 import useWorkflowChapter from './training/useWorkflowChapter';
 import WorkflowUnlock from './training/WorkflowUnlock';
 import WorkflowTrainingBanner from './training/WorkflowTrainingBanner';
@@ -80,11 +85,14 @@ function SessionChatContent() {
   const [startingNewSession, setStartingNewSession] = useState(false);
   const [checkingUnderstanding, setCheckingUnderstanding] = useState(false);
   const [understandingError, setUnderstandingError] = useState('');
+  const [tourError, setTourError] = useState('');
+  const [ideaCheck, setIdeaCheck] = useState<{sessionId:string;draft:string;interpretation:string} | null>(null);
   const [problem, setProblem] = useState('');
   const [expanded, setExpanded] = useState(true);
   const [activePage, setActivePage] = useState<'chat' | 'tasks' | 'settings'>(
     'chat',
   );
+  const [chatInviteArticleId, setChatInviteArticleId] = useState<string | null>(null);
   const [trainingRefreshKey, setTrainingRefreshKey] = useState(0);
   const changeExpanded = (value: boolean) => {
     setExpanded(value);
@@ -126,6 +134,7 @@ function SessionChatContent() {
   );
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState('');
+  const healthRequestRevision = useRef(0);
   const [systemPermissionHealth, setSystemPermissionHealth] =
     useState<SystemPermissionHealth>({ missing: [] });
   const [permissionOpening, setPermissionOpening] =
@@ -166,6 +175,39 @@ function SessionChatContent() {
   const listRef = useRef<HTMLDivElement>(null);
   const pendingHotkeyImagesRef = useRef<Set<string>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
+  const [runnerState, setRunnerState] = useState<RunnerTutorialState | null>(null);
+  const [runnerSessionId, setRunnerSessionId] = useState<string | null>(null);
+  const viewedConversationId = reviewing?.sessionId ?? sessionIdRef.current;
+  useEffect(() => {
+    window.electron?.ipcRenderer.sendMessage('runner-chat-view', {
+      sessionId: viewedConversationId,
+      inChat: activePage === 'chat' && !showSettings,
+    });
+  }, [viewedConversationId, activePage, showSettings]);
+  useEffect(() => {
+    const loadRunnerState = () => {
+      void window.electron?.ipcRenderer.invoke('runner-state').then((state) => {
+        if (state?.sessionId) { setRunnerSessionId(state.sessionId);setRunnerState(state); }
+      }).catch(() => {});
+    };
+    const focus = () => { loadRunnerState();setActivePage('chat'); setShowSettings(false); setShowHistory(false); setReviewing(null); setComposerFocusRequest((n) => n + 1); };
+    const offOpen = window.electron?.ipcRenderer.on('runner-open-composer', (value: unknown) => {
+      const id = (value as { sessionId?: string })?.sessionId;
+      if (!id) return;
+      setRunnerSessionId(id);
+      if ((value as { reset?: boolean }).reset !== false) { setInput(''); setPendingImages([]); }
+      focus();
+    });
+    const offFocus = window.electron?.ipcRenderer.on('runner-focus-composer', focus);
+    loadRunnerState();
+    const offState=window.electron?.ipcRenderer.on('runner-state-changed',(value: unknown)=>{ const state=value as RunnerTutorialState;setRunnerState(state);setRunnerSessionId(state.sessionId); });
+    return () => { if(typeof offState==='function')offState(); if (typeof offOpen === 'function') offOpen(); if (typeof offFocus === 'function') offFocus(); };
+  }, []);
+  useEffect(() => {
+    if (!runnerSessionId || runnerSessionId !== sessionIdRef.current || !input.trim() || sending) return undefined;
+    const timer = setTimeout(() => window.electron?.ipcRenderer.sendMessage('runner-draft', { sessionId: runnerSessionId, draft: input }), 1200);
+    return () => clearTimeout(timer);
+  }, [input, runnerSessionId, sending]);
   const toolSession = useToolTrainingSession(
     reviewing?.sessionId ?? sessionIdRef.current,
   );
@@ -253,6 +295,7 @@ function SessionChatContent() {
   const refreshServiceHealth = useCallback(
     async (forceModelTest = false) => {
       if (cocoSleepingRef.current) return;
+      const requestRevision = ++healthRequestRevision.current;
       const sleepRevision = sleepModeRevisionRef.current;
       setHealthLoading(true);
       setHealthError('');
@@ -261,7 +304,7 @@ function SessionChatContent() {
           'get-service-health',
           { forceModelTest },
         )) as ServiceHealthView | SleepingServiceHealthView | undefined;
-        if (sleepRevision !== sleepModeRevisionRef.current) return;
+        if (sleepRevision !== sleepModeRevisionRef.current || requestRevision !== healthRequestRevision.current) return;
         if (result && 'sleeping' in result && result.sleeping) {
           applyCocoSleepMode(true);
           return;
@@ -277,13 +320,13 @@ function SessionChatContent() {
         }
         if (!cocoSleepingRef.current) setServiceHealth(result);
       } catch (error) {
-        if (!cocoSleepingRef.current) {
+        if (!cocoSleepingRef.current && requestRevision === healthRequestRevision.current && sleepRevision === sleepModeRevisionRef.current) {
           setHealthError(
             error instanceof Error ? error.message : String(error),
           );
         }
       } finally {
-        if (!cocoSleepingRef.current) setHealthLoading(false);
+        if (!cocoSleepingRef.current && requestRevision === healthRequestRevision.current) setHealthLoading(false);
       }
     },
     [applyCocoSleepMode],
@@ -586,7 +629,21 @@ function SessionChatContent() {
     ) => {
       setSending(true);
       scrollToBottom();
-      const requestSessionId = sessionIdRef.current;
+      let requestSessionId = sessionIdRef.current;
+      if (!requestSessionId) {
+        const ensured = await window.electron?.ipcRenderer.invoke('ensure-chat-conversation')
+          .catch((error: Error) => ({ error: error.message }));
+        if (typeof ensured?.sessionId === 'string') {
+          requestSessionId = ensured.sessionId;
+          sessionIdRef.current = requestSessionId;
+        } else if (ensured?.error) {
+          setMessages((current) => current.map((message) => message.requestId === requestId
+            ? { ...message, text: ensured.error, isError: true, isStreaming: false }
+            : message));
+          setSending(false);
+          return;
+        }
+      }
       const res = await window.electron?.ipcRenderer
         .invoke('send-chat-message', {
           requestId,
@@ -1023,13 +1080,19 @@ function SessionChatContent() {
   );
 
   useEffect(() => {
-    if (!cocoSleepModeKnown || cocoSleeping) return undefined;
+    if (studyAccess !== true || !cocoSleepModeKnown || cocoSleeping) return undefined;
     void refreshServiceHealth();
     const interval = window.setInterval(() => {
       void refreshServiceHealth();
     }, 30000);
     return () => window.clearInterval(interval);
-  }, [cocoSleepModeKnown, cocoSleeping, refreshServiceHealth]);
+  }, [studyAccess, showSettings, cocoSleepModeKnown, cocoSleeping, refreshServiceHealth]);
+  const healthStillConnecting = Boolean(serviceHealth && [serviceHealth.sensing,serviceHealth.tutor].some(health=>!health.connected||health.modelAssessment?.status==='connecting'));
+  useEffect(()=>{
+    if (!showSettings || !healthStillConnecting || healthLoading || cocoSleeping) return undefined;
+    const retry=window.setTimeout(()=>void refreshServiceHealth(),2000);
+    return ()=>window.clearTimeout(retry);
+  },[showSettings,healthStillConnecting,healthLoading,cocoSleeping,refreshServiceHealth,serviceHealth]);
 
   useEffect(() => {
     const applySettings = (value: unknown) => {
@@ -1141,6 +1204,14 @@ function SessionChatContent() {
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('getting-started-chat-invite', (value: unknown) => {
+      const articleId = (value as { articleId?: unknown } | null)?.articleId;
+      setChatInviteArticleId(typeof articleId === 'string' ? articleId : null);
+    });
+    return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
 
   const saveMemory = async () => {
@@ -1382,6 +1453,12 @@ function SessionChatContent() {
     setShowHistory(false);
   };
 
+  useEffect(()=>{
+    const off=window.electron?.ipcRenderer.on('runner-retry-request',(value: unknown)=>{
+      const payload=value as {sessionId?:string;text?:string};
+      if(payload.sessionId===sessionIdRef.current&&payload.text&&!sending)void sendMessage(payload.text,[]);
+    });return()=>{if(typeof off==='function')off();};
+  },[sendMessage,sending]);
   const handleSend = () => {
     if (
       sending ||
@@ -1533,19 +1610,33 @@ function SessionChatContent() {
     }
   };
 
+  const checkSessionId = reviewing?.sessionId ?? sessionIdRef.current;
+  const checkingGameIdea = Boolean(runnerState?.sessionId === checkSessionId && ['writing','review'].includes(runnerState?.phase ?? ''));
   const handleCheckUnderstanding = async () => {
     if (sending || startingNewSession || checkingUnderstanding) return;
+    if (checkingGameIdea && !input.trim()) {
+      setUnderstandingError('Write your game idea first, then use Check my understanding to have Coco repeat it back.');
+      setComposerFocusRequest(n=>n+1);
+      return;
+    }
     setCheckingUnderstanding(true);
     setUnderstandingError('');
+    setIdeaCheck(null);
+    const draft = input;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = (await window.electron?.ipcRenderer.invoke(
+      const result = (await Promise.race([window.electron?.ipcRenderer.invoke(
         'check-understanding',
-        { sessionId: reviewing?.sessionId ?? sessionIdRef.current },
-      )) as { success?: boolean; error?: string } | undefined;
+        { sessionId: checkSessionId, ...(checkingGameIdea ? { draft } : {}) },
+      ),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('The understanding check took too long. Your draft is safe; please try again.')),40000);})])) as UnderstandingCheckResult | undefined;
       if (!result?.success) {
         setUnderstandingError(
           result?.error || 'Could not open the understanding check.',
         );
+      } else if (checkingGameIdea) {
+        if (result.kind !== 'idea' || !result.interpretation?.trim())
+          setUnderstandingError('Coco didn’t return an explanation of your idea. Your draft is safe; please try again.');
+        else if (checkSessionId) setIdeaCheck({sessionId:checkSessionId,draft,interpretation:result.interpretation});
       }
     } catch (error) {
       setUnderstandingError(
@@ -1554,6 +1645,7 @@ function SessionChatContent() {
           : 'Could not open the understanding check.',
       );
     } finally {
+      clearTimeout(timer);
       setCheckingUnderstanding(false);
     }
   };
@@ -1632,6 +1724,7 @@ function SessionChatContent() {
     >
       <DesktopWorkspace
         expanded={expanded}
+        chatInvited={Boolean(chatInviteArticleId)}
         onExpandedChange={changeExpanded}
         active={
           showSettings
@@ -1647,6 +1740,10 @@ function SessionChatContent() {
           if (page === 'tasks') setTrainingRefreshKey((value) => value + 1);
           setActivePage(page);
           setShowSettings(page === 'settings');
+          if (page === 'chat') {
+            if (chatInviteArticleId) window.electron?.ipcRenderer.sendMessage('getting-started-open-chat', { articleId: chatInviteArticleId, phase: 'chat' });
+            else if (!sessionIdRef.current) window.electron?.ipcRenderer.sendMessage('open-main-window');
+          }
           if (page !== 'chat') {
             setShowHistory(false);
             changeExpanded(true);
@@ -1776,6 +1873,15 @@ function SessionChatContent() {
           >
             {studyAccess === true ? (
               <>
+                {!reviewing && runnerState && runnerState.sessionId === sessionIdRef.current && <>
+                  <TourProgress state={runnerState} onSkip={() => {
+                    void window.electron?.ipcRenderer.invoke('runner-action', {sessionId:runnerState.sessionId,action:'skip-tour'}).then(result => {
+                      setTourError(result?.error ?? '');
+                    }).catch(error => setTourError(String(error)));
+                  }} />
+                  {tourError && <p role="alert">{tourError}</p>}
+                  <div className="coco-game-context">Your game · Coco already has access to read and edit this workspace.</div>
+                </>}
                 {workflowChapter.session?.savedSkillId && (
                   <WorkflowUnlock
                     key={workflowChapter.session.savedSkillId}
@@ -1989,6 +2095,15 @@ function SessionChatContent() {
                         />
                       </ChatTranscript>
                     )}
+                    {runnerSessionId && runnerSessionId === sessionIdRef.current && runnerState?.sessionId===runnerSessionId && (
+                      runnerState.error ? <div className="runner-chat-outcome" role="status"><p>{runnerState.error}</p><button type="button" disabled={sending||!runnerState.lastRequest} onClick={()=>{if(runnerState.lastRequest)void sendMessage(runnerState.lastRequest,[]);}}>Try again</button></div>
+                      : runnerState.hasChanges && ['review','complete'].includes(runnerState.phase) ? <button type="button" className="runner-open-game-button" onClick={()=>{void window.electron?.ipcRenderer.invoke('runner-action',{sessionId:runnerSessionId,action:'open-game'});}}>Open my game</button> : null
+                    )}
+                    {runnerSessionId && runnerSessionId === sessionIdRef.current && runnerState?.sessionId === runnerSessionId && runnerState.phase === 'writing' && !runnerState.error && !reviewing && (
+                      <RunnerPromptSuggestions disabled={sending} onChoose={text => { setInput(current => current.trim() ? `${current}\n${text}` : text);setComposerFocusRequest(n=>n+1); }} />
+                    )}
+                    {checkingGameIdea && <GameIdeaCheck checking={checkingUnderstanding}
+                      interpretation={ideaCheck?.sessionId === checkSessionId && ideaCheck?.draft === input ? ideaCheck.interpretation : null} />}
                     <ChatComposer
                       modelPicker={
                         <TutorModelPicker

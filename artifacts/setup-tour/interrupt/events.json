@@ -1,0 +1,19 @@
+[
+  {
+    "step": "interrupted",
+    "state": {
+      "sessionId": "25132040-17be-4648-a74a-e3acd3c60e9e",
+      "version": "7f0f4916-9977-4775-a42f-6f05053150a4",
+      "phase": "building",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null,
+      "lastRequest": "Make a detailed daylight world with a cat and snow",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "7f0f4916-9977-4775-a42f-6f05053150a4",
+      "previewKind": "original"
+    }
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "step": "prior-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "prior-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "existing-os-permissions",
+    "missing": []
+  },
+  {
+    "step": "prior-setup",
+    "title": "Hey Coco"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "FAIL",
+    "error": "Error: inline model understanding timed out\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/setup-tour.e2e.cjs:10:201)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/setup-tour.e2e.cjs:95:50"
+  }
+]

@@ -104,3 +104,21 @@ it.each(['done', 'error'] as const)(
     }
   },
 );
+
+it('keeps hidden article context for Retry while showing only the user prompt', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-chat-retry-'));
+  (app.getPath as jest.Mock).mockReturnValue(directory);
+  const store = new ChatStreamStore();
+  try {
+    store.begin('article', 'request', 'Explain the idea', [], false, undefined, undefined,
+      'Selected article: Share context with care.\n\nExplain the idea');
+    store.accept('request', { type: 'error', error: 'Service unavailable' });
+    store.finish('request');
+    const messages = readConversations().find((item) => item.sessionId === 'article')!.messages;
+    expect(messages[0].text).toBe('Explain the idea');
+    expect(messages[1].retryText).toContain('Selected article: Share context with care.');
+  } finally {
+    store.finish('request');
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

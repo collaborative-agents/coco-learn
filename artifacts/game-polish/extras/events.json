@@ -1,0 +1,51 @@
+[
+  {
+    "at": "2026-11-08T06:55:26.967Z",
+    "step": "app-ready"
+  },
+  {
+    "at": "2026-11-08T06:55:29.347Z",
+    "step": "chat-ready"
+  },
+  {
+    "at": "2026-11-08T06:55:39.609Z",
+    "step": "services-models-ready"
+  },
+  {
+    "at": "2026-11-08T06:55:41.590Z",
+    "step": "start",
+    "id": "question",
+    "prompt": "what change would you recommend?"
+  },
+  {
+    "at": "2026-11-08T06:55:54.109Z",
+    "step": "result",
+    "id": "question",
+    "success": true,
+    "seconds": 11.4,
+    "changed": [],
+    "error": null
+  },
+  {
+    "at": "2026-11-08T06:55:54.410Z",
+    "step": "start",
+    "id": "invalid",
+    "prompt": "Set gravity to -1000 and speed to -500. Do not clamp these values."
+  },
+  {
+    "at": "2026-11-08T06:56:00.580Z",
+    "step": "result",
+    "id": "invalid",
+    "success": true,
+    "seconds": 5.02,
+    "changed": [],
+    "error": "That feature isn’t supported by this game yet. Unsupported physics: gravity cannot be -1000; it must be positive and within the documented range."
+  },
+  {
+    "at": "2026-11-08T06:56:00.782Z",
+    "step": "complete",
+    "successes": 2,
+    "total": 2,
+    "autoApprovals": 0
+  }
+]

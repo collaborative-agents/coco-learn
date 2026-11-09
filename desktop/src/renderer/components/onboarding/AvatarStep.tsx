@@ -1,8 +1,20 @@
 import foxWorking from '../../../../assets/pet1.png';
+import ObservationBubble from '../ObservationBubble';
+import '../../App.css';
 
-function DesktopPreview({ hidden }: { hidden: boolean }) {
+function DesktopPreview({
+  hidden,
+  selected,
+}: {
+  hidden: boolean;
+  selected: boolean;
+}) {
   return (
-    <span className="ob-desktop-preview" aria-hidden="true">
+    <span
+      className={`ob-desktop-preview ${hidden ? 'is-menu-only' : 'has-avatar'} ${selected ? 'is-selected' : ''}`}
+      aria-hidden="true"
+      inert
+    >
       <span className="ob-preview-menubar">
         <span />
         <img src={foxWorking} alt="" />
@@ -13,6 +25,16 @@ function DesktopPreview({ hidden }: { hidden: boolean }) {
         <i />
       </span>
       {!hidden && <img className="ob-preview-avatar" src={foxWorking} alt="" />}
+      <span className="ob-preview-advice">
+        <ObservationBubble
+          bubble={{
+            status: 'observing',
+            phrase: 'Want a hand with this?',
+            fadingOut: false,
+            guide: { label: 'IDEA', action: 'Help me with this' },
+          }}
+        />
+      </span>
     </span>
   );
 }
@@ -49,22 +71,14 @@ export default function AvatarStep({
               <strong>{hide ? 'Menu bar only' : 'Avatar + menu bar'}</strong>
               <span>
                 {hide
-                  ? 'Keep your desktop clear. Open Coco from the icon in your menu bar.'
-                  : 'Keep Coco alongside your work, with a desktop avatar and a menu-bar icon.'}
+                  ? 'Get my suggestions from your menu bar.'
+                  : 'A desktop fox, plus quick access from your menu bar.'}
               </span>
             </span>
-            <DesktopPreview hidden={hide} />
+            <DesktopPreview hidden={hide} selected={hidden === hide} />
           </label>
         ))}
       </div>
-      <p className="coco-setup-note">
-        The menu-bar icon is always available, even when the avatar is hidden.
-        On Windows and Linux, find Coco in the system tray.
-      </p>
-      <p className="coco-setup-note">
-        You can reveal or hide the avatar later in Settings. This does not
-        change observation or voice activation.
-      </p>
     </>
   );
 }

@@ -1,6 +1,6 @@
 # Privacy
 
-> **Deployment note:** This document describes CoCo's standalone/default
+> **Deployment note:** This document describes Coco's standalone/default
 > architecture. The current AI Fluency Upskilling pilot additionally uses a
 > study Gateway and hosted LLM Router. For that build, the
 > [Data Retention Statement](docs/DATA_RETENTION_STATEMENT.md) takes precedence
@@ -58,9 +58,9 @@ directly or through a Router, containing:
 
 What is deliberately **not** in the request: your keystroke log, click coordinates, window titles, app names, filenames, or anything read from your filesystem. Raw input events are used only locally to decide *when* to observe.
 
-In standalone mode there need not be a CoCo backend, and requests can go
+In standalone mode there need not be a Coco backend, and requests can go
 directly to the selected provider. In the current pilot, requests pass through
-the hosted CoCo Router and selected chat/session records go to the study
+the hosted Coco Router and selected chat/session records go to the study
 Gateway. **The provider choice still determines where screen pixels are
 processed.** See the pilot Data Retention Statement for the Router and Gateway
 records, then consult the applicable provider policy. Privacy-preserving
@@ -74,7 +74,7 @@ All three are selected purely by the model-name prefix in `.env` — see [lib/ex
 
 ## On-disk footprint
 
-CoCo's local files live in the app's user-data folder. Deleting it removes the
+Coco's local files live in the app's user-data folder. Deleting it removes the
 local footprint, but does not delete records held by an enabled Gateway,
 Router, or model provider:
 

@@ -1,0 +1,16 @@
+{
+  "visualCode": "233324",
+  "candidateDescription": "The candidate sprite is an orange fox with a bushy tail, identical in design to the original Coco reference fox.",
+  "pass": false,
+  "observations": [
+    "(1) The requested species is a turtle; the candidate clearly depicts an orange fox with a bushy tail — the wrong animal entirely.",
+    "(2) The artwork itself has deliberate outlines, shading, highlights and facial details matching Coco's polish, so art quality is not the issue.",
+    "(3) The fox silhouette reads clearly against the game scene background with good contrast.",
+    "(4) The crouch frame shows a low, elongated fox body that is recognizable as a crouch pose."
+  ],
+  "defects": [
+    "Wrong species: the candidate is a fox, not a turtle — the entire character must be redrawn as a turtle with shell, short limbs, and turtle head to satisfy the request.",
+    "No turtle-specific features (domed shell, scaly skin, stubby neck) are present anywhere in the sprite sheet or game scene.",
+    "The crouch frame must also be redesigned to reflect a turtle crouching or retracting into its shell, not a fox lying flat."
+  ]
+}

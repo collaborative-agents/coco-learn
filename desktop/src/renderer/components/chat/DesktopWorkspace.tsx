@@ -6,6 +6,7 @@ import './DesktopWorkspace.css';
 
 interface Props {
   expanded: boolean;
+  chatInvited?: boolean;
   onExpandedChange: (expanded: boolean) => void;
   active: 'chat' | 'tasks' | 'settings';
   historyOpen: boolean;
@@ -19,6 +20,7 @@ interface Props {
 
 export default function DesktopWorkspace({
   expanded,
+  chatInvited = false,
   onExpandedChange,
   active,
   historyOpen,
@@ -63,6 +65,7 @@ export default function DesktopWorkspace({
               type="button"
               title="Chat"
               aria-label="Chat"
+              data-guided-target={chatInvited ? 'true' : undefined}
               aria-current={active === 'chat' ? 'page' : undefined}
               aria-expanded={historyOpen}
               aria-controls="conversation-sidebar"

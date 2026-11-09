@@ -1,0 +1,30 @@
+[
+  {
+    "name": "cat",
+    "browserValidation": "passed",
+    "canvas": "34x26",
+    "scale": 3,
+    "frames": 4
+  },
+  {
+    "name": "dog",
+    "browserValidation": "passed",
+    "canvas": "34x26",
+    "scale": 3,
+    "frames": 4
+  },
+  {
+    "name": "rabbit",
+    "browserValidation": "passed",
+    "canvas": "34x26",
+    "scale": 3,
+    "frames": 4
+  },
+  {
+    "name": "pig",
+    "browserValidation": "passed",
+    "canvas": "34x26",
+    "scale": 3,
+    "frames": 4
+  }
+]

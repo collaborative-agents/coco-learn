@@ -70,6 +70,23 @@ describe('AvatarBubbleView', () => {
     expect(view).toHaveClass('is-pointer-live');
   });
 
+  it('paces the task through pet messages and keeps the final prompt until the end', () => {
+    const { sendMessage, showBubble } = setup();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: null, phase: 'intro' } });
+    fireEvent.click(screen.getByRole('button', { name: /Choose an article/i }));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'chat');
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'reading' } });
+    expect(screen.getByText(/Take your time with it/)).toBeInTheDocument();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'first' } });
+    expect(screen.getByText(/Article: AI as a thinking partner/)).toBeInTheDocument();
+    expect(screen.getByText(/Why it works/)).toBeInTheDocument();
+    expect(screen.queryByText(/Create a beautiful, responsive, animated HTML page/)).not.toBeInTheDocument();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'create' } });
+    expect(screen.getByText(/Create a beautiful, responsive, animated HTML page/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Go to Chat/i }));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'chat');
+  });
+
   it('catches the mouse only while it is over the card', () => {
     const { sendMessage, container, showBubble } = setup();
     showBubble(stuckBubble);

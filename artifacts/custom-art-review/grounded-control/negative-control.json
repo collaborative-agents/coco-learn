@@ -1,0 +1,14 @@
+{
+  "visualCode": "684504",
+  "candidateDescription": "An orange fox with white chest, pointed ears, and a bushy white-tipped tail — identical in species and appearance to the original Coco reference across all five frames (four run poses and one crouch). The game-scale render also shows a fox.",
+  "pass": false,
+  "observations": [
+    "Species identity: The candidate is visually indistinguishable from the original Coco fox — orange body, white muzzle/chest, pointed ears, bushy tail with white tip. No turtle anatomy (shell, rounded body, short limbs, beak/snout, scutes) is present in any frame.",
+    "Pose animation: The four run frames and crouch frame mirror the Coco reference almost pixel-for-pixel; limb positions, tail arc, and body lean are replicated rather than replaced with turtle-specific locomotion.",
+    "Polish and finish: The sprite itself is cleanly rendered with consistent shading, outlines, and highlights matching Coco's quality level, so finish is not the issue — the defect is purely species non-compliance.",
+    "Scene fit: In the game-scale screenshot the fox sits correctly on the ground plane, contrasts well against the Moonlit Meadow background, and is properly scaled relative to the terrain — scene integration is acceptable, but the runner is still a fox."
+  ],
+  "defects": [
+    "Wrong species: The requested change explicitly requires an original detailed turtle character; the candidate delivers the unchanged Coco fox. The entire sprite set must be redrawn as a turtle with a visible shell, turtle-proportioned limbs, head, and tail, and turtle-appropriate run/crouch animation cycles."
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "change": "Original account onboarding restored; game is a separate Getting Started task.",
+  "checks": {
+    "focusedTests": "92 passed on combined run; two 5-second Training timeouts passed isolated rerun (94 total).",
+    "serviceSupervisorTests": "4 passed",
+    "liveTask": "Original setup, Start Task, game over, chat, actual model daylight edit, undo, second edit, Finish task, completed card passed. No automatic approvals.",
+    "liveIntro": "Original onboarding and floating introduction / Why do you pop up passed. No game window.",
+    "restart": "Completion persisted, no automatic game launch, both service and model health verified.",
+    "normalApp": "Reopened at sign in; onboardingComplete reset to false after backup; game history and model configuration retained."
+  },
+  "initialFailure": "Restart test initially timed out because sensing startup was repeatedly killed at 20 seconds. Grace increased to 60 seconds with regression test; real health retest passed.",
+  "scope": "This round verified task placement/navigation and one real daylight prompt. The full earlier prompt matrix was not rerun.",
+  "screenshots": [
+    "intro/original-onboarding.png",
+    "intro/floating-introduction.png",
+    "intro/why-coco-pops-up.png",
+    "00-getting-started-task.png",
+    "08-task-completed.png",
+    "reopen-fixed/completed-after-restart.png",
+    "reopen-fixed/services-connected.png"
+  ]
+}

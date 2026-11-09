@@ -676,6 +676,9 @@ class TutorSystem:
             *context_blocks,
             f"<conversation_history>\n{conv_block}\n</conversation_history>",
         ]
+        tutorial_status = getattr(self, "tutorial_status", None)
+        if tutorial_status:
+            parts.append("<tutorial_status>\n" + json.dumps(tutorial_status) + "\n</tutorial_status>")
         user_name_block = self._user_name_context_block()
         if user_name_block:
             parts.insert(0, user_name_block)

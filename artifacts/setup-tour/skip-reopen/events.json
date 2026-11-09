@@ -1,0 +1,17 @@
+[
+  {
+    "step": "PASS-skipped-reopen",
+    "state": {
+      "sessionId": "fd49c377-1187-48cc-a54e-765cfb3ae2df",
+      "version": "5f89933c-1466-426a-8423-2157f99b97cf",
+      "phase": "play",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null,
+      "firstGameOver": false,
+      "tour": "skipped",
+      "previewRevision": "5f89933c-1466-426a-8423-2157f99b97cf",
+      "previewKind": "original"
+    }
+  }
+]

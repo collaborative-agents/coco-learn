@@ -556,10 +556,20 @@ async def suggestion_instant(req: InstantSuggestionRequest):
         generate_instant_suggestion_with_metrics,
     )
 
+    status = getattr(tutor, "tutorial_status", None) if tutor is not None else None
+    failure = status.get("failure") if isinstance(status, dict) else None
+    if failure and failure.get("kind") != "unsupported":
+        message = failure.get("message", "Coco couldn’t finish this change. Your previous game is safe.")
+        return InstantSuggestionResponse(kind="content", title="Your idea is still here", body=message,
+            copyText=message, noticed="Coco reported a technical problem while changing the game.",
+            check="When the update is ready, check whether it looks the way you imagined.")
+    observation = req.observation
+    if status:
+        observation += "\n<tutorial_status>" + json.dumps(status) + "</tutorial_status>"
     try:
         result, llm_metrics = await asyncio.to_thread(
             generate_instant_suggestion_with_metrics,
-            req.observation,
+            observation,
             req.task_label,
             req.scenario,
             req.ai_tools,

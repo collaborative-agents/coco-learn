@@ -1,0 +1,7 @@
+[
+  {
+    "at": "2026-11-08T06:52:35.630Z",
+    "step": "FATAL",
+    "error": "Error: interruption explanation timed out\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/game-theme-benchmark.e2e.cjs:36:9)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/game-theme-benchmark.e2e.cjs:222:7"
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "step": "button-contrast",
+    "name": "normal",
+    "background": "rgb(32, 74, 121)",
+    "color": "rgb(255, 255, 255)",
+    "card": "rgb(233, 239, 255)",
+    "ratio": 9.063357291802244
+  },
+  {
+    "step": "button-contrast",
+    "name": "hover",
+    "background": "rgb(23, 61, 104)",
+    "color": "rgb(255, 255, 255)",
+    "card": "rgb(233, 239, 255)",
+    "ratio": 11.030429546625085
+  },
+  {
+    "step": "real-check",
+    "seconds": 5.835,
+    "result": "Did Coco get your idea?\n\nWould you like the fox changed to a cat in a bright snowy morning scene?\n\nKeep editing, or send your idea when you’re ready.",
+    "draftPreserved": true,
+    "versionUnchanged": true,
+    "filesUnchanged": true,
+    "avatarHidden": true,
+    "autoApprovals": 0
+  },
+  {
+    "step": "offline-check",
+    "seconds": 0.404,
+    "error": "Coco’s local tutor isn’t responding. Open Settings → Health and choose Retry, then try this check again."
+  },
+  {
+    "step": "PASS",
+    "defaultPermissions": true
+  }
+]

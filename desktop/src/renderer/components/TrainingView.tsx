@@ -20,6 +20,7 @@ import TokenChapter from './training/TokenChapter';
 import ModelChapter from './training/ModelChapter';
 import WorkflowChapter from './training/WorkflowChapter';
 import AgenticQuest, { agentLevels } from './training/AgenticQuest';
+import GettingStarted from './getting-started/GettingStarted';
 import { api } from './training/training-api';
 import useTrainingState from './training/useTrainingState';
 import useToolChapterProgress from './training/useToolChapterProgress';
@@ -37,6 +38,10 @@ export default function TrainingView({
     visible,
     refreshKey,
   );
+  useEffect(() => {
+    window.electron?.ipcRenderer.sendMessage('training-panel-visible', visible);
+    return () => window.electron?.ipcRenderer.sendMessage('training-panel-visible', false);
+  }, [visible]);
   const [countdownSeconds, setCountdownSeconds] = useState(0);
   const followUp = state?.follow_up_assessment;
   useEffect(() => {
@@ -57,6 +62,11 @@ export default function TrainingView({
   const [questOpen, setQuestOpen] = useState(false);
   const [startingToolChat, setStartingToolChat] = useState(false);
   const [toolChatError, setToolChatError] = useState('');
+  const [gettingStartedOpen, setGettingStartedOpen] = useState(false);
+  useEffect(() => {
+    const cleanup = window.electron?.ipcRenderer.on('getting-started-open-article', () => setGettingStartedOpen(true));
+    return () => { if (typeof cleanup === 'function') cleanup(); };
+  }, []);
   const [questLevel, setQuestLevel] = useState(0);
   const toolProgress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
@@ -182,6 +192,13 @@ export default function TrainingView({
     postAssessmentUnlocked,
     followUpUnlocked,
   ]);
+  if (gettingStartedOpen) {
+    return (
+      <main className="training-page training-page--getting-started">
+        <GettingStarted view="article" onBack={() => setGettingStartedOpen(false)} />
+      </main>
+    );
+  }
   return (
     <main className="training-page">
       <div
@@ -193,6 +210,7 @@ export default function TrainingView({
           questOpen
         }
       >
+        <GettingStarted />
         <AgenticQuest
           adminMode={adminMode}
           onOpen={(level) => {

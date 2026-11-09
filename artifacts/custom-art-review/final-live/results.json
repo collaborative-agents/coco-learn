@@ -1,0 +1,11 @@
+[
+  {
+    "animal": "robot",
+    "success": false,
+    "seconds": 120.197,
+    "approvals": 0,
+    "previews": 1,
+    "checks": [],
+    "error": "Artist timed out after 120 seconds"
+  }
+]

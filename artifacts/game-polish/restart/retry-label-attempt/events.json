@@ -1,0 +1,27 @@
+[
+  {
+    "at": "2026-11-08T06:46:19.461Z",
+    "step": "PASS-reopen",
+    "state": {
+      "sessionId": "1777d0fd-f8a9-49ce-a188-523e87e9bc4b",
+      "version": "f13eaa5a-7c3b-43f0-96da-ac4f96b83398",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "Coco closed before finishing. I kept your previous game and your request.",
+      "failure": {
+        "kind": "interrupted",
+        "message": "Coco closed before finishing. I kept your previous game and your request.",
+        "detail": "App closed mid-run"
+      },
+      "lastRequest": "Make a detailed daylight scene with a cat and snow",
+      "previewRevision": "f13eaa5a-7c3b-43f0-96da-ac4f96b83398",
+      "previewKind": "original"
+    }
+  },
+  {
+    "at": "2026-11-08T06:46:34.481Z",
+    "step": "FATAL",
+    "error": "Error: enabled retry for interrupted game timed out\n    at wait (/Users/apple/Documents/coco-learn/desktop/tests/game-theme-benchmark.e2e.cjs:36:9)\n    at async /Users/apple/Documents/coco-learn/desktop/tests/game-theme-benchmark.e2e.cjs:225:7"
+  }
+]

@@ -1,0 +1,83 @@
+[
+  {
+    "step": "initial-health",
+    "health": {
+      "checkedAt": 1794183735884,
+      "sensing": {
+        "connected": false,
+        "status": "starting",
+        "detail": "Coco’s local service will start when sign-in finishes.",
+        "modelAssessment": {
+          "status": "connecting",
+          "detail": "Coco is connecting your account to its model service. Please wait a moment."
+        }
+      },
+      "tutor": {
+        "connected": false,
+        "status": "starting",
+        "detail": "Coco’s local service will start when sign-in finishes.",
+        "modelAssessment": {
+          "status": "connecting",
+          "detail": "Coco is connecting your account to its model service. Please wait a moment."
+        }
+      }
+    }
+  },
+  {
+    "step": "forced-model-check",
+    "seconds": 4.751,
+    "health": {
+      "checkedAt": 1794183741454,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "step": "ready-health",
+    "health": {
+      "checkedAt": 1794183741461,
+      "sensing": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text and image input accepted."
+        },
+        "totalActions": 0
+      },
+      "tutor": {
+        "connected": true,
+        "status": "healthy",
+        "modelAssessment": {
+          "status": "verified",
+          "detail": "Connected — text input accepted."
+        }
+      }
+    }
+  },
+  {
+    "step": "visible-health",
+    "labels": [
+      "Sensing server: Connected (service); Connected (model)",
+      "Tutor agent: Connected (service); Connected (model)"
+    ]
+  },
+  {
+    "step": "PASS"
+  }
+]

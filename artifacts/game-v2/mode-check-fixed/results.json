@@ -1,0 +1,612 @@
+[
+  {
+    "id": "cuter",
+    "prompt": "make it cuter",
+    "success": false,
+    "seconds": 33.19,
+    "under30": false,
+    "changed": [],
+    "screenshot": "01-cuter.png",
+    "error": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+    "state": {
+      "sessionId": "bffa91c1-6f32-4347-9e6d-eb4144cae5dc",
+      "version": "40e6fd91-e3e7-474a-baf3-44fa9d476e60",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+      "failure": {
+        "kind": "model_configuration",
+        "message": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+        "detail": "litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'detail': \"litellm.UnsupportedParamsError: openai does not support parameters: ['reasoning_effort'], for model=nvidia/deepseek-ai/deepseek-v4-pro. To drop these, set `litellm.drop_params=True` or for proxy:\\n\\n`litellm_settings:\\n drop_params: true`\\n. \\n If you want to use these params dynamically send allowed_openai_params=['reasoning_effort'] in your request.\"}"
+      },
+      "lastRequest": "make it cuter",
+      "previewRevision": "40e6fd91-e3e7-474a-baf3-44fa9d476e60",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  },
+  {
+    "id": "dog-bones",
+    "prompt": "make the runner my dog and the obstacles bones",
+    "success": false,
+    "seconds": 26.72,
+    "under30": true,
+    "changed": [],
+    "screenshot": "02-dog-bones.png",
+    "error": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+    "state": {
+      "sessionId": "dae73615-0999-4899-95f5-dffbbadd97e7",
+      "version": "d8753ed6-7331-4721-845b-72ac9068e5f7",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+      "failure": {
+        "kind": "model_configuration",
+        "message": "The model connection rejected a setting. Your idea is still here and your previous game is safe.",
+        "detail": "litellm.InternalServerError: InternalServerError: OpenAIException - Error code: 500 - {'detail': \"litellm.UnsupportedParamsError: openai does not support parameters: ['reasoning_effort'], for model=nvidia/deepseek-ai/deepseek-v4-pro. To drop these, set `litellm.drop_params=True` or for proxy:\\n\\n`litellm_settings:\\n drop_params: true`\\n. \\n If you want to use these params dynamically send allowed_openai_params=['reasoning_effort'] in your request.\"}"
+      },
+      "lastRequest": "make the runner my dog and the obstacles bones",
+      "previewRevision": "d8753ed6-7331-4721-845b-72ac9068e5f7",
+      "previewKind": "original"
+    },
+    "theme": {
+      "schemaVersion": 2,
+      "title": "Moonlit Run",
+      "scoreLabel": "SCORE",
+      "timeOfDay": "night",
+      "detail": "simple",
+      "background": {
+        "type": "gradient",
+        "colors": [
+          "#111d35",
+          "#263d51"
+        ]
+      },
+      "textColor": "#fff3cb",
+      "decorations": [
+        {
+          "kind": "stars",
+          "color": "#d5dac1",
+          "accent": "#ffe8aa",
+          "x": 0,
+          "y": 10,
+          "size": 3,
+          "count": 45,
+          "speed": 0
+        },
+        {
+          "kind": "moon",
+          "color": "#ffe8aa",
+          "accent": "#d8c68d",
+          "x": 78,
+          "y": 22,
+          "size": 35,
+          "count": 1,
+          "speed": 0
+        },
+        {
+          "kind": "mountains",
+          "color": "#25394b",
+          "accent": "#294b52",
+          "x": 0,
+          "y": 64,
+          "size": 70,
+          "count": 4,
+          "speed": 0
+        },
+        {
+          "kind": "trees",
+          "color": "#24444a",
+          "accent": "#18363e",
+          "x": 0,
+          "y": 69,
+          "size": 34,
+          "count": 9,
+          "speed": 0
+        }
+      ],
+      "ground": {
+        "height": 68,
+        "top": "#527b56",
+        "soil": "#29352f",
+        "speckle": "#4b5242",
+        "grass": "#86a76c"
+      },
+      "spritePalette": {
+        "o": "#f5a15e",
+        "O": "#d66e40",
+        "w": "#fff1c9",
+        "s": "#e6c993",
+        "k": "#182735",
+        "b": "#8ab4ba",
+        "B": "#436978",
+        "r": "#e7a080",
+        "R": "#a85968",
+        "g": "#8ab67e",
+        "G": "#456d56",
+        "t": "#886b4c",
+        "T": "#4f4637",
+        "y": "#f3d884",
+        "v": "#9ba2cf",
+        "V": "#667ca1",
+        "c": "#d0e6e0",
+        "p": "#b6a3cc"
+      },
+      "player": {
+        "name": "Coco",
+        "scale": 3,
+        "frames": [
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "     koOk  koOk         ",
+            "     kkk    kkk         "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "    kkk      kkk        "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "   koOk      koOk       ",
+            "   kkk        kkk       "
+          ],
+          [
+            "        kk    kk        ",
+            "        kook kOok       ",
+            "        koookoOok       ",
+            "        koooooook       ",
+            "        kooooooook      ",
+            "       koookoooook      ",
+            "       koookwooook      ",
+            "       koowwwwookk      ",
+            "       kwwwwwkkkk       ",
+            "    kkkkoowwkk          ",
+            "   kooooooook       kk  ",
+            "  koooooooook      kwwk ",
+            "  kooooooooook   kwwwwk ",
+            "  kooooooooOokkkwwwwwk  ",
+            "   kooooooOOOooooOOkk   ",
+            "    kOoooOOOOOOOkkk     ",
+            "     kkOOkkOOkkk        ",
+            "    koOk    koOk        ",
+            "     kkk    kkk         "
+          ]
+        ],
+        "duck": [
+          "       kk    kk          ",
+          "       kook kOok         ",
+          "      kooooooooook       ",
+          "      koookwooookk       ",
+          "      koowwwwookk        ",
+          "  kkkkwwwwwwkk      kk   ",
+          " koooooooooOokkkk kwwwk  ",
+          "koooooooooOOOOooowwwwk   ",
+          " kooooooOOOOOOOOOOkk    .",
+          "  kkOOkkkOOkkOOOOkk     .",
+          "   kkk  kkk  kkkk       ."
+        ]
+      },
+      "obstacles": [
+        {
+          "id": "log",
+          "name": "log",
+          "frames": [
+            [
+              "    GggGggGggG    ",
+              "    gggggggggg    ",
+              "     tttttttt     ",
+              "    tTtttTttTt    ",
+              "    tTtttTttTt    ",
+              "   ttTtttTttTtt   ",
+              "   tTTtttTttTTt   ",
+              "   tTttttTtttTt   ",
+              "   tTttttTtttTt   ",
+              "  ttTttTtTtttTtt  ",
+              "  tTTttTtTtttTTt  ",
+              "  tTTttTtttttTTt  ",
+              " ttTTttTtttttTTtt ",
+              " tTTTttTTttttTTTt ",
+              " GgGgGggGgGggGgGg "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "mushroom",
+          "name": "mushroom",
+          "frames": [
+            [
+              "       kkkkk       ",
+              "     kkrrrrrkk     ",
+              "    krrwwrrrrrk    ",
+              "   krrwwwrrrrrrk   ",
+              "  krrrrrrrwwrrrrk  ",
+              "  krrrrrrwwwrrrrk  ",
+              " krrrrrrrrrrrrrrrk ",
+              " kRRRRRRRRRRRRRRRk ",
+              "  kkkkkwwwwkkkkkk  ",
+              "       kwwk        ",
+              "       kwwk        ",
+              "      kwwwwk       ",
+              "      kssssk       ",
+              "    GGkkkkkkGG     "
+            ]
+          ],
+          "scale": 3,
+          "flying": false
+        },
+        {
+          "id": "moth",
+          "name": "moth",
+          "frames": [
+            [
+              "  pp       pp  ",
+              " pVvp     pvVp ",
+              " pVVvpppppvVVp ",
+              "  pVVvyyvVVp   ",
+              "   pppyyppp    ",
+              "      yy       ",
+              "     V  V      "
+            ],
+            [
+              "               ",
+              "  pp       pp  ",
+              " pVVvpppppvVVp ",
+              "  pVvvyyvvVp   ",
+              "   pppyyppp    ",
+              "    pVyyVp     ",
+              "    V    V     "
+            ]
+          ],
+          "scale": 3,
+          "flying": true
+        }
+      ],
+      "weather": {
+        "kind": "none",
+        "color": "#eef5ff",
+        "intensity": 35,
+        "speed": 45
+      },
+      "physics": {
+        "speed": 270,
+        "maxSpeed": 510,
+        "acceleration": 3.8,
+        "gravity": 1700,
+        "jumpVelocity": 650,
+        "spawnSeconds": 1.6
+      },
+      "sounds": false
+    }
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "step": "prior-setup",
+    "title": "Meet Coco, your proactive co-assistant"
+  },
+  {
+    "step": "prior-setup",
+    "title": "What should Coco call you?"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Permissions & privacy"
+  },
+  {
+    "step": "existing-os-permissions",
+    "missing": []
+  },
+  {
+    "step": "prior-setup",
+    "title": "Hey Coco"
+  },
+  {
+    "step": "prior-setup",
+    "title": "Ready to go"
+  },
+  {
+    "step": "undo-verified",
+    "state": {
+      "sessionId": "08a80402-77ee-43e3-b90a-c36b249a94ca",
+      "version": "6ad2aad1-8dcf-439c-ae18-a16e48ba5e90",
+      "phase": "review",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "6ad2aad1-8dcf-439c-ae18-a16e48ba5e90",
+      "previewKind": "original"
+    }
+  },
+  {
+    "step": "tour-complete",
+    "state": {
+      "sessionId": "08a80402-77ee-43e3-b90a-c36b249a94ca",
+      "version": "9becf4a3-b734-4e58-85e7-8443d0990253",
+      "phase": "complete",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Change it to a daylight game!",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "finished",
+      "previewRevision": "9becf4a3-b734-4e58-85e7-8443d0990253",
+      "previewKind": "updated"
+    }
+  },
+  {
+    "step": "prompt-result",
+    "id": "suggested-daylight",
+    "prompt": "Change it to a daylight game!",
+    "success": true,
+    "seconds": 11.02,
+    "changed": [
+      "title",
+      "timeOfDay",
+      "background",
+      "textColor",
+      "decorations",
+      "ground",
+      "scene"
+    ],
+    "screenshot": "suggested-daylight.png"
+  },
+  {
+    "step": "PASS",
+    "count": 1,
+    "autoApprovals": 0
+  }
+]

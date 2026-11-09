@@ -1,0 +1,11 @@
+[
+  {
+    "at": "2026-11-08T06:08:34.622Z",
+    "step": "services-and-models-connected"
+  },
+  {
+    "at": "2026-11-08T06:08:40.254Z",
+    "step": "FAIL",
+    "error": "Error: Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\n    at node:electron/js2c/sandbox_bundle:2:127949\n    at IpcRendererInternal.<anonymous> (node:electron/js2c/sandbox_bundle:2:122217)\n    at IpcRendererInternal.emit (node:electron/js2c/sandbox_bundle:2:45997)\n    at Object.onMessage (node:electron/js2c/sandbox_bundle:2:121276)"
+  }
+]

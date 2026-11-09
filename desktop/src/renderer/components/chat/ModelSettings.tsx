@@ -50,7 +50,7 @@ export default function ModelSettings({
       <div style={S.groupLabel}>Models &amp; providers</div>
       <div style={S.helpText}>
         {routerManaged
-          ? 'Models use the managed CoCo Router. Personal API keys are not required; the sensing model is fixed, while tutor models remain configurable.'
+          ? 'Models use the managed Coco Router. Personal API keys are not required; the sensing model is fixed, while tutor models remain configurable.'
           : 'The sensing model receives screenshots. Saving changes restarts the local sensing and tutor services.'}
       </div>
       {modelConfigLoading && (

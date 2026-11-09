@@ -1,0 +1,51 @@
+{
+  "targeted_jest": {
+    "suites": 8,
+    "passed": 84,
+    "failed": 0
+  },
+  "full_jest": {
+    "suites_passed": 129,
+    "suites_failed": 5,
+    "tests_passed": 792,
+    "tests_failed": 6,
+    "failing_files": [
+      "ChatComparison.test.tsx",
+      "TutorModelPicker.test.tsx",
+      "OnboardingView.test.tsx",
+      "ToolTrainingBanner.test.tsx",
+      "DesktopTheme.test.ts"
+    ]
+  },
+  "sdk_permission_tests": {
+    "passed": 15,
+    "failed": 0,
+    "model": "local mock for unit testing only"
+  },
+  "python": {
+    "passed": 43,
+    "skipped": 3
+  },
+  "browser_negative_tests": "browser-validation.json",
+  "default_permission_auto_answers": 0,
+  "production_build": "passed",
+  "actual_chromium": {
+    "passed": 27,
+    "total": 27
+  },
+  "real_benchmark": {
+    "successes": 20,
+    "total": 20,
+    "median_seconds": 14.615,
+    "under_30_seconds": 16,
+    "auto_approvals": 0
+  },
+  "extras": {
+    "successes": 2,
+    "total": 2
+  },
+  "full_onboarding": "passed",
+  "completed_game_reopen": "passed",
+  "mid_run_reopen_and_retry": "passed",
+  "normal_app_services": "8080/8081 HTTP 200 healthy"
+}

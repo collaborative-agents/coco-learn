@@ -1,0 +1,10 @@
+[
+  {
+    "id": "nov7-background-walkthrough",
+    "prompt": "hmmm maybe change only the background to daylight !",
+    "expect": "day",
+    "success": false,
+    "seconds": 9.238,
+    "error": "Error: Daylight sky, title, and decorations must agree"
+  }
+]

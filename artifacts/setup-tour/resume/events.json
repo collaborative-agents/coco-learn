@@ -1,0 +1,42 @@
+[
+  {
+    "step": "reopen-restored",
+    "state": {
+      "sessionId": "25132040-17be-4648-a74a-e3acd3c60e9e",
+      "version": "7f0f4916-9977-4775-a42f-6f05053150a4",
+      "phase": "writing",
+      "canUndo": false,
+      "hasChanges": false,
+      "error": "Coco closed before finishing. I kept your previous game and your request.",
+      "failure": {
+        "kind": "interrupted",
+        "message": "Coco closed before finishing. I kept your previous game and your request.",
+        "detail": "App closed mid-run"
+      },
+      "lastRequest": "Make a detailed daylight world with a cat and snow",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "7f0f4916-9977-4775-a42f-6f05053150a4",
+      "previewKind": "original"
+    }
+  },
+  {
+    "step": "PASS-reopen",
+    "state": {
+      "sessionId": "25132040-17be-4648-a74a-e3acd3c60e9e",
+      "version": "ed05e197-24a2-4f2c-8e3e-a85cc271ab20",
+      "phase": "review",
+      "canUndo": true,
+      "hasChanges": true,
+      "error": null,
+      "lastRequest": "Make a detailed daylight world with a cat and snow",
+      "introAcknowledged": true,
+      "firstGameOver": true,
+      "tour": "active",
+      "previewRevision": "ed05e197-24a2-4f2c-8e3e-a85cc271ab20",
+      "previewKind": "updated"
+    },
+    "autoApprovals": 0
+  }
+]

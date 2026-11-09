@@ -434,29 +434,42 @@
 
 /* Tier-1 help opens inside the card, beside the dismiss button. */
 .bubble-help-badge {
-  flex: 0 0 16px;
-  margin-top: 4px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--coco-color-text-muted);
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.bubble-help-badge svg {
   width: 16px;
   height: 16px;
-  padding: 0;
-  background: none;
-  font-family: inherit;
-  line-height: 16px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--coco-color-text-subtle);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 50%;
-  cursor: help;
-  -webkit-app-region: no-drag;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+.bubble-help-badge .bubble-info-dot {
+  fill: currentColor;
+  stroke: none;
 }
 .bubble-help-badge:hover,
 .bubble-help-badge[aria-expanded='true'] {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.045);
   color: var(--coco-color-text-secondary);
 }
-/* Opened by the "?" inside the card, so the bubble window grows to fit it. */
+.bubble-help-badge:hover svg,
+.bubble-help-badge[aria-expanded='true'] svg {
+  opacity: 1;
+}
+/* Opened by the info button, so the bubble window grows to fit it. */
 .bubble-help-tip {
   margin: 6px 0 0;
   color: var(--coco-color-text-secondary);

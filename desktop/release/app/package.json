@@ -18,6 +18,6 @@
     "@earendil-works/pi-coding-agent": "1.5.0",
     "@earendil-works/pi-server": "1.1.0",
     "@juicesharp/rpiv-ask-user-question": "2.15.0",
-    "pi-context-view": "0.8.2"
+    "pi-context-view": "0.8.3"
   }
 }

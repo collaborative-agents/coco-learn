@@ -190,10 +190,10 @@ const answerConversation = (
   }
 };
 
-it('offers the game as a Getting Started task without launching it automatically', async () => {
+it('leaves Getting Started entry to the bubble without launching it automatically', async () => {
   render(<TrainingView />);
   await screen.findByRole('button', {name:/Day 1 Practice task/});
-  expect(screen.getByRole('button',{name:/Start Task/i})).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:/Start Task/i})).not.toBeInTheDocument();
   expect(invoke).not.toHaveBeenCalledWith('runner-start');
   expect(screen.getByRole('heading',{name:'AI Literacy Challenge'})).toBeInTheDocument();
   expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
@@ -1302,4 +1302,15 @@ it('honors a server lock even when local training appears complete', async () =>
   expect(
     await screen.findByRole('button', { name: /Final check-in/ }),
   ).toBeDisabled();
+});
+
+it('highlights Agent 101 after the onboarding conversation opens Training', async () => {
+  render(<TrainingView />);
+  await screen.findByRole('heading', {name:'AI Literacy Challenge'});
+  const subscriptions = (window.electron.ipcRenderer.on as jest.Mock).mock.calls;
+  const listener = subscriptions.find(([channel]) => channel === 'open-training-panel')?.[1];
+  expect(listener).toBeDefined();
+  act(() => listener({highlight:'agent101'}));
+  expect(document.getElementById('onboarding-agent101')).toHaveClass('onboarding-agent101-highlight');
+  expect(screen.getByText(/Up next · Agent 101/)).toBeVisible();
 });

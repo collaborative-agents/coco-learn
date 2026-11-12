@@ -19,11 +19,11 @@ it('chooses a folder and keeps the previous folder when the dialog is cancelled'
       onStop={jest.fn()}
     />,
   );
-  await screen.findByText('project');
+  await screen.findByText('Workspace · project');
   fireEvent.click(
     screen.getByRole('button', { name: 'Choose working folder' }),
   );
-  await screen.findByText('reports');
+  await screen.findByText('Workspace · reports');
   expect(invoke).toHaveBeenCalledWith('choose-agent-workspace', {
     sessionId: 'session-a',
   });
@@ -36,7 +36,7 @@ it('chooses a folder and keeps the previous folder when the dialog is cancelled'
       screen.getByRole('button', { name: 'Choose working folder' }),
     ).toBeEnabled(),
   );
-  expect(screen.getByText('reports')).toBeInTheDocument();
+  expect(screen.getByText('Workspace · reports')).toBeInTheDocument();
 });
 
 it('reloads the working folder when the selected conversation changes', async () => {
@@ -55,7 +55,7 @@ it('reloads the working folder when the selected conversation changes', async ()
       onStop={jest.fn()}
     />,
   );
-  await screen.findByText('project');
+  await screen.findByText('Workspace · project');
   rerender(
     <AgentWorkspace
       key="session-b"
@@ -65,8 +65,8 @@ it('reloads the working folder when the selected conversation changes', async ()
       onStop={jest.fn()}
     />,
   );
-  await screen.findByText('reports');
-  expect(screen.queryByText('project')).not.toBeInTheDocument();
+  await screen.findByText('Workspace · reports');
+  expect(screen.queryByText('Workspace · project')).not.toBeInTheDocument();
   expect(invoke).toHaveBeenLastCalledWith('get-agent-workspace', {
     sessionId: 'session-b',
   });
@@ -82,7 +82,7 @@ it('disables folder changes during execution and forwards Stop', async () => {
   render(
     <AgentWorkspace sessionId="session-a" disabled running onStop={stop} />,
   );
-  await screen.findByText('project');
+  await screen.findByText('Workspace · project');
   expect(
     screen.getByRole('button', { name: 'Choose working folder' }),
   ).toBeDisabled();
@@ -144,7 +144,7 @@ it('consolidates folder access and command approvals into the workspace Access c
       onStop={jest.fn()}
     />,
   );
-  await screen.findByText('project');
+  await screen.findByText('Workspace · project');
   expect(
     screen.queryByRole('button', { name: 'Manage permissions' }),
   ).not.toBeInTheDocument();

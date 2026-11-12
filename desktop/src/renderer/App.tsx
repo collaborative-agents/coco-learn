@@ -194,7 +194,15 @@ function PetView() {
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
       bubblePinnedRef.current = true;
       setBubble({ status: guide.status ?? 'observing', phrase: guide.text, fadingOut: false,
-        guide: { label: guide.label, action: guide.actionLabel, dismissible: true },
+        guide: guide.framework ? undefined : { label: guide.label, action: guide.actionLabel, dismissible: true },
+        ...(guide.framework ? {
+          scenario: 'ai_upskilling',
+          suggestion: {
+            kind: 'content' as const,
+            copyText: guide.framework.body,
+            ...guide.framework,
+          },
+        } : {}),
         runnerTutorial: { sessionId: guide.sessionId, action: guide.action } });
       setMood(guide.status === 'progress' ? 'write' : 'idle');
     });
@@ -693,6 +701,10 @@ function PetView() {
   };
 
   const handleChatAboutSuggestion = (execute = false) => {
+    if (bubble?.runnerTutorial) {
+      void window.electron?.ipcRenderer.invoke('runner-action', { ...bubble.runnerTutorial, action: 'focus' });
+      return;
+    }
     if (bubble?.gettingStarted) {
       const { articleId, phase } = bubble.gettingStarted;
       const advance = (next: GettingStartedPhase) => setBubble((current) => current?.gettingStarted

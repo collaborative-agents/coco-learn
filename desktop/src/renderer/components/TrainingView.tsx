@@ -67,6 +67,22 @@ export default function TrainingView({
     const cleanup = window.electron?.ipcRenderer.on('getting-started-open-article', () => setGettingStartedOpen(true));
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
+  const [highlightAgent101, setHighlightAgent101] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const off = window.electron?.ipcRenderer.on('open-training-panel', (value: unknown) => {
+      if ((value as { highlight?: string } | null)?.highlight !== 'agent101') return;
+      setGettingStartedOpen(false);
+      setQuestOpen(false);
+      setHighlightAgent101(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setHighlightAgent101(false), 6500);
+    });
+    return () => { off?.(); clearTimeout(timer); };
+  }, []);
+  useEffect(() => {
+    if (highlightAgent101 && visible) document.getElementById('onboarding-agent101')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [highlightAgent101, visible]);
   const [questLevel, setQuestLevel] = useState(0);
   const toolProgress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
@@ -195,7 +211,7 @@ export default function TrainingView({
   if (gettingStartedOpen) {
     return (
       <main className="training-page training-page--getting-started">
-        <GettingStarted view="article" onBack={() => setGettingStartedOpen(false)} />
+        <GettingStarted view="article" onBack={() => setGettingStartedOpen(false)} onStart={() => setGettingStartedOpen(false)} />
       </main>
     );
   }
@@ -211,6 +227,8 @@ export default function TrainingView({
         }
       >
         <GettingStarted />
+        <div id="onboarding-agent101" className={highlightAgent101 ? 'onboarding-agent101-highlight' : undefined}>
+        {highlightAgent101 && <p role="status">Up next · Agent 101</p>}
         <AgenticQuest
           adminMode={adminMode}
           onOpen={(level) => {
@@ -219,6 +237,7 @@ export default function TrainingView({
             setQuestOpen(true);
           }}
         />
+        </div>
         <section
           className="training-main-challenge"
           aria-labelledby="training-challenge-title"

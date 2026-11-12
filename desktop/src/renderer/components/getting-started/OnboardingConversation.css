@@ -1,0 +1,40 @@
+.onboarding-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.onboarding-replies button,
+.onboarding-game-preview > p button {
+  border: 1px solid var(--coco-color-border);
+  border-radius: 16px;
+  padding: 8px 14px;
+  background: var(--coco-color-surface);
+  color: var(--coco-color-primary);
+  font: inherit;
+  font-size: var(--coco-text-secondary);
+  cursor: pointer;
+}
+.onboarding-replies button:hover:not(:disabled) {
+  background: var(--coco-color-surface-muted);
+}
+.onboarding-replies button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.onboarding-game-preview {
+  width: min(640px, 100%);
+  margin-top: 12px;
+}
+.onboarding-game-preview iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 240px;
+  border: 1px solid var(--coco-color-border);
+  border-radius: 12px;
+}
+.onboarding-game-preview > p {
+  font-size: var(--coco-text-secondary);
+  color: var(--coco-color-text-secondary);
+}

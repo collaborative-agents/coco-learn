@@ -1,7 +1,8 @@
+import OnboardingCompleted from './getting-started/OnboardingCompleted';
+import { preserveOnboardingAnimation } from './getting-started/OnboardingMessage';
+import useOnboardingConversation, { onboardingId } from './getting-started/useOnboardingConversation';
+import RunnerGameView from './getting-started/RunnerGameView';
 import type { RunnerTutorialState } from '../../shared/runner-tutorial';
-import RunnerPromptSuggestions from './getting-started/RunnerPromptSuggestions';
-import TourProgress from './getting-started/TourProgress';
-import GameIdeaCheck from './getting-started/GameIdeaCheck';
 import type { UnderstandingCheckResult } from '../../shared/understanding-check';
 import useWorkflowChapter from './training/useWorkflowChapter';
 import WorkflowUnlock from './training/WorkflowUnlock';
@@ -84,9 +85,8 @@ function SessionChatContent() {
   const [voiceError, setVoiceError] = useState('');
   const [startingNewSession, setStartingNewSession] = useState(false);
   const [checkingUnderstanding, setCheckingUnderstanding] = useState(false);
+  const [onboardingCompletion, setOnboardingCompletion] = useState<string | null>(null);
   const [understandingError, setUnderstandingError] = useState('');
-  const [tourError, setTourError] = useState('');
-  const [ideaCheck, setIdeaCheck] = useState<{sessionId:string;draft:string;interpretation:string} | null>(null);
   const [problem, setProblem] = useState('');
   const [expanded, setExpanded] = useState(true);
   const [activePage, setActivePage] = useState<'chat' | 'tasks' | 'settings'>(
@@ -177,7 +177,15 @@ function SessionChatContent() {
   const sessionIdRef = useRef<string | null>(null);
   const [runnerState, setRunnerState] = useState<RunnerTutorialState | null>(null);
   const [runnerSessionId, setRunnerSessionId] = useState<string | null>(null);
+  const [onboardingEntry, setOnboardingEntry] = useState<{sessionId: string; sequence: number} | null>(null);
   const viewedConversationId = reviewing?.sessionId ?? sessionIdRef.current;
+  const onboarding = useOnboardingConversation({
+    state: reviewing ? null : runnerState,
+    sessionId: sessionIdRef.current,
+    messages,
+    setMessages,
+    entry: onboardingEntry,
+  });
   useEffect(() => {
     window.electron?.ipcRenderer.sendMessage('runner-chat-view', {
       sessionId: viewedConversationId,
@@ -198,7 +206,14 @@ function SessionChatContent() {
       if ((value as { reset?: boolean }).reset !== false) { setInput(''); setPendingImages([]); }
       focus();
     });
-    const offFocus = window.electron?.ipcRenderer.on('runner-focus-composer', focus);
+    const offFocus = window.electron?.ipcRenderer.on('runner-focus-composer', (value: unknown) => {
+      const payload = value as { sessionId?: string; animateGreeting?: boolean };
+      if (payload?.animateGreeting && payload.sessionId) {
+        const sessionId = payload.sessionId;
+        setOnboardingEntry(previous => ({sessionId, sequence: (previous?.sequence ?? 0) + 1}));
+      }
+      focus();
+    });
     loadRunnerState();
     const offState=window.electron?.ipcRenderer.on('runner-state-changed',(value: unknown)=>{ const state=value as RunnerTutorialState;setRunnerState(state);setRunnerSessionId(state.sessionId); });
     return () => { if(typeof offState==='function')offState(); if (typeof offOpen === 'function') offOpen(); if (typeof offFocus === 'function') offFocus(); };
@@ -769,9 +784,15 @@ function SessionChatContent() {
     ) => {
       const trimmed = text.trim();
       if (!trimmed && images.length === 0) return;
+      if (images.length === 0 && requestKind === 'chat' && await onboarding.respond(trimmed)) return;
       const requestId = makeMessageId();
       const pendingContext = pendingContextRef.current;
-      const userText = pendingContext
+      const conversationContext = onboarding.active && runnerState?.tour === 'meet'
+        ? `The user is in their first Coco conversation. Answer their question briefly and naturally. This walkthrough creates a fixed running-game starter, then the user collaborates with you to change it. Do not offer arbitrary starter genres or promise that a guessing game or other custom starter will be created. A typed build request and Workspace folder selection are both needed, in either order. Actual current state: ${JSON.stringify({folderSelected: Boolean(runnerState.selectedStarterDirectory), buildStatus: runnerState.starterBuild ?? 'not requested'})}. Never claim a folder was selected or a build started based only on the user's words. Do not claim to be building unless the actual buildStatus is building. If a folder is already selected, do not ask them to select it again. If the build has not been requested, invite them to type “Let’s build a game”. Do not create or modify files during this introduction; the onboarding controller handles the starter. Do not repeat a list of interface controls; explain a control only when relevant to the question. Introduce learning modules after they finish collaborating on the game.`
+        : null;
+      const userText = conversationContext
+        ? `${conversationContext}\n\nUser: ${trimmed}`
+        : pendingContext
         ? `${pendingContext}\n\nThe user now says:\n${trimmed}`
         : trimmed;
       const screenContext = pendingScreenContextRef.current ?? undefined;
@@ -816,7 +837,7 @@ function SessionChatContent() {
           : Promise.resolve(),
       ]);
     },
-    [submitTutorRequest, setPendingScreenContext, toolSession, sendPeer],
+    [submitTutorRequest, setPendingScreenContext, toolSession, sendPeer, onboarding.respond, onboarding.active, runnerState?.tour, runnerState?.starterBuild, runnerState?.selectedStarterDirectory],
   );
 
   const retryMessage = useCallback(
@@ -962,13 +983,17 @@ function SessionChatContent() {
                 current.length === 0
                   ? conversation.messages
                   : [
-                      ...conversation.messages,
+                      ...conversation.messages.map(savedMessage => {
+                        const live = savedMessage.id?.startsWith('onboarding-')
+                          ? current.find(item => item.id === savedMessage.id) : undefined;
+                        return live ? preserveOnboardingAnimation(live, {...savedMessage, text: live.text}) : savedMessage;
+                      }),
                       // A suggestion delivered before the restore finished may
                       // already be in the saved copy.
                       ...current.filter(
                         (m) =>
-                          !m.suggestion?.observationId ||
-                          !savedSuggestionIds.has(m.suggestion.observationId),
+                          (!m.id || !conversation.messages.some(savedMessage => savedMessage.id === m.id)) &&
+                          (!m.suggestion?.observationId || !savedSuggestionIds.has(m.suggestion.observationId)),
                       ),
                     ],
               );
@@ -1193,7 +1218,16 @@ function SessionChatContent() {
   useEffect(() => {
     const cleanup = window.electron?.ipcRenderer.on(
       'open-training-panel',
-      () => {
+      (value: unknown) => {
+        const payload = value as { onboardingComplete?: boolean; sessionId?: string } | null;
+        if (payload?.onboardingComplete && payload.sessionId) {
+          setShowSettings(false);
+          setShowHistory(false);
+          setActivePage('chat');
+          setOnboardingCompletion(payload.sessionId);
+          return;
+        }
+
         setTrainingRefreshKey((value) => value + 1);
         setShowSettings(false);
         setShowHistory(false);
@@ -1462,6 +1496,7 @@ function SessionChatContent() {
   const handleSend = () => {
     if (
       sending ||
+      onboarding.busy ||
       peer.busy ||
       peer.loading ||
       peer.error ||
@@ -1612,32 +1647,29 @@ function SessionChatContent() {
 
   const checkSessionId = reviewing?.sessionId ?? sessionIdRef.current;
   const checkingGameIdea = Boolean(runnerState?.sessionId === checkSessionId && ['writing','review'].includes(runnerState?.phase ?? ''));
+  useEffect(() => {
+    if (checkingGameIdea && activePage === 'chat' && !showSettings)
+      void window.electron?.ipcRenderer.invoke('runner-action', {
+        sessionId: checkSessionId, action: 'idea-check-suggestion',
+      });
+  }, [checkingGameIdea, checkSessionId, activePage, showSettings]);
   const handleCheckUnderstanding = async () => {
     if (sending || startingNewSession || checkingUnderstanding) return;
-    if (checkingGameIdea && !input.trim()) {
-      setUnderstandingError('Write your game idea first, then use Check my understanding to have Coco repeat it back.');
-      setComposerFocusRequest(n=>n+1);
-      return;
-    }
     setCheckingUnderstanding(true);
     setUnderstandingError('');
-    setIdeaCheck(null);
-    const draft = input;
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const result = (await Promise.race([window.electron?.ipcRenderer.invoke(
         'check-understanding',
-        { sessionId: checkSessionId, ...(checkingGameIdea ? { draft } : {}) },
+        { sessionId: checkSessionId },
       ),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('The understanding check took too long. Your draft is safe; please try again.')),40000);})])) as UnderstandingCheckResult | undefined;
       if (!result?.success) {
         setUnderstandingError(
           result?.error || 'Could not open the understanding check.',
         );
-      } else if (checkingGameIdea) {
-        if (result.kind !== 'idea' || !result.interpretation?.trim())
-          setUnderstandingError('Coco didn’t return an explanation of your idea. Your draft is safe; please try again.');
-        else if (checkSessionId) setIdeaCheck({sessionId:checkSessionId,draft,interpretation:result.interpretation});
       }
+
     } catch (error) {
       setUnderstandingError(
         error instanceof Error
@@ -1873,15 +1905,6 @@ function SessionChatContent() {
           >
             {studyAccess === true ? (
               <>
-                {!reviewing && runnerState && runnerState.sessionId === sessionIdRef.current && <>
-                  <TourProgress state={runnerState} onSkip={() => {
-                    void window.electron?.ipcRenderer.invoke('runner-action', {sessionId:runnerState.sessionId,action:'skip-tour'}).then(result => {
-                      setTourError(result?.error ?? '');
-                    }).catch(error => setTourError(String(error)));
-                  }} />
-                  {tourError && <p role="alert">{tourError}</p>}
-                  <div className="coco-game-context">Your game · Coco already has access to read and edit this workspace.</div>
-                </>}
                 {workflowChapter.session?.savedSkillId && (
                   <WorkflowUnlock
                     key={workflowChapter.session.savedSkillId}
@@ -2061,6 +2084,9 @@ function SessionChatContent() {
                       </ToolViewerAccess.Provider>
                     ) : (
                       <ChatTranscript
+                        hideStarters={runnerState?.sessionId === sessionIdRef.current}
+                        afterMessage={message => onboarding.active && message.id === onboardingId('game') && runnerState?.tour !== 'meet'
+                          ? <RunnerGameView key={runnerState?.sessionId} embedded visible={activePage === 'chat' && !showSettings} /> : null}
                         {...{
                           reviewing,
                           listRef,
@@ -2082,6 +2108,7 @@ function SessionChatContent() {
                           onJumpToLatest: scrollToBottom,
                         }}
                       >
+                        {onboarding.active && onboarding.error && <p role="alert">{onboarding.error}</p>}
                         <TokenTrainingQuestion
                           key={tokenChapter.session?.sessionId}
                           session={tokenChapter.session}
@@ -2095,15 +2122,6 @@ function SessionChatContent() {
                         />
                       </ChatTranscript>
                     )}
-                    {runnerSessionId && runnerSessionId === sessionIdRef.current && runnerState?.sessionId===runnerSessionId && (
-                      runnerState.error ? <div className="runner-chat-outcome" role="status"><p>{runnerState.error}</p><button type="button" disabled={sending||!runnerState.lastRequest} onClick={()=>{if(runnerState.lastRequest)void sendMessage(runnerState.lastRequest,[]);}}>Try again</button></div>
-                      : runnerState.hasChanges && ['review','complete'].includes(runnerState.phase) ? <button type="button" className="runner-open-game-button" onClick={()=>{void window.electron?.ipcRenderer.invoke('runner-action',{sessionId:runnerSessionId,action:'open-game'});}}>Open my game</button> : null
-                    )}
-                    {runnerSessionId && runnerSessionId === sessionIdRef.current && runnerState?.sessionId === runnerSessionId && runnerState.phase === 'writing' && !runnerState.error && !reviewing && (
-                      <RunnerPromptSuggestions disabled={sending} onChoose={text => { setInput(current => current.trim() ? `${current}\n${text}` : text);setComposerFocusRequest(n=>n+1); }} />
-                    )}
-                    {checkingGameIdea && <GameIdeaCheck checking={checkingUnderstanding}
-                      interpretation={ideaCheck?.sessionId === checkSessionId && ideaCheck?.draft === input ? ideaCheck.interpretation : null} />}
                     <ChatComposer
                       modelPicker={
                         <TutorModelPicker
@@ -2189,6 +2207,11 @@ function SessionChatContent() {
           </div>
         </div>
       </DesktopWorkspace>
+      {onboardingCompletion && <OnboardingCompleted
+        sessionId={onboardingCompletion}
+        onClose={() => setOnboardingCompletion(null)}
+      />}
+
     </TokenUsageAccess.Provider>
   );
 }

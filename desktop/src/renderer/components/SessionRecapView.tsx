@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react';
 import './SessionRecapView.css';
 
-interface RecapData {
-  summary_title: string;
-  bullets: string[];
-  quiz: {
-    question: string;
-    choices: string[];
-    correct_index: number;
-    explanation: string;
-  };
-}
+import type { UnderstandingRecap as RecapData } from '../../shared/understanding-check';
 
 type QuizState = 'unanswered' | 'correct' | 'wrong';
 // 'check' is a mid-session "Check my understanding" quiz; 'end' ends the session.
@@ -179,9 +170,6 @@ export default function SessionRecapView() {
 
         {!loading && !loadError && (
           <div className="recap-actions">
-            <button type="button" className="recap-btn-skip" onClick={finish}>
-              Skip
-            </button>
             <button
               type="button"
               className="recap-btn-continue"

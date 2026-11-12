@@ -5,19 +5,14 @@ import GamePage from '../renderer/components/getting-started/GamePage';
 import TourProgress from '../renderer/components/getting-started/TourProgress';
 import type {RunnerTutorialState} from '../shared/runner-tutorial';
 const state:RunnerTutorialState={sessionId:'game',version:'v1',phase:'play',tour:'meet',hasChanges:false,canUndo:false,error:null};
-it('waits for both service and model reports while leaving Skip available',async()=>{
- let ready=false;
- const invoke=jest.fn(async(channel:string):Promise<any>=>channel==='runner-preview'?{state,html:'<p>game</p>',title:'Meadow',timeOfDay:'day'}:channel==='get-service-health'?{sensing:{connected:true,modelAssessment:{status:'verified'}},tutor:{connected:ready,detail:'Service is starting',modelAssessment:{status:ready?'verified':'connecting'}}}:{});
+it('does not render a setup page while the introduction happens in chat', async () => {
+ const invoke=jest.fn(async()=>({state,html:'<p>game</p>'}));
  (window as any).electron={ipcRenderer:{invoke,on:()=>()=>{}}};
- render(<RunnerGameView/>);
- expect(await screen.findByRole('button',{name:'Let’s play'})).toBeDisabled();
- expect(screen.queryByRole('button',{name:'Why do you pop up?'})).not.toBeInTheDocument();
- expect(screen.getByRole('button',{name:'Leave task'})).toBeEnabled();
- await waitFor(()=>expect(screen.getByRole('button',{name:'Retry'})).toBeEnabled());ready=true;
- fireEvent.click(screen.getByRole('button',{name:'Retry'}));
- await waitFor(()=>expect(screen.getByRole('button',{name:'Let’s play'})).toBeEnabled());
- fireEvent.click(screen.getByRole('button',{name:'Let’s play'}));
- expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'game',action:'tour-play'});
+ const {container}=render(<RunnerGameView embedded/>);
+ await waitFor(()=>expect(invoke).toHaveBeenCalledWith('runner-preview'));
+ expect(container.querySelector('h1')).toBeNull();
+ expect(screen.queryByText('Next')).not.toBeInTheDocument();
+ expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
 });
 it('gates customization until the first game over',()=>{
  const action=jest.fn();const {rerender}=render(<GamePage title="Meadow" timeOfDay="day" html="" canCustomize={false} onAction={action}/>);

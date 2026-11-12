@@ -159,10 +159,11 @@ export default function ObservationBubble({
       <div className={`observation-bubble is-guide status-${bubble.status}`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
         <div className="observation-bubble-header">
           <div className="observation-bubble-label">{bubble.guide.label}</div>
+          {bubble.guide.dismissible && bubble.runnerTutorial && <button type="button" aria-label="Close tip" title="Dismiss" className="bubble-dismiss-btn" onClick={onDismiss}>×</button>}
         </div>
         <div className="observation-bubble-text">{bubble.phrase}</div>
         {bubble.guide.action && <button type="button" className="bubble-action-btn" disabled={bubble.guide.busy} onClick={onHelpMe}>{bubble.guide.action}</button>}
-        {bubble.guide.dismissible && <button type="button" aria-label={bubble.runnerTutorial ? 'Close tip' : undefined} className="bubble-dismiss-btn guide-decline" onClick={onDismiss}>{bubble.runnerTutorial ? '✕' : 'No thanks'}</button>}
+        {bubble.guide.dismissible && !bubble.runnerTutorial && <button type="button" aria-label={bubble.runnerTutorial ? 'Close tip' : undefined} className="bubble-dismiss-btn guide-decline" onClick={onDismiss}>{bubble.runnerTutorial ? '✕' : 'No thanks'}</button>}
         <span className="observation-bubble-tail" aria-hidden />
       </div>
     );

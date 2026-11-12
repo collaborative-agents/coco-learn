@@ -1,3 +1,4 @@
+import OnboardingMessage, { OnboardingTurn } from '../getting-started/OnboardingMessage';
 import type React from 'react';
 import { useMemo } from 'react';
 import { S } from './styles';
@@ -34,6 +35,8 @@ function isWorkspaceDenial(message: ChatMessage) {
 
 interface Props {
   children?: React.ReactNode;
+  hideStarters?: boolean;
+  afterMessage?: (message: ChatMessage) => React.ReactNode;
   allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
@@ -79,6 +82,8 @@ function HtmlPreviewButton({ text }: { text: string }) {
 
 export default function ChatTranscript({
   children = null,
+  hideStarters = false,
+  afterMessage,
   allowRatings = true,
   reviewing,
   listRef,
@@ -104,7 +109,7 @@ export default function ChatTranscript({
     : 'Coco is still writing…';
   return (
     <div style={S.list} ref={listRef} onScroll={onScroll}>
-      {visibleMessages.length === 0 &&
+      {!hideStarters && visibleMessages.length === 0 &&
         !sending &&
         (profile.scenario === 'ai_upskilling' && !reviewing ? (
           <div style={S.starterPanel}>
@@ -144,8 +149,8 @@ export default function ChatTranscript({
         ))}
       {visibleMessages.map((m, i) => (
         // eslint-disable-next-line react/no-array-index-key
+        <OnboardingTurn key={i} message={m} reviewing={Boolean(reviewing)}>
         <div
-          key={i}
           data-request-id={m.requestId}
           style={m.role === 'user' ? S.userRow : S.tutorRow}
         >
@@ -201,8 +206,8 @@ export default function ChatTranscript({
             <>
               <div style={S.tutorAvatar}>C</div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                {(m.activity && m.activity.length > 0) ||
-                (!m.activity && m.toolCalls?.length) ? (
+                {(!m.id?.startsWith('onboarding-') || reviewing) && ((m.activity && m.activity.length > 0) ||
+                (!m.activity && m.toolCalls?.length)) ? (
                   <AgentActivityList
                     requestId={m.requestId}
                     activity={
@@ -282,7 +287,14 @@ export default function ChatTranscript({
                           )}
                         </>
                       ) : (
-                        <TutorMessage text={m.text} />
+                        m.id?.startsWith('onboarding-') && !reviewing ? (
+                          <OnboardingMessage message={m} onProgress={() => {
+                            if (following && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+                          }}>
+                            {m.activity?.length ? <AgentActivityList activity={m.activity} interactive={false} /> : null}
+                            {afterMessage?.(m)}
+                          </OnboardingMessage>
+                        ) : <TutorMessage text={m.text} />
                       )}
                     </div>
                   )}
@@ -329,10 +341,12 @@ export default function ChatTranscript({
                       )}
                     </div>
                   )}
+                {(!m.id?.startsWith('onboarding-') || reviewing) && afterMessage?.(m)}
               </div>
             </>
           )}
         </div>
+        </OnboardingTurn>
       ))}
       {children}
       {sending && !reviewing && (

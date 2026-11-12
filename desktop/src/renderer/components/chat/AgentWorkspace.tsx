@@ -41,6 +41,16 @@ export default function AgentWorkspace({
   useEffect(() => {
     if (!running) setStopping(false);
   }, [running]);
+  useEffect(() => {
+    const off = window.electron?.ipcRenderer.on?.('runner-state-changed', (value: unknown) => {
+      const state = value as {sessionId?: string; starterBuild?: string; workspaceDirectory?: string};
+      if (state?.sessionId === sessionId && state.starterBuild === 'ready' && state.workspaceDirectory) {
+        setDirectory(state.workspaceDirectory);
+        setAccessGranted(true);
+      }
+    });
+    return () => { off?.(); };
+  }, [sessionId]);
   const choose = async () => {
     setChoosing(true);
     setError('');
@@ -86,8 +96,7 @@ export default function AgentWorkspace({
           <span>
             {choosing
               ? 'Choosing…'
-              : directory.split(/[\\/]/).filter(Boolean).pop() ||
-                'Working folder'}
+              : `Workspace${directory ? ` · ${directory.split(/[\\/]/).filter(Boolean).pop()}` : ''}`}
           </span>
           <span aria-hidden="true">⌄</span>
         </button>

@@ -402,3 +402,7 @@
   color: var(--coco-color-surface);
   cursor: not-allowed;
 }
+
+/* The frameless native window moves by its header; controls stay clickable. */
+.recap-header { -webkit-app-region: drag; cursor: move; user-select: none; }
+.recap-header button { -webkit-app-region: no-drag; cursor: pointer; }

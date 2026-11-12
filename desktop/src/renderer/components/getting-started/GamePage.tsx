@@ -38,7 +38,7 @@ export default function GamePage({
         <header className="coco-game-heading">
           <div>
             <div className="coco-game-eyebrow">GETTING STARTED</div>
-            <h1>Play with Coco</h1>
+            <h1>See What You Can Do With Coco</h1>
           </div>
           <span className={`coco-game-version${updated ? ' is-updated' : ''}`}>
             <span aria-hidden="true">{updated ? '✓' : '◌'}</span>
@@ -61,7 +61,7 @@ export default function GamePage({
             </span>
           </div>
           <div className="coco-game-frame">
-            {html ? <iframe ref={frameRef} title="Your playable game" onLoad={() => frameRef?.current?.contentWindow?.focus()} sandbox="allow-scripts" srcDoc={html} /> : <p role="status">Opening your game…</p>}
+            {html ? <iframe ref={frameRef} title="Your playable game" sandbox="allow-scripts" srcDoc={html} /> : <p role="status">Opening your game…</p>}
           </div>
           <footer className="coco-game-actions">
             <div className="coco-game-action-caption"><button type="button" className="coco-button coco-game-undo" disabled={!canUndo || busy} onClick={() => onAction?.('undo')}>

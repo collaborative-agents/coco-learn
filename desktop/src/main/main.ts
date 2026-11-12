@@ -772,25 +772,17 @@ ipcMain.handle('save-html-preview', async (event, payload: { html?: unknown } = 
 let currentTutorModelId: string | null = null;
 const piBridgeToken = randomUUID();
 
-let runnerGameWindow: BrowserWindow | null = null;
-let runnerDisplayedVersion: string | null = null;
 let activeRunnerGuide: RunnerGuide | null = null;
 let runnerChatView = { sessionId: null as string | null, inChat: false };
 let lastRunnerGuidePresentation: string | null = null;
 let runnerGuideRendererReady = false;
-let runnerAvatarOriginalBounds: Rectangle | null = null;
-function placeRunnerAvatar() {
-  if (!avatarWindow || avatarWindow.isDestroyed() || !runnerGameWindow || runnerGameWindow.isDestroyed()) return;
-  runnerAvatarOriginalBounds ??= avatarWindow.getBounds();
-  const b = runnerGameWindow.getContentBounds(), area = screen.getDisplayMatching(b).workArea;
-  avatarWindow.setPosition(Math.max(area.x, Math.min(area.x+area.width-AVATAR_BASE_SIZE,b.x+b.width-AVATAR_BASE_SIZE-12)), Math.max(area.y,Math.min(area.y+area.height-AVATAR_BASE_SIZE,b.y+b.height-AVATAR_BASE_SIZE-8)));
-  avatarWindow.showInactive();
-}
-function restoreRunnerAvatar() {
-  if (runnerAvatarOriginalBounds && avatarWindow && !avatarWindow.isDestroyed()) avatarWindow.setBounds(runnerAvatarOriginalBounds);
-  runnerAvatarOriginalBounds = null;
-}
 function showRunnerGuide(user: string, guide: RunnerGuide) {
+  if (guide.sessionId !== setupGuideSession && guide.label === 'LET’S PLAY' &&
+      runnerTutorial.state(user)?.starterBuild !== 'ready') return;
+  // In-chat onboarding speaks through the transcript. Keep only the deliberate
+  // proactive-tip demonstration while the user is playing.
+  if (guide.sessionId !== setupGuideSession && guide.label !== 'LET’S PLAY' && !guide.framework &&
+      runnerChatView.inChat && runnerChatView.sessionId === guide.sessionId && chatWindow?.isVisible()) return;
   if (user !== currentUserId || !isAuthenticated || onboardingWindow?.isVisible()) return;
   activeRunnerGuide = guide;
   if (!avatarWindow || avatarWindow.isDestroyed()) createAvatarWindow();
@@ -838,12 +830,6 @@ const runnerTutorial = new RunnerTutorial({
     if (user !== currentUserId || !isAuthenticated) return;
     void axios.post(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/tutorial-status`, { sessionId: state.sessionId, phase: state.phase, failure: state.failure ?? null }, { headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000 }).catch(error => log.warn('[Runner] Could not update coaching context:', String(error)));
     chatWindow?.webContents.send('runner-state-changed', state);
-    runnerGameWindow?.webContents.send('runner-state-changed', state);
-    if (state.phase === 'review' && state.version !== runnerDisplayedVersion) {
-      runnerDisplayedVersion = state.version;
-      openRunnerGameWindow();
-      runnerGameWindow?.focus();
-    }
   },
 });
 function requireRunnerSender(
@@ -855,49 +841,17 @@ function requireRunnerSender(
     !tutoringAllowed ||
     ![
       chatWindow?.webContents,
-      runnerGameWindow?.webContents,
       avatarWindow?.webContents,
     ].includes(event.sender)
   )
     throw new Error('Open Coco and sign in to play.');
   return currentUserId;
 }
-function openRunnerGameWindow() {
-  if (runnerGameWindow && !runnerGameWindow.isDestroyed()) {
-    runnerGameWindow.show();
-    return;
-  }
-  runnerGameWindow = new BrowserWindow({
-    width: 1200,
-    height: 920,
-    minWidth: 860,
-    minHeight: 740,
-    title: 'Your Coco game',
-    backgroundColor: '#f9fafb',
-    webPreferences: {
-      preload: preloadPath(),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
-  });
-  runnerGameWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  runnerGameWindow.webContents.on('will-navigate', (event) =>
-    event.preventDefault(),
-  );
-  runnerGameWindow.on('closed', () => {
-    restoreRunnerAvatar();
-    runnerGameWindow = null;
-  });
-  runnerGameWindow.on('focus', placeRunnerAvatar);
-  runnerGameWindow.on('moved', placeRunnerAvatar);
-  runnerGameWindow.on('resized', placeRunnerAvatar);
-  runnerGameWindow.once('ready-to-show', placeRunnerAvatar);
-  void runnerGameWindow.loadURL(
-    `${resolveHtmlPath('index.html')}?view=runner-game`,
-  );
+// Keep every game action in its chat conversation, including updated previews.
+function openRunnerInChat() {
+  if (currentUserId) focusRunnerComposer(currentUserId);
 }
-function focusRunnerComposer(user: string) {
+function focusRunnerComposer(user: string, animateGreeting = false) {
   const state = runnerTutorial.state(user);
   if (!state) return;
   const sameSession = currentSessionId === state.sessionId;
@@ -922,7 +876,7 @@ function focusRunnerComposer(user: string) {
   // Re-send the authorized state on every tutorial resume/focus so retry and
   // publish status cannot disappear after reopening the app.
   sendToChat('runner-state-changed', state);
-  sendToChat('runner-focus-composer', { sessionId: state.sessionId });
+  sendToChat('runner-focus-composer', { sessionId: state.sessionId, animateGreeting });
 }
 // Setup teaches Coco's desktop behavior; the game is an optional Training task.
 let welcomedUser: string | null = null;
@@ -943,7 +897,7 @@ function showTrainingWelcome() {
   applyAvatarVisibility(readHideAvatarSetting());
   showRunnerGuide(user, {
     sessionId: setupGuideSession, label: 'WELCOME TO COCO',
-    text: 'Welcome to Coco! Please try the Getting Started task and play with Coco!',
+    text: 'Let me walk you through what you can do with Coco!',
     action: 'open-training', actionLabel: 'Getting Started',
   });
 }
@@ -971,8 +925,9 @@ ipcMain.on('onboarding-step', (event) => {
 ipcMain.handle('runner-start', (event) => {
   const user = requireRunnerSender(event);
   const state = runnerTutorial.startTour(user);
-  openRunnerGameWindow();
-  if (state.tour === 'active' && ['writing', 'building'].includes(state.phase)) focusRunnerComposer(user);
+  if (state.tour !== 'meet' || state.workspaceDirectory)
+    saveConversationDirectory(state.sessionId, runnerTutorial.workspace(user, state.sessionId)!);
+  focusRunnerComposer(user, state.tour === 'meet');
   return { state };
 });
 ipcMain.handle('runner-state', (event) =>
@@ -1018,6 +973,7 @@ ipcMain.handle(
       if (payload.action === 'open-training' && isOnboardingComplete()) {
         clearSetupGuide();
         openTraining();
+        sendToChat('getting-started-open-article', null);
       } else if (payload.action === 'dismiss') clearSetupGuide();
       return {};
     }
@@ -1025,6 +981,30 @@ ipcMain.handle(
       state = runnerTutorial.state(user);
     if (!state || payload.sessionId !== state.sessionId)
       return { error: 'This game is no longer active.' };
+    if (payload.action === 'open-training') {
+      openTraining();
+      sendToChat('open-training-panel', { highlight: 'agent101' });
+      return { state };
+    }
+    if (payload.action === 'idea-check-suggestion') {
+      if (runnerChatView.inChat && runnerChatView.sessionId === state.sessionId && chatWindow?.isVisible())
+        runnerTutorial.suggestIdeaCheck(user);
+      return { state: runnerTutorial.state(user) };
+    }
+    if (payload.action === 'game-suggestion') {
+      if (runnerChatView.inChat && runnerChatView.sessionId === state.sessionId && chatWindow?.isVisible())
+        runnerTutorial.suggestGameReview(user);
+      return { state: runnerTutorial.state(user) };
+    }
+    if (payload.action === 'request-build') {
+      runnerTutorial.requestStarterBuild(user);
+      const next = await runnerTutorial.buildRequestedStarter(user);
+      if (user === currentUserId && next?.workspaceDirectory && next.starterBuild === 'ready') {
+        saveConversationDirectory(state.sessionId, next.workspaceDirectory);
+        sendToChat('runner-state-changed', next);
+      }
+      return { state: next };
+    }
     if (payload.action && ['tour-play', 'why-tips', 'explain-buttons', 'skip-tour', 'finish-setup'].includes(payload.action)) {
       if (payload.action === 'skip-tour' && state.phase === 'building') {
         for (const [id, request] of agentRuns.requests) {
@@ -1035,13 +1015,12 @@ ipcMain.handle(
       const next = runnerTutorial.tourAction(user, payload.action as 'tour-play' | 'why-tips' | 'explain-buttons' | 'skip-tour' | 'finish-setup');
       if (payload.action === 'finish-setup') markGettingStartedComplete(user);
       if (payload.action === 'skip-tour' || payload.action === 'finish-setup') {
-        runnerGameWindow?.hide();
-        restoreRunnerAvatar();
         activeRunnerGuide = null;
         lastRunnerGuidePresentation = null;
         avatarWindow?.webContents.send('runner-guide', null);
         if (readHideAvatarSetting()) avatarWindow?.hide();
-        openTraining();
+        if (payload.action === 'finish-setup') sendToChat('open-training-panel', { onboardingComplete: true, sessionId: state.sessionId });
+        else openTraining();
       }
       return { state: next };
     }
@@ -1088,11 +1067,10 @@ ipcMain.handle(
       });
       }
       saveConversationDirectory(state.sessionId, directory);
-      openRunnerGameWindow();
       focusRunnerComposer(user);
       sendToChat('runner-open-composer', { sessionId: state.sessionId, reset: !existing });
     }
-    if (payload.action === 'open-game') openRunnerGameWindow();
+    if (payload.action === 'open-game') openRunnerInChat();
     if (payload.action === 'undo') {
       if (agentRuns.has(state.sessionId))
         return { error: 'Wait for Coco to finish before undoing.' };
@@ -1100,8 +1078,7 @@ ipcMain.handle(
     }
     if (payload.action === 'play' || (payload.action === 'focus' && state.phase === 'play')) {
       chatWindow?.show();
-      openRunnerGameWindow();
-      runnerGameWindow?.focus();
+      openRunnerInChat();
       runnerTutorial.playing(user);
     } else if (payload.action === 'focus' || payload.action === 'retry') {
       focusRunnerComposer(user);
@@ -1110,16 +1087,13 @@ ipcMain.handle(
     if (payload.action === 'finish') {
       if (state.phase === 'complete') {
         markGettingStartedComplete(user);
-        runnerGameWindow?.hide();
-        restoreRunnerAvatar();
         openTraining();
         activeRunnerGuide = null;
         avatarWindow?.webContents.send('runner-guide', null);
         if (readHideAvatarSetting()) avatarWindow?.hide();
       } else {
         runnerTutorial.complete(user);
-        openRunnerGameWindow();
-        runnerGameWindow?.focus();
+        openRunnerInChat();
       }
     }
     if (payload.action === 'dismiss') {
@@ -1221,9 +1195,10 @@ ipcMain.handle(
 ipcMain.handle(
   'choose-agent-workspace',
   async (
-    _event,
+    event,
     { sessionId = currentSessionId }: { sessionId?: string | null } = {},
   ) => {
+    if (!isAuthenticated || event.sender !== chatWindow?.webContents) throw new Error('Choose a folder from Coco chat.');
     if (!sessionId)
       throw new Error('Open a conversation before choosing a folder.');
     if (agentRuns.has(sessionId))
@@ -1240,6 +1215,19 @@ ipcMain.handle(
     await agentRuns.release(sessionId);
     if (agentRuns.has(sessionId))
       throw new Error('Stop the current run before changing folders.');
+    const tutorial = currentUserId ? runnerTutorial.state(currentUserId) : null;
+    if (currentUserId && tutorial?.sessionId === sessionId && tutorial.tour === 'meet') {
+      const user = currentUserId;
+      runnerTutorial.selectStarterFolder(user, directory);
+      saveConversationDirectory(sessionId, directory);
+      // Folder selection and the build request may arrive in either order.
+      const state = await runnerTutorial.buildRequestedStarter(user);
+      if (user !== currentUserId) throw new Error('Your account changed. Reopen Coco to continue.');
+      const workingDirectory = state?.starterBuild === 'ready' ? state.workspaceDirectory! : directory;
+      saveConversationDirectory(sessionId, workingDirectory);
+      sendToChat('runner-state-changed', state);
+      return { directory: workingDirectory, accessGranted: state?.starterBuild === 'ready' || workspacePermissions().hasWorkspace(directory) };
+    }
     saveConversationDirectory(sessionId, directory);
     contextTraining.workspaceSelected(sessionId, currentUserId, directory);
     return { directory, accessGranted: workspacePermissions().hasWorkspace(directory) };
@@ -3287,7 +3275,7 @@ const showSessionRecapWindow = (
     width: sw,
     height: sh,
   } = screen.getPrimaryDisplay().workArea;
-  const w = 460;
+  const w = Math.min(780, sw - 32);
   const h = Math.min(620, sh - 32);
 
   sessionRecapWindow = new BrowserWindow({
@@ -3300,6 +3288,7 @@ const showSessionRecapWindow = (
     frame: false,
     alwaysOnTop: true,
     resizable: false,
+    movable: true,
     skipTaskbar: process.platform !== 'darwin',
     webPreferences: { preload: preloadPath() },
   });
@@ -5172,7 +5161,7 @@ ipcMain.on('proactive-session-end-confirmed', () => {
 ipcMain.removeHandler('check-understanding');
 ipcMain.handle(
   'check-understanding',
-  async (_event, { sessionId, draft }: { sessionId?: string | null; draft?: string } = {}): Promise<UnderstandingCheckResult> => {
+  async (_event, { sessionId }: { sessionId?: string | null } = {}): Promise<UnderstandingCheckResult> => {
     if (agentRuns.busy)
       return {
         success: false,
@@ -5183,35 +5172,6 @@ ipcMain.handle(
         success: false,
         error: 'AI tutoring is not available for this account.',
       };
-    if (currentUserId && typeof draft === 'string' && runnerTutorial.owns(currentUserId, sessionId ?? currentSessionId)) {
-      if (_event.sender !== chatWindow?.webContents || !isAuthenticated) return { success: false, error: 'Open the chat to check your idea.' };
-      if (!draft.trim()) return { success: false, error: 'Write your game idea first, then check it before sending.' };
-      if (draft.length > 10000) return { success: false, error: 'This check supports up to 10,000 characters. Your draft is still here.' };
-      try { await axios.get(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/health`, {timeout:2000}); }
-      catch { return {success:false,error:'Coco’s local tutor isn’t responding. Open Settings → Health and choose Retry, then try this check again.'}; }
-      const user = currentUserId, target = sessionId ?? currentSessionId!;
-      const requestId = randomUUID(), checker = new PiHarness();
-      let timedOut = false;
-      const timer = setTimeout(() => { timedOut=true;void checker.abort(); }, 35000);
-      agentRuns.begin(target, requestId);
-      try {
-        let reply = '', done = false;
-        await checker.run({ recordTurn: false, requestId, sessionId: target, directory: runnerTutorial.workspace(user, target)!, tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`, token: piBridgeToken,
-          context: executionContext(target), text: draft, images: [],
-          training: { tools: 'none', instructions: 'The user is about to ask you to change a pixel runner game. Restate their unsent idea warmly in at most 18 words and 110 characters, phrased as a question checking that you understood. Do not edit anything, use tools, give code, or add features they did not request. This is a check before sending, not permission to execute.' },
-          emit: event => { if (event.type === 'text_delta') reply += String(event.text ?? ''); if (event.type === 'done') { done = !event.stopped; reply = String(event.guidance ?? reply); } },
-        });
-        if (!done || !reply.trim()) throw new Error('Coco returned no explanation of your idea. Please try again.');
-        if (currentUserId !== user || !isAuthenticated) return { success: false, error: 'Sign in again to continue.' };
-        const interpretation = reply.replace(/[`#*]/g, '').trim();
-        runnerTutorial.checked(user, target, interpretation);
-        return { success: true, kind:'idea', interpretation };
-      } catch (error) {
-        log.warn('[UnderstandingCheck] Idea check failed:',String(error));
-        return { success: false, error: timedOut ? 'The understanding check took too long. Your draft is safe; please try again.' : `I couldn’t check your idea. ${error instanceof Error ? error.message : 'Please try again.'}` };
-      }
-      finally { clearTimeout(timer); agentRuns.finish(requestId); await checker.dispose(); }
-    }
     if (readProfile().scenario !== 'ai_upskilling')
       return {
         success: false,
@@ -5324,8 +5284,7 @@ registerReactiveChat({
     begin: (sessionId, requestId, text) => {
       const user = currentUserId;
       if (!user || !runnerTutorial.owns(user, sessionId)) return null;
-      if (path.resolve(agentDirectory(sessionId)) !== path.resolve(runnerTutorial.workspace(user, sessionId)!)) throw new Error('Choose your game folder before changing this game.');
-      const instructions = runnerTutorial.begin(user, sessionId, () => { void agentRuns.abort(requestId); }, text);
+      const instructions = runnerTutorial.begin(user, sessionId, () => { void agentRuns.abort(requestId); }, text, agentDirectory(sessionId));
       if (instructions) runnerTurnOwners.set(sessionId, user);
       return instructions;
     },
@@ -6020,7 +5979,6 @@ const authenticate = async (
     return { success: true, participantId: session.participantId };
   } catch (error) {
     log.warn(`[Auth] ${mode} failed: ${String(error)}`);
-    runnerGameWindow?.close();
     currentUserId = null;
     isAuthenticated = false;
     agent101.notifyAccountChanged();
@@ -6732,7 +6690,6 @@ app
         log.info(`[Auth] restored session for ${restored.participantId}`);
       } catch (error) {
         clearAuthSession(app.getPath('userData'));
-        runnerGameWindow?.close();
     currentUserId = null;
         isAuthenticated = false;
         agent101.notifyAccountChanged();

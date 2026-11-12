@@ -1,3 +1,4 @@
+import type { AgentActivity } from '../../shared/agent-execution';
 import { needsArtReview, type ArtEvidence, type ArtVerdict } from '../game/art-review';
 import fs from 'fs';
 import { gameFailure, requestsGameChange } from './game-failure';
@@ -27,6 +28,12 @@ import type {
 } from '../../shared/runner-tutorial';
 
 interface RecordState {
+  gameSuggestionShown?: boolean;
+  ideaCheckSuggestionShown?: boolean;
+  selectedStarterDirectory?: string;
+  workspaceDirectory?: string;
+  starterBuild?: RunnerTutorialState['starterBuild'];
+  buildActivity?: AgentActivity[];
   tour?: RunnerTutorialState['tour'];
   schemaVersion?: number;
   lastRequest?: string;
@@ -68,6 +75,8 @@ export default class RunnerTutorial {
       dataDir: string;
       node: string;
       validate?: (html: string) => Promise<void>;
+      /** Pacing for the cached onboarding demonstration; real edits are unaffected. */
+      starterPause?: (milliseconds: number) => Promise<void>;
       designArt?: (sessionId: string, request: string, theme: GameTheme, evidence: ArtEvidence) => Promise<GameTheme>;
       captureArt?: (html: string, theme: GameTheme) => Promise<ArtEvidence>;
       reviewArt?: (sessionId: string, request: string, evidence: ArtEvidence) => Promise<ArtVerdict>;
@@ -106,6 +115,12 @@ export default class RunnerTutorial {
             };
             saved.error = saved.failure.message;
           }
+          if (saved.starterBuild === 'building') {
+            saved.starterBuild = 'error';
+            saved.error = 'The starter build was interrupted. Choose a folder again to retry.';
+            saved.buildActivity = saved.buildActivity?.map(item => item.kind === 'tool' && item.call.status === 'running'
+              ? { kind: 'tool', call: { ...item.call, status: 'error', result: { output: 'Interrupted when Coco closed.' } } } : item);
+          }
           this.records.set(user, saved);
           if (saved.schemaVersion !== 2) this.upgrade(saved);
           if (saved.visualRevision !== 2) this.upgradeVisuals(saved);
@@ -127,7 +142,7 @@ export default class RunnerTutorial {
   workspace(user: string, sessionId: string) {
     const r = this.record(user);
     return r?.sessionId === sessionId
-      ? path.join(this.directory(r), 'work')
+      ? r.workspaceDirectory ?? path.join(this.directory(r), 'work')
       : null;
   }
   owns(user: string | null, sessionId: string | null) {
@@ -143,6 +158,10 @@ export default class RunnerTutorial {
     return r
       ? {
           sessionId: r.sessionId,
+          selectedStarterDirectory: r.selectedStarterDirectory,
+          workspaceDirectory: r.workspaceDirectory,
+          starterBuild: r.starterBuild,
+          buildActivity: r.buildActivity,
           version: r.history[r.cursor],
           phase: r.phase,
           canUndo: r.cursor > 0,
@@ -220,6 +239,7 @@ export default class RunnerTutorial {
       checked: false,
       error: null,
     };
+    this.records.set(user, r);
     const initial = path.join(this.directory(r), 'versions', r.history[0]);
     fs.mkdirSync(initial, { recursive: true });
     for (const [name, source] of Object.entries(files))
@@ -229,27 +249,122 @@ export default class RunnerTutorial {
     this.intro(user);
     return this.state(user)!;
   }
+  requestStarterBuild(user: string) {
+    const r = this.record(user);
+    if (r && ['building', 'ready'].includes(r.starterBuild ?? '')) return this.state(user)!;
+    if (!r || r.tour !== 'meet') throw Error('Open your Getting Started conversation first.');
+    r.starterBuild = 'waiting';
+    r.error = null;
+    this.save(r);
+    return this.state(user)!;
+  }
+  selectStarterFolder(user: string, directory: string) {
+    const r = this.record(user);
+    if (!r || r.tour !== 'meet') throw Error('Open your Getting Started conversation first.');
+    if (r.starterBuild === 'building') throw Error('Wait for the game to finish before changing folders.');
+    const selected = fs.realpathSync(directory);
+    if (!fs.statSync(selected).isDirectory()) throw Error('Choose a folder for your game.');
+    r.selectedStarterDirectory = selected;
+    if (r.starterBuild === 'error') r.starterBuild = 'waiting';
+    this.save(r);
+    return this.state(user)!;
+  }
+  async buildRequestedStarter(user: string) {
+    const r = this.record(user);
+    if (r?.tour === 'meet' && r.starterBuild === 'waiting' && r.selectedStarterDirectory)
+      return this.buildStarterInFolder(user, r.selectedStarterDirectory);
+    return this.state(user);
+  }
+  async buildStarterInFolder(user: string, parent: string) {
+    const r = this.record(user);
+    if (!r || r.tour !== 'meet' || !['waiting', 'error'].includes(r.starterBuild ?? ''))
+      throw Error('Ask Coco to build your game first.');
+    // A new child folder prevents the starter from overwriting unrelated files.
+    const directory = fs.mkdtempSync(path.join(fs.realpathSync(parent), 'coco-game-'));
+    r.workspaceDirectory = directory;
+    r.starterBuild = 'building';
+    r.buildActivity = [];
+    r.error = null;
+    this.save(r);
+    const pause = this.deps.starterPause ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+    const step = async (name: string, args: Record<string, unknown>, work: () => Promise<string>) => {
+      const call: import('../../renderer/components/observation-types').TutorToolCall = {
+        id: randomUUID(), name, arguments: args, status: 'running',
+      };
+      r.buildActivity!.push({ kind: 'tool', call });
+      this.save(r);
+      try {
+        // Keep each replayed operation visible before executing the real write/check.
+        await pause(name === 'validate_game' ? 2600 : 1800);
+        call.result = { output: await work() };
+        call.status = 'completed';
+      } catch (error) {
+        call.status = 'error';
+        call.result = { output: String(error) };
+        throw error;
+      } finally { this.save(r); }
+    };
+    try {
+      // Give Coco’s explanation time to arrive before the cached build begins.
+      await pause(6500);
+      for (const name of Object.keys(files)) {
+        await step('write', { path: path.join(directory, name), source: 'Cached game starter' }, async () => {
+          const source = await fs.promises.readFile(path.join(this.snapshot(r), name));
+          await fs.promises.writeFile(path.join(directory, name), source, { flag: 'wx' });
+          return `Created ${name} (${source.length} bytes) from the cached starter.`;
+        });
+      }
+      const html = this.html(this.snapshot(r), 0, r.history[r.cursor]);
+      await step('write', { path: path.join(directory, 'coco-game.html'), source: 'Cached game starter' }, async () => {
+        await fs.promises.writeFile(path.join(directory, 'coco-game.html'), html, { flag: 'wx' });
+        return 'Created coco-game.html. Open it in a browser to play.';
+      });
+      if (this.deps.validate) await step('validate_game', { path: path.join(directory, 'coco-game.html') }, async () => {
+        await this.deps.validate!(html);
+        return 'The game loaded and passed the browser check.';
+      });
+      this.restoreWork(r);
+      r.starterBuild = 'ready';
+      r.tour = 'active';
+      r.introAcknowledged = true;
+      this.save(r);
+      this.playing(user);
+      return this.state(user)!;
+    } catch (error) {
+      r.starterBuild = 'error';
+      r.tour = 'meet';
+      r.error = `I couldn’t finish creating the game: ${error instanceof Error ? error.message : String(error)}. Choose a folder again to retry.`;
+      this.save(r);
+      throw error;
+    }
+  }
+  private writeWorkspaceFile(r: RecordState, name: string, contents: string | Buffer) {
+    const directory = this.workspace(r.user, r.sessionId)!;
+    if (r.workspaceDirectory && fs.realpathSync(directory) !== directory) throw Error('The game folder moved. Choose it again.');
+    const fd = fs.openSync(path.join(directory, name), fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW);
+    try { fs.writeFileSync(fd, contents); } finally { fs.closeSync(fd); }
+  }
+  private publishPlayableFile(r: RecordState) {
+    if (r.workspaceDirectory) this.writeWorkspaceFile(r, 'coco-game.html', this.html(this.snapshot(r), 0, r.history[r.cursor]));
+  }
   startTour(user: string) {
     const existing = this.record(user);
-    if (existing?.tour === 'finished' && existing.phase === 'complete') return this.start(user);
+    if (existing?.tour === 'finished' && existing.phase === 'complete') this.start(user);
     if (!this.record(user)) this.start(user);
     const r = this.record(user)!;
-    if (!r.tour || r.tour === 'skipped') {
+    if (!r.tour || r.tour === 'skipped' || r.tour === 'finished') {
       r.tour = 'meet';
       // An existing account keeps its game and every saved version.
       if (r.phase === 'complete') r.phase = r.cursor ? 'review' : 'play';
       this.save(r);
     }
-    if (r.tour === 'meet') this.guide(r,
-      'Play a round, then tell me how you’d like to change the game. I’ll help bring your idea to life!',
-      'PLAY WITH COCO');
     return this.state(user)!;
   }
   tourAction(user: string, action: 'tour-play' | 'why-tips' | 'explain-buttons' | 'skip-tour' | 'finish-setup') {
     const r = this.record(user);
     if (!r) throw Error('Open your Coco tour first.');
     if (action === 'why-tips') {
-      this.guide(r, 'With your permission, I notice what you’re working on and suggest ideas. You can close any tip with ✕ and pause observation in Settings.', 'WHY TIPS?');
+      this.guide(r, 'With your permission, I notice what you’re working on and suggest ideas. The Workspace button above your message box selects the folder we work in; Access controls my permissions. This game already has its own workspace. Close any tip with ✕ or pause observation in Settings.', 'WHY TIPS?');
     } else if (action === 'explain-buttons') {
       this.guide(r, 'Undo change goes back one version. Make it yours lets you ask for another change. Looks good finishes this task when you’re happy. Play first and check my work!', 'YOUR BUTTONS');
     } else if (action === 'tour-play') {
@@ -279,7 +394,44 @@ export default class RunnerTutorial {
     if (!r) return;
     r.introAcknowledged = true;
     this.save(r);
-    this.guide(r, "Play the game, then let's make it your own! Click the 'Make it yours' button.", 'LET’S PLAY');
+  }
+  suggestGameReview(user: string) {
+    const r = this.record(user);
+    if (!r || r.gameSuggestionShown || r.starterBuild !== 'ready' || r.tour !== 'active' || r.phase !== 'play') return;
+    r.gameSuggestionShown = true;
+    this.save(r);
+    this.deps.guide(user, {
+      sessionId: r.sessionId,
+      label: 'Discernment',
+      text: 'Try the game and think about how you’d make it yours.',
+      framework: {
+        fourDDimension: 'discernment',
+        title: 'Make the game yours',
+        body: 'Play a round. What would you keep, and what would you change? Tell me your idea in the chat.',
+        noticed: 'Sometimes I’ll offer suggestions as you work, like this one.',
+        check: 'Try the game and think about how you’d make it yours.',
+        why: 'That’s Discernment: judging what AI makes and deciding what to improve.',
+      },
+    });
+  }
+  suggestIdeaCheck(user: string) {
+    const r = this.record(user);
+    if (!r || r.ideaCheckSuggestionShown || !['writing', 'review'].includes(r.phase)) return;
+    r.ideaCheckSuggestionShown = true;
+    this.save(r);
+    this.deps.guide(user, {
+      sessionId: r.sessionId,
+      label: 'Diligence',
+      text: 'Stay in the loop.',
+      framework: {
+        fourDDimension: 'diligence',
+        title: 'Stay in the loop',
+        noticed: 'You’re about to wrap up the work.',
+        check: 'Check that you understand what has been done and make sure you know what to do next.',
+        why: 'That’s Diligence: staying responsible for the work you ask AI to do and maintaining your understanding of the work.',
+        body: 'Click "Check my understanding" to set a brake to your work and quiz yourself on what you’ve done.',
+      },
+    });
   }
   recordScore(
     user: string,
@@ -347,7 +499,7 @@ export default class RunnerTutorial {
     if (!r.checked && r.coaches.length >= 2 && !r.coaches.includes('check')) {
       kind = 'check';
       text =
-        'Try “Check my understanding” before sending. I’ll repeat your idea back.';
+        'Try “Check my understanding” to see how well you understand our work.';
     } else if (
       words.split(/\s+/).length < 5 ||
       /^(make (it|this) (cooler|better|fun)|change it)[.! ]*$/.test(words)
@@ -454,11 +606,12 @@ export default class RunnerTutorial {
     this.watchers.delete(r.user);
     this.draftThemes.delete(r.user);
     this.previewErrors.delete(r.user);
-    const work = path.join(this.directory(r), 'work');
-    fs.rmSync(work, { recursive: true, force: true });
+    const work = r.workspaceDirectory ?? path.join(this.directory(r), 'work');
+    if (!r.workspaceDirectory) fs.rmSync(work, { recursive: true, force: true });
     fs.mkdirSync(work, { recursive: true });
     for (const name of Object.keys(files))
-      fs.copyFileSync(path.join(this.snapshot(r), name), path.join(work, name));
+      this.writeWorkspaceFile(r, name, fs.readFileSync(path.join(this.snapshot(r), name)));
+    this.publishPlayableFile(r);
     let timer: ReturnType<typeof setTimeout>;
     const watched = path.join(work, 'theme.json');
     const refresh = () => {
@@ -599,9 +752,13 @@ export default class RunnerTutorial {
     sessionId: string,
     cancel: () => void,
     text = 'make a change',
+    directory?: string,
   ) {
     const r = this.record(user);
-    if (!r || r.sessionId !== sessionId || r.phase === 'complete') return null;
+    if (!r || r.sessionId !== sessionId || r.phase === 'complete' || r.tour === 'meet') return null;
+    // Introductory questions use ordinary chat before workspace validation.
+    if (directory && path.resolve(directory) !== path.resolve(this.workspace(user, sessionId)!))
+      throw Error('Choose your game folder before changing this game.');
     if (r.phase === 'building')
       throw Error('Coco is already changing this game.');
     this.artistRuns.delete(sessionId);
@@ -823,6 +980,7 @@ Read theme.json only if you need values not covered by the schema or summary. Pr
       r.failure = undefined;
       r.summary = result.summary;
       this.draftThemes.delete(user);
+      this.publishPlayableFile(r);
       this.save(r);
       this.guide(
         r,

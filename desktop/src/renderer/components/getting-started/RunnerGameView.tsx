@@ -2,19 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import type { RunnerTutorialState } from '../../../shared/runner-tutorial';
 import './PixelRunner.css';
 import GamePage from './GamePage';
-import CocoConnectionStatus from './CocoConnectionStatus';
-import TourProgress from './TourProgress';
+import './OnboardingConversation.css';
 import type { RunnerAction } from '../../../shared/runner-tutorial';
 
 export default function RunnerGameView({
   embedded = false,
+  visible = true,
 }: {
   embedded?: boolean;
+  visible?: boolean;
 }) {
   const [state, setState] = useState<RunnerTutorialState | null>(null);
   const [html, setHtml] = useState('');
+  const [gameLoaded, setGameLoaded] = useState(false);
   const [error, setError] = useState('');
-  const [connected, setConnected] = useState(false);
   const [meta, setMeta] = useState({title: 'Your Coco game', timeOfDay: 'night'});
   const frame = useRef<HTMLIFrameElement>(null);
   const live = useRef(state);
@@ -32,10 +33,10 @@ export default function RunnerGameView({
         setMeta({title:preview.title ?? 'Your Coco game',timeOfDay:preview.timeOfDay ?? 'night'});
         if (
           loadedVersion.current !==
-          (preview.state.previewRevision ?? preview.state.version)
+          `${preview.state.previewRevision ?? preview.state.version}:${Boolean(preview.state.introAcknowledged)}`
         ) {
           setHtml(
-            embedded || (preview.state.phase === 'play' && !preview.state.introAcknowledged)
+            preview.state.phase === 'play' && !preview.state.introAcknowledged
               ? preview.html.replace(
                   'globalThis.__cocoTheme=',
                   'globalThis.__cocoStartPaused=true;globalThis.__cocoTheme=',
@@ -43,7 +44,7 @@ export default function RunnerGameView({
               : preview.html,
           );
           loadedVersion.current =
-            preview.state.previewRevision ?? preview.state.version;
+            `${preview.state.previewRevision ?? preview.state.version}:${Boolean(preview.state.introAcknowledged)}`;
         }
         setError('');
       }
@@ -81,6 +82,15 @@ export default function RunnerGameView({
     if (state?.introAcknowledged && state.phase === 'play')
       frame.current?.contentWindow?.postMessage({ type: 'coco-game-play' }, '*');
   }, [state?.introAcknowledged, state?.phase]);
+  useEffect(() => {
+    if (!embedded || !visible || !gameLoaded || state?.tour !== 'active' || state?.phase !== 'play') return undefined;
+    const timer = setTimeout(() => {
+      void window.electron?.ipcRenderer.invoke('runner-action', {
+        sessionId: state.sessionId, action: 'game-suggestion',
+      });
+    }, 10_000);
+    return () => clearTimeout(timer);
+  }, [embedded, visible, gameLoaded, state?.sessionId, state?.tour, state?.phase]);
   const act = async (action: RunnerAction | 'undo') => {
     if (!state) return;
     try {
@@ -99,35 +109,25 @@ export default function RunnerGameView({
     : state?.phase === 'building'
       ? state.previewKind === 'checking' ? 'Previewing changes · checking' : 'Coco is working · previous game'
       : state?.previewKind === 'updated' ? 'Updated by Coco' : 'Original game';
-  const progress = state && <TourProgress state={state} onSkip={() => void act('skip-tour')} />;
-  if (state?.tour === 'meet' || state?.tour === 'done') {
-    const done = state.tour === 'done';
-    return <main className="coco-game-page"><section className="coco-tour-screen">
-      {progress}
-      <div className="coco-game-eyebrow">{done ? 'TASK COMPLETE' : 'GETTING STARTED · ABOUT 3 MINUTES'}</div>
-      <h1>{done ? 'Your idea. Coco made it happen.' : 'Meet Coco.'}</h1>
-      <p>{done ? 'Keep these three habits with you whenever you work with AI.' : 'Play a little game, then ask Coco to make it your own. This is your Getting Started task.'}</p>
-      <div className="coco-tour-habits">
-        <article><h2>{done ? 'Ask clearly' : 'Play a round'}</h2><p>{done ? 'Use your own words. Describe the details that matter and what to keep.' : 'Try jumping and ducking, then see what you would like to change.'}</p></article>
-        <article><h2>{done ? 'Check the result' : 'Make it yours'}</h2><p>{done ? 'Check Coco’s understanding, then play and see whether the result matches your idea.' : 'Tell Coco how you want your game to look or play.'}</p></article>
-        <article><h2>{done ? 'Let Coco do the work' : 'Watch Coco do it'}</h2><p>{done ? 'Coco edits and tests the game. You decide whether it’s ready.' : 'See an agent make and test a working change, beyond giving advice.'}</p></article>
+  if (state?.tour === 'meet') return null;
+  if (embedded) return (
+    <div className="onboarding-game-preview" aria-label="Your game preview">
+      {html ? <iframe ref={frame} title="Your playable game" sandbox="allow-scripts" srcDoc={html} onLoad={() => setGameLoaded(true)} /> : <p role="status">Opening your game…</p>}
+      {state?.phase === 'building' && <p role="status">I’m working on your change. You can keep playing while I finish.</p>}
+      {(error || state?.error || state?.previewError) && <p role="alert">{error || state?.error || state?.previewError} <button type="button" onClick={() => state?.error ? void act('retry') : void refresh()}>Try again</button></p>}
+      <div className="onboarding-replies">
+        {state?.canUndo && <button type="button" disabled={state.phase === 'building'} onClick={() => void act('undo')}>Undo change</button>}
       </div>
-      {!done && <CocoConnectionStatus onReady={setConnected} />}
-      {error && <p role="alert">{error}</p>}
-      <div className="coco-tour-buttons">
-        <button className="coco-button coco-button--primary" disabled={!done && !connected} onClick={() => void act(done ? 'finish-setup' : 'tour-play')}>{done ? 'Finish task' : 'Let’s play'}</button>
-      </div>
-      {!done && <p>You’re using your signed-in Coco account. If the connection isn’t ready, retry above or leave the task for now.</p>}
-    </section></main>;
-  }
+    </div>
+  );
   return <GamePage {...meta} html={html} frameRef={frame}
-    progress={progress} canCustomize={Boolean(state?.firstGameOver || state?.hasChanges || state?.tour !== 'active')}
+    canCustomize={Boolean(state?.firstGameOver || state?.hasChanges || state?.tour !== 'active')}
     inviteCustomize={Boolean(state?.firstGameOver && state?.phase === 'play')}
     updated={Boolean(state?.hasChanges && state.previewKind === 'updated' && !state.error)}
     completed={state?.phase === 'complete'}
     busy={!state || state.phase === 'building'} canUndo={state?.canUndo} failed={Boolean(state?.error)}
     statusLabel={statusLabel} onAction={action => void act(action)}
-    notice={<><CocoConnectionStatus quiet />{(error || state?.error || state?.previewError) &&
+    notice={<>{(error || state?.error || state?.previewError) &&
       <div className="coco-game-error" role="status"><p>{state?.error || state?.previewError || error}</p>
       <button className="coco-button coco-button--primary" type="button" onClick={() => state?.error ? void act('retry') : void refresh()}>Try again</button></div>}</>} />;
 }

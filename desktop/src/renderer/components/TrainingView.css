@@ -328,3 +328,8 @@
     padding: 9px 4px;
   }
 }
+
+.onboarding-agent101-highlight { position: relative; border-radius: 18px; animation: onboarding-agent101-pulse 2s ease-in-out 3; }
+.onboarding-agent101-highlight > p { display: inline-flex; gap: 6px; margin: 0 0 10px; padding: 5px 12px; border-radius: 99px; background: var(--coco-color-primary-subtle, #eaf1fb); color: var(--coco-color-primary); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+@keyframes onboarding-agent101-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 5px 24px #234f8020; } }
+@media (prefers-reduced-motion: reduce) { .onboarding-agent101-highlight { animation: none; background: var(--coco-color-primary-subtle, #eaf1fb); } }

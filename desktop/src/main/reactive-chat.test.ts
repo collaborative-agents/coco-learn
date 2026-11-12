@@ -321,3 +321,14 @@ it('can publish actual validated edits even if the model explanation cuts off',a
  expect(t.run).toHaveBeenCalledTimes(1);expect(runner.finish).toHaveBeenCalledWith('session',true,undefined);
  expect(t.deps.emit).toHaveBeenCalledWith(t.event.sender,expect.objectContaining({type:'done',guidance:'I drew your cat.'}));
 });
+
+it.each(['text', 'voice'])('uses normal chat for %s onboarding questions that need no game preparation', async kind => {
+  const t = setup();
+  const runner = { begin: jest.fn(() => null), tools: jest.fn(), finish: jest.fn() };
+  Object.assign(t.deps, { runner });
+  await t.handlers[kind === 'text' ? 'send-chat-message' : 'send-audio-message'](t.event,
+    kind === 'text' ? {requestId:'intro-question',userText:'who are you'} : {requestId:'intro-question',audioData:'audio'});
+  expect(t.run).toHaveBeenCalledWith(expect.objectContaining({ game: undefined }));
+  expect(runner.tools).not.toHaveBeenCalled();
+  expect(runner.finish).not.toHaveBeenCalled();
+});

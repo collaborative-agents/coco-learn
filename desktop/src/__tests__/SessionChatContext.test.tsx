@@ -1716,13 +1716,13 @@ describe('deferred suggestion context', () => {
 
 });
 
-it('uses the real empty composer for the game and checks the unsent idea without submitting it',async()=>{
+it('opens the normal understanding check and preserves the unsent game idea',async()=>{
   const listeners=new Map<string,(value:any)=>void>();
   const sendMessage=jest.fn();
   const invoke=jest.fn(async(channel:string)=>{
     if(channel==='get-profile')return {tutorScenario:'ai_upskilling',aiTools:[]};
     if(channel==='get-supported-modes')return ['ai_upskilling'];
-    if(channel==='check-understanding')return {success:true,kind:'idea',interpretation:'A pink fox jumping over crystals in space—is that right?'};
+    if(channel==='check-understanding')return {success:true,kind:'quiz'};
     if(channel==='runner-state')return {sessionId:'runner',phase:'writing'};
     return null;
   });
@@ -1735,10 +1735,11 @@ it('uses the real empty composer for the game and checks the unsent idea without
   fireEvent.change(input,{target:{value:idea}});
   await waitFor(()=>expect(sendMessage).toHaveBeenCalledWith('runner-draft',{sessionId:'runner',draft:idea}),{timeout:2500});
   fireEvent.click(screen.getByRole('button',{name:'Check my understanding'}));
-  await waitFor(()=>expect(invoke).toHaveBeenCalledWith('check-understanding',{sessionId:'runner',draft:idea}));
+  await waitFor(()=>expect(invoke).toHaveBeenCalledWith('check-understanding',{sessionId:'runner'}));
   expect(input).toHaveValue(idea);
-  expect(await screen.findByText('A pink fox jumping over crystals in space—is that right?')).toBeVisible();
-  expect(screen.getByRole('region',{name:'About Check my understanding'})).toHaveTextContent('repeat your game idea back');
+  expect(screen.queryByRole('dialog', {name:'Check your understanding'})).not.toBeInTheDocument();
+  expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'idea-check-suggestion'});
+  expect(screen.queryByText('Check before you send.')).not.toBeInTheDocument();
   fireEvent.change(input,{target:{value:'Make the fox blue instead'}});
   expect(screen.queryByText('A pink fox jumping over crystals in space—is that right?')).not.toBeInTheDocument();
   expect(invoke.mock.calls.some(([channel])=>channel==='send-chat-message')).toBe(false);
@@ -1746,8 +1747,8 @@ it('uses the real empty composer for the game and checks the unsent idea without
 
 it.each([
   {success:false,error:'Coco’s local tutor isn’t responding. Open Settings → Health and choose Retry.'},
-  {success:true},
-])('makes a failed or empty game-idea check visible and preserves the draft: %j',async response=>{
+  {success:false,error:'Couldn’t load your understanding check. Please try again.'},
+])('allows an empty composer and shows quiz failures without losing the draft: %j',async response=>{
   const listeners=new Map<string,(value:any)=>void>();
   const invoke=jest.fn(async(channel:string)=>{
     if(channel==='get-profile')return {tutorScenario:'ai_upskilling',aiTools:[]};
@@ -1760,13 +1761,12 @@ it.each([
   await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Your game'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
   const button=screen.getByRole('button',{name:'Check my understanding'});
   fireEvent.click(button);
-  expect(screen.getByRole('alert')).toHaveTextContent('Write your game idea first');
-  expect(invoke.mock.calls.some(([channel])=>channel==='check-understanding')).toBe(false);
+  await waitFor(()=>expect(invoke).toHaveBeenCalledWith('check-understanding',{sessionId:'runner'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent(response.error);
   const input=screen.getByPlaceholderText(/Ask Coco/);
   fireEvent.change(input,{target:{value:'Make a snowy cat world'}});
   fireEvent.click(button);
-  await waitFor(()=>expect(screen.getByRole('alert')).not.toHaveTextContent('Write your game idea first'));
-  expect(screen.getByRole('alert')).toHaveTextContent(response.success?'Coco didn’t return an explanation':response.error!);
+  expect(await screen.findByRole('alert')).toHaveTextContent(response.error);
   expect(input).toHaveValue('Make a snowy cat world');
   expect(screen.queryByText('Did Coco get your idea?')).not.toBeInTheDocument();
 });

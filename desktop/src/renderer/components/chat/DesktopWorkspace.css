@@ -62,6 +62,26 @@
   color: #2457c5;
   box-shadow: 0 0 0 2px #79a4ff, 0 0 18px #5689f266;
 }
+
+/* The light sits outside the target; buttons retain their original design. */
+.coco-guide-spotlight {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid rgba(111, 146, 229, 0.7);
+  box-shadow: 0 0 0 4px rgba(172, 192, 242, 0.16), 0 0 18px 5px rgba(98, 139, 235, 0.3);
+  animation: coco-guide-glow 2s ease-in-out infinite;
+}
+@keyframes coco-guide-glow {
+  50% {
+    border-color: rgba(111, 146, 229, 0.95);
+    box-shadow: 0 0 0 5px rgba(172, 192, 242, 0.22), 0 0 24px 7px rgba(98, 139, 235, 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coco-guide-spotlight { animation: none; }
+}
 .workspace-rail .workspace-settings-button {
   margin-top: auto;
 }
@@ -76,6 +96,116 @@
   min-height: 0;
   overflow: hidden;
 }
+.workspace-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 8px 10px 0;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.12);
+  -webkit-app-region: drag;
+}
+/* Tab strip modelled on macOS (Safari/Finder) tabs: inset rounded tabs on a
+   quiet bar, the active tab lifted as a white card, close shown on hover. */
+.workspace-session-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: calc(100% - 180px);
+  margin-bottom: 6px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(118, 118, 128, 0.12);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+}
+.workspace-session-tabs::-webkit-scrollbar { display: none; }
+.workspace-session-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 180px;
+  min-width: 110px;
+  max-width: 220px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #3c3c43;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: default;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.workspace-session-tab + .workspace-session-tab::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: rgba(60, 60, 67, 0.18);
+}
+.workspace-session-tab[data-active='true']::before,
+.workspace-session-tab[data-active='true'] + .workspace-session-tab::before,
+.workspace-session-tab:hover::before,
+.workspace-session-tab:hover + .workspace-session-tab::before { opacity: 0; }
+.workspace-session-tab-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  padding: 0 26px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  border-radius: inherit;
+}
+.workspace-session-tab-button:focus-visible { outline: 2px solid #0a84ff; outline-offset: -2px; }
+.workspace-session-tab-close {
+  position: absolute;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #6e6e73;
+  font-size: 15px;
+  line-height: 1;
+  cursor: default;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.workspace-session-tab:hover .workspace-session-tab-close,
+.workspace-session-tab[data-active='true'] .workspace-session-tab-close,
+.workspace-session-tab-close:focus-visible { opacity: 1; }
+.workspace-session-tab-close:hover { background: rgba(118, 118, 128, 0.2); color: #1d1d1f; }
+.workspace-session-tab-close:disabled { opacity: 0 !important; }
+.workspace-empty-chat { margin: auto; padding: 32px; text-align: center; color: var(--coco-color-text-muted); }
+.workspace-session-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-session-tab svg { flex-shrink: 0; width: 14px; height: 14px; opacity: 0.7; }
+.workspace-session-tab:hover { background: rgba(118, 118, 128, 0.12); }
+.workspace-session-tab[data-active='true'] {
+  background: #ffffff;
+  color: #1d1d1f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+}
+.workspace-chat-actions > button { margin-bottom: 6px; -webkit-app-region: no-drag; }
+.workspace-tab-window-controls { display: flex; margin: 0 0 6px auto; -webkit-app-region: no-drag; }
 .workspace-chat [role='banner'] {
   min-height: 64px;
   box-sizing: border-box;
@@ -229,16 +359,17 @@
 
 /* Reserve native traffic lights across every page, including compact mode. */
 .desktop-workspace.has-native-titlebar {
+  --workspace-titlebar-height: 56px;
   position: relative;
   box-sizing: border-box;
-  padding-top: 40px;
+  padding-top: var(--workspace-titlebar-height);
   border: 0;
   border-radius: 0;
 }
 .workspace-native-titlebar {
   position: absolute;
   inset: 0 0 auto;
-  height: 40px;
+  height: var(--workspace-titlebar-height);
   background: var(--coco-color-surface);
   -webkit-app-region: drag;
 }
@@ -250,7 +381,7 @@
   right: 0;
   left: 90px;
   z-index: 20;
-  height: 40px;
+  height: var(--workspace-titlebar-height);
   box-sizing: border-box;
 }
 .has-native-titlebar .workspace-details {
@@ -262,7 +393,7 @@
   right: 0;
   left: 90px;
   z-index: 20;
-  height: 40px;
+  height: var(--workspace-titlebar-height);
   padding: 4px 10px;
   justify-content: flex-end;
   border-bottom: 0;

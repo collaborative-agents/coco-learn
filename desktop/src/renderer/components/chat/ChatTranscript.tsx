@@ -1,6 +1,6 @@
 import OnboardingMessage, { OnboardingTurn } from '../getting-started/OnboardingMessage';
 import type React from 'react';
-import { useMemo } from 'react';
+import { useContext, useMemo } from 'react';
 import { S } from './styles';
 import './ChatTranscript.css';
 import type { SavedConversation, ChatMessage } from './types';
@@ -12,6 +12,7 @@ import RatingButtons from '../RatingButtons';
 import { messageCopyKey } from './message-format';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
 import { extractPreviewHtml } from './html-preview';
+import { SidePanelContext } from './SidePanel';
 import {
   SCREEN_TASK_PROMPT,
   SECONDARY_CHAT_PROMPTS,
@@ -66,16 +67,19 @@ interface Props {
 
 function HtmlPreviewButton({ text }: { text: string }) {
   const html = useMemo(() => extractPreviewHtml(text), [text]);
+  const openSidePanel = useContext(SidePanelContext);
   if (!html) return null;
   return (
     <button
       type="button"
       style={S.htmlPreviewBtn}
       aria-label="Preview HTML page"
-      onClick={() => window.electron?.ipcRenderer.sendMessage('open-html-preview', { html })}
+      onClick={() => openSidePanel
+        ? openSidePanel({ kind: 'html', html })
+        : window.electron?.ipcRenderer.sendMessage('open-html-preview', { html })}
     >
       <span>Preview HTML page</span>
-      <span aria-hidden="true">↗</span>
+      <span aria-hidden="true">{openSidePanel ? '▸' : '↗'}</span>
     </button>
   );
 }

@@ -340,7 +340,7 @@ describe('instant suggestion actions', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('puts "← Why" and the action in one row on the action page', () => {
+  it('uses B’s action button above the shared pager on the action page', () => {
     const onPageChange = jest.fn();
     const onRun = jest.fn();
     render(
@@ -368,7 +368,8 @@ describe('instant suggestion actions', () => {
     const run = screen.getByRole('button', { name: 'Run with Coco' });
     const row = screen.getByLabelText('Suggestion pages');
     expect(row).toContainElement(why);
-    expect(row).toContainElement(run);
+    expect(document.querySelector('.observation-bubble')).toContainElement(run);
+    expect(row).not.toContainElement(run);
     expect(document.querySelector('.toast-footer')).toBeNull();
     fireEvent.click(why);
     expect(onPageChange).toHaveBeenCalledWith(0);
@@ -496,15 +497,15 @@ describe('instant suggestion actions', () => {
     );
 
     expect(screen.getByText('Delegation')).toBeInTheDocument();
-    const lines = Array.from(container.querySelectorAll('.toast-why-line'));
+    const lines = Array.from(container.querySelectorAll('.bubble-why-line'));
     expect(lines.map((line) => line.textContent)).toEqual([
       "Looks like you're entering grades one by one.",
       'Claude can format your sheet for Canvas.',
       'That saves about twenty minutes.',
       'Spot-check three rows before importing.',
     ]);
-    expect(lines[0]).toHaveClass('toast-why-line--lead');
-    expect(lines[1]).not.toHaveClass('toast-why-line--lead');
+    expect(lines[0]).toHaveClass('bubble-why-line--lead');
+    expect(lines[1]).not.toHaveClass('bubble-why-line--lead');
     expect(screen.queryByText(/Stage:/)).not.toBeInTheDocument();
   });
 
@@ -581,7 +582,7 @@ describe('instant suggestion actions', () => {
 
     expect(screen.getByText('Discernment')).toBeInTheDocument();
     expect(
-      Array.from(container.querySelectorAll('.toast-why-line')).map(
+      Array.from(container.querySelectorAll('.bubble-why-line')).map(
         (line) => line.textContent,
       ),
     ).toEqual([
@@ -591,7 +592,7 @@ describe('instant suggestion actions', () => {
     ]);
   });
 
-  it('labels the action page "Try this"', () => {
+  it('uses B’s suggestion title on the action page', () => {
     render(
       <NotificationBubble
         message={'**Paste this prompt into Claude**\n\nExplain this error.'}
@@ -608,7 +609,8 @@ describe('instant suggestion actions', () => {
       />,
     );
 
-    expect(screen.getByText('Try this')).toBeInTheDocument();
+    expect(screen.getByText('Paste this prompt into Claude')).toBeInTheDocument();
+    expect(screen.getByText('Explain this error.')).toBeInTheDocument();
   });
 });
 
@@ -862,4 +864,25 @@ describe('suggestion pop-up height', () => {
     // 40 + 120 + 50 for the rows, plus 60px of hidden message text.
     expect(fittedCardHeight(card)).toBe(270);
   });
+});
+
+it.each(['delegation','description','discernment','diligence'] as const)('uses B’s bubble and simple feedback for %s advice in A', dimension => {
+  const rate=jest.fn();
+  const {container}=render(<NotificationBubble message="Try this" notifType="proactive-suggestion" showFrameworkIntro
+    suggestion={{kind:'content',title:'Try this',body:'Check the result.',copyText:'Check the result.',fourDDimension:dimension,
+      noticed:'You are working with Coco.',aiCan:'Coco can help.',check:'Check the result.',why:'Stay involved.'}}
+    suggestionRating={null} onRateSuggestion={rate} />);
+  expect(container.querySelector('.notification-advice .observation-bubble')).toBeInTheDocument();
+  expect(container.querySelector('.toast-card')).not.toBeInTheDocument();
+  expect(screen.getByText(dimension[0].toUpperCase()+dimension.slice(1))).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Good suggestion'}));
+  expect(rate).toHaveBeenCalledTimes(1);
+  expect(rate).toHaveBeenCalledWith('up');
+});
+
+it('fits the shared bubble including its own padding and footer', () => {
+  const bubble=document.createElement('div');
+  bubble.className='observation-bubble';
+  Object.defineProperty(bubble,'offsetHeight',{value:289});
+  expect(fittedCardHeight(bubble)).toBe(289);
 });

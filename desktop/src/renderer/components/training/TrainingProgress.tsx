@@ -43,8 +43,10 @@ function stepMarker(step: ChallengeStep) {
 
 export default function TrainingProgress({
   steps,
+  preview = false,
 }: {
   steps: ChallengeStep[];
+  preview?: boolean;
 }) {
   const completed = steps.filter((step) => step.complete).length;
   const current = steps.find((step) => !step.complete && step.available)?.id;
@@ -64,15 +66,15 @@ export default function TrainingProgress({
           draggable={false}
         />
         <div className="training-progress-label">
-          <strong>Learning progress</strong>
-          <span
+          <strong>{preview ? 'Training tasks' : 'Learning progress'}</strong>
+          {!preview && <span
             role="progressbar"
             aria-label="Learning progress"
             aria-valuemin={0}
             aria-valuemax={steps.length}
             aria-valuenow={completed}
             aria-valuetext={`${completed} of ${steps.length} challenge items complete`}
-          />
+          />}
         </div>
       </div>
       <div className="training-progress-scroll">
@@ -95,7 +97,7 @@ export default function TrainingProgress({
                     title={
                       step.complete
                         ? `${step.accessibleLabel} — Complete`
-                        : `${step.accessibleLabel}${step.available ? '' : ' — Locked'}`
+                        : `${step.accessibleLabel}${step.available ? '' : preview ? ' — Offline' : ' — Locked'}`
                     }
                   >
                     <span
@@ -116,8 +118,9 @@ export default function TrainingProgress({
         </div>
       </div>
       <p className="training-progress-hint">
-        Book icons mark training tasks; clipboard icons mark assessments.
-        Select an available step to continue. Grey steps unlock as you progress.
+        {preview
+          ? 'Your learning path: a start check-in, seven practice tasks, a final check-in, and a follow-up.'
+          : 'Book icons mark training tasks; clipboard icons mark assessments. Select an available step to continue. Grey steps unlock as you progress.'}
       </p>
     </section>
   );

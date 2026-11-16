@@ -1,5 +1,46 @@
 import { CocoGatewayClient } from '../main/services/gateway-client';
 
+it('explains a sign-in connection failure without exposing credentials', async () => {
+  const failure = new TypeError('fetch failed', {
+    cause: { code: 'ECONNRESET' },
+  });
+  const client = new CocoGatewayClient({
+    gatewayUrl: 'https://gateway.example',
+    fetchImpl: jest.fn().mockRejectedValue(failure),
+  });
+  await expect(
+    client.signIn({
+      participantId: 'alice',
+      password: 'private-password',
+      keepSignedIn: true,
+    }),
+  ).rejects.toMatchObject({
+    message: 'Could not connect to the Coco backend at https://gateway.example (ECONNRESET). Check your connection, VPN, and configured gateway URL, then try again.',
+    cause: failure,
+  });
+});
+
+it('reports backend timeouts as retryable connection errors', async () => {
+  jest.useFakeTimers();
+  try {
+    const client = new CocoGatewayClient({
+      gatewayUrl: 'https://gateway.example',
+      fetchImpl: jest.fn().mockImplementation(
+        (_url, options) => new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+      ),
+    });
+    client.setAuthSession('test-token', 'alice');
+    const request = client.requestJson('/api/auth/me', 'GET', undefined, 100);
+    const result = expect(request).rejects.toThrow('took too long to respond');
+    await jest.advanceTimersByTimeAsync(100);
+    await result;
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it.each([401, 403, 503])('preserves HTTP %s for access policy decisions', async (status) => {
   const client = new CocoGatewayClient({
     gatewayUrl: 'https://gateway.example',

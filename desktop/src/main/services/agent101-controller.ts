@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron';
 import aggregateCallMetrics from '../../shared/aggregate-call-metrics';
+import { emptyContextProgress } from '../../shared/context-training';
+import { emptyToolProgress } from '../../shared/tool-exploration';
 import type { LLMCallMetrics } from '../../renderer/components/observation-types';
 import type { TutorStreamEvent } from './tutor-stream';
 import type AgentRuns from './agent-runs';
@@ -72,10 +74,37 @@ export default function createAgent101Controller(deps: Agent101Dependencies) {
     gateway: deps.gateway,
     warn: (error) => deps.warn(error),
   });
+  // Progress hooks also mount before sign-in and refresh after sign-out.
+  // Only these read endpoints have an anonymous state; actions still requireUser.
+  const anonymousProgress: Record<string, () => unknown> = {
+    'tool-chapter-progress': emptyToolProgress,
+    'context-chapter-progress': emptyContextProgress,
+    'token-chapter-progress': () => ({ completedAt: null }),
+    'model-chapter-progress': () => ({ completedAt: null }),
+    'workflow-chapter-progress': () => ({ completedAt: null }),
+  };
+  const handle: IpcMain['handle'] = (channel, listener) => {
+    const emptyProgress = anonymousProgress[channel];
+    agent101Tracking.ipc.handle(channel, (event, ...args) => {
+      if (emptyProgress) {
+        if (!deps.isChatSender(event))
+          throw new Error(
+            'Chapter progress is only available in the chat window.',
+          );
+        if (!deps.authenticated() || !deps.currentUser())
+          return emptyProgress();
+      }
+      return listener(event, ...args);
+    });
+  };
+  const chapterIpc = new Proxy(agent101Tracking.ipc, {
+    get: (target, property) =>
+      property === 'handle' ? handle : Reflect.get(target, property),
+  });
 
   const contextTraining = registerContextTraining({
     canSkipPrerequisites: deps.canSkipPrerequisites,
-    ipc: agent101Tracking.ipc,
+    ipc: chapterIpc,
     root: deps.root,
     user: (event, run = false) =>
       requireUser(event, run, 'Sign in to use Agent 101.'),
@@ -105,7 +134,7 @@ export default function createAgent101Controller(deps: Agent101Dependencies) {
 
   const tokenTraining = registerTokenTraining({
     canSkipPrerequisites: deps.canSkipPrerequisites,
-    ipc: agent101Tracking.ipc,
+    ipc: chapterIpc,
     root: deps.root,
     user: (event, run = false) =>
       requireUser(event, run, 'Sign in to use Agent 101.'),
@@ -136,7 +165,7 @@ export default function createAgent101Controller(deps: Agent101Dependencies) {
 
   const modelTraining = registerModelTraining({
     canSkipPrerequisites: deps.canSkipPrerequisites,
-    ipc: agent101Tracking.ipc,
+    ipc: chapterIpc,
     root: deps.root,
     user: (event, run = false) =>
       requireUser(event, run, 'Sign in to use Agent 101.'),
@@ -228,7 +257,7 @@ export default function createAgent101Controller(deps: Agent101Dependencies) {
     }
   >();
   const workflowTraining = registerWorkflowTraining({
-    ipc: agent101Tracking.ipc,
+    ipc: chapterIpc,
     root: deps.root,
     currentUser: deps.currentUser,
     user: (event, run = false) =>
@@ -373,7 +402,7 @@ export default function createAgent101Controller(deps: Agent101Dependencies) {
   });
 
   const toolTraining = registerToolExploration({
-    ipc: agent101Tracking.ipc,
+    ipc: chapterIpc,
     runs: deps.runs,
     root: deps.root,
     user: (event, run = false) =>

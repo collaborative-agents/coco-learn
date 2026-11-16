@@ -169,7 +169,13 @@ it('offers the generic HTML preview action for a completed HTML reply', async ()
   const preview = await screen.findByRole('button', { name: /Preview HTML page/i });
   expect(preview).toHaveStyle({ minHeight: '52px', minWidth: '260px' });
   fireEvent.click(preview);
-  expect(sendMessage).toHaveBeenCalledWith('open-html-preview', expect.objectContaining({ html: expect.stringContaining('Model page') }));
+  // The page opens beside the chat in the split-screen pane, not a new window.
+  expect(sendMessage).not.toHaveBeenCalledWith('open-html-preview', expect.anything());
+  const pane = screen.getByRole('complementary', { name: 'HTML preview' });
+  expect(pane.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Model page');
+  expect(pane.querySelector('iframe')?.getAttribute('sandbox')).toBe('');
+  fireEvent.click(screen.getByRole('button', { name: 'Close side panel' }));
+  expect(screen.queryByRole('complementary', { name: 'HTML preview' })).not.toBeInTheDocument();
 });
 
 it('shows only the selected tab and preserves the chat draft across navigation', async () => {

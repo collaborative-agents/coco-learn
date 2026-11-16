@@ -49,6 +49,17 @@ describe('AvatarBubbleView', () => {
     expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'dismiss');
   });
 
+  it('keeps Explore later distinct from closing the tip', () => {
+    const { sendMessage, showBubble } = setup();
+    showBubble({status:'observing', phrase:'Want to make it yours?', fadingOut:false,
+      runnerTutorial:{sessionId:'game', action:'customize'},
+      guide:{label:'KEEP EXPLORING', secondaryAction:'show-around', secondaryActionLabel:'No, show me around', dismissible:true},
+    });
+    fireEvent.click(screen.getByRole('button', {name:'No, show me around'}));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'secondary');
+    expect(sendMessage).not.toHaveBeenCalledWith('avatar-bubble-event', 'dismiss');
+  });
+
   it('ignores a hover left over from the last bubble until the mouse moves', () => {
     const { container, showBubble } = setup();
     const view = container.querySelector('.avatar-bubble-view')!;

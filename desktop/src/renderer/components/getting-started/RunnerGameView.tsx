@@ -7,14 +7,13 @@ import type { RunnerAction } from '../../../shared/runner-tutorial';
 
 export default function RunnerGameView({
   embedded = false,
-  visible = true,
 }: {
   embedded?: boolean;
   visible?: boolean;
 }) {
   const [state, setState] = useState<RunnerTutorialState | null>(null);
   const [html, setHtml] = useState('');
-  const [gameLoaded, setGameLoaded] = useState(false);
+  const playedVersion = useRef<string | null>(null);
   const [error, setError] = useState('');
   const [meta, setMeta] = useState({title: 'Your Coco game', timeOfDay: 'night'});
   const frame = useRef<HTMLIFrameElement>(null);
@@ -35,6 +34,7 @@ export default function RunnerGameView({
           loadedVersion.current !==
           `${preview.state.previewRevision ?? preview.state.version}:${Boolean(preview.state.introAcknowledged)}`
         ) {
+          playedVersion.current = null;
           setHtml(
             preview.state.phase === 'play' && !preview.state.introAcknowledged
               ? preview.html.replace(
@@ -60,11 +60,21 @@ export default function RunnerGameView({
     const message = (event: MessageEvent) => {
       if (
         event.source !== frame.current?.contentWindow ||
-        event.data?.type !== 'runner-game-over' ||
         !live.current ||
-        live.current.previewKind === 'checking'
+        live.current.previewKind === 'checking' ||
+        event.data?.version !== live.current.version
       )
         return;
+      if (event.data?.type === 'runner-game-input') {
+        playedVersion.current = live.current.version;
+        void window.electron?.ipcRenderer.invoke('runner-action', {
+          sessionId: live.current.sessionId,
+          action: 'game-input',
+          version: event.data.version,
+        });
+        return;
+      }
+      if (event.data?.type !== 'runner-game-over' || playedVersion.current !== live.current.version) return;
       void window.electron?.ipcRenderer.invoke('runner-action', {
         sessionId: live.current.sessionId,
         action: 'game-over',
@@ -82,15 +92,6 @@ export default function RunnerGameView({
     if (state?.introAcknowledged && state.phase === 'play')
       frame.current?.contentWindow?.postMessage({ type: 'coco-game-play' }, '*');
   }, [state?.introAcknowledged, state?.phase]);
-  useEffect(() => {
-    if (!embedded || !visible || !gameLoaded || state?.tour !== 'active' || state?.phase !== 'play') return undefined;
-    const timer = setTimeout(() => {
-      void window.electron?.ipcRenderer.invoke('runner-action', {
-        sessionId: state.sessionId, action: 'game-suggestion',
-      });
-    }, 10_000);
-    return () => clearTimeout(timer);
-  }, [embedded, visible, gameLoaded, state?.sessionId, state?.tour, state?.phase]);
   const act = async (action: RunnerAction | 'undo') => {
     if (!state) return;
     try {
@@ -112,7 +113,7 @@ export default function RunnerGameView({
   if (state?.tour === 'meet') return null;
   if (embedded) return (
     <div className="onboarding-game-preview" aria-label="Your game preview">
-      {html ? <iframe ref={frame} title="Your playable game" sandbox="allow-scripts" srcDoc={html} onLoad={() => setGameLoaded(true)} /> : <p role="status">Opening your game…</p>}
+      {html ? <iframe ref={frame} title="Your playable game" sandbox="allow-scripts" srcDoc={html} /> : <p role="status">Opening your game…</p>}
       {state?.phase === 'building' && <p role="status">I’m working on your change. You can keep playing while I finish.</p>}
       {(error || state?.error || state?.previewError) && <p role="alert">{error || state?.error || state?.previewError} <button type="button" onClick={() => state?.error ? void act('retry') : void refresh()}>Try again</button></p>}
       <div className="onboarding-replies">
@@ -121,7 +122,7 @@ export default function RunnerGameView({
     </div>
   );
   return <GamePage {...meta} html={html} frameRef={frame}
-    canCustomize={Boolean(state?.firstGameOver || state?.hasChanges || state?.tour !== 'active')}
+    canCustomize={Boolean(state?.understandingCompleted || state?.firstGameOver || state?.hasChanges || state?.tour !== 'active')}
     inviteCustomize={Boolean(state?.firstGameOver && state?.phase === 'play')}
     updated={Boolean(state?.hasChanges && state.previewKind === 'updated' && !state.error)}
     completed={state?.phase === 'complete'}

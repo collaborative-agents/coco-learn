@@ -26,7 +26,7 @@ export default function OnboardingCompleted({ sessionId, onClose }: {
         <div className="reflection-completed-icon" aria-hidden>🎉</div>
         <h2>Congratulations!</h2>
         <p>You built a game with Coco, made it yours, and checked the result.</p>
-        <p>Keep going with Agent 101: short lessons to build your skills and unlock more chat tools.</p>
+        <p>Keep practicing in Training tasks. Agent 101 is an optional side quest: completing its chapters unlocks features such as tool calling.</p>
         <button className="training-primary" type="button" disabled={opening} onClick={() => void explore()}>
           {opening ? 'Opening…' : 'Explore Agent 101'}
         </button>

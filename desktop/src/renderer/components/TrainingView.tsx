@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import type { RunnerGuide } from '../../shared/runner-tutorial';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useWorkflowChapter from './training/useWorkflowChapter';
 /* eslint react/require-default-props: ["error", { "functions": "defaultArguments" }] */
 import useTokenChapter from './training/useTokenChapter';
@@ -30,11 +31,13 @@ import './TrainingView.css';
 export default function TrainingView({
   visible = true,
   refreshKey = 0,
+  guideHighlight,
 }: {
   visible?: boolean;
   refreshKey?: number;
+  guideHighlight?: RunnerGuide['highlight'];
 }) {
-  const { state, studentMode, error, setError, refresh } = useTrainingState(
+  const { state, studentMode, error, setError, refresh, hostedTrainingEnabled } = useTrainingState(
     visible,
     refreshKey,
   );
@@ -67,22 +70,26 @@ export default function TrainingView({
     const cleanup = window.electron?.ipcRenderer.on('getting-started-open-article', () => setGettingStartedOpen(true));
     return () => { if (typeof cleanup === 'function') cleanup(); };
   }, []);
-  const [highlightAgent101, setHighlightAgent101] = useState(false);
+  const [revealAgent101, setRevealAgent101] = useState(0);
+  const revealedAgent101 = useRef(0);
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
     const off = window.electron?.ipcRenderer.on('open-training-panel', (value: unknown) => {
-      if ((value as { highlight?: string } | null)?.highlight !== 'agent101') return;
+      const payload = value as { reveal?: string } | null;
+      if (payload?.reveal !== 'agent101') return;
       setGettingStartedOpen(false);
       setQuestOpen(false);
-      setHighlightAgent101(true);
-      clearTimeout(timer);
-      timer = setTimeout(() => setHighlightAgent101(false), 6500);
+      setRevealAgent101(value => value + 1);
     });
-    return () => { off?.(); clearTimeout(timer); };
+    return () => { off?.(); };
   }, []);
   useEffect(() => {
-    if (highlightAgent101 && visible) document.getElementById('onboarding-agent101')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-  }, [highlightAgent101, visible]);
+    if (!visible || (guideHighlight !== 'tool' && revealedAgent101.current === revealAgent101)) return;
+    revealedAgent101.current = revealAgent101;
+    document.querySelector('[data-coaching-control="tool"]')?.scrollIntoView?.({
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+    });
+  }, [revealAgent101, guideHighlight, visible]);
   const [questLevel, setQuestLevel] = useState(0);
   const toolProgress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
@@ -98,7 +105,7 @@ export default function TrainingView({
       workflowProgress.completedAt,
     ][questLevel],
   );
-  let questActionLabel = 'Start quest';
+  let questActionLabel = questLevel === 0 ? 'Side quest' : 'Start quest';
   if (startingToolChat) questActionLabel = 'Opening quest…';
   const [busy, setBusy] = useState(false);
   const [preAssessmentComplete, setPreAssessmentComplete] = useState(false);
@@ -227,19 +234,20 @@ export default function TrainingView({
         }
       >
         <GettingStarted />
-        <div id="onboarding-agent101" className={highlightAgent101 ? 'onboarding-agent101-highlight' : undefined}>
-        {highlightAgent101 && <p role="status">Up next · Agent 101</p>}
+        <div id="onboarding-agent101">
         <AgenticQuest
           adminMode={adminMode}
           onOpen={(level) => {
             setQuestLevel(level);
             setToolChatError('');
             setQuestOpen(true);
+            if (level === 0) window.electron?.ipcRenderer.sendMessage('learning-tour-progress', 'tool-opened');
           }}
         />
         </div>
         <section
           className="training-main-challenge"
+          id="onboarding-training"
           aria-labelledby="training-challenge-title"
         >
           <header className="training-header">
@@ -252,15 +260,16 @@ export default function TrainingView({
               with AI.
             </p>
           </header>
-          {state && (
+          {(state || !hostedTrainingEnabled) && (
             <TrainingProgress
+              preview={!hostedTrainingEnabled}
               steps={[
                 {
                   id: 'pre',
                   label: 'Start check-in',
                   accessibleLabel: 'Start check-in',
                   complete: preAssessmentComplete,
-                  available: true,
+                  available: hostedTrainingEnabled && Boolean(state),
                   onClick: () => setActive('pre'),
                 },
                 ...Array.from({ length: 7 }, (_, index) => {
@@ -286,8 +295,8 @@ export default function TrainingView({
                   id: 'post',
                   label: 'Final check-in',
                   accessibleLabel: 'Final check-in',
-                  complete: Boolean(state.post_assessment_complete),
-                  available: postAssessmentUnlocked,
+                  complete: Boolean(state?.post_assessment_complete),
+                  available: hostedTrainingEnabled && postAssessmentUnlocked,
                   onClick: () => setActive('post'),
                 },
                 {
@@ -331,7 +340,12 @@ export default function TrainingView({
               {notice}
             </p>
           )}
-          {!state ? (
+          {!hostedTrainingEnabled ? (
+            <p role="status" className="training-info">
+              Training tasks are offline. You can explore Agent 101 now, then sign
+              in when the server is back to open tasks and sync your progress.
+            </p>
+          ) : !state ? (
             <p>
               {error
                 ? 'Training could not be loaded.'
@@ -377,11 +391,12 @@ export default function TrainingView({
               type="button"
               className={
                 questComplete
-                  ? 'agentic-quest-retry'
+                  ? questLevel === 0 ? 'agentic-chapter-action' : 'agentic-quest-retry'
                   : 'training-primary agentic-chapter-action'
               }
-              title={questComplete ? 'revisit quest' : undefined}
-              aria-label={questComplete ? 'revisit quest' : undefined}
+              data-coaching-control={questLevel === 0 ? 'side-quest' : undefined}
+              title={questComplete ? (questLevel === 0 ? 'Revisit side quest' : 'revisit quest') : undefined}
+              aria-label={questComplete && questLevel !== 0 ? 'revisit quest' : undefined}
               aria-busy={startingToolChat}
               disabled={startingToolChat}
               onClick={async () => {
@@ -398,6 +413,7 @@ export default function TrainingView({
                   ] as const;
                   await api(channels[questLevel]);
                   setQuestOpen(false);
+                  if (questLevel === 0) window.electron?.ipcRenderer.sendMessage('learning-tour-progress', 'side-quest-started');
                 } catch (reason) {
                   setToolChatError(
                     reason instanceof Error ? reason.message : String(reason),
@@ -407,7 +423,7 @@ export default function TrainingView({
                 }
               }}
             >
-              {questComplete ? (
+              {questComplete && questLevel !== 0 ? (
                 <svg
                   width="18"
                   height="18"

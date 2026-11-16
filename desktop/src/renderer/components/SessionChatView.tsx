@@ -1,4 +1,4 @@
-import OnboardingCompleted from './getting-started/OnboardingCompleted';
+import useGuideHighlight from './getting-started/useGuideHighlight';
 import { preserveOnboardingAnimation } from './getting-started/OnboardingMessage';
 import useOnboardingConversation, { onboardingId } from './getting-started/useOnboardingConversation';
 import RunnerGameView from './getting-started/RunnerGameView';
@@ -61,6 +61,7 @@ import AccountSettings from './chat/AccountSettings';
 import SettingsPanel from './chat/SettingsPanel';
 import TokenUsageSettings from './chat/TokenUsageSettings';
 import MemorySettings from './chat/MemorySettings';
+import SidePanel, { SidePanelContext, type SidePanelContent } from './chat/SidePanel';
 
 export { ToolCallCard } from './chat/ToolCallCard';
 
@@ -85,12 +86,12 @@ function SessionChatContent() {
   const [voiceError, setVoiceError] = useState('');
   const [startingNewSession, setStartingNewSession] = useState(false);
   const [checkingUnderstanding, setCheckingUnderstanding] = useState(false);
-  const [onboardingCompletion, setOnboardingCompletion] = useState<string | null>(null);
+  const checkingUnderstandingRef = useRef(false);
   const [understandingError, setUnderstandingError] = useState('');
   const [problem, setProblem] = useState('');
   const [expanded, setExpanded] = useState(true);
   const [activePage, setActivePage] = useState<'chat' | 'tasks' | 'settings'>(
-    'chat',
+    'tasks',
   );
   const [chatInviteArticleId, setChatInviteArticleId] = useState<string | null>(null);
   const [trainingRefreshKey, setTrainingRefreshKey] = useState(0);
@@ -119,6 +120,10 @@ function SessionChatContent() {
   const [historyError, setHistoryError] = useState(false);
   const [conversations, setConversations] = useState<SavedConversation[]>([]);
   const [reviewing, setReviewing] = useState<SavedConversation | null>(null);
+  const [openTabs, setOpenTabs] = useState<SavedConversation[]>([]);
+  const closedTabIds = useRef(new Set<string>());
+  const [switchingConversation, setSwitchingConversation] = useState(false);
+  const switchingConversationRef = useRef(false);
   const [profile, setProfile] = useState<{
     scenario: string;
     aiTools: string[];
@@ -178,10 +183,12 @@ function SessionChatContent() {
   const [runnerState, setRunnerState] = useState<RunnerTutorialState | null>(null);
   const [runnerSessionId, setRunnerSessionId] = useState<string | null>(null);
   const [onboardingEntry, setOnboardingEntry] = useState<{sessionId: string; sequence: number} | null>(null);
-  const viewedConversationId = reviewing?.sessionId ?? sessionIdRef.current;
+  const currentTabClosed = closedTabIds.current.has(reviewing?.sessionId ?? sessionIdRef.current ?? '');
+  const viewedConversationId = currentTabClosed ? null : reviewing?.sessionId ?? sessionIdRef.current;
+  const { target: guideHighlight, onControlUsed } = useGuideHighlight(viewedConversationId, reviewing ? null : runnerState);
   const onboarding = useOnboardingConversation({
     state: reviewing ? null : runnerState,
-    sessionId: sessionIdRef.current,
+    sessionId: currentTabClosed ? null : sessionIdRef.current,
     messages,
     setMessages,
     entry: onboardingEntry,
@@ -267,6 +274,45 @@ function SessionChatContent() {
   }, []);
   const messagesRef = useRef<ChatMessage[]>([]);
   const problemRef = useRef('');
+  const drafts = useRef(new Map<string, {
+    input: string; images: string[]; context: string | null; contextLabel: string | null;
+    discussingSuggestion: boolean; screenContext: string | null; hotkeyImages: string[];
+  }>());
+  const draftRef = useRef({ input, images: pendingImages, context: pendingContextRef.current,
+    contextLabel: pendingContextLabel, discussingSuggestion, screenContext: pendingScreenContext,
+    hotkeyImages: [...pendingHotkeyImagesRef.current] });
+  draftRef.current = { input, images: pendingImages, context: pendingContextRef.current,
+    contextLabel: pendingContextLabel, discussingSuggestion, screenContext: pendingScreenContext,
+    hotkeyImages: [...pendingHotkeyImagesRef.current] };
+  const rememberCurrentConversation = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) return;
+    drafts.current.set(sessionId, draftRef.current);
+    // Persist even an empty tab so it can be resumed after opening another one.
+    await window.electron?.ipcRenderer.invoke('save-chat-conversation', {
+      sessionId, problem: problemRef.current, messages: messagesRef.current,
+    });
+  }, []);
+  const restoreDraft = useCallback((sessionId: string) => {
+    const draft = drafts.current.get(sessionId);
+    setInput(draft?.input ?? '');
+    setPendingImages(draft?.images ?? []);
+    pendingContextRef.current = draft?.context ?? null;
+    setPendingContextLabel(draft?.contextLabel ?? null);
+    setDiscussingSuggestion(draft?.discussingSuggestion ?? false);
+    setPendingScreenContext(draft?.screenContext ?? null);
+    pendingHotkeyImagesRef.current = new Set(draft?.hotkeyImages ?? []);
+  }, [setPendingScreenContext]);
+
+  useEffect(() => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId || closedTabIds.current.has(sessionId) || (!messages.length && activePage !== 'chat' && (!problem.trim() || problem === 'General help session'))) return;
+    setOpenTabs(tabs => {
+      const existing = tabs.find(tab => tab.sessionId === sessionId);
+      const tab = { ...existing, sessionId, problem, messages, createdAt: existing?.createdAt ?? Date.now(), updatedAt: Date.now() };
+      return existing ? tabs.map(item => item.sessionId === sessionId ? tab : item) : [...tabs, tab];
+    });
+  }, [viewedConversationId, problem, messages, activePage]);
   const cocoSleepingRef = useRef(false);
   const sleepModeRevisionRef = useRef(0);
   const voiceRecorderRef = useRef<ActiveVoiceRecorder | null>(null);
@@ -933,35 +979,23 @@ function SessionChatContent() {
     const cleanup = window.electron?.ipcRenderer.on(
       'session-init',
       (data: any) => {
-        const { sessionId, problemStatement, tutorModelId, preserveDraft } =
+        const { sessionId, problemStatement, tutorModelId, preserveDraft, initialPage } =
           (data ?? {}) as {
             sessionId?: string;
             preserveDraft?: boolean;
             problemStatement?: string;
             tutorModelId?: string;
+            initialPage?: 'tasks';
           };
         if (tutorModelId) setCurrentTutorModelId(tutorModelId);
+        if (sessionId) closedTabIds.current.delete(sessionId);
         if (sessionId && sessionId !== sessionIdRef.current) {
-          if (sessionIdRef.current && messagesRef.current.length > 0) {
-            window.electron?.ipcRenderer
-              .invoke('save-chat-conversation', {
-                sessionId: sessionIdRef.current,
-                problem: problemRef.current,
-                messages: messagesRef.current,
-              })
-              .catch(() => {});
-          }
+          void rememberCurrentConversation().catch(() => {});
           sessionIdRef.current = sessionId;
           setMessages([]);
           setRatings({});
           if (!preserveDraft) {
-            setInput('');
-            setPendingImages([]);
-            pendingHotkeyImagesRef.current.clear();
-            pendingContextRef.current = null;
-            setPendingContextLabel(null);
-            setDiscussingSuggestion(false);
-            setPendingScreenContext(null);
+            restoreDraft(sessionId);
           }
           setSending(false);
           window.electron?.ipcRenderer
@@ -1011,7 +1045,7 @@ function SessionChatContent() {
             .catch(() => {});
         }
         setProblem(problemStatement ?? '');
-        setActivePage('chat');
+        setActivePage(initialPage ?? 'chat');
         setShowSettings(false);
         setReviewing(null);
         setShowHistory(false);
@@ -1020,7 +1054,7 @@ function SessionChatContent() {
     return () => {
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [setPendingScreenContext]);
+  }, [rememberCurrentConversation, restoreDraft]);
 
   // Keep chat context and the selected model in sync with the saved profile.
   useEffect(() => {
@@ -1221,10 +1255,7 @@ function SessionChatContent() {
       (value: unknown) => {
         const payload = value as { onboardingComplete?: boolean; sessionId?: string } | null;
         if (payload?.onboardingComplete && payload.sessionId) {
-          setShowSettings(false);
-          setShowHistory(false);
-          setActivePage('chat');
-          setOnboardingCompletion(payload.sessionId);
+          // Older main processes may send this event; completion adds no extra tour.
           return;
         }
 
@@ -1466,6 +1497,7 @@ function SessionChatContent() {
   };
 
   const resumeConversation = async (conversation: SavedConversation) => {
+    await rememberCurrentConversation();
     const result = await window.electron?.ipcRenderer.invoke(
       'resume-chat-conversation',
       { sessionId: conversation.sessionId },
@@ -1474,9 +1506,14 @@ function SessionChatContent() {
       throw new Error(result?.error || 'Could not restore this conversation.');
     }
     sessionIdRef.current = conversation.sessionId;
+    closedTabIds.current.delete(conversation.sessionId);
+    restoreDraft(conversation.sessionId);
     setProblem(conversation.problem);
     const restored =
       (result.conversation as SavedConversation | undefined) ?? conversation;
+    setOpenTabs(tabs => tabs.some(tab => tab.sessionId === restored.sessionId)
+      ? tabs.map(tab => tab.sessionId === restored.sessionId ? restored : tab)
+      : [...tabs, restored]);
     setMessages(restored.messages);
     setSending(restored.messages.some((message) => message.isStreaming));
     setCurrentTutorModelId(
@@ -1485,6 +1522,107 @@ function SessionChatContent() {
     setRatings({});
     setReviewing(null);
     setShowHistory(false);
+  };
+
+  const selectConversationTab = async (conversation: SavedConversation) => {
+    if (switchingConversationRef.current || startingNewSession || checkingUnderstanding || voiceState !== 'idle') return;
+    if (conversation.sessionId === sessionIdRef.current && !closedTabIds.current.has(conversation.sessionId)) {
+      setReviewing(null);
+      return;
+    }
+    switchingConversationRef.current = true;
+    setSwitchingConversation(true);
+    setUnderstandingError('');
+    try {
+      await resumeConversation(conversation);
+      setActivePage('chat');
+      setShowSettings(false);
+    } catch (error) {
+      setUnderstandingError(error instanceof Error ? error.message : 'Could not switch conversations.');
+    } finally {
+      switchingConversationRef.current = false;
+      setSwitchingConversation(false);
+    }
+  };
+
+  // Split screen: Coco-built content (game, HTML pages, understanding checks)
+  // opens in a pane beside the chat instead of a separate window.
+  const [sidePanel, setSidePanel] = useState<SidePanelContent | null>(null);
+  const [sidePanelWidth, setSidePanelWidth] = useState(0.5);
+  const autoOpenedGameFor = useRef<string | null>(null);
+  const openSidePanel = useCallback((content: SidePanelContent) => {
+    setSidePanel(content);
+    setExpanded((wasExpanded) => {
+      if (!wasExpanded) window.electron?.ipcRenderer.sendMessage('toggle-float-window', { expanded: true });
+      return true;
+    });
+  }, []);
+  const closeSidePanel = useCallback(() => {
+    setSidePanel((current) => {
+      // Closing an unanswered check counts as skipping it, like the old window's ×.
+      if (current?.kind === 'check') {
+        window.electron?.ipcRenderer.sendMessage('session-recap-done', { quizSkipped: true, quizAnswered: false });
+      }
+      return null;
+    });
+  }, []);
+  useEffect(() => {
+    const ipc = window.electron?.ipcRenderer;
+    if (!ipc) return undefined;
+    const offInit = ipc.on('session-recap-init', (payload: unknown) => {
+      if ((payload as { mode?: unknown } | null)?.mode !== 'check') return;
+      openSidePanel({ kind: 'check', recap: { mode: 'check', loading: true, data: null, error: false } });
+    });
+    const offData = ipc.on('session-recap-data', (payload: unknown) => {
+      const result = (payload ?? {}) as { data?: unknown; error?: unknown };
+      setSidePanel((current) => current?.kind === 'check' ? {
+        kind: 'check',
+        recap: {
+          mode: 'check',
+          loading: false,
+          data: (result.data ?? null) as import('../../shared/understanding-check').UnderstandingRecap | null,
+          error: Boolean(result.error) || !result.data,
+        },
+      } : current);
+    });
+    return () => {
+      if (typeof offInit === 'function') offInit();
+      if (typeof offData === 'function') offData();
+    };
+  }, [openSidePanel]);
+  const runnerGameReady = Boolean(runnerState && runnerState.sessionId === viewedConversationId &&
+    runnerState.tour !== 'meet' && runnerState.tour !== 'finished' && runnerState.tour !== 'skipped');
+  useEffect(() => {
+    // Show the finished game beside the chat once, without fighting a user who closed it.
+    if (!runnerGameReady || !runnerState || autoOpenedGameFor.current === runnerState.sessionId) return;
+    autoOpenedGameFor.current = runnerState.sessionId;
+    openSidePanel({ kind: 'game' });
+  }, [runnerGameReady, runnerState, openSidePanel]);
+  // The game pane belongs to the game's conversation; other tabs hide it.
+  const visibleSidePanel = sidePanel?.kind === 'game' && runnerState?.sessionId !== viewedConversationId ? null : sidePanel;
+
+  const closeConversationTab = async (sessionId: string) => {
+    if (switchingConversationRef.current || startingNewSession || checkingUnderstanding || voiceState !== 'idle') return;
+    const index = openTabs.findIndex(tab => tab.sessionId === sessionId);
+    if (index < 0) return;
+    switchingConversationRef.current = true;
+    setSwitchingConversation(true);
+    setUnderstandingError('');
+    try {
+      if (sessionId === sessionIdRef.current) {
+        const adjacent = openTabs[index + 1] ?? openTabs[index - 1];
+        if (adjacent) await resumeConversation(adjacent);
+        else await rememberCurrentConversation();
+      }
+      // Closing only changes the tab strip. Saved messages and running replies remain intact.
+      closedTabIds.current.add(sessionId);
+      setOpenTabs(tabs => tabs.filter(tab => tab.sessionId !== sessionId));
+    } catch (error) {
+      setUnderstandingError(error instanceof Error ? error.message : 'Could not close this tab.');
+    } finally {
+      switchingConversationRef.current = false;
+      setSwitchingConversation(false);
+    }
   };
 
   useEffect(()=>{
@@ -1501,6 +1639,7 @@ function SessionChatContent() {
       peer.loading ||
       peer.error ||
       startingNewSession ||
+      switchingConversationRef.current ||
       checkingUnderstanding
     )
       return;
@@ -1621,14 +1760,13 @@ function SessionChatContent() {
   };
 
   const handleNewSession = async () => {
-    if (startingNewSession || checkingUnderstanding) return;
+    if (startingNewSession || switchingConversationRef.current || checkingUnderstanding) return;
     setStartingNewSession(true);
     try {
+      await rememberCurrentConversation();
       const result = await window.electron?.ipcRenderer.invoke(
         'start-new-chat-session',
-        {
-          problemStatement: problem,
-        },
+        {},
       );
       if (!result?.success)
         setUnderstandingError(
@@ -1654,7 +1792,8 @@ function SessionChatContent() {
       });
   }, [checkingGameIdea, checkSessionId, activePage, showSettings]);
   const handleCheckUnderstanding = async () => {
-    if (sending || startingNewSession || checkingUnderstanding) return;
+    if (sending || startingNewSession || checkingUnderstandingRef.current) return;
+    checkingUnderstandingRef.current = true;
     setCheckingUnderstanding(true);
     setUnderstandingError('');
 
@@ -1663,7 +1802,7 @@ function SessionChatContent() {
       const result = (await Promise.race([window.electron?.ipcRenderer.invoke(
         'check-understanding',
         { sessionId: checkSessionId },
-      ),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('The understanding check took too long. Your draft is safe; please try again.')),40000);})])) as UnderstandingCheckResult | undefined;
+      ),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('The understanding check took too long. Your draft is safe; please try again.')),55000);})])) as UnderstandingCheckResult | undefined;
       if (!result?.success) {
         setUnderstandingError(
           result?.error || 'Could not open the understanding check.',
@@ -1678,6 +1817,7 @@ function SessionChatContent() {
       );
     } finally {
       clearTimeout(timer);
+      checkingUnderstandingRef.current = false;
       setCheckingUnderstanding(false);
     }
   };
@@ -1690,11 +1830,12 @@ function SessionChatContent() {
     try {
       const saved = await window.electron?.ipcRenderer.invoke(
         'get-chat-conversations',
+        { includeQuests: true, includeEmpty: true },
       );
       setConversations(
         (Array.isArray(saved) ? saved : []).filter(
           (conversation: SavedConversation) =>
-            conversation.sessionId !== sessionIdRef.current,
+            conversation.sessionId !== sessionIdRef.current || closedTabIds.current.has(conversation.sessionId),
         ),
       );
     } catch {
@@ -1717,6 +1858,7 @@ function SessionChatContent() {
     !peer.error &&
     !sending &&
     !startingNewSession &&
+    !switchingConversation &&
     !checkingUnderstanding &&
     voiceState === 'idle' &&
     (input.trim().length > 0 || pendingImages.length > 0);
@@ -1757,6 +1899,8 @@ function SessionChatContent() {
       <DesktopWorkspace
         expanded={expanded}
         chatInvited={Boolean(chatInviteArticleId)}
+        guideHighlight={guideHighlight}
+        onGuideControlUsed={onControlUsed}
         onExpandedChange={changeExpanded}
         active={
           showSettings
@@ -1799,19 +1943,8 @@ function SessionChatContent() {
               setActivePage('chat');
             }}
             onSelect={(conversation) => {
-              if (checkingUnderstanding) return;
-              setUnderstandingError('');
-              if (
-                sending ||
-                conversation.messages.some((message) => message.isStreaming)
-              ) {
-                resumeConversation(conversation).catch((error) =>
-                  setUnderstandingError(error.message),
-                );
-              } else setReviewing(conversation);
+              void selectConversationTab(conversation);
               setShowHistory(false);
-              setShowSettings(false);
-              setActivePage('chat');
             }}
           />
         }
@@ -1819,6 +1952,7 @@ function SessionChatContent() {
           <>
             <div className="workspace-training" hidden={showSettings}>
               <TrainingView
+                guideHighlight={guideHighlight}
                 visible={activePage === 'tasks' && !showSettings}
                 refreshKey={trainingRefreshKey}
               />
@@ -1884,6 +2018,15 @@ function SessionChatContent() {
       >
         <ChatHeader
           chatEnabled={studyAccess === true}
+          tabs={openTabs.map(tab => ({ sessionId: tab.sessionId,
+            title: tab.sessionId === runnerSessionId ? 'Let’s build a game' : /^Chapter 1 · Tool|tool.*(quest|training)|tool calling/i.test(tab.problem) ? 'Tool side quest' : tab.title || (tab.problem === 'General help session' ? 'New chat' : tab.problem) || 'New chat' }))}
+          selectedId={viewedConversationId}
+          switching={switchingConversation || checkingUnderstanding || voiceState !== 'idle'}
+          onSelectTab={id => {
+            const tab = openTabs.find(item => item.sessionId === id);
+            if (tab) void selectConversationTab(tab);
+          }}
+          onCloseTab={id => void closeConversationTab(id)}
           {...{
             sending,
             startingNewSession,
@@ -1893,7 +2036,9 @@ function SessionChatContent() {
           }}
         />
 
-        <div style={S.contentViewport}>
+        <SidePanelContext.Provider value={openSidePanel}>
+        <div className="chat-split">
+        <div id="chat-session-panel" role="tabpanel" aria-label="Current chat session" aria-busy={switchingConversation} style={S.contentViewport}>
           <div
             data-testid="chat-scalable-content"
             style={{
@@ -1903,7 +2048,12 @@ function SessionChatContent() {
               height: `${100 / contentZoomFactor}%`,
             }}
           >
-            {studyAccess === true ? (
+            {studyAccess === true ? currentTabClosed ? (
+              <div className="workspace-empty-chat">
+                <p>Your chats are saved in history.</p>
+                <p>Click New to start a chat, or reopen one from Chat in the sidebar.</p>
+              </div>
+            ) : (
               <>
                 {workflowChapter.session?.savedSkillId && (
                   <WorkflowUnlock
@@ -2085,8 +2235,10 @@ function SessionChatContent() {
                     ) : (
                       <ChatTranscript
                         hideStarters={runnerState?.sessionId === sessionIdRef.current}
-                        afterMessage={message => onboarding.active && message.id === onboardingId('game') && runnerState?.tour !== 'meet'
-                          ? <RunnerGameView key={runnerState?.sessionId} embedded visible={activePage === 'chat' && !showSettings} /> : null}
+                        afterMessage={message => runnerState?.sessionId === viewedConversationId && message.id === onboardingId('game') && runnerState?.tour !== 'meet'
+                          ? <button type="button" className="side-panel-game-note" onClick={() => openSidePanel({ kind: 'game' })}>
+                              {sidePanel?.kind === 'game' ? 'Your game is open on the right' : 'Open your game'} <span aria-hidden="true">▸</span>
+                            </button> : null}
                         {...{
                           reviewing,
                           listRef,
@@ -2206,11 +2358,18 @@ function SessionChatContent() {
             )}
           </div>
         </div>
+        {visibleSidePanel && (
+          <SidePanel
+            content={visibleSidePanel}
+            width={sidePanelWidth}
+            onResize={setSidePanelWidth}
+            onClose={closeSidePanel}
+            game={<RunnerGameView key={runnerState?.sessionId} embedded visible={activePage === 'chat' && !showSettings} />}
+          />
+        )}
+        </div>
+        </SidePanelContext.Provider>
       </DesktopWorkspace>
-      {onboardingCompletion && <OnboardingCompleted
-        sessionId={onboardingCompletion}
-        onClose={() => setOnboardingCompletion(null)}
-      />}
 
     </TokenUsageAccess.Provider>
   );

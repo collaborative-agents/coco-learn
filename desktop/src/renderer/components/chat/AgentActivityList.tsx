@@ -38,7 +38,10 @@ export function groupActivity(activity: AgentActivity[]) {
 
 function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
   const unlocked = useContext(ToolViewerAccess);
-  if (!unlocked)
+  const running = calls.find((call) => call.status === 'running');
+  // While locked, show live steps during a run, then fold finished runs into
+  // one summary line that still opens to the full list.
+  if (!unlocked && (running || calls.length === 1))
     return (
       <>
         {calls.map((call) => (
@@ -47,9 +50,10 @@ function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
       </>
     );
   if (calls.length === 1) return <ToolCallCard call={calls[0]} />;
-  const running = calls.find((call) => call.status === 'running');
   const failed = calls.filter((call) => call.status === 'error').length;
-  const summaries = [...new Set(calls.map(toolSummary))];
+  const counts = new Map<string, number>();
+  calls.forEach((call) => counts.set(toolSummary(call), (counts.get(toolSummary(call)) ?? 0) + 1));
+  const summaries = [...counts].map(([label, count]) => (count > 1 ? `${label} ×${count}` : label));
   const summary = running
     ? toolSummary(running)
     : summaries.slice(0, 2).join(' · ');
@@ -67,11 +71,11 @@ function ToolGroup({ calls }: { calls: TutorToolCall[] }) {
         <span className={`tool-activity-status ${failed ? 'error' : ''}`}>
           {status}
         </span>
-        <span className="tool-activity-detail-label">Details</span>
+        <span className="tool-activity-detail-label">{unlocked ? 'Details' : 'Show steps'}</span>
       </summary>
       <div className="tool-activity-steps">
         {calls.map((call) => (
-          <ToolCallCard key={call.id} call={call} grouped />
+          <ToolCallCard key={call.id} call={call} grouped={unlocked} />
         ))}
       </div>
     </details>

@@ -16,7 +16,16 @@ export type GettingStartedPhase = 'intro' | 'choose' | 'reading' | 'invite' | 'f
 export interface BubbleState {
   runnerTutorial?: { sessionId: string; action?: import('../../shared/runner-tutorial').RunnerAction };
   /** Local, interactive onboarding uses the same bubble surface as live advice. */
-  guide?: { label: string; action?: string; dismissible?: boolean; busy?: boolean };
+  guide?: {
+    pages?: import('../../shared/runner-tutorial').RunnerGuide['pages'];
+    label: string;
+    action?: string;
+    secondaryAction?: import('../../shared/runner-tutorial').RunnerAction;
+    secondaryActionLabel?: string;
+    prompt?: string;
+    dismissible?: boolean;
+    busy?: boolean;
+  };
   status: ObservationStatus;
   phrase: string;
   fadingOut: boolean;
@@ -89,19 +98,31 @@ function suggestionToolLabel(suggestion: InstantSuggestion): string {
 export default function ObservationBubble({
   bubble,
   onHelpMe,
+  onSecondaryAction,
   onDismiss,
   onViewConversation,
   onChatAboutSuggestion,
   onRunSuggestion,
+  frameworkPage,
+  onFrameworkPageChange,
+  ratingValue,
+  onRateSuggestion,
+  feedbackSurface = 'bubble',
   onMouseEnter,
   onMouseLeave,
 }: {
   bubble: BubbleState | null;
   onHelpMe?: () => void;
+  onSecondaryAction?: () => void;
   onDismiss?: () => void;
   onViewConversation?: () => void;
   onChatAboutSuggestion?: () => void;
   onRunSuggestion?: () => void;
+  frameworkPage?: 0 | 1;
+  onFrameworkPageChange?: (page: 0 | 1) => void;
+  ratingValue?: 'up' | 'down' | null;
+  onRateSuggestion?: (rating: 'up' | 'down') => void;
+  feedbackSurface?: 'bubble' | 'notification';
   /** Hovering pauses the auto-hide so the user can read / copy the bubble. */
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -114,8 +135,16 @@ export default function ObservationBubble({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current rating for the revealed suggestion. The opposite thumb remains
   // available so an accidental rating can be corrected.
-  const [rated, setRated] = useState<'up' | 'down' | null>(null);
-  const [suggestionPage, setSuggestionPage] = useState<0 | 1>(0);
+  const [localRating, setRated] = useState<'up' | 'down' | null>(null);
+  const rated = ratingValue === undefined ? localRating : ratingValue;
+  const [localPage, setLocalPage] = useState<0 | 1>(0);
+  const suggestionPage = frameworkPage ?? localPage;
+  const setSuggestionPage = (page: 0 | 1) => {
+    setLocalPage(page);
+    onFrameworkPageChange?.(page);
+  };
+  const [guidePage, setGuidePage] = useState(0);
+  useEffect(() => { setGuidePage(0); }, [bubble?.runnerTutorial?.sessionId, bubble?.phrase]);
   // The "?" explanation opens inside the card: the bubble window is sized to
   // the card, so anything drawn outside it would be clipped.
   const [helpTipOpen, setHelpTipOpen] = useState(false);
@@ -136,7 +165,7 @@ export default function ObservationBubble({
   useEffect(() => {
     if (bubble?.suggestion) {
       suggestionShownAt.current = Date.now();
-      setSuggestionPage(0);
+      setLocalPage(0);
     }
   }, [bubble?.suggestion]);
 
@@ -155,15 +184,53 @@ export default function ObservationBubble({
 
   if (!bubble) return null;
   if (bubble.guide) {
+    const pages = bubble.guide.pages;
+    const page = pages?.[guidePage];
     return (
-      <div className={`observation-bubble is-guide status-${bubble.status}`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <div className={`observation-bubble is-guide${page ? ' has-suggestion' : ''} status-${bubble.status}`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
         <div className="observation-bubble-header">
           <div className="observation-bubble-label">{bubble.guide.label}</div>
           {bubble.guide.dismissible && bubble.runnerTutorial && <button type="button" aria-label="Close tip" title="Dismiss" className="bubble-dismiss-btn" onClick={onDismiss}>×</button>}
         </div>
-        <div className="observation-bubble-text">{bubble.phrase}</div>
-        {bubble.guide.action && <button type="button" className="bubble-action-btn" disabled={bubble.guide.busy} onClick={onHelpMe}>{bubble.guide.action}</button>}
+        {(!page || guidePage === 0) && <div className={`observation-bubble-text${page ? ' bubble-guide-intro' : ''}`}>{bubble.phrase}</div>}
+        {page && <>
+          <div className="bubble-framework-overview" aria-live="polite">
+            <div className="bubble-framework-heading">{page.title}</div>
+            {page.help ? <>
+              <div className="bubble-framework-section">
+                <div className="bubble-framework-section-label">What it is</div>
+                <div>{page.text}</div>
+              </div>
+              <div className="bubble-framework-section">
+                <div className="bubble-framework-section-label">How it helps you</div>
+                <div>{page.help}</div>
+              </div>
+            </> : <div>{page.text}</div>}
+          </div>
+          <div className="bubble-framework-pager" aria-label="4D advice pages">
+            <button type="button" className="bubble-framework-arrow" disabled={guidePage === 0}
+              onClick={() => setGuidePage(guidePage - 1)}>← Back</button>
+            <div className="bubble-framework-page-bars" aria-hidden="true">
+              {pages!.map((item, index) => <span key={item.title} className={`bubble-framework-page-bar${guidePage === index ? ' is-active' : ''}`} />)}
+            </div>
+            <span aria-label={`Page ${guidePage + 1} of ${pages!.length}`}>{guidePage + 1}/{pages!.length}</span>
+            {guidePage < pages!.length - 1
+              ? <button type="button" className="bubble-framework-arrow" onClick={() => setGuidePage(guidePage + 1)}>Next →</button>
+              : <button type="button" className="bubble-framework-arrow" onClick={onHelpMe}>{bubble.guide.action}</button>}
+          </div>
+        </>}
+        {bubble.guide.prompt && <>
+          <pre className="getting-started-bubble-prompt">{bubble.guide.prompt}</pre>
+          <button type="button" className="bubble-action-btn" onClick={() => {
+            navigator.clipboard.writeText(bubble.guide!.prompt!)
+              .then(() => showToast('Copied prompt'))
+              .catch(() => showToast('Could not copy'));
+          }}>Copy prompt</button>
+        </>}
+        {!page && bubble.guide.action && <button type="button" className="bubble-action-btn" disabled={bubble.guide.busy} onClick={onHelpMe}>{bubble.guide.action}</button>}
+        {bubble.guide.secondaryActionLabel && <button type="button" className="bubble-action-btn" disabled={bubble.guide.busy} onClick={onSecondaryAction}>{bubble.guide.secondaryActionLabel}</button>}
         {bubble.guide.dismissible && !bubble.runnerTutorial && <button type="button" aria-label={bubble.runnerTutorial ? 'Close tip' : undefined} className="bubble-dismiss-btn guide-decline" onClick={onDismiss}>{bubble.runnerTutorial ? '✕' : 'No thanks'}</button>}
+        {toast && <div role="status" className="observation-bubble-toast">{toast}</div>}
         <span className="observation-bubble-tail" aria-hidden />
       </div>
     );
@@ -271,10 +338,15 @@ export default function ObservationBubble({
     if (rated === dir || !suggestion) return;
     const previousRating = rated;
     setRated(dir);
+    if (onRateSuggestion) {
+      onRateSuggestion(dir);
+      showToast(previousRating ? 'Feedback updated' : 'Thanks for the feedback');
+      return;
+    }
     window.electron?.ipcRenderer.sendMessage('training-feedback', {
       kind: dir === 'up' ? 'thumbs_up' : 'thumbs_down',
       previous_kind: previousRating ? `thumbs_${previousRating}` : null,
-      surface: 'bubble',
+      surface: feedbackSurface,
       observation_id: bubble?.observationId ?? null,
       status,
       latency_s: (Date.now() - suggestionShownAt.current) / 1000,
@@ -289,12 +361,11 @@ export default function ObservationBubble({
   };
 
   const ratingButtons =
-    suggestion && !isFrameworkOverview ? (
+    suggestion ? (
       <RatingButtons
         value={rated}
         onRate={rate}
         labels={{ up: 'Good suggestion', down: 'Not helpful' }}
-        className="coco-rating--compact"
       />
     ) : null;
 

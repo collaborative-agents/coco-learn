@@ -1,4 +1,5 @@
 import type { AgentActivity } from '../../shared/agent-execution';
+import { runnerFourDPages } from '../../shared/runner-tutorial';
 import { needsArtReview, type ArtEvidence, type ArtVerdict } from '../game/art-review';
 import fs from 'fs';
 import { gameFailure, requestsGameChange } from './game-failure';
@@ -28,6 +29,11 @@ import type {
 } from '../../shared/runner-tutorial';
 
 interface RecordState {
+  fourDStarted?: boolean;
+  fourDCompleted?: boolean;
+  playInvitationShown?: boolean;
+  collaborationCelebrated?: boolean;
+  understandingCompleted?: boolean;
   gameSuggestionShown?: boolean;
   ideaCheckSuggestionShown?: boolean;
   selectedStarterDirectory?: string;
@@ -122,6 +128,11 @@ export default class RunnerTutorial {
               ? { kind: 'tool', call: { ...item.call, status: 'error', result: { output: 'Interrupted when Coco closed.' } } } : item);
           }
           this.records.set(user, saved);
+          // Earlier versions offered another tour after a successful modification.
+          if (saved.tour === 'done' || (saved.tour === 'active' && saved.collaborationCelebrated)) {
+            saved.tour = 'finished';
+            this.save(saved, false);
+          }
           if (saved.schemaVersion !== 2) this.upgrade(saved);
           if (saved.visualRevision !== 2) this.upgradeVisuals(saved);
           if (saved.failure?.kind === 'interrupted') {
@@ -158,6 +169,7 @@ export default class RunnerTutorial {
     return r
       ? {
           sessionId: r.sessionId,
+          understandingCompleted: r.understandingCompleted,
           selectedStarterDirectory: r.selectedStarterDirectory,
           workspaceDirectory: r.workspaceDirectory,
           starterBuild: r.starterBuild,
@@ -201,6 +213,7 @@ export default class RunnerTutorial {
     action?: RunnerGuide['action'],
     actionLabel?: string,
     status: RunnerGuide['status'] = 'observing',
+    highlight?: RunnerGuide['highlight'],
   ) {
     this.deps.guide(r.user, {
       sessionId: r.sessionId,
@@ -209,6 +222,7 @@ export default class RunnerTutorial {
       action,
       actionLabel,
       status,
+      highlight,
     });
   }
   start(user: string) {
@@ -285,7 +299,17 @@ export default class RunnerTutorial {
     r.starterBuild = 'building';
     r.buildActivity = [];
     r.error = null;
+    r.fourDStarted = true;
     this.save(r);
+    if (!r.fourDCompleted) this.deps.guide(user, {
+      sessionId: r.sessionId,
+      milestone: 'four-d-intro',
+      label: 'WORKING WITH AN AGENT · THE 4Ds',
+      text: 'While I build, explore how you can work better with an agent.',
+      pages: runnerFourDPages,
+      action: 'four-d-complete',
+      actionLabel: 'Got it',
+    });
     const pause = this.deps.starterPause ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
     const step = async (name: string, args: Record<string, unknown>, work: () => Promise<string>) => {
       const call: import('../../renderer/components/observation-types').TutorToolCall = {
@@ -329,12 +353,17 @@ export default class RunnerTutorial {
       r.introAcknowledged = true;
       this.save(r);
       this.playing(user);
+      this.inviteStarterPlay(user);
       return this.state(user)!;
     } catch (error) {
       r.starterBuild = 'error';
       r.tour = 'meet';
       r.error = `I couldn’t finish creating the game: ${error instanceof Error ? error.message : String(error)}. Choose a folder again to retry.`;
       this.save(r);
+      this.deps.guide(user, {
+        sessionId: r.sessionId, milestone: 'starter-error', label: 'LET’S TRY AGAIN',
+        text: r.error, action: 'dismiss', actionLabel: 'Got it',
+      });
       throw error;
     }
   }
@@ -364,15 +393,16 @@ export default class RunnerTutorial {
     const r = this.record(user);
     if (!r) throw Error('Open your Coco tour first.');
     if (action === 'why-tips') {
-      this.guide(r, 'With your permission, I notice what you’re working on and suggest ideas. The Workspace button above your message box selects the folder we work in; Access controls my permissions. This game already has its own workspace. Close any tip with ✕ or pause observation in Settings.', 'WHY TIPS?');
+      this.guide(r, 'With your permission, I suggest ideas as you work. Workspace chooses a folder; Access manages permissions. Dismiss tips with ✕ or pause observation in Settings.', 'WHY TIPS?', undefined, undefined, 'observing', 'workspace');
     } else if (action === 'explain-buttons') {
-      this.guide(r, 'Undo change goes back one version. Make it yours lets you ask for another change. Looks good finishes this task when you’re happy. Play first and check my work!', 'YOUR BUTTONS');
+      this.guide(r, 'Undo change restores the previous version. Make it yours starts another change. Play to check the result.', 'YOUR BUTTONS');
     } else if (action === 'tour-play') {
       r.tour = 'active';
       this.playing(user);
     } else {
       if (r.phase === 'building') throw Error('Wait for Coco to stop before leaving the tour.');
-      if (action === 'finish-setup' && r.tour !== 'done') throw Error('Finish reviewing your game first.');
+      if (action === 'finish-setup' && r.tour !== 'done' && r.tour !== 'finished' &&
+          !(r.tour === 'active' && r.starterBuild === 'ready')) throw Error('Build your game first.');
       r.tour = action === 'skip-tour' ? 'skipped' : 'finished';
       this.save(r);
     }
@@ -383,7 +413,7 @@ export default class RunnerTutorial {
     if (!r) return;
     this.guide(
       r,
-      "Let's introduce you to what Coco can do with a simple little game!",
+      "Let’s see what Coco can do with a simple little game!",
       'LET’S PLAY',
       'play',
       'Let’s play',
@@ -397,31 +427,84 @@ export default class RunnerTutorial {
   }
   suggestGameReview(user: string) {
     const r = this.record(user);
-    if (!r || r.gameSuggestionShown || r.starterBuild !== 'ready' || r.tour !== 'active' || r.phase !== 'play') return;
+    if (!r || !r.firstOver || r.understandingCompleted || (r.fourDStarted && !r.fourDCompleted) ||
+        r.gameSuggestionShown || r.starterBuild !== 'ready' || r.tour !== 'active' || r.phase !== 'play') return;
     r.gameSuggestionShown = true;
     this.save(r);
     this.deps.guide(user, {
       sessionId: r.sessionId,
-      label: 'Discernment',
-      text: 'Try the game and think about how you’d make it yours.',
-      framework: {
-        fourDDimension: 'discernment',
-        title: 'Make the game yours',
-        body: 'Play a round. What would you keep, and what would you change? Tell me your idea in the chat.',
-        noticed: 'Sometimes I’ll offer suggestions as you work, like this one.',
-        check: 'Try the game and think about how you’d make it yours.',
-        why: 'That’s Discernment: judging what AI makes and deciding what to improve.',
-      },
+      milestone: 'game-created',
+      highlight: 'understanding',
+      label: 'NICE WORK!',
+      text: 'Your game is ready! Click “Check my understanding” to reflect on what you learned.',
+    });
+  }
+  completeFourD(user: string) {
+    const r = this.record(user);
+    if (!r?.fourDStarted || r.fourDCompleted) return;
+    r.fourDCompleted = true;
+    this.save(r);
+    if (r.starterBuild === 'building') this.deps.guide(user, {
+      sessionId: r.sessionId, milestone: 'game-building', label: 'BUILDING YOUR GAME',
+      text: 'I’m still building. I’ll let you know when it’s ready.',
+      status: 'progress',
+    });
+    else this.inviteStarterPlay(user);
+  }
+  private inviteStarterPlay(user: string) {
+    const r = this.record(user);
+    if (!r?.fourDCompleted || r.starterBuild !== 'ready' || r.tour !== 'active' ||
+        r.phase !== 'play' || r.understandingCompleted || r.playInvitationShown) return;
+    r.playInvitationShown = true;
+    this.save(r);
+    if (r.firstOver) { this.suggestGameReview(user); return; }
+    this.deps.guide(user, {
+      sessionId: r.sessionId, milestone: 'game-ready', label: 'READY TO PLAY',
+      text: 'Your game is ready! Click or press Space to jump; press ↓ to duck.',
+      action: 'play', actionLabel: 'Let’s play',
+    });
+  }
+  completeUnderstanding(user: string, sessionId: string) {
+    const r = this.record(user);
+    if (!r || r.sessionId !== sessionId || r.starterBuild !== 'ready' ||
+        r.tour !== 'active' || r.phase === 'complete' || r.understandingCompleted) return;
+    r.understandingCompleted = true;
+    r.checked = true;
+    r.ideaCheckSuggestionShown = true;
+    this.save(r);
+    this.deps.guide(user, {
+      sessionId: r.sessionId,
+      milestone: 'understanding-complete',
+      label: 'KEEP EXPLORING',
+      text: 'You built your first game! Make it your own, or head to the AI Literacy Challenge in the sidebar to keep building your agent skills.',
+      action: 'customize',
+      actionLabel: 'Modify my game',
+      secondaryAction: 'finish-setup',
+      secondaryActionLabel: 'Explore on my own',
+    });
+  }
+  customizationPrompt(user: string) {
+    const r = this.record(user);
+    if (!r || r.phase !== 'writing') return;
+    this.deps.guide(user, {
+      sessionId: r.sessionId,
+      milestone: 'customize-prompt',
+      label: 'MAKE IT YOURS',
+      text: 'Tell me what to change, or copy this example into chat:',
+      prompt: 'Change the fox into a cat.',
+      action: 'dismiss',
+      actionLabel: 'Got it',
     });
   }
   suggestIdeaCheck(user: string) {
     const r = this.record(user);
-    if (!r || r.ideaCheckSuggestionShown || !['writing', 'review'].includes(r.phase)) return;
+    if (!r || r.tour === 'finished' || r.tour === 'skipped' || r.fourDStarted || r.ideaCheckSuggestionShown || !['writing', 'review'].includes(r.phase)) return;
     r.ideaCheckSuggestionShown = true;
     this.save(r);
     this.deps.guide(user, {
       sessionId: r.sessionId,
       label: 'Diligence',
+      highlight: 'understanding',
       text: 'Stay in the loop.',
       framework: {
         fourDDimension: 'diligence',
@@ -458,9 +541,13 @@ export default class RunnerTutorial {
   }
   firstGameOver(user: string) {
     const r = this.record(user);
-    if (!r || r.firstOver || r.phase !== 'play') return;
+    if (!r || r.tour === 'finished' || r.tour === 'skipped' || r.firstOver || r.phase !== 'play') return;
     r.firstOver = true;
     this.save(r);
+    if (r.starterBuild === 'ready' && r.tour === 'active') {
+      this.suggestGameReview(user);
+      return;
+    }
     if (!r.introAcknowledged) return;
     this.guide(
       r,
@@ -477,9 +564,10 @@ export default class RunnerTutorial {
     r.error = null;
     if (!r.coaches.includes('start')) r.coaches.push('start');
     this.save(r);
+    if (r.tour === 'finished' || r.tour === 'skipped') return;
     this.guide(
       r,
-      'Try one of the examples in chat, or tell me your own idea. I can change how the game looks and how you play!',
+      'Tell me how you’d like the game to look or play.',
       'YOUR WORDS',
     );
   }
@@ -488,6 +576,7 @@ export default class RunnerTutorial {
     if (
       !r ||
       r.sessionId !== sessionId ||
+      r.tour === 'finished' || r.tour === 'skipped' ||
       !['writing', 'review'].includes(r.phase) ||
       r.coaches.length >= 3 ||
       draft.trim().length < 5
@@ -505,7 +594,7 @@ export default class RunnerTutorial {
       /^(make (it|this) (cooler|better|fun)|change it)[.! ]*$/.test(words)
     ) {
       kind = 'vague';
-      text = 'Name a time of day, character, or vibe you have in mind. Your own words are enough!';
+      text = 'Name a character, setting, or style you’d like.';
     } else if (
       !/spooky|cute|retro|pixel|cozy|dark|bright|morning|sunny|dawn|detailed|realistic|watercolor|watercolour|pet|dog|cat|color|colour|space|forest|ocean|desert|sunset|night|rainbow|pink|blue|red|green|purple/.test(
         words,
@@ -523,6 +612,8 @@ export default class RunnerTutorial {
       'IDEA',
       kind === 'clear' || kind === 'check' ? 'focus' : undefined,
       kind === 'clear' || kind === 'check' ? 'Back to my idea' : undefined,
+      'observing',
+      kind === 'clear' || kind === 'check' ? 'understanding' : undefined,
     );
   }
   checked(user: string, sessionId: string, interpretation: string) {
@@ -778,7 +869,7 @@ export default class RunnerTutorial {
     this.save(r);
     this.guide(
       r,
-      'A chatbot would tell you how. I’m actually doing it: making the change and checking that it works.',
+      'I’m making your change and checking that it works.',
       'MAKING YOUR GAME',
     );
     this.timers.set(
@@ -981,15 +1072,31 @@ Read theme.json only if you need values not covered by the schema or summary. Pr
       r.summary = result.summary;
       this.draftThemes.delete(user);
       this.publishPlayableFile(r);
+      const firstCollaboration = r.tour === 'active' && !r.collaborationCelebrated;
+      if (firstCollaboration) {
+        r.collaborationCelebrated = true;
+        r.tour = 'finished';
+      }
       this.save(r);
-      this.guide(
-        r,
-        `${result.summary} Play a round and check whether it matches what you imagined.`,
-        'TRY YOUR GAME',
-        'explain-buttons',
-        'What are these buttons?',
-        'progress',
-      );
+      if (firstCollaboration) {
+        this.deps.guide(user, {
+          sessionId: r.sessionId,
+          milestone: 'game-customized',
+          label: 'YOU DID IT!',
+          text: 'You made it your own! Your introduction is complete. Explore Coco at your own pace.',
+          action: 'dismiss',
+          actionLabel: 'Done',
+        });
+      } else {
+        this.guide(
+          r,
+          `${result.summary} Play a round and check whether it matches what you imagined.`,
+          'TRY YOUR GAME',
+          'explain-buttons',
+          'What are these buttons?',
+          'progress',
+        );
+      }
       return true;
     } catch (error) {
       return this.fail(
@@ -1076,14 +1183,15 @@ Read theme.json only if you need values not covered by the schema or summary. Pr
     if (!r || !['review','writing'].includes(r.phase) || r.cursor === 0)
       throw Error('Play your changed game first.');
     r.phase = 'complete';
-    if (r.tour === 'active') r.tour = 'done';
+    if (r.tour === 'active' || r.tour === 'done') r.tour = 'finished';
     this.save(r);
+    if (r.tour === 'finished') return;
     this.guide(
       r,
-      'Your idea became a working game. Keep asking in your own words and checking what AI makes.',
+      'Your game is ready. Keep creating and checking what AI makes.',
       'YOU DID IT',
-      r.tour === 'done' ? 'finish-setup' : 'finish',
-      r.tour === 'done' ? 'Finish task' : 'Continue',
+      'finish',
+      'Continue',
       'progress',
     );
   }

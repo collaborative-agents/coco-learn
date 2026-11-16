@@ -308,8 +308,7 @@ export function saveConversation(input: {
   if (
     typeof input.sessionId !== 'string' ||
     !input.sessionId ||
-    !Array.isArray(input.messages) ||
-    input.messages.length === 0
+    !Array.isArray(input.messages)
   ) {
     return;
   }
@@ -353,13 +352,15 @@ export function saveConversation(input: {
         : {}),
     };
   });
-  if (messages.length === 0) return;
+  // Keep deliberately empty tabs resumable, but reject malformed messages.
+  if (messages.length === 0 && input.messages.length > 0) return;
 
   const now = Date.now();
   const conversations = readConversations();
   const existing = conversations.find(
     (conversation) => conversation.sessionId === input.sessionId,
   );
+  if (messages.length === 0 && existing) return;
   const requestedProblem =
     typeof input.problem === 'string' ? input.problem.trim() : '';
   const tutorModelId =

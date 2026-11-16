@@ -47,7 +47,7 @@ type StepKey = keyof typeof PAGES;
 export default function OnboardingView() {
   const query = new URLSearchParams(window.location.search);
   const modelsOnly = query.get('modelsOnly') === '1';
-  const models = useModelSetup(query.get('routerManaged') === '1');
+  const models = useModelSetup(query.get('routerManaged') === '1', query.get('localAgent') === '1');
   const [currentKey, setCurrentKey] = useState<StepKey>(
     modelsOnly ? 'models' : 'welcome',
   );

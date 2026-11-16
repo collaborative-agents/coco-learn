@@ -13,17 +13,17 @@ import type { RunnerTutorialState } from '../../../shared/runner-tutorial';
 
 export const onboardingMessages = {
   hello:
-    'Hi, I’m Coco! Let’s build a little game together so you can see how you can collaborate with AI agents. Type “Let’s build a game” below to get started. You can ask me questions here at any time.',
-  folderReady: 'Your workspace is set. Type “Let’s build a game” when you’re ready, and I’ll create the starter there.',
-  selectedWorkspace: 'Your workspace is already set, so I’ll use that folder. We’ll start with a running game for this walkthrough, then you can ask me to change it.',
+    'Let’s build your first game! Type “Let’s build a game” to start. Ask questions anytime.',
+  folderReady: 'Your workspace is ready. Type “Let’s build a game” to start.',
+  selectedWorkspace: 'I’ll build in your selected workspace. Use Access to manage my file and command permissions.',
   workspace:
-    'When working with an agent on a project, start by choosing a workspace — the folder where it will work. Click Workspace above the message box to pick one. I’ll create a new folder for our game inside it.',
+    'Click Workspace to choose a folder. I’ll create a new game folder inside it.',
   build:
-    'I’m starting to build your game in the workspace you chose.',
+    'I’m building your game.',
   game: 'Your game is ready in your workspace as coco-game.html.',
   review:
-    'Try the updated game and see whether it matches your idea. Tell me what else to change, or type “looks good” when you’re happy with it.',
-  done: 'You chose a workspace, gave me an idea, and checked what I made. You’re ready for Agent 101 in Training tasks. Its hands-on lessons unlock more chat tools, and your practice tasks help you put them to use.',
+    'Try your updated game. Does it match your idea?',
+  done: 'You’re ready to explore Coco on your own. Ask me for help anytime.',
 } as const;
 export const onboardingId = (step: keyof typeof onboardingMessages) =>
   `onboarding-${step}`;
@@ -46,7 +46,7 @@ export default function useOnboardingConversation({
   messages: ChatMessage[];
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
 }) {
-  const active = Boolean(state && state.sessionId === sessionId);
+  const active = Boolean(state && state.sessionId === sessionId && state.tour !== 'finished' && state.tour !== 'skipped');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const handledEntry = useRef(0);
@@ -98,12 +98,15 @@ export default function useOnboardingConversation({
       if (!active || !state) return false;
       if (state.starterBuild === 'building' || busy) return true;
       const wantsGame = isStarterBuildRequest(text);
+      const exploreIndependently = /^(?:i(?:[’']?d| would)? (?:like|want) to |i(?:[’']?ll| will) |let me )?explore(?: coco)? (?:on my own|by myself|at my own pace)[.!]?$/i.test(text.trim());
       const approved =
         /^(looks? good|done|i[’']?m happy|happy with it|that[’']?s good|all good|finished)[.!]?$/i.test(
           text.trim(),
         );
       const action =
-        state.tour === 'meet' && wantsGame
+        state.tour === 'active' && state.starterBuild === 'ready' && exploreIndependently
+          ? 'finish-setup'
+          : state.tour === 'meet' && wantsGame
           ? 'request-build'
           : state.hasChanges && state.phase === 'review' && approved
             ? 'finish'

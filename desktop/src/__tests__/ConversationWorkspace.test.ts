@@ -11,6 +11,20 @@ import {
 
 jest.mock('electron', () => ({ app: { getPath: jest.fn() } }));
 
+it('keeps empty chat tabs resumable without overwriting a seeded side quest', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-tabs-'));
+  (app.getPath as jest.Mock).mockReturnValue(directory);
+  try {
+    saveConversation({ sessionId: 'blank', problem: 'General help session', messages: [] });
+    saveConversation({ sessionId: 'quest', problem: 'Chapter 1 · Tool', messages: [{ role: 'tutor', text: 'Try a tool.' }] });
+    saveConversation({ sessionId: 'quest', messages: [] });
+    expect(readConversations().find(item => item.sessionId === 'blank')).toMatchObject({ messages: [] });
+    expect(readConversations().find(item => item.sessionId === 'quest')?.messages).toHaveLength(1);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it('persists independent folders for drafts and keeps them through transcript saves', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coco-folders-'));
   (app.getPath as jest.Mock).mockReturnValue(directory);

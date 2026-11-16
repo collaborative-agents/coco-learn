@@ -6,9 +6,14 @@ const MODEL_PROVIDERS = [
   ['tinker', 'Tinker'],
   ['tinfoil', 'Tinfoil (confidential)'],
   ['hosted_vllm', 'OpenAI-compatible endpoint'],
+  ['nv_inference', 'NVIDIA inference'],
   ['lm_studio', 'LM Studio (local)'],
 ] as const;
-const ENDPOINT_PROVIDERS = new Set(['hosted_vllm', 'lm_studio']);
+const ENDPOINT_PROVIDERS = new Set([
+  'hosted_vllm',
+  'lm_studio',
+  'nv_inference',
+]);
 
 export interface ModelDraft {
   id: string;
@@ -44,7 +49,7 @@ function ModelFields({
   let modelPlaceholder = sensing
     ? 'Vision model ID (provider/model)'
     : 'Model ID (provider/model)';
-  if (value.provider === 'hosted_vllm') {
+  if (value.provider === 'hosted_vllm' || value.provider === 'nv_inference') {
     modelPlaceholder = 'Exact model ID returned by /v1/models';
   }
   return (
@@ -145,6 +150,7 @@ export default function ModelsStep({
   testStatuses,
   onTest,
   routerManaged,
+  localAgent = false,
 }: {
   sensing: ModelDraft;
   setSensing: (next: ModelDraft) => void;
@@ -156,6 +162,7 @@ export default function ModelsStep({
   testStatuses: Record<string, ConnectionTestStatus>;
   onTest: (role: 'sensing' | 'tutor', model: ModelDraft) => void;
   routerManaged: boolean;
+  localAgent?: boolean;
 }) {
   const updateTutor = (index: number, next: ModelDraft) =>
     setTutors(tutors.map((item, i) => (i === index ? next : item)));
@@ -176,9 +183,15 @@ export default function ModelsStep({
   return (
     <>
       <p className="ob-sub">
-        The sensing model reads your screen to detect when help may be useful
-        and curate context. Tutor models generate proactive suggestions and chat
-        responses only when needed.
+        {localAgent ? (
+          'Connect a vision-capable model for chat, agent tools, and screen observation. When Coco is awake, screenshots are sent to this model. Sleep pauses observation.'
+        ) : (
+          <>
+            The sensing model reads your screen to detect when help may be
+            useful and curate context. Tutor models generate proactive
+            suggestions and chat responses only when needed.
+          </>
+        )}
       </p>
       {routerManaged && (
         <div className="ob-model-warning">
@@ -186,14 +199,16 @@ export default function ModelsStep({
           required.
         </div>
       )}
-      <ModelFields
-        value={sensing}
-        onChange={setSensing}
-        sensing
-        onTest={() => onTest('sensing', sensing)}
-        testStatus={testStatuses.sensing}
-        routerManaged={routerManaged}
-      />
+      {!localAgent && (
+        <ModelFields
+          value={sensing}
+          onChange={setSensing}
+          sensing
+          onTest={() => onTest('sensing', sensing)}
+          testStatus={testStatuses.sensing}
+          routerManaged={routerManaged}
+        />
+      )}
       <div className="ob-model-section-title">Tutor models</div>
       {tutors.map((tutor, index) => (
         <div key={tutor.id} className="ob-model-wrap">

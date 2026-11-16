@@ -434,6 +434,16 @@ export class CocoGatewayClient {
             : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
+      }).catch((error: unknown) => {
+        const host = new URL(this.gatewayUrl).origin;
+        const cause = (error as { cause?: { code?: unknown } } | null)?.cause;
+        const code = typeof cause?.code === 'string' && /^[A-Z0-9_]+$/.test(cause.code)
+          ? ` (${cause.code})`
+          : '';
+        const message = controller.signal.aborted
+          ? `The Coco backend at ${host} took too long to respond. Please try again.`
+          : `Could not connect to the Coco backend at ${host}${code}. Check your connection, VPN, and configured gateway URL, then try again.`;
+        throw new Error(message, { cause: error });
       });
       let result: Record<string, unknown> = {};
       try {

@@ -223,7 +223,8 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Text sections scroll inside the card; keep the speech tail visible. */
+  overflow: visible;
 }
 
 .observation-suggestion-body {
@@ -335,6 +336,11 @@
 
 .bubble-framework-arrow:hover {
   opacity: 1;
+}
+
+.bubble-framework-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* Transient confirmation after Copy / Approve. */
@@ -1017,6 +1023,25 @@
      window. Previously all spare width was on the left, so the right edge was
      flush with—and visibly clipped by—the BrowserWindow boundary. */
   padding: var(--coco-space-2);
+}
+
+/* The hidden-avatar presentation shares B's card; no tail points to an absent pet. */
+.notification-advice {
+  width: 320px;
+  max-width: 100%;
+}
+
+.notification-advice .observation-bubble {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  max-width: 320px;
+  max-height: 520px;
+}
+
+.notification-advice .observation-bubble-tail {
+  display: none;
 }
 
 .toast-card {
@@ -1726,4 +1751,20 @@
   background: var(--coco-color-accent-border);
   color: var(--coco-color-surface);
   cursor: not-allowed;
+}
+
+/* Keep a paged guide's introduction visually distinct from its first page. */
+.bubble-guide-intro {
+  padding-bottom: var(--coco-space-2);
+  margin-bottom: var(--coco-space-1);
+  border-bottom: 1px solid var(--bubble-accent-soft, rgba(0, 0, 0, 0.08));
+}
+
+.bubble-framework-section { display: flex; flex-direction: column; gap: 2px; }
+.bubble-framework-section-label {
+  color: var(--bubble-accent, var(--coco-color-primary));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }

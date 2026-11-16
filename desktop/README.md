@@ -84,9 +84,40 @@ The avatar surfaces observations from the sensing service in three tiers:
 
 ### Scripts
 
+To preview the interface locally without signing in, set
+`COCO_INTERFACE_PREVIEW=1` in the repository-root `.env` and run `npm start`.
+Preview opens the chat interface, floating Coco avatar, and Getting Started
+welcome with separate local data. The local game walkthrough is available;
+AI, account, and other authenticated actions remain unavailable. Remove the setting (or set it
+to `0`) and restart to restore the normal login flow. Keep this setting in the
+ignored `.env`; production and packaged builds always ignore it.
+
+To test the real agent with your own NVIDIA credentials, set `COCO_LOCAL_AGENT=1`
+in that ignored `.env` and restart. Model setup opens with the repository's
+InferenceHub endpoint and Claude Sonnet model prefilled. Enter your key in the
+app, test the connection, and save. Reopen it from the tray's **Model setup…**
+item. Keys are stored in the separate local profile with owner-only file
+permissions, outside the repository. This mode starts Coco awake and uses the
+selected vision-capable tutor model and key for both chat and screen observation.
+Screenshots go to that provider while awake; **Sleep** pauses observation.
+The hosted Coco gateway/router remains disabled. Training keeps the learning path
+visible as an offline preview; tasks and account progress require server sign-in.
+It requires an unpackaged development run; production and
+packaged builds still require login. To restore login during development,
+remove both `COCO_LOCAL_AGENT` and `COCO_INTERFACE_PREVIEW` and restart.
+
+For repeated onboarding tests, set `COCO_RESET_ON_START=1` alongside
+`COCO_LOCAL_AGENT=1` in the repository-root `.env`. Every development app launch
+(including automatic restarts after main-process edits) erases the isolated
+local profile and opens the full onboarding flow at Meet Coco. This removes
+conversations, memory, game/tutorial progress, caches, settings, saved model
+credentials, and files inside that profile’s workspace. Project folders outside
+the profile remain intact. Set `COCO_RESET_ON_START=0` to keep progress again.
+Packaged/production builds and regular signed-in profiles never use this reset.
+
 | Command | What it does |
 |---|---|
-| `npm start` | Dev mode — webpack-dev-server on `:1212` + Electron with hot reload |
+| `npm start` | Dev mode — webpack-dev-server on `:1213` + Electron with hot reload |
 | `npm run build` | Production webpack build (main + renderer) |
 | `npm run build:services` | Bundle both Python executables into one shared `service-dist/coco-services/` runtime |
 | `npm run package` | Full production build + electron-builder (DMG / NSIS / AppImage) |

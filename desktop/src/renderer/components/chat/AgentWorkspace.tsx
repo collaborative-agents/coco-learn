@@ -77,6 +77,7 @@ export default function AgentWorkspace({
         <button
           type="button"
           className="agent-folder"
+          data-coaching-control="workspace"
           disabled={disabled || choosing || !sessionId}
           onClick={choose}
           title={directory || 'Choose a working folder'}

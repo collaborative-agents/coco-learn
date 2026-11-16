@@ -8,6 +8,8 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import type { InstantSuggestion } from './observation-types';
 import RatingButtons from './RatingButtons';
+import ObservationBubble from './ObservationBubble';
+import { STATUS_LABEL, type ObservationStatus } from './observation-types';
 import {
   buildFrameworkOverview,
   buildSuggestionExplanation,
@@ -170,6 +172,9 @@ const NOTIFICATION_ROOT_PADDING = 8;
  * the window is shorter than the card, so add that hidden overflow back.
  */
 export function fittedCardHeight(card: HTMLElement): number {
+  // The shared bubble lays itself out at its natural height, including its
+  // padding, margins and feedback row. Its body scrolls at the maximum height.
+  if (card.classList.contains('observation-bubble')) return card.offsetHeight;
   const rows = Array.from(card.children).reduce(
     (total, child) =>
       total + Math.max((child as HTMLElement).offsetHeight, child.scrollHeight),
@@ -231,6 +236,7 @@ export function NotificationBubble({
   frameworkPage = 0,
   onFrameworkPageChange,
   rawObservation,
+  status,
 }: {
   message: string;
   actionLabel?: string;
@@ -252,7 +258,30 @@ export function NotificationBubble({
   frameworkPage?: 0 | 1;
   onFrameworkPageChange?: (page: 0 | 1) => void;
   rawObservation?: string;
+  status?: string;
 }) {
+  // Both placements use Coco's bubble component, including the 4D-specific
+  // explanation, pager, action and feedback. Only placement and tail differ.
+  if (suggestion && showFrameworkIntro) return (
+    <div className="notification-advice">
+      <ObservationBubble
+        bubble={{
+          status: status && status in STATUS_LABEL ? status as ObservationStatus : 'observing',
+          phrase: message, fadingOut: false, suggestion, scenario: 'ai_upskilling', rawObservation,
+        }}
+        frameworkPage={frameworkPage}
+        onFrameworkPageChange={onFrameworkPageChange}
+        ratingValue={suggestionRating}
+        onRateSuggestion={onRateSuggestion}
+        feedbackSurface="notification"
+        onDismiss={onDismiss}
+        onChatAboutSuggestion={onChatAboutSuggestion}
+        onRunSuggestion={onRunSuggestion}
+        onMouseEnter={() => onHoverChange?.(true)}
+        onMouseLeave={() => onHoverChange?.(false)}
+      />
+    </div>
+  );
   const isSessionInvite = notifType === 'session-start-prompt';
   const isPrompt = isSessionInvite || notifType === 'session-end-prompt';
   const isSuggestionPreview =
@@ -551,7 +580,7 @@ export default function NotificationView() {
   useLayoutEffect(() => {
     if (!fitsToContent || expanded) return undefined;
     const fit = () => {
-      const card = rootRef.current?.querySelector<HTMLElement>('.toast-card');
+      const card = rootRef.current?.querySelector<HTMLElement>('.observation-bubble, .toast-card');
       if (!card) return;
       window.electron?.ipcRenderer.sendMessage('fit-notification-height', {
         // The root's padding keeps the card's shadow inside the window.
@@ -792,6 +821,7 @@ export default function NotificationView() {
         frameworkPage={frameworkPage}
         onFrameworkPageChange={handleFrameworkPageChange}
         rawObservation={payload.rawObservation}
+        status={payload.status}
       />
     </div>
   );

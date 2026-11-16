@@ -68,24 +68,25 @@ export default function ChatComposerActions({
         </ActionTooltip>
         {skillPicker}
         {showUnderstandingCheck && (
-          <ActionTooltip label="Check my understanding">
+          <ActionTooltip label={checkingUnderstanding ? 'Coco is preparing your understanding check…' : 'Check my understanding'}>
             <button
               type="button"
               className="chat-composer-understanding"
+              data-coaching-control="understanding"
               aria-label={
                 checkingUnderstanding
-                  ? 'Opening understanding check'
+                  ? 'Preparing understanding check'
                   : 'Check my understanding'
               }
               aria-busy={checkingUnderstanding}
               style={{
                 ...S.finishTaskBtn,
-                ...(understandingDisabled ? S.sendBtnDisabled : {}),
+                ...(understandingDisabled || checkingUnderstanding ? S.sendBtnDisabled : {}),
               }}
-              disabled={understandingDisabled}
+              disabled={understandingDisabled || checkingUnderstanding}
               onClick={onCheckUnderstanding}
             >
-              <svg
+              {checkingUnderstanding ? <span className="chat-understanding-spinner" aria-hidden="true" /> : <svg
                 aria-hidden="true"
                 focusable="false"
                 width="16"
@@ -99,9 +100,9 @@ export default function ChatComposerActions({
                 style={{ flexShrink: 0 }}
               >
                 <path d="M9 18h6M10 21h4M9 15v-1a6 6 0 1 1 6 0v1H9Z" />
-              </svg>
-              <span className="chat-composer-action-label">
-                {checkingUnderstanding ? 'Opening…' : 'Check my understanding'}
+              </svg>}
+              <span className="chat-composer-action-label" role={checkingUnderstanding ? 'status' : undefined}>
+                {checkingUnderstanding ? 'Preparing check…' : 'Check my understanding'}
               </span>
             </button>
           </ActionTooltip>

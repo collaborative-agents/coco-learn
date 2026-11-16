@@ -18,12 +18,15 @@ interface ProactiveNotificationsDependencies {
   ipc: Pick<IpcMain, 'on' | 'removeAllListeners'>;
   gateway: () => CocoGatewayClient | null;
   avatar: () => BrowserWindow | null;
+  prepareAvatar: () => Promise<BrowserWindow | null>;
+  showAvatar: () => void;
   recapOpen: () => boolean;
   allowed: () => boolean;
   sleeping: () => boolean;
   assessmentActive: () => boolean;
   suspended: () => boolean;
   avatarHidden: () => boolean;
+  adviceBlocked?: () => boolean;
   sessionActive: () => boolean;
   sessionId: () => string | null;
   taskLabel: () => string | null;
@@ -82,6 +85,7 @@ export default function createProactiveNotifications(
   deps: ProactiveNotificationsDependencies,
 ) {
   let notificationWindow: BrowserWindow | null = null;
+  let notificationIsAdvice = false;
   let notificationHovered = false;
   let proactiveSuggestionOpen = false;
   // ── Notification bubble window ────────────────────────────────────────────────
@@ -93,7 +97,7 @@ export default function createProactiveNotifications(
   const NOTIF_HEIGHT = 220;
   // Two-page suggestions need enough room for the grounded 4D explanation and
   // the prompt/actions on page 2 without requiring manual window resizing.
-  const NOTIF_SUGGESTION_WIDTH = 480;
+  const NOTIF_SUGGESTION_WIDTH = 336;
   const NOTIF_SUGGESTION_HEIGHT = 420;
   // Bounds when a suggestion pop-up fits its window to the content.
   const NOTIF_SUGGESTION_MIN_HEIGHT = 180;
@@ -178,6 +182,9 @@ export default function createProactiveNotifications(
   };
 
   const showNotification = (payload: NotificationPayload): boolean => {
+    const isAdvice = payload.notifType === 'proactive-suggestion' || payload.notifType === 'instant-suggestion' || payload.sessionInvite === true;
+    // Placement follows the saved avatar mode, never chat focus.
+    if (isAdvice && (!deps.avatarHidden() || deps.adviceBlocked?.())) return false;
     if (!deps.allowed() || (deps.sleeping() && payload.category !== 'system'))
       return false;
     if (deps.assessmentActive() && payload.category !== 'system') {
@@ -275,6 +282,7 @@ export default function createProactiveNotifications(
     }
     configureFullscreenCompanionWindow(nextNotificationWindow);
     notificationWindow = nextNotificationWindow;
+    notificationIsAdvice = isAdvice;
 
     // AI-upskilling suggestions open directly on the interactive framework
     // overview. Lock from the first page—not only after the user advances—so a
@@ -306,6 +314,7 @@ export default function createProactiveNotifications(
       // Only the window that still owns the slot may clear the active lock.
       if (notificationWindow !== nextNotificationWindow) return;
       notificationWindow = null;
+      notificationIsAdvice = false;
       if (activeNotificationRecord === notificationRecord) {
         activeNotificationRecord = null;
       }
@@ -382,18 +391,23 @@ export default function createProactiveNotifications(
     }
   }
 
-  const presentSessionInvite = (invite: SessionInviteContent) => {
-    const avatarWindow = deps.avatar();
-    clearAvatarInvite('ignored');
-    if (
-      deps.avatarHidden() ||
-      !avatarWindow ||
-      avatarWindow.isDestroyed() ||
-      !avatarWindow.isVisible()
-    ) {
+  const presentSessionInvite = async (invite: SessionInviteContent) => {
+    if (deps.avatarHidden()) {
+      clearAvatarInvite('ignored');
       showNotification(sessionInvitePayload(invite));
       return;
     }
+    const avatarWindow = await deps.prepareAvatar();
+    if (deps.sessionActive() ||
+        deps.sleeping() || !deps.allowed() || deps.suspended() || deps.assessmentActive() || deps.adviceBlocked?.() ||
+        latestInviteObservationId !== invite.observationId) return;
+    if (deps.avatarHidden()) {
+      clearAvatarInvite('ignored');
+      showNotification(sessionInvitePayload(invite));
+      return;
+    }
+    if (!avatarWindow || avatarWindow.isDestroyed()) return;
+    clearAvatarInvite('ignored');
     avatarInvite = { ...invite, id: randomUUID(), record: null };
     avatarWindow.webContents.send('session-invite', {
       inviteId: avatarInvite.id,
@@ -443,10 +457,10 @@ export default function createProactiveNotifications(
                 }
               : value;
         }
-        presentSessionInvite({
+        return presentSessionInvite({
           taskLabel,
           rawObservation,
-          observationId: suggestion ? observationId : undefined,
+          observationId,
           suggestion,
         });
       })
@@ -494,6 +508,7 @@ export default function createProactiveNotifications(
         return;
       }
       const invite = avatarInvite;
+      deps.showAvatar();
       invite.record = createNotificationRecord(sessionInvitePayload(invite), {
         id: invite.id,
         onIgnored: () => {
@@ -520,16 +535,13 @@ export default function createProactiveNotifications(
     },
   );
 
-  // The avatar bubble is holding a suggestion the user opened, so the invite
-  // goes to the corner pop-up instead.
+  // Never open a second advice surface while the reader has a bubble pinned.
   deps.ipc.removeAllListeners('session-invite-busy');
   deps.ipc.on(
     'session-invite-busy',
     (_event, { inviteId }: { inviteId?: string }) => {
       if (!avatarInvite || avatarInvite.id !== inviteId) return;
-      const invite = avatarInvite;
       avatarInvite = null;
-      showNotification(sessionInvitePayload(invite));
     },
   );
 
@@ -690,6 +702,7 @@ export default function createProactiveNotifications(
       return notificationWindow;
     },
     dismissNotification: () => notificationWindow?.destroy(),
+    dismissAdviceNotification: () => { if (notificationIsAdvice) notificationWindow?.destroy(); },
     setHovered: (hovered: boolean) => {
       notificationHovered = hovered;
     },

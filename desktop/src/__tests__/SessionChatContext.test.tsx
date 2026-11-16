@@ -20,11 +20,105 @@ jest.mock('../renderer/components/TrainingView', () => ({
   default: () => <div>Training task content</div>,
 }));
 
+function renderChat() {
+  const result = render(<SessionChatView />);
+  fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+  return result;
+}
+
 describe('deferred suggestion context', () => {
+  it('closes tabs without deleting sessions, keeps background replies closed, and restores drafts from history', async () => {
+    const listeners = new Map<string, (value: any) => void>();
+    const saved = new Map<string, any>();
+    const invoke = jest.fn(async (channel: string, payload?: any) => {
+      if (channel === 'save-chat-conversation') { saved.set(payload.sessionId, {...payload,createdAt:1,updatedAt:1}); return {success:true}; }
+      if (channel === 'get-chat-conversations') return [...saved.values()];
+      if (channel === 'resume-chat-conversation') return {success:true,conversation:saved.get(payload.sessionId)};
+      return null;
+    });
+    (window as any).electron = {ipcRenderer:{invoke,sendMessage:jest.fn(),on:(channel:string,fn:any)=>{listeners.set(channel,fn);return()=>{};}}};
+    render(<SessionChatView />);
+    await act(async()=>listeners.get('session-init')?.({sessionId:'quest',problemStatement:'Chapter 1 · Tool · With tools'}));
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/),{target:{value:'Keep this quest draft'}});
+    await act(async()=>listeners.get('session-init')?.({sessionId:'project',problemStatement:'My project'}));
+    await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Close Tool side quest tab'})));
+    expect(screen.queryByRole('tab',{name:'Tool side quest'})).not.toBeInTheDocument();
+    expect(screen.getByRole('tab',{name:'My project'})).toHaveAttribute('aria-selected','true');
+    expect(saved.has('quest')).toBe(true);
+    await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Close My project tab'})));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.getByText('Your chats are saved in history.')).toBeVisible();
+    await act(async()=>listeners.get('chat-stream-event')?.({sessionId:'project',requestId:'background',type:'done',guidance:'Finished'}));
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    fireEvent.mouseEnter(screen.getByRole('button',{name:'Chat'}));
+    const history = await screen.findByRole('region',{name:'Conversation history'});
+    const quest = await within(history).findByText('Chapter 1 · Tool · With tools');
+    await act(async()=>fireEvent.click(quest));
+    expect(screen.getByRole('tab',{name:'Tool side quest'})).toHaveAttribute('aria-selected','true');
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue('Keep this quest draft');
+    await act(async()=>listeners.get('session-init')?.({sessionId:'other',problemStatement:'Another project'}));
+    await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Close Another project tab'})));
+    expect(screen.getByRole('tab',{name:'Tool side quest'})).toHaveAttribute('aria-selected','true');
+    expect(saved.has('other')).toBe(true);
+    expect(invoke).toHaveBeenCalledWith('get-chat-conversations',{includeQuests:true,includeEmpty:true});
+    expect(invoke.mock.calls.some(([channel])=> /delete|remove/.test(channel))).toBe(false);
+  });
+  it('keeps the playable game in chat after onboarding ends', async () => {
+    const listeners = new Map<string, (value: any) => void>();
+    let state = { sessionId: 'game', version: 'v1', tour: 'active', phase: 'play', starterBuild: 'ready', introAcknowledged: true, hasChanges: false, canUndo: false, error: null };
+    const invoke = jest.fn(async (channel: string) => {
+      if (channel === 'runner-state') return state;
+      if (channel === 'runner-preview') return { state, html: '<html><body>My game</body></html>' };
+      if (channel === 'get-chat-conversations') return [{ sessionId: 'game', problem: 'My game', createdAt: 1, updatedAt: 1, messages: [{ id: 'onboarding-game', role: 'tutor', text: 'Your game is ready.' }] }];
+      return null;
+    });
+    (window as any).electron = { ipcRenderer: { invoke, sendMessage: jest.fn(), on: (channel: string, fn: any) => { listeners.set(channel, fn); return () => {}; } } };
+    render(<SessionChatView />);
+    await act(async () => listeners.get('session-init')?.({ sessionId: 'game', problemStatement: 'My game' }));
+    expect(await screen.findByTitle('Your playable game')).toBeVisible();
+    state = { ...state, tour: 'finished', phase: 'review', hasChanges: true };
+    await act(async () => listeners.get('runner-state-changed')?.(state));
+    expect(screen.getByTitle('Your playable game')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Welcome to Coco/)).not.toBeInTheDocument();
+  });
+  it('starts on Training, then keeps side quests and new chats in separate tabs with their own drafts', async () => {
+    const listeners = new Map<string, (value: any) => void>();
+    const saved = new Map<string, any>();
+    const invoke = jest.fn(async (channel: string, payload?: any) => {
+      if (channel === 'save-chat-conversation') { saved.set(payload.sessionId, { ...payload, createdAt: 1, updatedAt: 1 }); return { success: true }; }
+      if (channel === 'get-chat-conversations') return [...saved.values()];
+      if (channel === 'start-new-chat-session') {
+        listeners.get('session-init')?.({ sessionId: 'new-chat', problemStatement: 'General help session' });
+        return { success: true, sessionId: 'new-chat' };
+      }
+      if (channel === 'resume-chat-conversation') return { success: true, conversation: saved.get(payload.sessionId) };
+      return null;
+    });
+    (window as any).electron = { ipcRenderer: { invoke, sendMessage: jest.fn(), on: (channel: string, fn: any) => { listeners.set(channel, fn); return () => {}; } } };
+    render(<SessionChatView />);
+    expect(screen.getByText('Training task content')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Training tasks' })).toHaveAttribute('aria-current', 'page');
+    await act(async () => listeners.get('session-init')?.({ sessionId: 'initial', problemStatement: 'General help session', initialPage: 'tasks' }));
+    expect(screen.getByText('Training task content')).toBeVisible();
+    await act(async () => listeners.get('session-init')?.({ sessionId: 'quest', problemStatement: 'Chapter 1 · Tool · With tools' }));
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'My side quest draft' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Start a new session' })));
+    expect(screen.getByRole('tab', { name: 'Tool side quest' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'New chat' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue('');
+    fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'My new idea' } });
+    await act(async () => fireEvent.click(screen.getByRole('tab', { name: 'Tool side quest' })));
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue('My side quest draft');
+    expect(screen.getByRole('tab', { name: 'Tool side quest' })).toHaveAttribute('aria-selected', 'true');
+    await act(async () => fireEvent.keyDown(screen.getByRole('tab', { name: 'Tool side quest' }), { key: 'ArrowRight' }));
+    expect(screen.getByPlaceholderText(/Ask Coco/)).toHaveValue('My new idea');
+    expect(invoke).toHaveBeenCalledWith('resume-chat-conversation', { sessionId: 'new-chat' });
+  });
   it('reports which conversation is visible so the avatar does not offer to return to the current chat',async()=>{
     const listeners=new Map<string,(value:any)=>void>();const sendMessage=jest.fn();
     (window as any).electron={ipcRenderer:{invoke:jest.fn(async()=>null),sendMessage,on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>{};}}};
-    render(<SessionChatView/>);
+    renderChat();
     await act(async()=>listeners.get('session-init')?.({sessionId:'game',problemStatement:'Your game'}));
     await waitFor(()=>expect(sendMessage).toHaveBeenCalledWith('runner-chat-view',{sessionId:'game',inChat:true}));
     fireEvent.click(screen.getByRole('button',{name:'Training tasks'}));
@@ -38,19 +132,20 @@ describe('deferred suggestion context', () => {
     const listeners = new Map<string, (data: unknown) => void>();
     let signedIn = false;
     const invoke = jest.fn(async (channel: string) => {
-      if (channel !== 'runner-state') return null;
+      if (!['runner-state', 'runner-preview'].includes(channel)) return null;
       if (!signedIn) throw Error('Open Coco and sign in to play.');
-      return {sessionId:'restored-game',phase:'writing',error:'Coco closed before finishing. I kept your previous game and your request.',lastRequest:'Make the game daylight',hasChanges:false,canUndo:false};
+      const state = {sessionId:'restored-game',version:'v1',phase:'writing',error:'Coco closed before finishing. I kept your previous game and your request.',lastRequest:'Make the game daylight',hasChanges:false,canUndo:false};
+      return channel === 'runner-preview' ? {state, html:'<!doctype html><title>Your saved game</title>'} : state;
     });
     (window as any).electron = {ipcRenderer:{invoke,on:jest.fn((channel:string,callback:(data:unknown)=>void)=>{listeners.set(channel,callback);return jest.fn();}),sendMessage:jest.fn()}};
-    render(<SessionChatView />);
+    renderChat();
     await waitFor(()=>expect(invoke).toHaveBeenCalledWith('runner-state'));
     signedIn = true;
     await act(async()=>{
       listeners.get('session-init')?.({sessionId:'restored-game',problemStatement:'Make your own game with Coco'});
       listeners.get('runner-focus-composer')?.({sessionId:'restored-game'});
     });
-    expect(await screen.findByText('Coco closed before finishing. I kept your previous game and your request.')).toBeVisible();
+    expect(await screen.findByText('Coco closed before finishing. I kept your previous game and your request.', {}, {timeout:4000})).toBeVisible();
     expect(screen.getByRole('button',{name:'Try again'})).toBeEnabled();
   });
   it('does not display the task banner for the active chat', async () => {
@@ -66,7 +161,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     await act(async () => {
       listeners.get('session-init')?.({
         sessionId: 'general-help',
@@ -103,7 +198,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Health' }));
@@ -137,7 +232,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('get-system-permissions');
@@ -161,7 +256,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith('get-model-configuration'),
     );
@@ -214,7 +309,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith('get-chat-content-zoom-factor');
     });
@@ -229,7 +324,7 @@ describe('deferred suggestion context', () => {
         height: '50%',
       });
     });
-    expect(screen.getByRole('toolbar', { name: 'Chat actions' })).not.toHaveStyle({
+    expect(screen.getByRole('group', { name: 'Chat actions' })).not.toHaveStyle({
       transform: 'scale(2)',
     });
   });
@@ -270,7 +365,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
     fireEvent.click(screen.getByRole('button', { name: 'Health' }));
 
@@ -318,7 +413,7 @@ describe('deferred suggestion context', () => {
       return null;
     });
     (window as any).electron={ipcRenderer:{invoke,on:jest.fn(()=>jest.fn()),sendMessage:jest.fn()}};
-    render(<SessionChatView/>);
+    renderChat();
     await waitFor(()=>expect(healthCalls).toBe(1));
     fireEvent.click(screen.getByRole('button',{name:'Settings'}));
     fireEvent.click(screen.getByRole('button',{name:'Health'}));
@@ -343,7 +438,7 @@ describe('deferred suggestion context', () => {
         return null;
       });
       (window as any).electron={ipcRenderer:{invoke,on:jest.fn(()=>jest.fn()),sendMessage:jest.fn()}};
-      render(<SessionChatView/>);
+      renderChat();
       fireEvent.click(screen.getByRole('button',{name:'Settings'}));fireEvent.click(screen.getByRole('button',{name:'Health'}));
       await screen.findByLabelText('Sensing server: Starting… (service); Connecting… (model)');
       expect(screen.getByRole('button',{name:'Connecting…'})).toBeDisabled();
@@ -383,7 +478,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
 
     fireEvent.click(screen.getByTitle('Settings'));
     expect(
@@ -431,7 +526,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
     expect(screen.getByText('Coco Health')).toBeInTheDocument();
     expect(
@@ -473,7 +568,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
     expect(
       await screen.findByText(/The API key was rejected/),
@@ -502,7 +597,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(screen.getByTitle('Settings'));
     const checkbox = screen.getByRole('switch', {
       name: 'Desktop avatar',
@@ -533,7 +628,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     expect(screen.queryByText('Models & providers')).not.toBeInTheDocument();
 
     await act(async () => {
@@ -579,13 +674,13 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Chat' }));
 
     expect(await screen.findByText('Launch checklist')).toBeInTheDocument();
     expect(screen.getByText('What should I do first?')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Launch checklist'));
+    await act(async () => fireEvent.click(screen.getByText('Launch checklist')));
     expect(
       screen.getByText('Start by naming the launch owner.'),
     ).toBeInTheDocument();
@@ -638,7 +733,7 @@ describe('deferred suggestion context', () => {
         listeners.set(channel, callback); return jest.fn();
       }), sendMessage: jest.fn(), invoke,
     } };
-    render(<SessionChatView />);
+    renderChat();
     await act(async () => listeners.get('session-init')?.({ sessionId: 'old' }));
     const imageDataUrl = 'data:image/png;base64,cHJldmlldw==';
     act(() => {
@@ -674,7 +769,7 @@ describe('deferred suggestion context', () => {
         listeners.set(channel, callback); return jest.fn();
       }), sendMessage: jest.fn(), invoke,
     } };
-    render(<SessionChatView />);
+    renderChat();
     await act(async () => listeners.get('session-init')?.({ sessionId: 'a' }));
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), { target: { value: 'Task A' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -716,7 +811,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
 
     act(() => {
       listeners.get('session-init')?.({
@@ -730,9 +825,7 @@ describe('deferred suggestion context', () => {
     );
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('start-new-chat-session', {
-        problemStatement: 'Draft a project plan',
-      });
+      expect(invoke).toHaveBeenCalledWith('start-new-chat-session', {});
     });
   });
 
@@ -745,7 +838,8 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
     const actions = [
       screen.getByRole('button', { name: 'Start a new session' }),
       screen.getByRole('button', { name: 'Collapse' }),
@@ -811,7 +905,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     act(() => {
       listeners.get('session-init')?.({
         sessionId: 'active-session',
@@ -865,7 +959,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
 
     act(() => {
       listeners.get('help-request')?.({
@@ -933,7 +1027,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     act(() => {
       listeners.get('help-request')?.({
         phrase: 'Verify the claims before you paste',
@@ -1029,7 +1123,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
     act(() => {
       listeners.get('help-request')?.({
         phrase: '',
@@ -1077,7 +1171,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'Summarize the spec PDF.' },
     });
@@ -1123,7 +1217,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
     act(() => {
       listeners.get('help-request')?.({
         phrase: '',
@@ -1169,7 +1263,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     act(() => {
       listeners.get('help-request')?.({
         phrase: 'What Coco noticed',
@@ -1214,7 +1308,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
 
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'What was I working on?' },
@@ -1293,7 +1387,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     const checkUnderstanding = await screen.findByRole('button', {
       name: 'Check my understanding',
     });
@@ -1313,7 +1407,7 @@ describe('deferred suggestion context', () => {
   });
 
   it.each([true, false])(
-    'checks the selected conversation without resuming it (check succeeds: %s)',
+    'checks the selected tab without switching conversations again (check succeeds: %s)',
     async (success) => {
       let finishRestore: (result: unknown) => void = () => {};
       const restore = new Promise((resolve) => {
@@ -1338,6 +1432,7 @@ describe('deferred suggestion context', () => {
             },
           ];
         if (channel === 'check-understanding') return restore;
+        if (channel === 'resume-chat-conversation') return { success: true };
         return null;
       });
       (window as any).electron = {
@@ -1347,19 +1442,27 @@ describe('deferred suggestion context', () => {
           invoke,
         },
       };
-      render(<SessionChatView />);
+      renderChat();
       await screen.findByRole('button', { name: 'Check my understanding' });
       fireEvent.mouseEnter(screen.getByRole('button', { name: 'Chat' }));
-      fireEvent.click(await screen.findByText('Past lesson'));
+      const pastLesson = await screen.findByText('Past lesson');
+      await act(async () => fireEvent.click(pastLesson));
       expect(
         screen.getByText('Describe your constraints.'),
       ).toBeInTheDocument();
+      invoke.mockClear();
       fireEvent.click(
         screen.getByRole('button', { name: 'Check my understanding' }),
       );
       expect(invoke).toHaveBeenCalledWith('check-understanding', {
         sessionId: 'past-quiz-session',
       });
+      const preparing = screen.getByRole('button', { name: 'Preparing understanding check' });
+      expect(preparing).toBeDisabled();
+      expect(preparing).toHaveAttribute('aria-busy', 'true');
+      expect(within(preparing).getByRole('status')).toHaveTextContent('Preparing check…');
+      expect(preparing.querySelector('.chat-understanding-spinner')).toBeInTheDocument();
+      fireEvent.click(preparing);
       expect(
         invoke.mock.calls.some(
           ([channel]) => channel === 'resume-chat-conversation',
@@ -1379,6 +1482,8 @@ describe('deferred suggestion context', () => {
       expect(Boolean(screen.queryByText('Could not open quiz.'))).toBe(
         !success,
       );
+      expect(screen.getByRole('button', { name: 'Check my understanding' })).toBeEnabled();
+      expect(screen.queryByRole('button', { name: 'Preparing understanding check' })).not.toBeInTheDocument();
     },
   );
 
@@ -1399,7 +1504,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     const finish = await screen.findByRole('button', {
       name: 'Check my understanding',
     });
@@ -1435,7 +1540,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
 
     const starter = await screen.findByRole('button', {
       name: 'Help me with the current task on my screen',
@@ -1491,7 +1596,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.click(await screen.findByRole('button', { name: prompt }));
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
@@ -1521,7 +1626,7 @@ describe('deferred suggestion context', () => {
       },
     };
 
-    render(<SessionChatView />);
+    renderChat();
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('get-profile'));
     expect(
       screen.queryByRole('button', { name: 'Check my understanding' }),
@@ -1578,7 +1683,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith('get-model-configuration'),
     );
@@ -1658,7 +1763,7 @@ describe('deferred suggestion context', () => {
         invoke,
       },
     };
-    render(<SessionChatView />);
+    renderChat();
     fireEvent.change(screen.getByPlaceholderText(/Ask Coco/), {
       target: { value: 'Explain the method section.' },
     });
@@ -1727,7 +1832,7 @@ it('opens the normal understanding check and preserves the unsent game idea',asy
     return null;
   });
   (window as any).electron={ipcRenderer:{on:jest.fn((channel,callback)=>{listeners.set(channel,callback);return ()=>listeners.delete(channel)}),invoke,sendMessage}};
-  render(<SessionChatView/>);
+  renderChat();
   await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Make your own game with Coco'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
   const input=screen.getByPlaceholderText(/Ask Coco/);
   expect(input).toHaveValue('');
@@ -1757,7 +1862,7 @@ it.each([
     return null;
   });
   (window as any).electron={ipcRenderer:{on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>{};},invoke,sendMessage:jest.fn()}};
-  render(<SessionChatView/>);
+  renderChat();
   await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Your game'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
   const button=screen.getByRole('button',{name:'Check my understanding'});
   fireEvent.click(button);
@@ -1771,13 +1876,99 @@ it.each([
   expect(screen.queryByText('Did Coco get your idea?')).not.toBeInTheDocument();
 });
 
-it('shows the game link only for a published version and replaces it with retry on failure',async()=>{
- const listeners=new Map<string,(value:any)=>void>();const invoke=jest.fn(async(channel:string)=>channel==='runner-state'?{sessionId:'runner',phase:'writing',hasChanges:false,error:null}:null);
- (window as any).electron={ipcRenderer:{on:(channel:string,cb:any)=>{listeners.set(channel,cb);return()=>{}},invoke,sendMessage:jest.fn()}};
- render(<SessionChatView/>);await act(async()=>{listeners.get('session-init')?.({sessionId:'runner',problemStatement:'Game'});listeners.get('runner-open-composer')?.({sessionId:'runner'});});
- expect(screen.queryByRole('button',{name:'Open my game'})).toBeNull();
- await act(async()=>listeners.get('runner-state-changed')?.({sessionId:'runner',phase:'review',hasChanges:true,error:null}));
- expect(screen.getByRole('button',{name:'Open my game'})).toBeInTheDocument();
- await act(async()=>listeners.get('runner-state-changed')?.({sessionId:'runner',phase:'writing',hasChanges:true,error:'The model connection failed.',lastRequest:'make it sunny'}));
- expect(screen.queryByRole('button',{name:'Open my game'})).toBeNull();expect(screen.getByRole('button',{name:'Try again'})).toBeInTheDocument();expect(screen.getByText('The model connection failed.')).toBeVisible();
+it('keeps the published game visible and offers retry when the next change fails', async () => {
+  const callbacks = new Map<string, Set<(value: unknown) => void>>();
+  let state = {sessionId:'runner', version:'v1', phase:'review', hasChanges:true, error:null as string | null, lastRequest:'make it sunny'};
+  const html = '<!doctype html><title>Last published game</title>';
+  const invoke = jest.fn(async (channel: string) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'runner-preview') return {state, html};
+    return null;
+  });
+  (window as any).electron = {ipcRenderer:{invoke, sendMessage:jest.fn(), on:(channel:string, callback:(value:unknown)=>void) => {
+    if (!callbacks.has(channel)) callbacks.set(channel, new Set());
+    callbacks.get(channel)!.add(callback);
+    return () => callbacks.get(channel)?.delete(callback);
+  }}};
+  renderChat();
+  await act(async () => callbacks.get('session-init')?.forEach(callback => callback({sessionId:'runner', problemStatement:'Game'})));
+  expect(await screen.findByTitle('Your playable game', {}, {timeout:4000})).toHaveAttribute('srcdoc', html);
+  expect(screen.queryByRole('button', {name:'Try again'})).toBeNull();
+  state = {...state, phase:'writing', error:'The model connection failed.'};
+  await act(async () => callbacks.get('runner-state-changed')?.forEach(callback => callback(state)));
+  expect(screen.getByTitle('Your playable game')).toHaveAttribute('srcdoc', html);
+  expect(screen.getByText('The model connection failed.')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', {name:'Try again'}));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('runner-action', {sessionId:'runner', action:'retry'}));
+});
+
+
+it('clears a button highlight on click and does not restore a consumed instruction', async () => {
+  const listeners = new Map<string, (value: unknown) => void>();
+  const invoke = jest.fn(async () => null);
+  const sendMessage = jest.fn();
+  (window as any).electron = { ipcRenderer: {
+    invoke, sendMessage,
+    on: (channel: string, callback: (value: unknown) => void) => {
+      listeners.set(channel, callback);
+      return () => listeners.delete(channel);
+    },
+  }};
+  const { container } = renderChat();
+  const workspace = container.querySelector('.desktop-workspace');
+  const instruction = {sessionId:'coco-setup', instructionId:'training-intro', highlight:'training'};
+  await act(async () => listeners.get('runner-guide-highlight')?.(instruction));
+  expect(workspace).toHaveAttribute('data-coaching-target', 'training');
+  expect(screen.getByRole('button', {name:'Chat'})).toHaveAttribute('aria-current', 'page');
+  fireEvent.click(screen.getByRole('button', {name:'Training tasks'}));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  expect(sendMessage).toHaveBeenCalledWith('runner-guide-control-used', {instructionId:'training-intro', target:'training'});
+  await act(async () => listeners.get('runner-guide-highlight')?.(instruction));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  await act(async () => listeners.get('runner-guide-highlight')?.({sessionId:'coco-setup', instructionId:'tool-intro', highlight:'tool'}));
+  expect(workspace).toHaveAttribute('data-coaching-target', 'tool');
+  await act(async () => listeners.get('runner-guide-highlight')?.(null));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  expect(invoke).not.toHaveBeenCalledWith('runner-start');
+});
+
+it('highlights Workspace only while awaiting a folder and scopes quiz guidance to its conversation', async () => {
+  const callbacks = new Map<string, Set<(value: unknown) => void>>();
+  const listeners = { get: (channel: string) => (value: unknown) => callbacks.get(channel)?.forEach(callback => callback(value)) };
+  const state = {sessionId:'runner', tour:'meet', phase:'play', starterBuild:'waiting'};
+  (window as any).electron = { ipcRenderer: {
+    invoke: jest.fn(async (channel: string) => {
+      if (channel === 'get-profile') return {tutorScenario:'ai_upskilling', aiTools:[]};
+      return channel === 'runner-state' ? state : null;
+    }),
+    sendMessage: jest.fn(),
+    on: (channel: string, callback: (value: unknown) => void) => {
+      if (!callbacks.has(channel)) callbacks.set(channel, new Set());
+      callbacks.get(channel)!.add(callback);
+      return () => callbacks.get(channel)?.delete(callback);
+    },
+  }};
+  const { container } = renderChat();
+  await act(async () => listeners.get('session-init')?.({sessionId:'runner', problemStatement:'Game'}));
+  const workspace = container.querySelector('.desktop-workspace');
+  await waitFor(() => expect(workspace).toHaveAttribute('data-coaching-target', 'workspace'));
+  const folder = screen.getByRole('button', {name:'Choose working folder'});
+  expect(folder).toHaveAttribute('data-coaching-control', 'workspace');
+  await act(async () => fireEvent.click(folder));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  // Canceling the picker and a duplicate state update must not relight it.
+  await act(async () => listeners.get('runner-state-changed')?.({...state}));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  await act(async () => listeners.get('runner-state-changed')?.({...state, selectedStarterDirectory:'/chosen'}));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  await act(async () => listeners.get('runner-guide-highlight')?.({sessionId:'another-conversation', highlight:'understanding'}));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  await act(async () => listeners.get('runner-guide-highlight')?.({sessionId:'runner', highlight:'understanding'}));
+  expect(workspace).toHaveAttribute('data-coaching-target', 'understanding');
+  const check = screen.getByRole('button', {name:'Check my understanding'});
+  expect(check).toHaveAttribute('data-coaching-control', 'understanding');
+  await act(async () => fireEvent.click(check));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
+  await act(async () => listeners.get('runner-guide-highlight')?.(null));
+  expect(workspace).not.toHaveAttribute('data-coaching-target');
 });

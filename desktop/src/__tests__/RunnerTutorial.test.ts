@@ -42,7 +42,7 @@ it('persists the tour without replacing an existing account’s game or undo his
  tutorial.tourAction('alice','tour-play');tutorial.dispose();
  tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
  expect(tutorial.state('alice')).toMatchObject({tour:'active',version,canUndo:true});
- tutorial.complete('alice');expect(tutorial.state('alice')?.tour).toBe('done');
+ tutorial.complete('alice');expect(tutorial.state('alice')?.tour).toBe('finished');
  tutorial.tourAction('alice','finish-setup');expect(tutorial.state('alice')?.tour).toBe('finished');
 });
 it('persists skipping at Meet Coco and preserves the original playable game', () => {
@@ -271,24 +271,185 @@ it('remembers an early workspace choice across a restart', async () => {
  expect((await tutorial.buildRequestedStarter('alice'))?.starterBuild).toBe('ready');
 });
 
-it('offers the Discernment tip only after a reveal request and persists its one-time delivery', async () => {
+it('keeps all four advice pages through build completion, invites play, then celebrates the first round once', async () => {
  tutorial.startTour('alice');
  guide.mockClear();
  tutorial.suggestGameReview('alice');
  expect(guide).not.toHaveBeenCalled();
  const selected=path.join(root,'suggestion-project');fs.mkdirSync(selected);
  tutorial.requestStarterBuild('alice');
- await tutorial.buildStarterInFolder('alice',selected);
- expect(guide).not.toHaveBeenCalled();
+ const build = tutorial.buildStarterInFolder('alice',selected);
+ expect(tutorial.state('alice')?.starterBuild).toBe('building');
+ expect(guide.mock.calls[0][1]).toMatchObject({milestone:'four-d-intro', action:'four-d-complete'});
+ expect(guide.mock.calls[0][1].pages.map((page: {title:string}) => page.title)).toEqual(['Delegation','Description','Discernment','Diligence']);
+ const built = await build;
+ expect(fs.existsSync(path.join(built.workspaceDirectory!, 'coco-game.html'))).toBe(true);
  tutorial.suggestGameReview('alice');
  expect(guide).toHaveBeenCalledTimes(1);
- expect(guide.mock.calls[0][1].framework.fourDDimension).toBe('discernment');
+ tutorial.completeFourD('alice');
+ expect(guide.mock.calls.at(-1)[1]).toMatchObject({milestone:'game-ready', action:'play'});
+ tutorial.completeFourD('alice');
+ expect(guide).toHaveBeenCalledTimes(2);
+ tutorial.firstGameOver('alice');
+ expect(guide.mock.calls.at(-1)[1]).toMatchObject({
+   milestone:'game-created', highlight:'understanding', text:expect.stringContaining('“Check my understanding”'),
+ });
+ tutorial.firstGameOver('alice');
+ tutorial.suggestGameReview('alice');
+ expect(guide).toHaveBeenCalledTimes(3);
+ tutorial.dispose();
+ tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
+ tutorial.completeFourD('alice');
+ tutorial.suggestGameReview('alice');
+ expect(guide).toHaveBeenCalledTimes(3);
+});
+
+it('waits for the build if the reader finishes the four pages first', async () => {
+ const selected=path.join(root,'fast-reader');fs.mkdirSync(selected);
+ tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ const build = tutorial.buildStarterInFolder('alice',selected);
+ tutorial.completeFourD('alice');
+ expect(guide.mock.calls.at(-1)[1]).toMatchObject({milestone:'game-building',status:'progress'});
+ await build;
+ expect(guide.mock.calls.at(-1)[1]).toMatchObject({milestone:'game-ready',action:'play'});
+ tutorial.writing('alice');
+ guide.mockClear();
+ tutorial.suggestIdeaCheck('alice');
+ expect(guide).not.toHaveBeenCalled();
+});
+
+it('does not interrupt reading if the user has already played a round', async () => {
+ const selected=path.join(root,'early-player');fs.mkdirSync(selected);
+ tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ await tutorial.buildStarterInFolder('alice',selected);
+ guide.mockClear();
+ tutorial.firstGameOver('alice');
+ expect(guide).not.toHaveBeenCalled();
+ tutorial.completeFourD('alice');
+ expect(guide.mock.calls.at(-1)[1].milestone).toBe('game-created');
+});
+
+it('offers modification choices once after the game quiz, even before the first game over', async () => {
+ const selected = path.join(root, 'quiz-project');fs.mkdirSync(selected);
+ const state = tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ await tutorial.buildStarterInFolder('alice', selected);
+ guide.mockClear();
+ tutorial.completeUnderstanding('alice', 'another-session');
+ expect(guide).not.toHaveBeenCalled();
+ tutorial.completeUnderstanding('alice', state.sessionId);
+ expect(tutorial.state('alice')).toMatchObject({understandingCompleted:true, firstGameOver:false, phase:'play'});
+ expect(guide).toHaveBeenCalledTimes(1);
+ expect(guide.mock.calls[0][1]).toMatchObject({
+   milestone:'understanding-complete', action:'customize',
+   actionLabel:'Modify my game', secondaryAction:'finish-setup', secondaryActionLabel:'Explore on my own',
+ });
+ tutorial.firstGameOver('alice');
  tutorial.suggestGameReview('alice');
  expect(guide).toHaveBeenCalledTimes(1);
  tutorial.dispose();
  tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
- tutorial.suggestGameReview('alice');
+ expect(tutorial.state('alice')?.understandingCompleted).toBe(true);
+ tutorial.completeUnderstanding('alice', state.sessionId);
  expect(guide).toHaveBeenCalledTimes(1);
+ tutorial.writing('alice');
+ tutorial.customizationPrompt('alice');
+ expect(tutorial.state('alice')?.phase).toBe('writing');
+ expect(guide.mock.calls.at(-1)[1]).toMatchObject({
+   milestone:'customize-prompt', prompt:'Change the fox into a cat.', action:'dismiss', actionLabel:'Got it',
+ });
+});
+
+it('does not announce a created game or unlock modification choices after a failed build', async () => {
+ const selected = path.join(root, 'failed-quiz-project');fs.mkdirSync(selected);
+ const state = tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ guide.mockClear();
+ validate.mockRejectedValueOnce(Error('Preview failed'));
+ await expect(tutorial.buildStarterInFolder('alice', selected)).rejects.toThrow();
+ tutorial.completeUnderstanding('alice', state.sessionId);
+ expect(guide.mock.calls.map(([, message]) => message.milestone)).toEqual(['four-d-intro','starter-error']);
+ expect(tutorial.state('alice')?.understandingCompleted).not.toBe(true);
+});
+
+it('ends the introduction when the learner chooses to explore, preserving the playable game after restart', async () => {
+ const selected = path.join(root, 'explore-project');fs.mkdirSync(selected);
+ const state = tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ await tutorial.buildStarterInFolder('alice', selected);
+ tutorial.completeUnderstanding('alice', state.sessionId);
+ const preview = tutorial.preview('alice')!.html;
+ guide.mockClear();
+ expect(tutorial.tourAction('alice', 'finish-setup')).toMatchObject({tour:'finished',phase:'play',hasChanges:false});
+ tutorial.firstGameOver('alice');
+ tutorial.completeUnderstanding('alice', state.sessionId);
+ tutorial.suggestGameReview('alice');
+ expect(guide).not.toHaveBeenCalled();
+ tutorial.dispose();
+ tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
+ expect(tutorial.state('alice')?.tour).toBe('finished');
+ expect(tutorial.preview('alice')!.html).toBe(preview);
+ tutorial.writing('alice');
+ tutorial.coach('alice', state.sessionId, 'make it cooler');
+ expect(guide).not.toHaveBeenCalled();
+});
+
+it.each(['active', 'done'])('finishes older post-game tours saved as %s without restarting the introduction', async tour => {
+ const state = begin();
+ tutorial.tools('alice', state.sessionId).updateTheme({timeOfDay:'day'});
+ await tutorial.finish('alice', state.sessionId, true);
+ const preview = tutorial.preview('alice')!.html;
+ tutorial.dispose();
+ const statePath = path.join(root, 'runner-tutorial', 'alice', 'state.json');
+ const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+ fs.writeFileSync(statePath, JSON.stringify({...saved, tour, collaborationCelebrated:true}));
+ guide.mockClear();
+ tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
+ expect(tutorial.state('alice')).toMatchObject({tour:'finished',hasChanges:true});
+ expect(tutorial.preview('alice')!.html).toBe(preview);
+ expect(JSON.parse(fs.readFileSync(statePath, 'utf8')).tour).toBe('finished');
+ expect(guide).not.toHaveBeenCalled();
+});
+
+it('ends onboarding after the first published customization without repeating Training', async () => {
+ const selected = path.join(root, 'collaboration-project');fs.mkdirSync(selected);
+ const state = tutorial.startTour('alice');
+ tutorial.requestStarterBuild('alice');
+ const built = await tutorial.buildStarterInFolder('alice', selected);
+ const celebrations = () => guide.mock.calls.filter(([, message]) => message.milestone === 'game-customized');
+ expect(celebrations()).toHaveLength(0);
+ tutorial.writing('alice');
+ tutorial.begin('alice', state.sessionId, jest.fn(), 'what would you recommend?');
+ await tutorial.finish('alice', state.sessionId, true);
+ expect(celebrations()).toHaveLength(0);
+ expect(tutorial.state('alice')?.tour).toBe('active');
+ tutorial.begin('alice', state.sessionId, jest.fn(), 'make it daylight');
+ tutorial.tools('alice', state.sessionId).updateTheme({timeOfDay:'day'});
+ validate.mockRejectedValueOnce(Error('Preview failed'));
+ expect(await tutorial.finish('alice', state.sessionId, true)).toBe(false);
+ expect(celebrations()).toHaveLength(0);
+ expect(tutorial.state('alice')?.tour).toBe('active');
+ tutorial.begin('alice', state.sessionId, jest.fn(), 'make it daylight');
+ tutorial.tools('alice', state.sessionId).updateTheme({timeOfDay:'day'});
+ expect(await tutorial.finish('alice', state.sessionId, true)).toBe(true);
+ expect(fs.readFileSync(path.join(built.workspaceDirectory!, 'coco-game.html'), 'utf8')).toContain('"timeOfDay":"day"');
+ expect(celebrations()).toHaveLength(1);
+ expect(celebrations()[0][1]).toMatchObject({
+   sessionId:state.sessionId, action:'dismiss', actionLabel:'Done',
+   text:expect.stringContaining('Your introduction is complete'),
+ });
+ expect(tutorial.state('alice')).toMatchObject({tour:'finished',phase:'review',hasChanges:true});
+ expect(guide.mock.calls.some(([,message]) => message.milestone === 'show-around')).toBe(false);
+ tutorial.dispose();
+ tutorial=new RunnerTutorial({starterPause:async()=>{},dataDir:root,node:process.execPath,guide,changed,validate});
+ expect(tutorial.state('alice')?.tour).toBe('finished');
+ tutorial.writing('alice');
+ tutorial.begin('alice', state.sessionId, jest.fn(), 'make it sunset');
+ tutorial.tools('alice', state.sessionId).updateTheme({timeOfDay:'sunset'});
+ expect(await tutorial.finish('alice', state.sessionId, true)).toBe(true);
+ expect(celebrations()).toHaveLength(1);
 });
 
 it('introduces the understanding check in a one-time Diligence bubble', () => {

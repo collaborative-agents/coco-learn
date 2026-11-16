@@ -71,6 +71,8 @@ function setup() {
     },
     gateway: () => gateway,
     avatar: () => avatar,
+    prepareAvatar: jest.fn(async () => avatar),
+    showAvatar: jest.fn(),
     recapOpen: () => false,
     allowed: () => state.allowed,
     sleeping: () => state.sleeping,
@@ -157,6 +159,7 @@ it('does not let an old window closing clear a replacement', async () => {
 
 it('drops stale invite previews and invalidates a preview when observation stops', async () => {
   const t = setup();
+  t.state.hidden = false;
   const resolve: ((value: InstantSuggestion | null) => void)[] = [];
   t.deps.precompute.mockImplementation(
     () =>
@@ -171,13 +174,16 @@ it('drops stale invite previews and invalidates a preview when observation stops
   expect(BrowserWindow).not.toHaveBeenCalled();
   resolve[1](null);
   await Promise.resolve();
+  await Promise.resolve();
   expect(t.state.task).toBe('New task');
-  expect(BrowserWindow).toHaveBeenCalledTimes(1);
+  expect(BrowserWindow).not.toHaveBeenCalled();
+  expect(t.avatar.webContents.send).toHaveBeenCalledWith('session-invite', expect.objectContaining({taskLabel:'New task'}));
   t.controller.showSessionInvite({ observation_id: 'paused' }, 'Paused task');
   t.controller.invalidateInvite();
   resolve[2](null);
   await Promise.resolve();
-  expect(BrowserWindow).toHaveBeenCalledTimes(1);
+  expect(BrowserWindow).not.toHaveBeenCalled();
+  expect(t.avatar.webContents.send.mock.calls.filter(([channel]) => channel === 'session-invite')).toHaveLength(1);
   t.controller.dispose();
 });
 
@@ -189,6 +195,7 @@ it('records avatar invites only when shown and accepts them with editable screen
     'Report',
   );
   await Promise.resolve();
+  await Promise.resolve();
   const invite = t.avatar.webContents.send.mock.calls.find(
     ([channel]) => channel === 'session-invite',
   )![1];
@@ -196,6 +203,7 @@ it('records avatar invites only when shown and accepts them with editable screen
   t.handlers['session-invite-shown']({}, { inviteId: invite.inviteId });
   t.handlers['session-invite-shown']({}, { inviteId: invite.inviteId });
   expect(t.gateway.addNotification).toHaveBeenCalledTimes(1);
+  expect(t.deps.showAvatar).toHaveBeenCalledTimes(1);
   t.handlers['session-invite-response'](
     {},
     { inviteId: invite.inviteId, outcome: 'accepted' },
@@ -214,5 +222,65 @@ it('records avatar invites only when shown and accepts them with editable screen
     invite.inviteId,
     'accepted',
   );
+  t.controller.dispose();
+});
+
+it('uses A for hidden-avatar advice without preparing or showing B', async () => {
+  const t = setup();
+  t.deps.precompute.mockResolvedValue({kind:'content',title:'Review the result',copyText:'Check the controls.'});
+  t.controller.showSessionInvite({observation_id:'hidden',observation:'A game is open'},'Game');
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(t.deps.prepareAvatar).not.toHaveBeenCalled();
+  expect(BrowserWindow).toHaveBeenCalledTimes(1);
+  expect(t.avatar.webContents.send).not.toHaveBeenCalled();
+  expect(t.deps.showAvatar).not.toHaveBeenCalled();
+  expect(t.gateway.addNotification).toHaveBeenCalledTimes(1);
+  t.controller.dispose();
+});
+
+it('drops an invitation if the session starts while the avatar renderer loads', async () => {
+  const t = setup();
+  t.state.hidden = false;
+  let ready!: (avatar: typeof t.avatar) => void;
+  t.deps.prepareAvatar.mockImplementation(() => new Promise(resolve => {ready=resolve;}));
+  t.controller.showSessionInvite({observation_id:'loading'},'Game');
+  await Promise.resolve();
+  t.state.active = true;
+  ready(t.avatar);
+  await Promise.resolve();
+  expect(t.avatar.webContents.send).not.toHaveBeenCalled();
+  expect(BrowserWindow).not.toHaveBeenCalled();
+  t.controller.dispose();
+});
+
+it('prevents A when Coco is shown and closes only advice when switching modes', () => {
+  const t = setup();
+  const advice = {message:'Check the game',actionLabel:'Read',notifType:'proactive-suggestion' as const,
+    scenario:'ai_upskilling',suggestion:{kind:'content' as const,title:'Check',copyText:'Play a round'}};
+  t.state.hidden = false;
+  expect(t.controller.showNotification(advice)).toBe(false);
+  expect(BrowserWindow).not.toHaveBeenCalled();
+  t.state.hidden = true;
+  expect(t.controller.showNotification(advice)).toBe(true);
+  const window = t.controller.window!;
+  t.controller.dismissAdviceNotification();
+  expect(window.destroy).toHaveBeenCalledTimes(1);
+  t.controller.showNotification({...payload,category:'system'});
+  const system = t.controller.window!;
+  t.controller.dismissAdviceNotification();
+  expect(system.destroy).not.toHaveBeenCalled();
+  t.controller.dispose();
+});
+
+it('does not fall back to A when B is already holding a lesson or another suggestion', async () => {
+  const t = setup();
+  t.state.hidden = false;
+  t.controller.showSessionInvite({observation_id:'busy'},'Game');
+  await Promise.resolve();
+  await Promise.resolve();
+  const invite = t.avatar.webContents.send.mock.calls.find(([channel]) => channel === 'session-invite')![1];
+  t.handlers['session-invite-busy']({}, {inviteId:invite.inviteId});
+  expect(BrowserWindow).not.toHaveBeenCalled();
   t.controller.dispose();
 });

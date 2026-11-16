@@ -12,6 +12,7 @@ import ObservationBubble, { type BubbleState } from './ObservationBubble';
 /** Bubble interactions, handled by the avatar renderer that owns the bubble. */
 export type AvatarBubbleEvent =
   | 'help'
+  | 'secondary'
   | 'dismiss'
   | 'view-conversation'
   | 'chat'
@@ -135,6 +136,7 @@ export default function AvatarBubbleView() {
       <ObservationBubble
         bubble={bubble}
         onHelpMe={() => sendEvent('help')}
+        onSecondaryAction={() => sendEvent('secondary')}
         onDismiss={() => sendEvent('dismiss')}
         onViewConversation={() => sendEvent('view-conversation')}
         onChatAboutSuggestion={() => sendEvent('chat')}

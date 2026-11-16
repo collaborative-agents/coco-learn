@@ -87,7 +87,7 @@ Output "yes" if this is detected, "no" otherwise.
 
 8. Assign a status label
 Based on the signals above, assign a single status label that best captures the user's current situation:
-- "progress": user is making forward movement on their task without notable problems
+- "progress": user is making forward movement on their task without notable problems; always use this label if the user appears to be entertaining (e.g. watching videos, browsing forum for fun, etc.)
 - "inefficient": clear inefficiency pattern detected (step 4) that AI could help with
 - "ai_struggle": user is actively using an AI tool but struggling (step 5)
 - "stuck": user appears to be stalled — no visible progress, repeated actions, or prolonged inactivity

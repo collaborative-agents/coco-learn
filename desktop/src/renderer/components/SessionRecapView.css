@@ -402,3 +402,12 @@
   color: var(--coco-color-surface);
   cursor: not-allowed;
 }
+
+/* The frameless native window moves by its header; controls stay clickable. */
+.recap-header { -webkit-app-region: drag; cursor: move; user-select: none; }
+.recap-header button { -webkit-app-region: no-drag; cursor: pointer; }
+
+/* Docked in the chat's side pane rather than its own floating window. */
+.recap-root.is-docked { height: 100%; }
+.recap-root.is-docked .recap-card { border: 0; border-radius: 0; box-shadow: none; }
+.recap-root.is-docked .recap-close { display: none; }

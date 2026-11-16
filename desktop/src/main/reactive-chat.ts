@@ -1,3 +1,4 @@
+import type { PermissionRequest } from '../shared/agent-execution';
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron';
 import axios from 'axios';
 import log from 'electron-log';
@@ -6,6 +7,8 @@ import type ChatStreamStore from './services/chat-stream-store';
 import type { InteractionTracker } from './interaction-tracker';
 import type { CocoGatewayClient } from './services/gateway-client';
 import type createAgent101Controller from './services/agent101-controller';
+import type PiHarness from './services/pi-harness';
+import type { AgentActivity } from '../shared/agent-execution';
 import type { SessionContextInput } from './services/pi-harness';
 import type CommandApprovalRules from './services/command-approval-rules';
 import type AgentProgressReminder from './services/agent-progress-reminder';
@@ -20,6 +23,16 @@ import type { TutorStreamEvent } from './services/tutor-stream';
 import { shouldStartSessionFromUserMessage } from './services/session-start-policy';
 
 interface ReactiveChatDependencies {
+  runner?: {
+    check?: (sessionId: string) => Promise<unknown>;
+    repair?: (sessionId: string, detail: string, attempt: number) => string | undefined;
+    summary?: (sessionId: string) => string | undefined;
+    tools?: (sessionId: string) => { schema: object; designCharacter?: (description: string) => Promise<unknown>; inspectArtwork?: () => Promise<{contactSheet: string; scene: string; groundingCode: string; description?: string}>; updateTheme: (changes: unknown) => unknown };
+    permission?: (sessionId: string, request: PermissionRequest) => void;
+    begin: (sessionId: string, requestId: string, text?: string) => string | null;
+    failure?: (sessionId: string) => string | undefined;
+    finish: (sessionId: string, success: boolean, detail?: string) => Promise<boolean | void>;
+  };
   ipc: Pick<IpcMain, 'handle' | 'removeHandler'>;
   session: () => { id: string | null; model: string | null; active: boolean };
   user: () => string | null;
@@ -104,6 +117,48 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
       observeUsage,
       observers: [observeTools, observeContext, observeUsage],
     };
+  }
+
+  async function executeAgent(pi: PiHarness, options: Omit<Parameters<PiHarness['run']>[0], 'emit'>, instructions: string | null | undefined, emit: (event: TutorStreamEvent) => void) {
+    if (!instructions) { await pi.run({...options,emit}); return; }
+    let finalEvent: TutorStreamEvent | undefined, failure: string | undefined, completed=false;
+    let prefix: AgentActivity[]=[];
+    try {
+      for(let attempt=0;attempt<3;attempt++){
+        finalEvent=undefined;
+        let activity: AgentActivity[]=[];
+        try { await pi.run({...options,recordTurn:attempt===0,emit:event=>{
+          if(event.type==='done'){finalEvent={...event,activity:[...prefix,...(event.activity as AgentActivity[]??[])]};return;}
+          if(event.type==='agent_activity')activity=event.activity as AgentActivity[]??[];
+          if(event.type==='agent_activity')emit({...event,activity:[...prefix,...(event.activity as AgentActivity[]??[])]});else emit(event);
+        }}); } catch(error) {
+          const message=error instanceof Error?error.message:String(error);
+          const recoverable=/no reply or action|empty|network|connection|HTTP 50[234]|unavailable/i.test(message)&&!/401|403|denied|cancelled|aborted/i.test(message);
+          if(recoverable){
+            try { const checked=await deps.runner?.check?.(options.sessionId) as {changed?:boolean};
+              if(checked?.changed){completed=true;finalEvent={type:'done',activity:[...prefix,...activity],guidance:'The edited game passed the app’s check.'};break;}
+            } catch {/* Invalid or missing edits still need an actual repair. */}
+            if(attempt<2){const repair=deps.runner?.repair?.(options.sessionId,message,attempt+1);if(repair){prefix=[...prefix,...activity];options={...options,text:`${repair}\nOriginal request: ${options.text}`,images:[],audioData:undefined};continue;}}
+          }
+          failure=message;break;
+        }
+        const result=finalEvent as TutorStreamEvent | undefined;
+        if(result?.stopped){failure='That run was stopped.';break;}
+        try { await deps.runner?.check?.(options.sessionId);completed=true;break; }
+        catch(error){
+          failure=error instanceof Error?error.message:String(error);
+          if(attempt===2)break;
+          const repair=deps.runner?.repair?.(options.sessionId,failure,attempt+1);
+          if(!repair)break;
+          prefix=result?.activity as AgentActivity[]??prefix;
+          options={...options,text:repair,images:[],audioData:undefined};failure=undefined;
+        }
+      }
+    } catch(error){failure=error instanceof Error?error.message:String(error);}
+    const published=await deps.runner?.finish(options.sessionId,completed,failure);
+    if(published===false){emit({type:'error',error:deps.runner?.failure?.(options.sessionId)??failure??'I couldn’t publish this change. Your previous game is safe.',activity:finalEvent?.activity});return;}
+    if(finalEvent)emit({...finalEvent,guidance:published===true?deps.runner?.summary?.(options.sessionId)??finalEvent.guidance:finalEvent.guidance});
+    else if(failure)throw Error(failure);
   }
 
   async function streamReply(event: IpcMainInvokeEvent, turn: StreamReply) {
@@ -196,7 +251,7 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
     } catch (err) {
       log.error(
         `[Chat] streaming ${voice ? 'audio' : 'user'} prompt failed:`,
-        err instanceof Error ? err.message : String(err),
+        err instanceof Error ? (err.stack ?? err.message) : String(err),
       );
       let error: string;
       if (voice) {
@@ -349,6 +404,7 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
       isRetry,
       gatewaySessionId === deps.session().id ? deps.session().model : undefined,
       screenContext,
+      userText,
     );
     const tutorPort = process.env.TUTOR_PORT || '8081';
     const tutor = `http://127.0.0.1:${tutorPort}`;
@@ -429,7 +485,9 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
         } else if (deps.runs.requests.get(requestId)?.stopped) {
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
-          await piHarness.run({
+          const runnerInstructions = deps.runner?.begin(gatewaySessionId, requestId, typeof userText === 'string' ? userText : '');
+          await executeAgent(piHarness, {
+            instructions: runnerInstructions ?? undefined,
             approvalRules: training ? undefined : deps.approvalRules(),
             curatedSkills: training
               ? undefined
@@ -437,14 +495,15 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
             requestId,
             sessionId: gatewaySessionId,
             context,
-            training,
+            training: runnerInstructions ? { tools: 'game', instructions: runnerInstructions, persist: true } : training,
+            game: runnerInstructions ? deps.runner?.tools?.(gatewaySessionId) : undefined,
+            onPermission: request => { if (runnerInstructions) deps.runner?.permission?.(gatewaySessionId, request); },
             directory,
             tutorUrl: tutor,
             token: deps.token,
             text: contextualizedUserText,
             images: images ?? [],
-            emit: onEvent,
-          });
+          }, runnerInstructions, onEvent);
         }
       },
     });
@@ -527,7 +586,8 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
         if (deps.runs.requests.get(requestId)?.stopped) {
           onEvent({ type: 'done', guidance: 'Stopped.', stopped: true });
         } else {
-          await piHarness.run({
+          const runnerInstructions = deps.runner?.begin(gatewaySessionId, requestId);
+          await executeAgent(piHarness, {
             approvalRules: training ? undefined : deps.approvalRules(),
             curatedSkills: training
               ? undefined
@@ -535,15 +595,17 @@ export default function registerReactiveChat(deps: ReactiveChatDependencies) {
             requestId,
             sessionId: gatewaySessionId,
             context,
-            training,
+            training: runnerInstructions ? { tools: 'game', instructions: runnerInstructions, persist: true } : training,
+            game: runnerInstructions ? deps.runner?.tools?.(gatewaySessionId) : undefined,
+            onPermission: request => { if (runnerInstructions) deps.runner?.permission?.(gatewaySessionId, request); },
             directory,
             tutorUrl: `http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}`,
             token: deps.token,
             text: '',
             images: [],
             audioData,
-            emit: onEvent,
-          });
+            instructions: runnerInstructions ?? undefined,
+          }, runnerInstructions, onEvent);
         }
       },
     });

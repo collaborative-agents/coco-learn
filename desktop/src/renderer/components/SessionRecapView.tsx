@@ -1,30 +1,34 @@
 import { useEffect, useState } from 'react';
 import './SessionRecapView.css';
 
-interface RecapData {
-  summary_title: string;
-  bullets: string[];
-  quiz: {
-    question: string;
-    choices: string[];
-    correct_index: number;
-    explanation: string;
-  };
-}
+import type { UnderstandingRecap as RecapData } from '../../shared/understanding-check';
 
 type QuizState = 'unanswered' | 'correct' | 'wrong';
 // 'check' is a mid-session "Check my understanding" quiz; 'end' ends the session.
 type RecapMode = 'check' | 'end';
 
-export default function SessionRecapView() {
-  const [recap, setRecap] = useState<RecapData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+export interface DockedRecap {
+  mode: RecapMode;
+  loading: boolean;
+  data: RecapData | null;
+  error: boolean;
+}
+
+/** Standalone recap window, or a quiz docked in the chat's side pane. */
+export default function SessionRecapView({ docked, onDone }: { docked?: DockedRecap; onDone?: () => void } = {}) {
+  const [ownRecap, setRecap] = useState<RecapData | null>(null);
+  const [ownLoading, setLoading] = useState(true);
+  const [ownLoadError, setLoadError] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [quizState, setQuizState] = useState<QuizState>('unanswered');
-  const [mode, setMode] = useState<RecapMode>('end');
+  const [ownMode, setMode] = useState<RecapMode>('end');
+  const recap = docked ? docked.data : ownRecap;
+  const loading = docked ? docked.loading : ownLoading;
+  const loadError = docked ? docked.error : ownLoadError;
+  const mode = docked ? docked.mode : ownMode;
 
   useEffect(() => {
+    if (docked) return undefined;
     const cleanupInit = window.electron?.ipcRenderer.on(
       'session-recap-init',
       (payload: any) => {
@@ -47,7 +51,7 @@ export default function SessionRecapView() {
       if (typeof cleanupInit === 'function') cleanupInit();
       if (typeof cleanupData === 'function') cleanupData();
     };
-  }, []);
+  }, [docked]);
 
   const finish = () => {
     const quizAnswered = quizState !== 'unanswered';
@@ -57,14 +61,15 @@ export default function SessionRecapView() {
       ...(quizAnswered ? { quizCorrect: quizState === 'correct' } : {}),
       ...(selectedIndex !== null ? { selectedIndex } : {}),
     });
-    window.close();
+    if (onDone) onDone();
+    else window.close();
   };
   const answered = quizState !== 'unanswered';
 
   return (
-    <div className="recap-root">
+    <div className={`recap-root${docked ? ' is-docked' : ''}`}>
       <div className="recap-card">
-        <div className="recap-header">
+        {!docked && <div className="recap-header">
           <span className="recap-header-dot" />
           <span className="recap-header-title">
             {mode === 'check' ? 'Check your understanding' : 'Session recap'}
@@ -77,7 +82,7 @@ export default function SessionRecapView() {
           >
             ×
           </button>
-        </div>
+        </div>}
 
         {loading && (
           <div className="recap-loading">
@@ -179,9 +184,6 @@ export default function SessionRecapView() {
 
         {!loading && !loadError && (
           <div className="recap-actions">
-            <button type="button" className="recap-btn-skip" onClick={finish}>
-              Skip
-            </button>
             <button
               type="button"
               className="recap-btn-continue"

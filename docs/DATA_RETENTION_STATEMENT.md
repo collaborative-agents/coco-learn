@@ -1,10 +1,10 @@
-# CoCo Data Retention Statement
+# Coco Data Retention Statement
 
 > **Draft for study-team review — not yet approved for participant distribution**  
 > Applies to the current AI Fluency Upskilling pilot build  
 > Last updated: August 15, 2026
 
-This statement explains what the current CoCo pilot stores, where it is stored,
+This statement explains what the current Coco pilot stores, where it is stored,
 how long it remains, and what is required to delete it. It reflects the current
 software implementation. The study team must add the approved study retention
 period, contact information, and any IRB or consent-language requirements before
@@ -12,7 +12,7 @@ giving this statement to participants.
 
 ## Summary
 
-- CoCo processes screen images to provide proactive AI support.
+- Coco processes screen images to provide proactive AI support.
 - The study Gateway stores participant accounts, chat text, session timing,
   recap results, model identifiers, latency timestamps, and software-version
   metadata in MongoDB.
@@ -37,7 +37,7 @@ giving this statement to participants.
 
 ## Data stored on the participant's computer
 
-CoCo stores local data under:
+Coco stores local data under:
 
 `~/Library/Application Support/coco`
 
@@ -54,7 +54,7 @@ CoCo stores local data under:
 | Explicit hotkey captures | Supply user-selected visual context | Until removed in the app or local data is deleted |
 | Training screenshots | Optional model-development data | Disabled in the distributed pilot unless explicitly enabled; if enabled, retained until manually deleted |
 
-Removing the CoCo application alone may leave this folder in place.
+Removing the Coco application alone may leave this folder in place.
 
 ## Data stored by the study Gateway
 
@@ -108,7 +108,7 @@ distribution, replace this sentence with the approved policy:
 
 ## Data processed and stored by the LLM Router
 
-The desktop app sends model requests to the study-operated CoCo Router. The
+The desktop app sends model requests to the study-operated Coco Router. The
 Router authenticates a participant-scoped credential issued after sign-in and
 forwards requests to the configured model provider. The credential is stored
 only as a hash on the server, expires with the participant's sign-in session,
@@ -155,7 +155,7 @@ Approved wording:
 
 ### Delete local data
 
-1. Quit CoCo from its menu-bar menu.
+1. Quit Coco from its menu-bar menu.
 2. In Finder, select **Go → Go to Folder…**.
 3. Enter `~/Library/Application Support/coco`.
 4. Move the `coco` folder to Trash and empty Trash if permanent deletion is

@@ -4,8 +4,12 @@ import {
   OBSERVER_MODEL,
 } from '../../../shared/model-catalog';
 import type { ModelDraft, ConnectionTestStatus } from './ModelsStep';
+import localAgentModel from '../../../shared/local-agent-model';
 
-export default function useModelSetup(routerManagedFromMain: boolean) {
+export default function useModelSetup(
+  routerManagedFromMain: boolean,
+  localAgent = false,
+) {
   const [modelError, setModelError] = useState('');
   const [routerManaged, setRouterManaged] = useState(routerManagedFromMain);
   const [savingModels, setSavingModels] = useState(false);
@@ -16,13 +20,13 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
   });
   const [tutorModels, setTutorModels] = useState<ModelDraft[]>([
     {
-      ...DEFAULT_TUTOR_MODEL,
+      ...(localAgent ? localAgentModel : DEFAULT_TUTOR_MODEL),
       apiKey: '',
-      baseUrl: '',
+      baseUrl: localAgent ? localAgentModel.baseUrl : '',
     },
   ]);
   const [defaultTutorId, setDefaultTutorId] = useState<string>(
-    DEFAULT_TUTOR_MODEL.id,
+    localAgent ? localAgentModel.id : DEFAULT_TUTOR_MODEL.id,
   );
   const [connectionTests, setConnectionTests] = useState<
     Record<string, ConnectionTestStatus>
@@ -86,7 +90,7 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
         setSensingModel({
           ...config.sensing,
           model: String(config.sensing.model).replace(
-            /^(?:hosted_vllm|tinker)\//,
+            /^(?:hosted_vllm|tinker|nv_inference)\//,
             '',
           ),
           apiKey: '',
@@ -95,7 +99,10 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
         setTutorModels(
           config.tutors.map((item: any) => ({
             ...item,
-            model: String(item.model).replace(/^(?:hosted_vllm|tinker)\//, ''),
+            model: String(item.model).replace(
+              /^(?:hosted_vllm|tinker|nv_inference)\//,
+              '',
+            ),
             apiKey: '',
             baseUrl: item.baseUrl ?? '',
           })),
@@ -108,7 +115,7 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
 
   const saveModels = async () => {
     try {
-      if (!sensingModel.model.trim()) {
+      if (!localAgent && !sensingModel.model.trim()) {
         setModelError('Enter a vision-capable sensing model.');
         return false;
       }
@@ -128,15 +135,21 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
         if (item.apiKey.trim())
           credentials[`tutor:${item.provider}`] = item.apiKey;
       });
+      // Local development uses the selected tutor for both roles. The main
+      // process supplies its key to sensing only for this matching connection.
+      const sensing = localAgent
+        ? (tutorModels.find((item) => item.id === defaultTutorId) ??
+          tutorModels[0])
+        : sensingModel;
       const result = await window.electron?.ipcRenderer.invoke(
         'save-model-configuration',
         {
           sensing: {
             id: 'sensing',
             label: 'Sensing',
-            provider: sensingModel.provider,
-            model: sensingModel.model,
-            baseUrl: sensingModel.baseUrl,
+            provider: sensing.provider,
+            model: sensing.model,
+            baseUrl: sensing.baseUrl,
           },
           tutors: tutorModels.map((item) => ({
             id: item.id,
@@ -181,6 +194,7 @@ export default function useModelSetup(routerManagedFromMain: boolean) {
       testStatuses: connectionTests,
       onTest: testModelConnection,
       routerManaged,
+      localAgent,
     },
   };
 }

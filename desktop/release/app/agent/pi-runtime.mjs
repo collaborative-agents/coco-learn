@@ -52,6 +52,10 @@ export async function createRuntime({
   requestApproval,
   requestWorkspaceAccess,
   toolMode,
+  gameSchema,
+  updateGameTheme,
+  inspectGameArtwork,
+  designGameCharacter,
   persistTraining = false,
   skillPaths = [],
 }) {
@@ -108,7 +112,7 @@ export async function createRuntime({
           ),
         ],
     systemPrompt: toolMode
-      ? context.instructions
+      ? context.instructions + (toolMode === 'game' && designGameCharacter ? '\nFor a request combining scene/mechanics and character changes, apply the requested scene/mechanics edits first. For custom characters use design_game_character once. It already sees the original reference. After it succeeds, finish your turn immediately; do not inspect, read files or redesign. The app runs the independent visual review and asks for repairs if necessary.' : '')
       : `${context.instructions}\n\n${executionInstructions}`,
   });
   await resourceLoader.reload();
@@ -153,6 +157,26 @@ export async function createRuntime({
     toolMode ? [] : skillPaths,
     requestWorkspaceAccess,
   );
+  const gameTools = guardedTools.filter(tool => tool.name !== 'bash').map(tool=>{
+    if(!['write','edit'].includes(tool.name))return tool;
+    return {...tool,execute:async(id,args,signal,update)=>{
+      const target=path.resolve(cwd,args.path);
+      if(path.dirname(target)!==cwd||!['theme.json','behavior.js'].includes(path.basename(target)))throw Error('The engine is stable. Edit only theme.json or behavior.js.');
+      return tool.execute(id,args,signal,update);
+    }};
+  });
+  if(toolMode==='game'&&gameSchema&&updateGameTheme){
+    const patch=structuredClone(gameSchema);patch.properties.playerPreset={enum:['cat','dog','rabbit','pig']};patch.properties.obstaclePreset={enum:['bones','cactus']};patch.properties.behaviorPreset={enum:['flight','run']};
+    const optional=node=>{delete node.required;for(const child of Object.values(node.properties??{}))optional(child)};optional(patch);delete patch.$schema;delete patch.definitions;
+    const parameters={type:'object',required:['changes'],additionalProperties:false,definitions:gameSchema.definitions,properties:{changes:patch}};
+    if(designGameCharacter) gameTools.push({name:'design_game_character',label:'Drawing your character',description:'Use this for any custom character not covered by presets, or to improve character artwork. A dedicated vision artist uses the original Coco reference, draws detailed sprites and running/crouching animation, validates them, and updates the theme. Supply the desired character and any visual repair feedback in words. Do not hand-write pixel grids or create extra files. The app independently reviews the result before publishing.',parameters:{type:'object',required:['description'],properties:{description:{type:'string'}},additionalProperties:false},execute:async(_id,args)=>{const result=await designGameCharacter(args.description);return {content:[{type:'text',text:JSON.stringify({...result,nextStep:'The character draft is saved. End this turn now with a short factual summary. The app independently reviews and publishes it. Do not inspect or redesign again unless the app returns a repair diagnostic.'})}],details:result};}});
+    if(inspectGameArtwork && !designGameCharacter) gameTools.push({name:'inspect_game_art',label:'Looking at the character',description:'View original Coco and current character animation frames together, plus an actual in-game screenshot. Use before designing a custom character and after drawing it. Compare silhouette, anatomy, shading, scale and running/crouching poses; revise visible flaws before finishing.',parameters:{type:'object',properties:{},additionalProperties:false},execute:async()=>{
+      const evidence=await inspectGameArtwork();
+      return {content:[{type:'text',text:'Original Coco reference and candidate frames, followed by the candidate in-game. Inspect these images; do not assume schema validation means good artwork. '+(evidence.description?'Independent vision inspection: '+evidence.description:'')},...[evidence.contactSheet,evidence.scene].map(url=>({type:'image',mimeType:'image/png',data:url.split(',')[1]}))],details:{preview:true}};
+    }});
+    gameTools.push({name:'update_game_theme',label:'Making your game',description:'Merge and validate theme edits. timeOfDay selects a complete scene palette and automatic title. behaviorPreset="flight" installs real hold-to-fly mechanics in behavior.js; "run" restores jumping. playerPreset cat/dog/rabbit/pig supplies detailed animated artwork at the original runner size. Prefer these over tiny custom icons. No shell or approval needed.',parameters,
+      execute:async(_id,args,signal)=>{if(signal?.aborted)throw Error('Operation aborted');const result=await updateGameTheme(args.changes);return {content:[{type:'text',text:JSON.stringify(result)}],details:result};}});
+  }
   const reservedNames = new Set([
     ...guardedTools.map((tool) => tool.name),
     'ask_user_question',
@@ -200,13 +224,17 @@ export async function createRuntime({
     model: modelRuntime.getModel('coco', 'coco'),
     thinkingLevel: 'off',
     customTools:
-      toolMode === 'none'
+      toolMode === 'game'
+        ? gameTools
+        : toolMode === 'none'
         ? []
         : toolMode === 'bash' || toolMode === 'read'
           ? guardedTools.filter((tool) => tool.name === toolMode)
           : [...guardedTools, ...customTools],
     tools:
-      toolMode === 'none'
+      toolMode === 'game'
+        ? gameTools.map(tool => tool.name)
+        : toolMode === 'none'
         ? []
         : toolMode === 'bash' || toolMode === 'read'
           ? [toolMode]

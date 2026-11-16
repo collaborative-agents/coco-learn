@@ -675,3 +675,43 @@ test('advertises only curated skills and explicitly loads a selected skill into 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('tutorial exposes a validated theme tool without shell access or permission auto-answers',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'coco-theme-sdk-'));let calls=0,updates=0,approvals=0;
+ const server=http.createServer(async(req,res)=>{
+  const chunks=[];for await(const c of req)chunks.push(c);const body=JSON.parse(Buffer.concat(chunks).toString());
+  assert.equal(body.tools.some(t=>t.function.name==='bash'),false);
+  assert.equal(body.tools.some(t=>t.function.name==='update_game_theme'),true);
+  res.writeHead(200,{'Content-Type':'text/event-stream'});
+  const emit=(delta,finish_reason=null)=>res.write(`data: ${JSON.stringify({id:'theme',object:'chat.completion.chunk',created:1,model:'coco',choices:[{index:0,delta,finish_reason}]})}\n\n`);
+  if(calls++===0){emit({role:'assistant',tool_calls:[{index:0,id:'paint',type:'function',function:{name:'update_game_theme',arguments:JSON.stringify({changes:{timeOfDay:'day'}})}}]});emit({},'tool_calls');}
+  else {emit({role:'assistant',content:'I painted a daylight sky.'});emit({},'stop');}
+  res.end('data: [DONE]\n\n');
+ });await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const runtime=await createRuntime({cwd:root,sessionId:'game',dataDir:root,tutorUrl:`http://127.0.0.1:${server.address().port}`,token:'test',toolMode:'game',persistTraining:true,
+  context:{model:'test',instructions:'Use update_game_theme to paint.',profile:'',history:[],tools:[]},
+  gameSchema:{type:'object',required:['timeOfDay'],properties:{timeOfDay:{enum:['day','night']}},definitions:{}},
+  updateGameTheme:changes=>{assert.deepEqual(changes,{timeOfDay:'day'});updates++;return {ok:true};},
+  requestApproval:()=>{approvals++;throw Error('Test must not answer approvals');},requestWorkspaceAccess:()=>{throw Error('No file read should be needed');}
+ });
+ try{await runtime.prompt('make it daylight',[],{profile:'',history:[]});assert.equal(updates,1);assert.equal(approvals,0)}
+ finally{runtime.dispose();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true})}
+});
+
+test('game artwork inspection sends actual image tool results without permissions',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'coco-art-sdk-'));let calls=0,previews=0;
+ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=';
+ const server=http.createServer(async(req,res)=>{
+  const chunks=[];for await(const c of req)chunks.push(c);const body=JSON.parse(Buffer.concat(chunks).toString());
+  assert.ok(body.tools.some(t=>t.function.name==='inspect_game_art'));
+  res.writeHead(200,{'Content-Type':'text/event-stream'});
+  const emit=(delta,finish_reason=null)=>res.write(`data: ${JSON.stringify({id:'art',object:'chat.completion.chunk',created:1,model:'coco',choices:[{index:0,delta,finish_reason}]})}\n\n`);
+  if(calls++===0){emit({role:'assistant',tool_calls:[{index:0,id:'inspect',type:'function',function:{name:'inspect_game_art',arguments:'{}'}}]});emit({},'tool_calls');}
+  else{assert.ok(JSON.stringify(body.messages).includes('image_url'));assert.ok(JSON.stringify(body.messages).includes('iVBORw0KGgo'));emit({role:'assistant',content:'I inspected the artwork.'});emit({},'stop');}
+  res.end('data: [DONE]\n\n');
+ });await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const runtime=await createRuntime({cwd:root,sessionId:'art',dataDir:root,tutorUrl:`http://127.0.0.1:${server.address().port}`,token:'test',toolMode:'game',
+  context:{model:'test',instructions:'Inspect the art.',profile:'',history:[],tools:[]},gameSchema:{type:'object',properties:{},definitions:{}},updateGameTheme:()=>({ok:true}),
+  inspectGameArtwork:async()=>{previews++;return {contactSheet:png,scene:png}},requestApproval:()=>{throw Error('No approvals allowed')},requestWorkspaceAccess:()=>{throw Error('No extra access allowed')}});
+ try{await runtime.prompt('inspect',[],{profile:'',history:[]});assert.equal(previews,1)}finally{runtime.dispose();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true})}
+});

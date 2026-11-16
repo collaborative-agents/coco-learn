@@ -5,10 +5,11 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
+import urllib.request
 import struct
 import zlib
 
-from external_api.llm import chat_completion
 
 
 def _png_data_url() -> str:
@@ -38,6 +39,28 @@ def test_connection(model: str, include_image: bool) -> str:
     content: list[dict[str, object]] = [{"type": "text", "text": "Reply only OK."}]
     if include_image:
         content.append({"type": "image_url", "image_url": {"url": _png_data_url()}})
+    router = os.environ.get("LLM_ROUTER_URL", "").strip().rstrip("/")
+    if router:
+        key = os.environ.get("LLM_ROUTER_API_KEY", "").strip()
+        if not key:
+            raise RuntimeError("Coco model access is missing. Sign in again, then Retry.")
+        endpoint = router if router.endswith("/v1") else f"{router}/v1"
+        request = urllib.request.Request(
+            f"{endpoint}/chat/completions",
+            data=json.dumps({"model": model, "messages": [{"role": "user", "content": content}], "max_tokens": 32}).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        # A probe is a single bounded request, never a provider retry loop.
+        with urllib.request.urlopen(request, timeout=8) as response:
+            result = json.load(response)
+        reply = result["choices"][0]["message"].get("content")
+        if not isinstance(reply, str) or not reply.strip():
+            raise RuntimeError("The model accepted the request but returned no text.")
+        return reply
+    os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+    from external_api.llm import chat_completion
+
     kwargs: dict[str, object] = {}
     if (
         model.removeprefix("hosted_vllm/")

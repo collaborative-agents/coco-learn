@@ -80,9 +80,10 @@ afterEach(async () => {
   fs.rmSync(directory, { recursive: true, force: true });
   jest.restoreAllMocks();
 });
-function run(requestId = 'request') {
+function run(requestId = 'request', game = false) {
   return harness.run({
     requestId,
+    ...(game ? { training: { tools: 'game' as const, instructions: 'Edit this game only.', persist: true } } : {}),
     sessionId: 'session',
     directory,
     tutorUrl: 'http://localhost',
@@ -187,5 +188,20 @@ test('commands use their action approval without a redundant workspace prompt', 
     ),
   ).toBe(false);
   expect(executed).toBe(1);
+  expect(harness.hasWorkspaceAccess(directory)).toBe(false);
+});
+
+test('draft interpretation does not record an unsent idea as a conversation turn', async () => {
+  await harness.run({requestId:'draft-check',sessionId:'session',directory,tutorUrl:'http://localhost',token:'test',text:'A pink fox in space',images:[],recordTurn:false,
+    training:{tools:'none',instructions:'Repeat the idea back without editing.'},
+    context:{model:'test',scenario:'',problem:'',user_name:'',ai_tools:[],memory:'',messages:[]},emit:emitted});
+  expect(jest.mocked(fetch).mock.calls.some(([url])=>String(url).endsWith('/agent/turn'))).toBe(false);
+  expect(executed).toBe(0);
+});
+
+test('tutorial file edits work with default permissions and no auto-answer or saved grant', async () => {
+  decision = null; fileCalls = 2;
+  await run('game', true);
+  expect(approvalCount).toBe(0); expect(executed).toBe(2);
   expect(harness.hasWorkspaceAccess(directory)).toBe(false);
 });

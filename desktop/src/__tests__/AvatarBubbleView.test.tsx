@@ -49,6 +49,17 @@ describe('AvatarBubbleView', () => {
     expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'dismiss');
   });
 
+  it('keeps Explore later distinct from closing the tip', () => {
+    const { sendMessage, showBubble } = setup();
+    showBubble({status:'observing', phrase:'Want to make it yours?', fadingOut:false,
+      runnerTutorial:{sessionId:'game', action:'customize'},
+      guide:{label:'KEEP EXPLORING', secondaryAction:'show-around', secondaryActionLabel:'No, show me around', dismissible:true},
+    });
+    fireEvent.click(screen.getByRole('button', {name:'No, show me around'}));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'secondary');
+    expect(sendMessage).not.toHaveBeenCalledWith('avatar-bubble-event', 'dismiss');
+  });
+
   it('ignores a hover left over from the last bubble until the mouse moves', () => {
     const { container, showBubble } = setup();
     const view = container.querySelector('.avatar-bubble-view')!;
@@ -68,6 +79,23 @@ describe('AvatarBubbleView', () => {
     expect(view).not.toHaveClass('is-pointer-live');
     fireEvent.mouseMove(view, { screenX: 404, screenY: 301 });
     expect(view).toHaveClass('is-pointer-live');
+  });
+
+  it('paces the task through pet messages and keeps the final prompt until the end', () => {
+    const { sendMessage, showBubble } = setup();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: null, phase: 'intro' } });
+    fireEvent.click(screen.getByRole('button', { name: /Choose an article/i }));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'chat');
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'reading' } });
+    expect(screen.getByText(/Take your time with it/)).toBeInTheDocument();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'first' } });
+    expect(screen.getByText(/Article: AI as a thinking partner/)).toBeInTheDocument();
+    expect(screen.getByText(/Why it works/)).toBeInTheDocument();
+    expect(screen.queryByText(/Create a beautiful, responsive, animated HTML page/)).not.toBeInTheDocument();
+    showBubble({ status: 'observing', phrase: '', fadingOut: false, gettingStarted: { articleId: 'ai-copilot', phase: 'create' } });
+    expect(screen.getByText(/Create a beautiful, responsive, animated HTML page/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Go to Chat/i }));
+    expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-event', 'chat');
   });
 
   it('catches the mouse only while it is over the card', () => {

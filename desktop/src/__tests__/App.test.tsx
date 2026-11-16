@@ -1,3 +1,4 @@
+import { learningIntroduction } from '../shared/learning-introduction';
 import '@testing-library/jest-dom';
 import {
   act,
@@ -167,6 +168,14 @@ describe('App', () => {
       act(() => listeners.get('avatar-menu-action')?.(action));
     return { sendMessage, listeners, chooseMenuItem };
   };
+
+  it('keeps an explicitly started tutorial visible when proactive advice is suppressed or asleep', async()=>{
+    const {listeners,sendMessage}=setupMenuIpc();render(<App/>);
+    await act(async()=>listeners.get('runner-guide')?.({sessionId:'game',label:'LET’S PLAY',text:'A simple little game',action:'play',actionLabel:'Let’s play'}));
+    await act(async()=>listeners.get('post-assessment-proactive-suppression')?.({active:true}));
+    await act(async()=>listeners.get('coco-sleep-mode-changed')?.({sleeping:true}));
+    expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({phrase:'A simple little game',runnerTutorial:{sessionId:'game',action:'play'}}));
+  });
 
   it('shows working updates briefly and clears them as soon as the run ends', async () => {
     jest.useFakeTimers();
@@ -464,6 +473,41 @@ describe('App', () => {
 const renderBubbleWindow = (bubble: BubbleState | null | undefined) =>
   render(<ObservationBubble bubble={bubble ?? null} />);
 
+it('paces Getting Started through the avatar before Chat and the final prompt', async () => {
+  const listeners = new Map<string, (...args: unknown[]) => void>();
+  const sendMessage = jest.fn();
+  (window as any).electron = {
+    ipcRenderer: {
+      on: (channel: string, callback: (...args: unknown[]) => void) => {
+        listeners.set(channel, callback);
+        return () => listeners.delete(channel);
+      },
+      sendMessage,
+      invoke: jest.fn().mockResolvedValue({ sleeping: false }),
+    },
+  };
+  await act(async () => { render(<App />); });
+  act(() => listeners.get('getting-started-guide')?.({ articleId: null, phase: 'intro' }));
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: null, phase: 'intro' } }));
+  act(() => listeners.get('avatar-bubble-event')?.('chat'));
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-open-article');
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: null, phase: 'choose' } }));
+  act(() => listeners.get('getting-started-guide')?.({ articleId: 'ai-copilot', phase: 'reading' }));
+  act(() => listeners.get('avatar-bubble-event')?.('chat'));
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: 'ai-copilot', phase: 'invite' } }));
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-chat-invite', { articleId: 'ai-copilot' });
+  act(() => listeners.get('avatar-bubble-event')?.('chat'));
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-open-chat', { articleId: 'ai-copilot', phase: 'chat' });
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: 'ai-copilot', phase: 'first' } }));
+  act(() => listeners.get('agent-reply-ready')?.({ sessionId: 'session-1', requestId: 'reply-1' }));
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: 'ai-copilot', phase: 'first' } }));
+  act(() => listeners.get('getting-started-guide')?.({ articleId: 'ai-copilot', phase: 'first-done' }));
+  act(() => listeners.get('avatar-bubble-event')?.('chat'));
+  expect(lastBubbleState(sendMessage)).toEqual(expect.objectContaining({ gettingStarted: { articleId: 'ai-copilot', phase: 'create' } }));
+  act(() => listeners.get('avatar-bubble-event')?.('chat'));
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-open-chat', { articleId: 'ai-copilot', phase: 'create' });
+});
+
 describe('session invite bubble', () => {
   const setup = () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();
@@ -636,4 +680,76 @@ describe('session invite with a suggestion preview', () => {
       }),
     );
   });
+});
+
+it('uses the floating observation bubble for runner coaching and routes its real action',async()=>{
+  const listeners=new Map<string,(value:unknown)=>void>();
+  const sendMessage=jest.fn(),invoke=jest.fn(async()=>({}));
+  (window as any).electron={ipcRenderer:{on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>listeners.delete(channel)},sendMessage,invoke}};
+  render(<App/>);
+  const pages=[{title:'Delegation',text:'Choose the work.',example:'Ask Coco to build.'}];
+  act(()=>listeners.get('runner-guide')?.({sessionId:'runner',label:'THE 4Ds',text:'While I build your game…',pages,action:'four-d-complete',actionLabel:'Got it'}));
+  expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-state',expect.objectContaining({bubble:expect.objectContaining({guide:expect.objectContaining({pages})})}));
+  await act(async()=>listeners.get('avatar-bubble-event')?.('dismiss'));
+  expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'four-d-complete'});
+  expect(invoke).not.toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'dismiss'});
+  act(()=>listeners.get('runner-guide')?.({sessionId:'runner',label:'KEEP EXPLORING',text:'Do you want to try modifying the game?',action:'customize',actionLabel:'Yes! I want to make it my own',secondaryAction:'show-around',secondaryActionLabel:'No, show me around'}));
+  expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-state',expect.objectContaining({bubble:expect.objectContaining({runnerTutorial:{sessionId:'runner',action:'customize'}})}));
+  expect(sendMessage).toHaveBeenCalledWith('avatar-bubble-state',expect.objectContaining({bubble:expect.objectContaining({guide:expect.objectContaining({secondaryActionLabel:'No, show me around'})})}));
+  await act(async()=>listeners.get('avatar-bubble-event')?.('help'));
+  expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'customize'});
+  await act(async()=>listeners.get('avatar-bubble-event')?.('secondary'));
+  expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'show-around'});
+  act(()=>listeners.get('runner-guide')?.(learningIntroduction('runner', 'training')));
+  expect(lastBubbleState(sendMessage)).toMatchObject({guide:{label:'TRAINING TASKS'}, runnerTutorial:{action:'show-around'}});
+  expect(lastBubbleState(sendMessage).phrase).toContain('check-ins before and after');
+  await act(async()=>listeners.get('avatar-bubble-event')?.('help'));
+  expect(invoke).toHaveBeenLastCalledWith('runner-action',{sessionId:'runner',action:'show-around'});
+  act(()=>listeners.get('runner-guide')?.(learningIntroduction('runner', 'agent101')));
+  expect(lastBubbleState(sendMessage).phrase).toContain('You can see what an agent is doing');
+  expect(lastBubbleState(sendMessage).guide.action).toBeUndefined();
+  await act(async()=>listeners.get('avatar-bubble-event')?.('dismiss'));
+  expect(invoke).toHaveBeenCalledWith('runner-action',{sessionId:'runner',action:'dismiss'});
+});
+
+it('shows generated advice directly in Coco’s bubble and preserves its chat/run action', async () => {
+  const listeners = new Map<string, (value: unknown) => void>();
+  const sendMessage = jest.fn();
+  (window as any).electron = {ipcRenderer:{
+    on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>listeners.delete(channel)},
+    sendMessage, invoke:jest.fn(async()=>({})),
+  }};
+  render(<App/>);
+  const advice = {
+    sessionId:'session',observationId:'automatic-1',status:'inefficient',rawObservation:'A game is open',scenario:'ai_upskilling',
+    suggestion:{kind:'delegate',title:'Review your game',copyText:'Check the controls.',prompt:'Check the controls.',fourDDimension:'discernment'},
+  };
+  act(()=>listeners.get('automatic-suggestion')?.(advice));
+  expect(lastBubbleState(sendMessage)).toMatchObject({suggestion:advice.suggestion,observationId:'automatic-1',scenario:'ai_upskilling'});
+  expect(sendMessage).toHaveBeenCalledWith('automatic-suggestion-response',{observationId:'automatic-1',shown:true});
+  act(()=>listeners.get('automatic-suggestion')?.({...advice,observationId:'automatic-2'}));
+  expect(lastBubbleState(sendMessage)?.observationId).toBe('automatic-1');
+  expect(sendMessage).toHaveBeenCalledWith('automatic-suggestion-response',{observationId:'automatic-2',shown:false});
+  await act(async()=>listeners.get('avatar-bubble-event')?.('run'));
+  expect(sendMessage).toHaveBeenCalledWith('chat-about-suggestion',expect.objectContaining({
+    execute:true,surface:'bubble',observationId:'automatic-1',suggestion:advice.suggestion,
+  }));
+  expect(lastBubbleState(sendMessage)).toBeNull();
+});
+
+it('keeps the onboarding bubble when automatic advice arrives', () => {
+  const listeners = new Map<string, (value: unknown) => void>();
+  const sendMessage = jest.fn();
+  (window as any).electron = {ipcRenderer:{
+    on:(channel:string,callback:any)=>{listeners.set(channel,callback);return()=>listeners.delete(channel)},
+    sendMessage, invoke:jest.fn(async()=>({})),
+  }};
+  render(<App/>);
+  act(()=>listeners.get('runner-guide')?.({sessionId:'runner',label:'THE 4Ds',text:'While I build your game…',action:'four-d-complete'}));
+  const lesson = lastBubbleState(sendMessage);
+  act(()=>listeners.get('automatic-suggestion')?.({
+    observationId:'competing',status:'inefficient',suggestion:{kind:'content',title:'Other advice',copyText:'Other advice'},
+  }));
+  expect(lastBubbleState(sendMessage)).toEqual(lesson);
+  expect(sendMessage).toHaveBeenCalledWith('automatic-suggestion-response',{observationId:'competing',shown:false});
 });

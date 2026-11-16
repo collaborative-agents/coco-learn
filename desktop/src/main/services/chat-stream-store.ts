@@ -28,6 +28,7 @@ export default class ChatStreamStore {
     retry = false,
     tutorModelId?: string | null,
     screenContext?: string,
+    retryText = userText,
   ) {
     const conversation = readConversations().find(
       (item) => item.sessionId === sessionId,
@@ -38,7 +39,7 @@ export default class ChatStreamStore {
       text: '',
       requestId,
       isStreaming: true,
-      retryText: userText,
+      retryText,
       retryRequestKind: 'chat',
     };
     const index = messages.findIndex((item) => item.requestId === requestId);

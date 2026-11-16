@@ -10,7 +10,7 @@ interface TrainingPanelDependencies {
   user: () => string | null;
   authenticated: () => boolean;
   gateway: () => CocoGatewayClient | null;
-  access: () => { tutoring_allowed: boolean; status: string };
+  access: () => { tutoring_allowed: boolean; status: string; hosted_training_enabled?: boolean };
   refreshAccess: () => Promise<void>;
   refreshTray: () => void;
   showPanel: () => void;

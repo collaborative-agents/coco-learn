@@ -164,7 +164,7 @@
   font-family: var(--coco-font-family);
   font-size: var(--coco-text-control);
 }
-.training-page button {
+.training-page button:where(:not(.bubble-action-btn):not(.bubble-dismiss-btn):not(.remix-game)) {
   cursor: pointer;
   padding: 8px 12px;
   border: 1px solid var(--coco-color-border);
@@ -176,7 +176,7 @@
   cursor: default;
   opacity: 0.55;
 }
-.training-page button:not(:disabled):hover {
+.training-page button:where(:not(.bubble-action-btn):not(.bubble-dismiss-btn):not(.remix-game)):not(:disabled):hover {
   background: var(--coco-color-surface-subtle);
 }
 .training-page button.training-primary,

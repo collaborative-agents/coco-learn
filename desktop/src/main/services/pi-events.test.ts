@@ -173,3 +173,9 @@ test('discards whitespace between tools without trimming meaningful streamed tex
     text: '  Checking the next file.\n',
   });
 });
+
+it('reports a truncated provider turn as unfinished', () => {
+  const translator = new PiEventTranslator(jest.fn());
+  translator.handle({ type: 'message_end', message: { role: 'assistant', stopReason: 'length', usage: { input: 10, output: 8192 } } });
+  expect(() => translator.finish(false)).toThrow('response limit');
+});

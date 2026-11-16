@@ -1,0 +1,45 @@
+[
+  {
+    "request": "make it daylight",
+    "changes": {
+      "timeOfDay": "day",
+      "title": "Sunny Run"
+    }
+  },
+  {
+    "request": "make the runner a cat and the obstacles bones",
+    "changes": {
+      "playerPreset": "cat",
+      "obstaclePreset": "bones"
+    }
+  },
+  {
+    "request": "make it snowy at night",
+    "changes": {
+      "timeOfDay": "night",
+      "weather": {
+        "kind": "snow",
+        "color": "#edf5ff",
+        "intensity": 65,
+        "speed": 45
+      }
+    }
+  },
+  {
+    "request": "make it harder",
+    "changes": {
+      "physics": {
+        "speed": 400,
+        "maxSpeed": 700,
+        "acceleration": 7,
+        "spawnSeconds": 1.0
+      }
+    }
+  },
+  {
+    "request": "Make a flying version, so I can fly, not just jump.",
+    "changes": {
+      "behaviorPreset": "flight"
+    }
+  }
+]

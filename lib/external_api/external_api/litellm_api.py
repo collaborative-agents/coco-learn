@@ -44,6 +44,7 @@ class LiteLLMMessage(BaseModel):
     content: list[ContentBlock] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
     tool_call_id: str | None = None
+    finish_reason: str | None = Field(default=None, exclude=True)
 
 
 def get_litellm_completion(
@@ -106,7 +107,7 @@ def get_litellm_completion(
         kwargs["tool_choice"] = tool_choice
 
     # When configured, send the same OpenAI-compatible payload through the
-    # hosted CoCo router. The router owns provider credentials; local users do
+    # hosted Coco router. The router owns provider credentials; local users do
     # not need to supply Gemini/OpenAI/Anthropic keys.
     router_url = os.environ.get("LLM_ROUTER_URL", "").strip().rstrip("/")
     if router_url:
@@ -127,6 +128,7 @@ def get_litellm_completion(
 
     response = completion(**kwargs)
     if stream:
+        finish_reason = None
         text_parts: list[str] = []
         tool_call_parts: dict[int, dict[str, str]] = {}
         usage_data: Any = {}
@@ -137,6 +139,7 @@ def get_litellm_completion(
             choices = getattr(chunk, "choices", None) or []
             if not choices:
                 continue
+            finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
             delta = getattr(choices[0], "delta", None)
             content = getattr(delta, "content", None) if delta is not None else None
             if content:
@@ -173,6 +176,7 @@ def get_litellm_completion(
         ]
     else:
         # print(f"Raw LiteLLM response: {response}")
+        finish_reason = response["choices"][0].get("finish_reason")
         response_message = response["choices"][0]["message"]  # type: ignore
         raw_content = response_message["content"]
         raw_tool_calls = [
@@ -199,6 +203,7 @@ def get_litellm_completion(
         role="assistant",
         content=[TextContent(text=raw_content)],
         tool_calls=raw_tool_calls,
+        finish_reason=finish_reason,
     )
 
     def usage_value(name: str) -> int:

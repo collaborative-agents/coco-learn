@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { S } from './styles';
 import type {
   SystemPermissionHealth,
@@ -28,6 +29,9 @@ export default function HealthSettings({
   refreshServiceHealth,
   healthError,
 }: Props) {
+  const [retrying,setRetrying]=useState(false);
+  const [retryError,setRetryError]=useState('');
+  const connecting = Boolean(serviceHealth && [serviceHealth.sensing,serviceHealth.tutor].some(health=>health.status==='starting'||health.modelAssessment?.status==='connecting'));
   return (
     <section
       className="workspace-settings-section"
@@ -97,12 +101,14 @@ export default function HealthSettings({
             ] as const
           ).map(([key, label, health]) => {
             const serviceStatusLabel = health
-              ? `${health.connected ? 'Connected' : 'Not connected'} (service)`
+              ? `${health.connected ? 'Connected' : health.status === 'starting' ? 'Starting…' : 'Not connected'} (service)`
               : `${healthLoading ? 'Checking…' : 'Not checked'} (service)`;
             const modelAssessment = health?.modelAssessment;
             const modelStatusLabel = modelAssessment
               ? modelAssessment.status === 'verified'
                 ? 'Connected (model)'
+                : modelAssessment.status === 'connecting'
+                  ? 'Connecting… (model)'
                 : modelAssessment.status === 'failed'
                   ? 'Not connected (model)'
                   : modelAssessment.status === 'not_configured'
@@ -119,7 +125,7 @@ export default function HealthSettings({
             ].filter(Boolean);
             const hasHealthIssue = Boolean(
               health &&
-                (!health.connected || modelAssessment?.status === 'failed'),
+                ((!health.connected && health.status !== 'starting') || modelAssessment?.status === 'failed'),
             );
             const isFullyConnected = Boolean(
               health?.connected && modelAssessment?.status === 'verified',
@@ -169,10 +175,10 @@ export default function HealthSettings({
           <button
             type="button"
             style={{ ...S.addBtn, ...(healthLoading ? S.sendBtnDisabled : {}) }}
-            disabled={healthLoading}
-            onClick={() => void refreshServiceHealth(true)}
+            disabled={healthLoading || retrying || connecting}
+            onClick={async () => { setRetrying(true);setRetryError('');try { const result=await window.electron?.ipcRenderer.invoke('retry-services');if(result?.error)throw Error(result.error);await refreshServiceHealth(true); } catch(error){setRetryError(error instanceof Error?error.message:'Coco could not reconnect. Please Retry.');}finally{setRetrying(false);} }}
           >
-            {healthLoading ? 'Checking…' : 'Check again'}
+            {connecting ? 'Connecting…' : healthLoading || retrying ? 'Checking…' : 'Retry'}
           </button>
           {serviceHealth && !healthLoading && (
             <span style={S.healthDetail}>
@@ -181,7 +187,7 @@ export default function HealthSettings({
           )}
         </div>
       )}
-      {!cocoSleeping && healthError && (
+      {!cocoSleeping && (healthError || retryError) && (
         <div
           style={{
             color: 'var(--coco-color-danger)',
@@ -189,7 +195,7 @@ export default function HealthSettings({
             marginBottom: 12,
           }}
         >
-          Health check failed: {healthError}
+          Health check failed: {healthError || retryError}
         </div>
       )}
     </section>

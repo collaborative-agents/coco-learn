@@ -39,7 +39,7 @@ const PAGES = {
   avatar: {
     title: 'Ready to go',
     description:
-      'Choose where Coco lives on your desktop. Your menu-bar icon will always be there for quick access to chat, history, and settings.',
+      '',
   },
 } as const;
 type StepKey = keyof typeof PAGES;
@@ -47,7 +47,7 @@ type StepKey = keyof typeof PAGES;
 export default function OnboardingView() {
   const query = new URLSearchParams(window.location.search);
   const modelsOnly = query.get('modelsOnly') === '1';
-  const models = useModelSetup(query.get('routerManaged') === '1');
+  const models = useModelSetup(query.get('routerManaged') === '1', query.get('localAgent') === '1');
   const [currentKey, setCurrentKey] = useState<StepKey>(
     modelsOnly ? 'models' : 'welcome',
   );
@@ -65,6 +65,7 @@ export default function OnboardingView() {
   }, []);
 
   useEffect(() => {
+    if (!modelsOnly) window.electron?.ipcRenderer.sendMessage('onboarding-step', currentKey);
     document.getElementById('coco-setup-title')?.focus();
     document.querySelector('.coco-setup-shell')?.scrollTo?.(0, 0);
   }, [currentKey]);

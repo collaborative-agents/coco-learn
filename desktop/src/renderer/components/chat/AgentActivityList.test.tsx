@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render } from '@testing-library/react';
 import AgentActivityList, { groupActivity } from './AgentActivityList';
+import ToolViewerAccess from './ToolViewerAccess';
 import type { TutorToolCall } from '../observation-types';
 
 const call = (
@@ -130,4 +131,27 @@ test('groups tool calls across approved requests while retaining denials', () =>
   ]);
   expect(groups.map((group) => group.kind)).toEqual(['tools', 'permission']);
   expect(groups[0].kind === 'tools' && groups[0].calls).toHaveLength(2);
+});
+
+test('folds finished locked steps into one summary that still opens to the full list', () => {
+  const write = (id: string, status: TutorToolCall['status'] = 'completed'): TutorToolCall => ({
+    id, name: 'write', arguments: { path: `file-${id}.html` }, status,
+  });
+  const steps = [write('1'), write('2'), write('3'), call('4', 'rg token src')];
+  const locked = (activity: TutorToolCall[]) => (
+    <ToolViewerAccess.Provider value={false}>
+      <AgentActivityList activity={activity.map(item => ({ kind: 'tool' as const, call: item }))} interactive={false} />
+    </ToolViewerAccess.Provider>
+  );
+  const { container, rerender } = render(locked(steps.map((item, index) => index === 3 ? { ...item, status: 'running' as const } : item)));
+  // Live progress stays visible while the run is still working.
+  expect(container.querySelector('details.tool-activity-group')).toBeNull();
+
+  rerender(locked(steps));
+  const group = container.querySelector('details.tool-activity-group') as HTMLDetailsElement;
+  expect(group.open).toBe(false);
+  expect(group.querySelector('summary')).toHaveTextContent('Write a file ×3');
+  expect(group.querySelector('summary')).toHaveTextContent('4 steps · Done');
+  expect(group.querySelector('summary')).toHaveTextContent('Show steps');
+  expect(group.querySelector('.tool-activity-steps')?.children).toHaveLength(4);
 });

@@ -92,6 +92,8 @@ describe('SessionRecapView completion tracking', () => {
       screen.queryByRole('button', { name: 'End session' }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Check the output/ }));
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Skip recap' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to session' }));
 
     expect(sendMessage).toHaveBeenCalledWith(

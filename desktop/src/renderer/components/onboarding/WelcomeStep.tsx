@@ -1,4 +1,4 @@
-import cocoHelping from '../../../../assets/tool1.png';
+import cocoHelping from '../../../../assets/pet1.png';
 import cocoReady from '../../../../assets/wait1.png';
 import PetMenuIcon from '../PetMenuIcon';
 import ObservationBubble from '../ObservationBubble';
@@ -10,7 +10,7 @@ export default function WelcomeStep() {
         <div
           className="ob-feature-scene"
           role="img"
-          aria-label="Coco offering a helpful suggestion"
+          aria-label="Coco introducing your floating desktop companion"
         >
           <img
             className="ob-feature-illustration"
@@ -21,20 +21,20 @@ export default function WelcomeStep() {
           <div className="ob-feature-bubble" inert aria-hidden="true">
             <ObservationBubble
               bubble={{
-                status: 'stuck',
+                status: 'observing',
                 phrase:
-                  'Comparing options? I can pull the key differences into a table.',
+                  'I’m Coco, your floating desktop companion. I can offer helpful tips while you work and help turn your ideas into action.',
                 fadingOut: false,
-                showHelpButton: true,
+                guide: { label: 'MEET COCO' },
               }}
             />
           </div>
         </div>
         <div className="ob-feature-copy">
-          <strong>Help in the moment</strong>
+          <strong>Your floating desktop companion</strong>
           <span>
-            Get a nudge when you’re stuck or discover a useful way to work with
-            AI.
+            Keep Coco alongside your work for ideas, guidance, and a conversation
+            whenever you need one.
           </span>
         </div>
       </div>

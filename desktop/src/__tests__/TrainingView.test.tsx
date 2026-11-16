@@ -1,6 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import {
+  act,
   render,
   screen,
   fireEvent,
@@ -165,13 +166,42 @@ beforeEach(() => {
   Object.defineProperty(window, 'electron', {
     configurable: true,
     value: {
-      ipcRenderer: { invoke },
+      ipcRenderer: { invoke, on: jest.fn(() => () => {}), sendMessage: jest.fn() },
       webUtils: { getPathForFile: jest.fn(() => '/chosen/file') },
     },
   });
   jest.spyOn(window, 'confirm').mockReturnValue(true);
 });
 afterEach(() => jest.restoreAllMocks());
+
+it('keeps Agent 101 and an offline training path visible without fetching hosted tasks', async () => {
+  const original = invoke.getMockImplementation()!;
+  invoke.mockImplementation((channel, ...args) =>
+    channel === 'study-access'
+      ? Promise.resolve({ hosted_training_enabled: false })
+      : original(channel, ...args),
+  );
+  render(<TrainingView />);
+  expect(await screen.findByText(/Training tasks are offline/)).toBeVisible();
+  expect(screen.getByRole('heading', {name:'AI Literacy Challenge'})).toBeVisible();
+  expect(screen.getByText('Training tasks')).toBeVisible();
+  expect(screen.getByRole('button', {name:'Start check-in'})).toBeDisabled();
+  for (let day = 1; day <= 7; day++) {
+    const task = screen.getByRole('button', {name:`Day ${day} Practice task`});
+    expect(task).toBeVisible();
+    expect(task).toBeDisabled();
+    fireEvent.click(task);
+  }
+  expect(screen.getByRole('button', {name:'Final check-in'})).toBeDisabled();
+  expect(screen.getByRole('button', {name:/^Follow-up/})).toBeDisabled();
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Chapter 1: Tool. Available' })).toBeInTheDocument();
+  expect(invoke).not.toHaveBeenCalledWith('study-me');
+  expect(invoke).not.toHaveBeenCalledWith('study-student-mode');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.queryByText('Loading your training…')).not.toBeInTheDocument();
+  expect(screen.queryByText('Training could not be loaded.')).not.toBeInTheDocument();
+});
 
 const answerConversation = (
   container: HTMLElement,
@@ -188,6 +218,15 @@ const answerConversation = (
     textbox = within(container).queryByRole('textbox');
   }
 };
+
+it('leaves Getting Started entry to the bubble without launching it automatically', async () => {
+  render(<TrainingView />);
+  await screen.findByRole('button', {name:/Day 1 Practice task/});
+  expect(screen.queryByRole('button',{name:/Start Task/i})).not.toBeInTheDocument();
+  expect(invoke).not.toHaveBeenCalledWith('runner-start');
+  expect(screen.getByRole('heading',{name:'AI Literacy Challenge'})).toBeInTheDocument();
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+});
 
 it('preserves reflection drafts when Training becomes inactive and is reopened', async () => {
   assessments = completedAssessments();
@@ -994,7 +1033,7 @@ it('starts Tool training in the regular chat instead of mounting a separate expl
   fireEvent.click(
     await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' }),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Start quest' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Side quest' }));
   await waitFor(() =>
     expect(invoke).toHaveBeenCalledWith('tool-chapter-start'),
   );
@@ -1127,9 +1166,9 @@ it.each([0, 1])(
         ? 'Chapter 1: Tool. Complete'
         : 'Chapter 2: Context. Complete';
     fireEvent.click(await screen.findByRole('button', { name }));
-    const completed = screen.getByRole('button', { name: 'revisit quest' });
+    const completed = screen.getByRole('button', { name: chapter === 0 ? 'Side quest' : 'revisit quest' });
     expect(completed).toBeEnabled();
-    expect(completed).toHaveAttribute('title', 'revisit quest');
+    expect(completed).toHaveAttribute('title', chapter === 0 ? 'Revisit side quest' : 'revisit quest');
     expect(completed).not.toHaveClass('training-primary');
     expect(screen.getByText('Completed')).toBeInTheDocument();
     expect(completed.closest('.training-dialog-actions')).toContainElement(
@@ -1292,4 +1331,41 @@ it('honors a server lock even when local training appears complete', async () =>
   expect(
     await screen.findByRole('button', { name: /Final check-in/ }),
   ).toBeDisabled();
+});
+
+it('reveals Agent 101 without highlighting the section', async () => {
+  render(<TrainingView />);
+  await screen.findByRole('heading', {name:'AI Literacy Challenge'});
+  const subscriptions = (window.electron.ipcRenderer.on as jest.Mock).mock.calls;
+  const listener = subscriptions.find(([channel]) => channel === 'open-training-panel')?.[1];
+  expect(listener).toBeDefined();
+  act(() => listener({reveal:'agent101'}));
+  expect(document.getElementById('onboarding-agent101')).not.toHaveClass('onboarding-agent101-highlight');
+  expect(screen.queryByText(/Up next · Agent 101/)).not.toBeInTheDocument();
+});
+
+
+it.each([true, false])('advances the Tool tour only after the side quest opens successfully (%s)', async (succeeds) => {
+  const original = invoke.getMockImplementation()!;
+  let finish!: () => void;
+  invoke.mockImplementation((channel, ...args) => channel === 'tool-chapter-start'
+    ? new Promise((resolve, reject) => { finish = () => succeeds ? resolve({sessionId:'quest'}) : reject(new Error('Could not open quest')); })
+    : original(channel, ...args));
+  render(<TrainingView guideHighlight="tool" />);
+  const tool = await screen.findByRole('button', {name:'Chapter 1: Tool. Available'});
+  expect(tool).toHaveAttribute('data-coaching-control', 'tool');
+  fireEvent.click(tool);
+  expect(window.electron.ipcRenderer.sendMessage).toHaveBeenCalledWith('learning-tour-progress', 'tool-opened');
+  const quest = screen.getByRole('button', {name:'Side quest'});
+  expect(quest).toHaveAttribute('data-coaching-control', 'side-quest');
+  fireEvent.click(quest);
+  expect(window.electron.ipcRenderer.sendMessage).not.toHaveBeenCalledWith('learning-tour-progress', 'side-quest-started');
+  await act(async () => finish());
+  if (succeeds) {
+    expect(window.electron.ipcRenderer.sendMessage).toHaveBeenCalledWith('learning-tour-progress', 'side-quest-started');
+  } else {
+    expect(window.electron.ipcRenderer.sendMessage).not.toHaveBeenCalledWith('learning-tour-progress', 'side-quest-started');
+    expect(screen.getByText('Could not open quest')).toBeVisible();
+    expect(quest).toBeEnabled();
+  }
 });

@@ -1,0 +1,66 @@
+.training-page--getting-started {
+  background: var(--coco-color-surface-subtle);
+}
+.getting-started-entry {
+  max-width: 860px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.getting-started-primary,
+.training-page button.getting-started-primary {
+  background: var(--coco-color-primary, #234f80);
+  border: 0;
+  color: white;
+  padding: 12px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.getting-started-primary:not(:disabled):hover,
+.training-page button.getting-started-primary:not(:disabled):hover {
+  background: var(--coco-color-primary-hover);
+  color: white;
+}
+.getting-started-primary:focus-visible {
+  outline: 2px solid var(--coco-color-primary);
+  outline-offset: 3px;
+}
+.pixel-onboarding-page {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 20px 30px 40px;
+}
+.pixel-onboarding-page header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--coco-color-text-muted);
+}
+.training-page .pixel-onboarding-page header button {
+  border: none;
+  background: none;
+  padding: 8px 0;
+  color: var(--coco-color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .pixel-onboarding-page {
+    padding: 12px 12px 30px;
+  }
+}
+
+.getting-started-completed {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--coco-color-primary);
+  font-weight: 600;
+}

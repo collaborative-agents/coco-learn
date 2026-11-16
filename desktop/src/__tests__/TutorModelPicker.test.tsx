@@ -85,3 +85,27 @@ it('shows a quest link instead of the model selector before completion', async (
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   expect(invoke).not.toHaveBeenCalledWith('set-chat-model', expect.anything());
 });
+
+it('refreshes when model access arrives after the picker opens', async () => {
+  let configured = false;
+  const listeners = new Map<string, () => void>();
+  const invoke = jest.fn(async (channel: string) => {
+    if (channel === 'model-chapter-progress')
+      return { completedAt: '2026-10-29T00:00:00Z' };
+    return configured ? { tutors: TUTOR_MODEL_PRESETS } : { tutors: [] };
+  });
+  Object.defineProperty(window, 'electron', {
+    configurable: true,
+    value: { ipcRenderer: { invoke, on: (channel: string, callback: () => void) => {
+      listeners.set(channel, callback);
+      return () => listeners.delete(channel);
+    } } },
+  });
+  render(<TutorModelPicker modelId="" onChange={jest.fn()} disabled={false} />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('No tutor models are configured');
+  configured = true;
+  fireEvent(window, new Event('focus'));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Tutor model' })).toBeEnabled());
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(listeners.has('model-configuration-updated')).toBe(true);
+});

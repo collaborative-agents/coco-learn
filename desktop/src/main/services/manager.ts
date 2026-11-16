@@ -9,6 +9,7 @@ import {
   normalizeSupportedModes,
 } from '../../shared/agent-modes';
 import type { AgentModeId } from '../../shared/agent-modes';
+import { developmentPython, pythonEnvironment } from './python-runtime';
 
 const PROVIDER_ENV_NAMES = new Set([
   'ANTHROPIC_API_KEY',
@@ -18,6 +19,8 @@ const PROVIDER_ENV_NAMES = new Set([
   'TINFOIL_API_KEY',
   'HOSTED_VLLM_API_KEY',
   'HOSTED_VLLM_API_BASE',
+  'NV_INFERENCE_API_KEY',
+  'NV_INFERENCE_BASE_URL',
   'TINKER_API_KEY',
   'TINKER_BASE_URL',
   'LM_STUDIO_HOST',
@@ -30,7 +33,7 @@ export interface ServiceConfig {
   id: string;
   name?: string;
   enabled?: boolean; // when false, skip launching (default true). Overridable via SERVICES_ENABLED / SERVICES_DISABLED env vars.
-  type?: 'process' | 'node'; // Added type
+  type?: 'process' | 'node' | 'python';
   command?: string;
   args?: string[];
   cwd?: string;
@@ -377,6 +380,18 @@ export class ServiceManager {
       PYTHONIOENCODING: 'utf-8',
       PATH: augmentedPath,
     };
+
+    // Editable workspace packages are installed through .pth files. Some
+    // copied macOS virtual environments mark those files hidden, and Python
+    // skips them entirely. Resolve the local packages from the workspace in
+    // development so both Python services can import them reliably.
+    if (cfg.type === 'python' && !app.isPackaged && cfg.cwd) {
+      env = pythonEnvironment(cfg.cwd, env);
+      if (command === 'uv' && args?.[0] === 'run' && args[1] === 'python') {
+        command = developmentPython(cfg.cwd);
+        args = args.slice(2);
+      }
+    }
 
     // Special handling for npm start commands: convert to direct node execution
     // This avoids Electron sandbox issues with shell execution

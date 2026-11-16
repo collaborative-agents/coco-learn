@@ -72,7 +72,7 @@ export interface ServiceHealth {
   detail?: string;
   totalActions?: number;
   modelAssessment?: {
-    status: 'verified' | 'failed' | 'legacy_unassessed' | 'not_configured';
+    status: 'verified' | 'failed' | 'connecting' | 'legacy_unassessed' | 'not_configured';
     detail: string;
   };
 }

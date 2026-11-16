@@ -22,23 +22,42 @@ export default function TutorModelPicker({
   const [showUnlockHint, setShowUnlockHint] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    window.electron.ipcRenderer
-      .invoke('get-model-configuration')
-      .then((config) => {
-        if (cancelled) return undefined;
-        if (!Array.isArray(config?.tutors) || !config.tutors.length)
-          throw new Error('No tutor models are configured.');
+    let generation = 0;
+    const refresh = () => {
+      const run = ++generation;
+      void window.electron.ipcRenderer.invoke('get-model-configuration').then((config) => {
+        if (cancelled || run !== generation) return undefined;
+        if (!Array.isArray(config?.tutors) || !config.tutors.length) {
+          setModels([]);
+          void window.electron.ipcRenderer.invoke('get-llm-router-status')
+            .then((status) => {
+              if (!cancelled && run === generation) setError(status?.url
+                ? 'Coco model access is not ready yet. Finish setup or sign in again.'
+                : 'No tutor models are configured. Open Settings to choose one.');
+            })
+            .catch(() => {
+              if (!cancelled && run === generation) setError('No tutor models are configured. Open Settings to choose one.');
+            });
+          setLoading(false);
+          return undefined;
+        }
         setModels(config.tutors);
+        setError('');
         setLoading(false);
         return undefined;
-      })
-      .catch((reason) => {
-        if (cancelled) return;
+      }).catch((reason) => {
+        if (cancelled || run !== generation) return;
         setError(reason instanceof Error ? reason.message : String(reason));
         setLoading(false);
       });
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    const cleanup = window.electron.ipcRenderer.on?.('model-configuration-updated', refresh);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', refresh);
+      if (typeof cleanup === 'function') cleanup();
     };
   }, []);
   const select = async (nextId: string) => {

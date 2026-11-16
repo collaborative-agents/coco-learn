@@ -1,0 +1,780 @@
+{
+  "night": {
+    "title": "Moonlit Meadow",
+    "background": {
+      "type": "gradient",
+      "colors": [
+        "#172944",
+        "#35516b",
+        "#79929a"
+      ]
+    },
+    "textColor": "#fff3d0",
+    "decorations": [
+      {
+        "kind": "stars",
+        "color": "#f4e8bc",
+        "accent": "#f4e8bc",
+        "x": 0,
+        "y": 10,
+        "size": 3,
+        "count": 60,
+        "speed": 0
+      },
+      {
+        "kind": "moon",
+        "color": "#f7e9b2",
+        "accent": "#f7e9b2",
+        "x": 70.0,
+        "y": 20.0,
+        "size": 30.0,
+        "count": 1,
+        "speed": 0
+      },
+      {
+        "kind": "clouds",
+        "color": "#738da4",
+        "accent": "#526f89",
+        "x": 0,
+        "y": 18,
+        "size": 24,
+        "count": 7,
+        "speed": 3
+      },
+      {
+        "kind": "mountains",
+        "color": "#536b81",
+        "accent": "#677f91",
+        "x": 0,
+        "y": 64,
+        "size": 70,
+        "count": 4,
+        "speed": 0
+      },
+      {
+        "kind": "trees",
+        "color": "#274f56",
+        "accent": "#3d6966",
+        "x": 0,
+        "y": 69,
+        "size": 34,
+        "count": 9,
+        "speed": 0
+      }
+    ],
+    "ground": {
+      "height": 70,
+      "top": "#456c5b",
+      "soil": "#604f4a",
+      "speckle": "#7b6355",
+      "grass": "#71916a"
+    },
+    "scene": {
+      "sky": [
+        "#172944",
+        "#35516b",
+        "#79929a"
+      ],
+      "celestial": {
+        "kind": "moon",
+        "color": "#f7e9b2",
+        "x": 0.7,
+        "y": 0.2,
+        "radius": 20,
+        "rays": false
+      },
+      "clouds": {
+        "color": "#738da4",
+        "shade": "#526f89",
+        "speed": 3,
+        "count": 7
+      },
+      "stars": {
+        "color": "#f4e8bc",
+        "count": 60
+      },
+      "birds": {
+        "color": "#405970",
+        "count": 0
+      },
+      "layers": [
+        {
+          "kind": "mountains",
+          "speed": 0.05,
+          "height": 0.41,
+          "colors": [
+            "#536b81",
+            "#677f91",
+            "#405970"
+          ],
+          "seed": 8,
+          "capColor": "#79929a",
+          "capDepth": 8
+        },
+        {
+          "kind": "hills",
+          "speed": 0.14,
+          "height": 0.62,
+          "colors": [
+            "#3e636d",
+            "#527979",
+            "#315660"
+          ],
+          "seed": 21
+        },
+        {
+          "kind": "forest",
+          "speed": 0.21,
+          "height": 0.69,
+          "colors": [
+            "#3e636d",
+            "#527979",
+            "#315660"
+          ],
+          "trunk": "#345251",
+          "seed": 68,
+          "scale": 0.62,
+          "density": 24
+        },
+        {
+          "kind": "forest",
+          "speed": 0.42,
+          "height": 0.69,
+          "colors": [
+            "#274f56",
+            "#3d6966",
+            "#5b8174"
+          ],
+          "trunk": "#345251",
+          "seed": 32,
+          "scale": 1,
+          "density": 16
+        },
+        {
+          "kind": "meadow",
+          "speed": 0.65,
+          "height": 0.82,
+          "colors": [
+            "#456c5b",
+            "#71916a",
+            "#a0af78"
+          ],
+          "seed": 17
+        }
+      ],
+      "ground": {
+        "grass": [
+          "#456c5b",
+          "#71916a",
+          "#a0af78"
+        ],
+        "soil": [
+          "#604f4a",
+          "#7b6355",
+          "#9c7c60"
+        ],
+        "flowers": [
+          "#ead39b",
+          "#a5b5c8"
+        ],
+        "rock": "#677f91"
+      },
+      "ambience": {
+        "kind": "fireflies",
+        "color": "#f4dc88",
+        "count": 20
+      },
+      "effects": {
+        "dust": "#9c7c60",
+        "flash": "#fff3d0"
+      },
+      "hud": {
+        "surface": "#21394d",
+        "text": "#fff3d0",
+        "muted": "#b9cbd0",
+        "accent": "#f7e9b2",
+        "overTitle": "Nice run!",
+        "overLabel": "GAME OVER",
+        "readyTitle": "Ready when you are",
+        "restartLabel": "Space or click to play again",
+        "startLabel": "Space or click to play"
+      }
+    }
+  },
+  "day": {
+    "title": "Sunlit Meadow",
+    "background": {
+      "type": "gradient",
+      "colors": [
+        "#76bdd8",
+        "#add9e0",
+        "#e7ecd0"
+      ]
+    },
+    "textColor": "#fff9df",
+    "decorations": [
+      {
+        "kind": "sun",
+        "color": "#ffdb79",
+        "accent": "#ffdb79",
+        "x": 70.0,
+        "y": 20.0,
+        "size": 30.0,
+        "count": 1,
+        "speed": 0
+      },
+      {
+        "kind": "clouds",
+        "color": "#fff8e6",
+        "accent": "#d9e9df",
+        "x": 0,
+        "y": 18,
+        "size": 24,
+        "count": 7,
+        "speed": 3
+      },
+      {
+        "kind": "mountains",
+        "color": "#96b7b6",
+        "accent": "#b8ccc0",
+        "x": 0,
+        "y": 64,
+        "size": 70,
+        "count": 4,
+        "speed": 0
+      },
+      {
+        "kind": "trees",
+        "color": "#477d61",
+        "accent": "#689760",
+        "x": 0,
+        "y": 69,
+        "size": 34,
+        "count": 9,
+        "speed": 0
+      }
+    ],
+    "ground": {
+      "height": 70,
+      "top": "#7a9e54",
+      "soil": "#997452",
+      "speckle": "#b98e63",
+      "grass": "#b3c46d"
+    },
+    "scene": {
+      "sky": [
+        "#76bdd8",
+        "#add9e0",
+        "#e7ecd0"
+      ],
+      "celestial": {
+        "kind": "sun",
+        "color": "#ffdb79",
+        "x": 0.7,
+        "y": 0.2,
+        "radius": 20,
+        "rays": true
+      },
+      "clouds": {
+        "color": "#fff8e6",
+        "shade": "#d9e9df",
+        "speed": 3,
+        "count": 7
+      },
+      "stars": {
+        "color": "#ffffff",
+        "count": 0
+      },
+      "birds": {
+        "color": "#7d9fa7",
+        "count": 4
+      },
+      "layers": [
+        {
+          "kind": "mountains",
+          "speed": 0.05,
+          "height": 0.41,
+          "colors": [
+            "#96b7b6",
+            "#b8ccc0",
+            "#7d9fa7"
+          ],
+          "seed": 8,
+          "capColor": "#e7ecd0",
+          "capDepth": 8
+        },
+        {
+          "kind": "hills",
+          "speed": 0.14,
+          "height": 0.62,
+          "colors": [
+            "#6f9f86",
+            "#8cb18c",
+            "#588975"
+          ],
+          "seed": 21
+        },
+        {
+          "kind": "forest",
+          "speed": 0.21,
+          "height": 0.69,
+          "colors": [
+            "#6f9f86",
+            "#8cb18c",
+            "#588975"
+          ],
+          "trunk": "#71614b",
+          "seed": 68,
+          "scale": 0.62,
+          "density": 24
+        },
+        {
+          "kind": "forest",
+          "speed": 0.42,
+          "height": 0.69,
+          "colors": [
+            "#477d61",
+            "#689760",
+            "#9fb966"
+          ],
+          "trunk": "#71614b",
+          "seed": 32,
+          "scale": 1,
+          "density": 16
+        },
+        {
+          "kind": "meadow",
+          "speed": 0.65,
+          "height": 0.82,
+          "colors": [
+            "#7a9e54",
+            "#b3c46d",
+            "#e4d992"
+          ],
+          "seed": 17
+        }
+      ],
+      "ground": {
+        "grass": [
+          "#7a9e54",
+          "#b3c46d",
+          "#e4d992"
+        ],
+        "soil": [
+          "#997452",
+          "#b98e63",
+          "#d5b07b"
+        ],
+        "flowers": [
+          "#f4d779",
+          "#e9b3ac"
+        ],
+        "rock": "#b8ccc0"
+      },
+      "ambience": {
+        "kind": "leaves",
+        "color": "#f9e8ae",
+        "count": 10
+      },
+      "effects": {
+        "dust": "#d5b07b",
+        "flash": "#fff9df"
+      },
+      "hud": {
+        "surface": "#375e61",
+        "text": "#fff9df",
+        "muted": "#d5e8dc",
+        "accent": "#ffdb79",
+        "overTitle": "Nice run!",
+        "overLabel": "GAME OVER",
+        "readyTitle": "Ready when you are",
+        "restartLabel": "Space or click to play again",
+        "startLabel": "Space or click to play"
+      }
+    }
+  },
+  "morning": {
+    "title": "Morning Meadow",
+    "background": {
+      "type": "gradient",
+      "colors": [
+        "#b7cfd5",
+        "#f0d4bd",
+        "#f8e5c2"
+      ]
+    },
+    "textColor": "#fff9e4",
+    "decorations": [
+      {
+        "kind": "sun",
+        "color": "#ffe6a5",
+        "accent": "#ffe6a5",
+        "x": 70.0,
+        "y": 20.0,
+        "size": 30.0,
+        "count": 1,
+        "speed": 0
+      },
+      {
+        "kind": "clouds",
+        "color": "#fff2db",
+        "accent": "#e7c4b7",
+        "x": 0,
+        "y": 18,
+        "size": 24,
+        "count": 7,
+        "speed": 3
+      },
+      {
+        "kind": "mountains",
+        "color": "#aaa9b6",
+        "accent": "#c3bbc1",
+        "x": 0,
+        "y": 64,
+        "size": 70,
+        "count": 4,
+        "speed": 0
+      },
+      {
+        "kind": "trees",
+        "color": "#5e8a76",
+        "accent": "#87a387",
+        "x": 0,
+        "y": 69,
+        "size": 34,
+        "count": 9,
+        "speed": 0
+      }
+    ],
+    "ground": {
+      "height": 70,
+      "top": "#93ac7e",
+      "soil": "#a38268",
+      "speckle": "#c09c79",
+      "grass": "#c2ce99"
+    },
+    "scene": {
+      "sky": [
+        "#b7cfd5",
+        "#f0d4bd",
+        "#f8e5c2"
+      ],
+      "celestial": {
+        "kind": "sun",
+        "color": "#ffe6a5",
+        "x": 0.7,
+        "y": 0.2,
+        "radius": 20,
+        "rays": true
+      },
+      "clouds": {
+        "color": "#fff2db",
+        "shade": "#e7c4b7",
+        "speed": 3,
+        "count": 7
+      },
+      "stars": {
+        "color": "#fff9e4",
+        "count": 0
+      },
+      "birds": {
+        "color": "#8d99ac",
+        "count": 4
+      },
+      "layers": [
+        {
+          "kind": "mountains",
+          "speed": 0.05,
+          "height": 0.41,
+          "colors": [
+            "#aaa9b6",
+            "#c3bbc1",
+            "#8d99ac"
+          ],
+          "seed": 8,
+          "capColor": "#f8e5c2",
+          "capDepth": 8
+        },
+        {
+          "kind": "hills",
+          "speed": 0.14,
+          "height": 0.62,
+          "colors": [
+            "#8daca1",
+            "#afbeb0",
+            "#73988f"
+          ],
+          "seed": 21
+        },
+        {
+          "kind": "forest",
+          "speed": 0.21,
+          "height": 0.69,
+          "colors": [
+            "#8daca1",
+            "#afbeb0",
+            "#73988f"
+          ],
+          "trunk": "#877361",
+          "seed": 68,
+          "scale": 0.62,
+          "density": 24
+        },
+        {
+          "kind": "forest",
+          "speed": 0.42,
+          "height": 0.69,
+          "colors": [
+            "#5e8a76",
+            "#87a387",
+            "#b1bb8a"
+          ],
+          "trunk": "#877361",
+          "seed": 32,
+          "scale": 1,
+          "density": 16
+        },
+        {
+          "kind": "meadow",
+          "speed": 0.65,
+          "height": 0.82,
+          "colors": [
+            "#93ac7e",
+            "#c2ce99",
+            "#e7dcb1"
+          ],
+          "seed": 17
+        }
+      ],
+      "ground": {
+        "grass": [
+          "#93ac7e",
+          "#c2ce99",
+          "#e7dcb1"
+        ],
+        "soil": [
+          "#a38268",
+          "#c09c79",
+          "#ddbd91"
+        ],
+        "flowers": [
+          "#f2c1ad",
+          "#e9dda7"
+        ],
+        "rock": "#c3bbc1"
+      },
+      "ambience": {
+        "kind": "leaves",
+        "color": "#fff0c9",
+        "count": 10
+      },
+      "effects": {
+        "dust": "#ddbd91",
+        "flash": "#fff9e4"
+      },
+      "hud": {
+        "surface": "#5d7877",
+        "text": "#fff9e4",
+        "muted": "#e0e8da",
+        "accent": "#ffe6a5",
+        "overTitle": "Nice run!",
+        "overLabel": "GAME OVER",
+        "readyTitle": "Ready when you are",
+        "restartLabel": "Space or click to play again",
+        "startLabel": "Space or click to play"
+      }
+    }
+  },
+  "sunset": {
+    "title": "Amber Meadow",
+    "background": {
+      "type": "gradient",
+      "colors": [
+        "#93869f",
+        "#e5ac99",
+        "#f5d49e"
+      ]
+    },
+    "textColor": "#fff1d1",
+    "decorations": [
+      {
+        "kind": "sun",
+        "color": "#ffe0a1",
+        "accent": "#ffe0a1",
+        "x": 70.0,
+        "y": 20.0,
+        "size": 30.0,
+        "count": 1,
+        "speed": 0
+      },
+      {
+        "kind": "clouds",
+        "color": "#f1c9ae",
+        "accent": "#c6979b",
+        "x": 0,
+        "y": 18,
+        "size": 24,
+        "count": 7,
+        "speed": 3
+      },
+      {
+        "kind": "mountains",
+        "color": "#9a8a9c",
+        "accent": "#b19b9f",
+        "x": 0,
+        "y": 64,
+        "size": 70,
+        "count": 4,
+        "speed": 0
+      },
+      {
+        "kind": "trees",
+        "color": "#6b7768",
+        "accent": "#8b8b6e",
+        "x": 0,
+        "y": 69,
+        "size": 34,
+        "count": 9,
+        "speed": 0
+      }
+    ],
+    "ground": {
+      "height": 70,
+      "top": "#9e9b67",
+      "soil": "#93694e",
+      "speckle": "#b5835e",
+      "grass": "#c5b778"
+    },
+    "scene": {
+      "sky": [
+        "#93869f",
+        "#e5ac99",
+        "#f5d49e"
+      ],
+      "celestial": {
+        "kind": "sun",
+        "color": "#ffe0a1",
+        "x": 0.7,
+        "y": 0.2,
+        "radius": 20,
+        "rays": true
+      },
+      "clouds": {
+        "color": "#f1c9ae",
+        "shade": "#c6979b",
+        "speed": 3,
+        "count": 7
+      },
+      "stars": {
+        "color": "#f9e8c2",
+        "count": 0
+      },
+      "birds": {
+        "color": "#827d94",
+        "count": 4
+      },
+      "layers": [
+        {
+          "kind": "mountains",
+          "speed": 0.05,
+          "height": 0.41,
+          "colors": [
+            "#9a8a9c",
+            "#b19b9f",
+            "#827d94"
+          ],
+          "seed": 8,
+          "capColor": "#f5d49e",
+          "capDepth": 8
+        },
+        {
+          "kind": "hills",
+          "speed": 0.14,
+          "height": 0.62,
+          "colors": [
+            "#978d7c",
+            "#b4a286",
+            "#7b8277"
+          ],
+          "seed": 21
+        },
+        {
+          "kind": "forest",
+          "speed": 0.21,
+          "height": 0.69,
+          "colors": [
+            "#978d7c",
+            "#b4a286",
+            "#7b8277"
+          ],
+          "trunk": "#82644f",
+          "seed": 68,
+          "scale": 0.62,
+          "density": 24
+        },
+        {
+          "kind": "forest",
+          "speed": 0.42,
+          "height": 0.69,
+          "colors": [
+            "#6b7768",
+            "#8b8b6e",
+            "#b6a77c"
+          ],
+          "trunk": "#82644f",
+          "seed": 32,
+          "scale": 1,
+          "density": 16
+        },
+        {
+          "kind": "meadow",
+          "speed": 0.65,
+          "height": 0.82,
+          "colors": [
+            "#9e9b67",
+            "#c5b778",
+            "#e8cd94"
+          ],
+          "seed": 17
+        }
+      ],
+      "ground": {
+        "grass": [
+          "#9e9b67",
+          "#c5b778",
+          "#e8cd94"
+        ],
+        "soil": [
+          "#93694e",
+          "#b5835e",
+          "#d5a576"
+        ],
+        "flowers": [
+          "#edcb95",
+          "#d99caa"
+        ],
+        "rock": "#b19b9f"
+      },
+      "ambience": {
+        "kind": "leaves",
+        "color": "#f7d58b",
+        "count": 10
+      },
+      "effects": {
+        "dust": "#d5a576",
+        "flash": "#fff1d1"
+      },
+      "hud": {
+        "surface": "#65546a",
+        "text": "#fff1d1",
+        "muted": "#e7cbbf",
+        "accent": "#ffe0a1",
+        "overTitle": "Nice run!",
+        "overLabel": "GAME OVER",
+        "readyTitle": "Ready when you are",
+        "restartLabel": "Space or click to play again",
+        "startLabel": "Space or click to play"
+      }
+    }
+  }
+}

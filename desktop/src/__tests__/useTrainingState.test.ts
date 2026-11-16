@@ -13,6 +13,24 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
+it('skips hosted requests, polling, and retries when local mode disables training', async () => {
+  invoke.mockResolvedValue({ hosted_training_enabled: false });
+  const { result, rerender } = renderHook(
+    ({ visible }) => useTrainingState(visible, 0),
+    { initialProps: { visible: true } },
+  );
+  await act(async () => {});
+  expect(result.current.hostedTrainingEnabled).toBe(false);
+  expect(result.current.error).toBe('');
+  await act(async () => {
+    jest.advanceTimersByTime(90000);
+    await result.current.refresh();
+  });
+  rerender({ visible: false });
+  await act(async () => { rerender({ visible: true }); });
+  expect(invoke.mock.calls).toEqual([['study-access']]);
+});
+
 it('does not request account data during hidden startup, then loads immediately on first open', async () => {
   let signedIn = false;
   invoke.mockImplementation(async (channel: string) => {
@@ -42,26 +60,26 @@ it('polls only while visible and refreshes immediately on returning', async () =
     { initialProps: { visible: true } },
   );
   await act(async () => {});
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenCalledTimes(3);
   await act(async () => {
     jest.advanceTimersByTime(30000);
   });
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(invoke).toHaveBeenCalledTimes(6);
   rerender({ visible: false });
   await act(async () => {
     jest.advanceTimersByTime(60000);
   });
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(invoke).toHaveBeenCalledTimes(6);
   expect(result.current.state).toEqual(account);
   await act(async () => {
     rerender({ visible: true });
   });
-  expect(invoke).toHaveBeenCalledTimes(6);
+  expect(invoke).toHaveBeenCalledTimes(9);
   unmount();
   await act(async () => {
     jest.advanceTimersByTime(60000);
   });
-  expect(invoke).toHaveBeenCalledTimes(6);
+  expect(invoke).toHaveBeenCalledTimes(9);
 });
 
 it('clears an earlier sign-in error and retries on another menu open, even on the same tab', async () => {

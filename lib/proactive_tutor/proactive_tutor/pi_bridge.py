@@ -7,6 +7,7 @@ import os
 import time
 import uuid
 from collections.abc import Callable
+from typing import Literal
 from datetime import datetime
 
 from external_api.llm import chat_completion
@@ -23,6 +24,7 @@ class CompletionRequest(BaseModel):
     # The configured Coco model is authoritative, never a renderer-supplied ID.
     model: str = "coco"
     stream: bool = True
+    purpose: Literal["agent", "art_review"] = "agent"
 
 
 class ToolRequest(BaseModel):
@@ -88,6 +90,18 @@ def create_pi_router(get_tutor: Callable[[], TutorSystem | None]) -> APIRouter:
             "history": tutor.conversation_history,
             "tools": tutor.tutor_agent._tool_definitions(),
         }
+
+    @router.post("/tutorial-status")
+    async def tutorial_status(payload: dict):
+        # Authenticated desktop facts, not a diagnosis inferred from screen appearance.
+        status = {key: payload.get(key) for key in ("sessionId", "phase", "failure")}
+        foreground = get_tutor()
+        if foreground is not None:
+            foreground.tutorial_status = status
+        target = sessions.get(str(status["sessionId"]))
+        if target is not None:
+            target.tutorial_status = status
+        return {"ok": True}
 
     @router.post("/active/{session_id}")
     async def activate_session(session_id: str):
@@ -169,6 +183,12 @@ def create_pi_router(get_tutor: Callable[[], TutorSystem | None]) -> APIRouter:
     @router.post("/v1/chat/completions")
     async def completion(req: CompletionRequest, tutor: TutorSystem = Depends(system)):
         model = tutor.tutor_agent.model
+        if req.purpose == "art_review":
+            model = os.environ.get("OBSERVER_MODEL", "").strip()
+            if not model:
+                raise HTTPException(503, "The configured vision model is unavailable for artwork review")
+            if req.tools:
+                raise HTTPException(400, "Artwork review cannot use tools")
         if not req.stream:
             raise HTTPException(400, "The agent bridge requires streaming")
 
@@ -205,6 +225,14 @@ def create_pi_router(get_tutor: Callable[[], TutorSystem | None]) -> APIRouter:
                     max_tokens=8192,
                     tools=req.tools or None,
                     tool_choice="auto" if req.tools else None,
+                    # The desktop SDK runs with thinking off and does not round-trip
+                    # DeepSeek reasoning_content. Match that mode at the provider.
+                    # The router explicitly forwards its `extra_body` field. The
+                    # OpenAI transport merges extra_body into JSON, so nest once
+                    # to preserve the router's provider-options envelope.
+                    extra_body=({"extra_body": {"reasoning_effort": "none", "chat_template_kwargs": {"thinking": False}}}
+                        if os.environ.get("LLM_ROUTER_URL") else {"thinking": {"type": "disabled"}})
+                        if "deepseek" in model.lower() else None,
                     operation="pi_agent",
                     on_chunk=publish,
                 )
@@ -224,6 +252,8 @@ def create_pi_router(get_tutor: Callable[[], TutorSystem | None]) -> APIRouter:
                 full_text = "".join(
                     getattr(part, "text", "") for part in response.content
                 )
+                if not full_text.strip() and not response.tool_calls:
+                    raise RuntimeError("The model returned no reply or action. Retry your message; if this repeats, choose another tutor model.")
                 if not chunks and full_text:
                     yield event({"content": full_text})
                 if response.tool_calls:
@@ -237,7 +267,7 @@ def create_pi_router(get_tutor: Callable[[], TutorSystem | None]) -> APIRouter:
                     )
                 yield event(
                     {},
-                    "tool_calls" if response.tool_calls else "stop",
+                    "tool_calls" if response.tool_calls else response.finish_reason or "stop",
                     {
                         "prompt_tokens": metrics.get("prompt_tokens", 0),
                         "completion_tokens": metrics.get("completion_tokens", 0),

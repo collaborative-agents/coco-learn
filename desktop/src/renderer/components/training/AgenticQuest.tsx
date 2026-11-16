@@ -109,6 +109,7 @@ export default function AgenticQuest({
                 disabled={!available}
                 aria-current={index === currentChapter ? 'step' : undefined}
                 aria-label={`Chapter ${index + 1}: ${available ? `${level.name}. ${completed ? 'Complete' : 'Available'}` : `Locked, complete chapter ${index} first`}`}
+                data-coaching-control={index === 0 ? 'tool' : undefined}
                 onClick={() => onOpen(index)}
               >
                 <span className="agentic-quest-number">

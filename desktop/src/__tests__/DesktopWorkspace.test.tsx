@@ -9,6 +9,8 @@ import {
 import SessionChatView from '../renderer/components/SessionChatView';
 import WindowControls from '../renderer/components/chat/WindowControls';
 
+jest.setTimeout(20000);
+
 let mockStudyAccess = true;
 jest.mock('../renderer/useStudyAccess', () => ({
   __esModule: true,
@@ -39,13 +41,17 @@ beforeEach(() => {
   invoke = jest.fn(async (channel) =>
     channel === 'get-chat-conversations' ? [] : null,
   );
+  const subscriptions = new Map<string, Set<(payload?: unknown) => void>>();
   (window as any).electron = {
     ipcRenderer: {
       invoke,
       sendMessage,
       on: jest.fn((channel, callback) => {
-        listeners.set(channel, callback);
-        return () => listeners.delete(channel);
+        const callbacks = subscriptions.get(channel) ?? new Set();
+        callbacks.add(callback);
+        subscriptions.set(channel, callbacks);
+        listeners.set(channel, payload => callbacks.forEach(listener => listener(payload)));
+        return () => { callbacks.delete(callback); if (!callbacks.size) listeners.delete(channel); };
       }),
     },
   };
@@ -94,6 +100,33 @@ it('activates Training only when opened and refreshes repeated menu requests', a
   await act(async () => {});
 });
 
+it('lights the Chat rail button during the pet invitation and opens the same Chat', async () => {
+  render(<SessionChatView />);
+  await act(async () => listeners.get('open-training-panel')?.());
+  await act(async () => listeners.get('getting-started-chat-invite')?.({ articleId: 'ai-copilot' }));
+  const chat = screen.getByRole('button', { name: 'Chat' });
+  expect(chat).toHaveAttribute('data-guided-target', 'true');
+  expect(chat).not.toHaveAttribute('aria-current');
+  fireEvent.click(chat);
+  expect(sendMessage).toHaveBeenCalledWith('getting-started-open-chat', { articleId: 'ai-copilot', phase: 'chat' });
+  await act(async () => listeners.get('getting-started-chat-invite')?.({ articleId: null }));
+  expect(chat).not.toHaveAttribute('data-guided-target');
+});
+
+it('creates a normal conversation before sending when Chat has no session', async () => {
+  invoke.mockImplementation(async (channel) => {
+    if (channel === 'get-chat-conversations') return [];
+    if (channel === 'ensure-chat-conversation') return { sessionId: 'ready-chat' };
+    if (channel === 'send-chat-message') return { guidance: 'Ready.' };
+    return null;
+  });
+  render(<SessionChatView />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'Hello Coco' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.objectContaining({ sessionId: 'ready-chat', userText: 'Hello Coco' })));
+  expect(screen.queryByText('Open a conversation first.')).toBeNull();
+});
+
 it('keeps training accessible while tutoring remains locked', async () => {
   mockStudyAccess = false;
   render(<SessionChatView />);
@@ -113,6 +146,38 @@ it('keeps training accessible while tutoring remains locked', async () => {
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('get-profile'));
 });
 
+it('keeps Chat independent of the Getting Started task', async () => {
+  invoke.mockImplementation(async (channel) => channel === 'get-chat-conversations' ? [] : { guidance: 'A normal answer.' });
+  render(<SessionChatView />);
+  await act(async () => listeners.get('session-init')?.({ sessionId: 'normal-chat', problemStatement: 'Conversation' }));
+  expect(listeners.has('getting-started-open-chat')).toBe(false);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'How does this work?' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.objectContaining({ userText: 'How does this work?' })));
+  expect(sendMessage).not.toHaveBeenCalledWith('getting-started-guide', expect.anything());
+});
+
+it('offers the generic HTML preview action for a completed HTML reply', async () => {
+  invoke.mockImplementation(async (channel) => channel === 'get-chat-conversations' ? [] : { streamed: true });
+  render(<SessionChatView />);
+  await act(async () => listeners.get('session-init')?.({ sessionId: 'normal-chat', problemStatement: 'Conversation' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'Make a web page' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('send-chat-message', expect.anything()));
+  const request = invoke.mock.calls.find(([channel]) => channel === 'send-chat-message')?.[1];
+  await act(async () => listeners.get('chat-stream-event')?.({ type: 'done', requestId: request.requestId, sessionId: 'normal-chat', guidance: '<!doctype html><html><body><main>Model page</main></body></html>' }));
+  const preview = await screen.findByRole('button', { name: /Preview HTML page/i });
+  expect(preview).toHaveStyle({ minHeight: '52px', minWidth: '260px' });
+  fireEvent.click(preview);
+  // The page opens beside the chat in the split-screen pane, not a new window.
+  expect(sendMessage).not.toHaveBeenCalledWith('open-html-preview', expect.anything());
+  const pane = screen.getByRole('complementary', { name: 'HTML preview' });
+  expect(pane.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Model page');
+  expect(pane.querySelector('iframe')?.getAttribute('sandbox')).toBe('');
+  fireEvent.click(screen.getByRole('button', { name: 'Close side panel' }));
+  expect(screen.queryByRole('complementary', { name: 'HTML preview' })).not.toBeInTheDocument();
+});
+
 it('shows only the selected tab and preserves the chat draft across navigation', async () => {
   render(<SessionChatView />);
   const draft = screen.getByPlaceholderText(/Ask Coco/);
@@ -121,14 +186,14 @@ it('shows only the selected tab and preserves the chat draft across navigation',
   fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
   expect(screen.getByText('Training task content')).not.toBeVisible();
   expect(draft).toBeVisible();
-  expect(sendMessage).toHaveBeenLastCalledWith('toggle-float-window', {
+  expect(sendMessage).toHaveBeenCalledWith('toggle-float-window', {
     expanded: false,
   });
   fireEvent.click(screen.getByRole('button', { name: 'Training tasks' }));
   expect(screen.getByText('Training task content')).toBeVisible();
   expect(draft).not.toBeVisible();
   expect(draft).toHaveValue('Keep my thought here');
-  expect(sendMessage).toHaveBeenLastCalledWith('toggle-float-window', {
+  expect(sendMessage).toHaveBeenCalledWith('toggle-float-window', {
     expanded: true,
   });
   fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
@@ -255,4 +320,125 @@ it('reveals chat when a practice task starts a chat session', async () => {
   );
   expect(screen.getByPlaceholderText(/Ask Coco/)).toBeVisible();
   expect(screen.getByText('Training task content')).not.toBeVisible();
+});
+
+it('keeps the game preview inside its own chat conversation', async () => {
+  const state = { sessionId: 'game', version: 'v1', phase: 'play', tour: 'active', introAcknowledged: true, hasChanges: false, canUndo: false, error: null };
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'runner-preview') return { state, html: '<html><body>Game</body></html>' };
+    if (channel === 'get-chat-conversations') return [];
+    return null;
+  });
+  render(<SessionChatView />);
+  await act(async () => {
+    listeners.get('session-init')?.({ sessionId: 'game' });
+    listeners.get('runner-focus-composer')?.({ sessionId: 'game' });
+  });
+  expect(await screen.findByTitle('Your playable game', {}, {timeout: 12000})).toBeVisible();
+  expect(screen.getByLabelText('Your game preview')).toContainElement(screen.getByTitle('Your playable game'));
+  await act(async () => listeners.get('session-init')?.({ sessionId: 'another-chat' }));
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+});
+
+it('requires a typed request and a chosen workspace before showing the game', async () => {
+  let state: any = { sessionId: 'first-chat', version: 'v1', phase: 'play', tour: 'meet', introAcknowledged: false, hasChanges: false, canUndo: false, error: null };
+  invoke.mockImplementation(async (channel: string, payload: any) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'runner-preview') return { state, html: '<html><body>Game</body></html>' };
+    if (channel === 'get-chat-conversations') return [];
+    if (channel === 'runner-action' && payload.action === 'request-build') {
+      state = { ...state, starterBuild: 'waiting' };
+      listeners.get('runner-state-changed')?.(state);
+      return { state };
+    }
+    return null;
+  });
+  render(<SessionChatView />);
+  await act(async () => {
+    listeners.get('session-init')?.({ sessionId: 'first-chat' });
+    listeners.get('runner-focus-composer')?.({ sessionId: 'first-chat' });
+  });
+  expect(await screen.findByText(/Hi, I’m Coco!/, {}, {timeout: 3000})).toBeVisible();
+  expect(screen.queryByLabelText('Suggested replies')).not.toBeInTheDocument();
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+  const composer = screen.getByRole('textbox', { name: 'Message Coco' });
+  fireEvent.change(composer, { target: { value: 'Let’s build a game' } });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })));
+  expect(await screen.findByText(/When working with an agent on a project/, {}, {timeout: 12000})).toBeVisible();
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+  // Cancelling the native folder dialog leaves this same waiting state.
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Choose working folder' })));
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+  state = { ...state, starterBuild: 'building', buildActivity: [{ kind: 'tool', call: { id: 'write-1', name: 'write', arguments: {path: '/chosen/coco-game/theme.json'}, status: 'running' } }] };
+  await act(async () => listeners.get('runner-state-changed')?.(state));
+  expect(await screen.findByText(/I’m starting to build your game/, {}, {timeout: 12000})).toBeVisible();
+  expect(screen.queryByTitle('Your playable game')).not.toBeInTheDocument();
+  state = { ...state, starterBuild: 'ready', tour: 'active', introAcknowledged: true, workspaceDirectory: '/chosen/coco-game' };
+  await act(async () => listeners.get('runner-state-changed')?.(state));
+  expect(await screen.findByTitle('Your playable game', {}, {timeout: 12000})).toBeVisible();
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('save-chat-conversation', expect.objectContaining({ messages: expect.arrayContaining([expect.objectContaining({id:'onboarding-build',activity:expect.any(Array)})]) })));
+});
+
+it('routes onboarding questions to the normal chat model without building a game', async () => {
+  const state = { sessionId: 'first-chat', version: 'v1', phase: 'play', tour: 'meet', hasChanges: false, canUndo: false, error: null };
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'get-chat-conversations') return [];
+    if (channel === 'send-chat-message') return { guidance: 'You choose which folder I can work in.' };
+    return null;
+  });
+  render(<SessionChatView />);
+  await act(async () => {
+    listeners.get('session-init')?.({ sessionId: 'first-chat' });
+    listeners.get('runner-focus-composer')?.({ sessionId: 'first-chat' });
+  });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message Coco' }), { target: { value: 'Can you see every file on my computer?' } });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })));
+  expect(await screen.findByText('You choose which folder I can work in.')).toBeVisible();
+  expect(invoke).not.toHaveBeenCalledWith('runner-action', expect.objectContaining({ action: 'request-build' }));
+});
+
+it('finishes the collaboration from a typed approval', async () => {
+  const state = { sessionId:'game', version:'v2', phase:'review', tour:'active', hasChanges:true, canUndo:true, error:null };
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'runner-preview') return {state, html:'<p>Game</p>'};
+    if (channel === 'get-chat-conversations') return [];
+    return {};
+  });
+  render(<SessionChatView />);
+  await act(async () => {
+    listeners.get('session-init')?.({sessionId:'game'});
+    listeners.get('runner-focus-composer')?.({sessionId:'game'});
+  });
+  fireEvent.change(screen.getByRole('textbox', {name:'Message Coco'}), {target:{value:'looks good'}});
+  await act(async () => fireEvent.click(screen.getByRole('button', {name:'Send'})));
+  expect(invoke).toHaveBeenCalledWith('runner-action', {sessionId:'game',action:'finish'});
+  expect(invoke).toHaveBeenCalledWith('runner-action', {sessionId:'game',action:'finish-setup'});
+});
+
+it('animates the greeting on explicit onboarding entry even when history arrives late', async () => {
+  const greeting = 'Hi, I’m Coco! Let’s build a little game together so you can see how you can collaborate with AI agents. Type “Let’s build a game” below to get started. You can ask me questions here at any time.';
+  const state = {sessionId:'fresh-entry',version:'v1',phase:'play',tour:'meet',hasChanges:false,canUndo:false,error:null};
+  let restore: (value: unknown) => void = () => {};
+  const history = new Promise(resolve => { restore = resolve; });
+  invoke.mockImplementation(async (channel: string, payload: any) => {
+    if (channel === 'runner-state') return state;
+    if (channel === 'get-chat-conversations') return payload?.includeQuests ? history : [];
+    return null;
+  });
+  render(<SessionChatView />);
+  await act(async () => {
+    listeners.get('session-init')?.({sessionId:state.sessionId});
+    listeners.get('runner-focus-composer')?.({sessionId:state.sessionId,animateGreeting:true});
+  });
+  const bubble = screen.getByRole('group', {name:greeting});
+  expect(bubble.textContent).not.toBe(greeting);
+  await act(async () => restore([{sessionId:state.sessionId,problem:'Getting started',messages:[{id:'onboarding-hello',role:'tutor',text:greeting,ts:1}]}]));
+  expect(screen.getByRole('group',{name:greeting}).textContent).not.toBe(greeting);
+  await waitFor(() => expect(screen.getByRole('group',{name:greeting}).textContent).toBe(greeting), {timeout:12000});
+  // Explicitly starting the same unfinished onboarding should replay its greeting.
+  await act(async () => listeners.get('runner-focus-composer')?.({sessionId:state.sessionId,animateGreeting:true}));
+  expect(screen.getByRole('group',{name:greeting}).textContent).not.toBe(greeting);
 });

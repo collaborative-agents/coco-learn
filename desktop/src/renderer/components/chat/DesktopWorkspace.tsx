@@ -3,9 +3,14 @@ import cocoIcon from '../../../../assets/icon.png';
 import WorkspaceIcon from './WorkspaceIcon';
 import WindowControls from './WindowControls';
 import './DesktopWorkspace.css';
+import type { RunnerGuide } from '../../../shared/runner-tutorial';
+import GuideSpotlight from '../getting-started/GuideSpotlight';
 
 interface Props {
   expanded: boolean;
+  chatInvited?: boolean;
+  guideHighlight?: RunnerGuide['highlight'];
+  onGuideControlUsed?: (target: RunnerGuide['highlight']) => void;
   onExpandedChange: (expanded: boolean) => void;
   active: 'chat' | 'tasks' | 'settings';
   historyOpen: boolean;
@@ -19,6 +24,9 @@ interface Props {
 
 export default function DesktopWorkspace({
   expanded,
+  chatInvited = false,
+  guideHighlight,
+  onGuideControlUsed,
   onExpandedChange,
   active,
   historyOpen,
@@ -33,7 +41,13 @@ export default function DesktopWorkspace({
   return (
     <div
       className={`desktop-workspace ${expanded ? 'is-expanded' : 'is-collapsed'}${window.electron?.platform === 'darwin' ? ' has-native-titlebar' : ''}`}
+      data-coaching-target={guideHighlight}
+      onClickCapture={event => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-coaching-control]');
+        if (button && !button.disabled) onGuideControlUsed?.(button.dataset.coachingControl as RunnerGuide['highlight']);
+      }}
     >
+      <GuideSpotlight target={guideHighlight} />
       {window.electron?.platform === 'darwin' && (
         <div className="workspace-native-titlebar" aria-hidden="true" />
       )}
@@ -63,6 +77,7 @@ export default function DesktopWorkspace({
               type="button"
               title="Chat"
               aria-label="Chat"
+              data-guided-target={chatInvited ? 'true' : undefined}
               aria-current={active === 'chat' ? 'page' : undefined}
               aria-expanded={historyOpen}
               aria-controls="conversation-sidebar"
@@ -75,6 +90,7 @@ export default function DesktopWorkspace({
             <button
               type="button"
               title="Training tasks"
+              data-coaching-control="training"
               aria-label="Training tasks"
               aria-current={active === 'tasks' ? 'page' : undefined}
               onMouseEnter={onHistoryClose}

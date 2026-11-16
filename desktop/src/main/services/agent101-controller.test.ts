@@ -6,21 +6,29 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import createAgent101Controller from './agent101-controller';
 import type AgentRuns from './agent-runs';
 import type CommandApprovalRules from './command-approval-rules';
+import { emptyContextProgress } from '../../shared/context-training';
+import { emptyToolProgress } from '../../shared/tool-exploration';
+import { ContextChapterStore } from './context-training';
 
 function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent101-controller-'));
   const handlers: Record<string, (...args: any[]) => any> = {};
   const event = { sender: {} } as IpcMainInvokeEvent;
-  const state = { user: 'alice', allowed: true, model: 'model-a' };
+  const state = {
+    user: 'alice' as string | null,
+    authenticated: true,
+    allowed: true,
+    model: 'model-a',
+  };
   const deps = {
     ipc: {
       handle: (name: string, handler: any) => {
         handlers[name] = handler;
       },
     } as unknown as IpcMain,
-    root: () => root,
+    root: jest.fn(() => root),
     currentUser: () => state.user,
-    authenticated: () => true,
+    authenticated: () => state.authenticated,
     allowed: () => state.allowed,
     isChatSender: (request: IpcMainInvokeEvent) =>
       request.sender === event.sender,
@@ -58,6 +66,69 @@ function setup() {
     },
   };
 }
+
+it.each([
+  ['tool', emptyToolProgress()],
+  ['context', emptyContextProgress()],
+  ['token', { completedAt: null }],
+  ['model', { completedAt: null }],
+  ['workflow', { completedAt: null }],
+])(
+  'returns anonymous %s progress without opening account storage',
+  async (chapter, empty) => {
+    const test = setup();
+    try {
+      const { root } = test.deps;
+      test.state.authenticated = false;
+      await expect(
+        test.handlers[`${chapter}-chapter-progress`](test.event),
+      ).resolves.toEqual(empty);
+      test.state.authenticated = true;
+      test.state.user = null;
+      await expect(
+        test.handlers[`${chapter}-chapter-progress`](test.event),
+      ).resolves.toEqual(empty);
+      expect(root).not.toHaveBeenCalled();
+      await expect(
+        test.handlers[`${chapter}-chapter-start`](test.event),
+      ).rejects.toThrow('Sign in');
+      await expect(
+        test.handlers[`${chapter}-chapter-progress`]({ sender: {} }),
+      ).rejects.toThrow('chat window');
+    } finally {
+      test.dispose();
+    }
+  },
+);
+
+it('hides saved progress after sign-out and restores it on sign-in', async () => {
+  const test = setup();
+  try {
+    const store = new ContextChapterStore(
+      path.join(test.deps.root(), 'context-chapter'),
+    );
+    store.hit('alice', 'workspaceSet');
+    const progress = () =>
+      test.handlers['context-chapter-progress'](test.event);
+    await expect(progress()).resolves.toMatchObject({ workspaceSet: true });
+    test.state.authenticated = false;
+    test.controller.notifyAccountChanged();
+    expect(test.deps.notify).toHaveBeenCalledWith(
+      'context-chapter-progress-changed',
+      null,
+    );
+    await expect(progress()).resolves.toEqual(emptyContextProgress());
+    test.state.authenticated = true;
+    await expect(progress()).resolves.toMatchObject({ workspaceSet: true });
+    test.state.user = 'bob';
+    await expect(progress()).resolves.toEqual(emptyContextProgress());
+    await expect(
+      test.handlers['context-chapter-progress']({ sender: {} }),
+    ).rejects.toThrow('chat window');
+  } finally {
+    test.dispose();
+  }
+});
 
 it('opens chapter conversations with live account and model state', async () => {
   const test = setup();

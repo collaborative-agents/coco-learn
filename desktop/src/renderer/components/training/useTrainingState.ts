@@ -7,11 +7,22 @@ export default function useTrainingState(visible: boolean, refreshKey: number) {
   const [state, setState] = useState<StudyState | null>(null);
   const [studentMode, setStudentMode] = useState(false);
   const [error, setError] = useState('');
+  const [hostedTrainingEnabled, setHostedTrainingEnabled] = useState(true);
   const requestVersion = useRef(0);
   const refresh = useCallback(async () => {
+    if (!hostedTrainingEnabled) return;
     requestVersion.current += 1;
     const version = requestVersion.current;
     try {
+      const access = await api('study-access') as { hosted_training_enabled?: boolean } | undefined;
+      if (version !== requestVersion.current) return;
+      if (access?.hosted_training_enabled === false) {
+        setHostedTrainingEnabled(false);
+        setState(null);
+        setStudentMode(false);
+        setError('');
+        return;
+      }
       const [data, mode] = (await Promise.all([
         api('study-me'),
         api('study-student-mode'),
@@ -26,10 +37,10 @@ export default function useTrainingState(visible: boolean, refreshKey: number) {
       setError(reason instanceof Error ? reason.message : String(reason));
       throw reason;
     }
-  }, []);
+  }, [hostedTrainingEnabled]);
 
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!visible || !hostedTrainingEnabled) return undefined;
     setError('');
     const update = () => {
       refresh().catch(() => undefined);
@@ -40,7 +51,7 @@ export default function useTrainingState(visible: boolean, refreshKey: number) {
       clearInterval(timer);
       requestVersion.current += 1;
     };
-  }, [visible, refreshKey, refresh]);
+  }, [visible, refreshKey, refresh, hostedTrainingEnabled]);
 
-  return { state, studentMode, error, setError, refresh };
+  return { state, studentMode, error, setError, refresh, hostedTrainingEnabled };
 }

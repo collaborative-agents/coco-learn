@@ -90,7 +90,9 @@ export default class PiEventTranslator {
         (usage?.cacheRead ?? 0) +
         (usage?.cacheWrite ?? 0);
       this.outputTokens += usage?.output ?? 0;
-      if (event.message.stopReason === 'error') {
+      if (event.message.stopReason === 'length') {
+        this.error = 'The model reached its response limit before finishing. Your idea is still here; retry the run or choose another model.';
+      } else if (event.message.stopReason === 'error') {
         this.error =
           event.message.errorMessage ||
           'The agent could not complete this request.';

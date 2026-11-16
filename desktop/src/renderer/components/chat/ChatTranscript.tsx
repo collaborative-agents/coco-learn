@@ -1,4 +1,6 @@
+import OnboardingMessage, { OnboardingTurn } from '../getting-started/OnboardingMessage';
 import type React from 'react';
+import { useContext, useMemo } from 'react';
 import { S } from './styles';
 import './ChatTranscript.css';
 import type { SavedConversation, ChatMessage } from './types';
@@ -9,6 +11,8 @@ import { ScreenContextTag } from './ScreenContext';
 import RatingButtons from '../RatingButtons';
 import { messageCopyKey } from './message-format';
 import { chatSuggestionText } from '../../../shared/chat-suggestion';
+import { extractPreviewHtml } from './html-preview';
+import { SidePanelContext } from './SidePanel';
 import {
   SCREEN_TASK_PROMPT,
   SECONDARY_CHAT_PROMPTS,
@@ -32,6 +36,8 @@ function isWorkspaceDenial(message: ChatMessage) {
 
 interface Props {
   children?: React.ReactNode;
+  hideStarters?: boolean;
+  afterMessage?: (message: ChatMessage) => React.ReactNode;
   allowRatings?: boolean;
   reviewing: SavedConversation | null;
   listRef: React.RefObject<HTMLDivElement | null>;
@@ -59,8 +65,29 @@ interface Props {
   onJumpToLatest: () => void;
 }
 
+function HtmlPreviewButton({ text }: { text: string }) {
+  const html = useMemo(() => extractPreviewHtml(text), [text]);
+  const openSidePanel = useContext(SidePanelContext);
+  if (!html) return null;
+  return (
+    <button
+      type="button"
+      style={S.htmlPreviewBtn}
+      aria-label="Preview HTML page"
+      onClick={() => openSidePanel
+        ? openSidePanel({ kind: 'html', html })
+        : window.electron?.ipcRenderer.sendMessage('open-html-preview', { html })}
+    >
+      <span>Preview HTML page</span>
+      <span aria-hidden="true">{openSidePanel ? '▸' : '↗'}</span>
+    </button>
+  );
+}
+
 export default function ChatTranscript({
   children = null,
+  hideStarters = false,
+  afterMessage,
   allowRatings = true,
   reviewing,
   listRef,
@@ -86,7 +113,7 @@ export default function ChatTranscript({
     : 'Coco is still writing…';
   return (
     <div style={S.list} ref={listRef} onScroll={onScroll}>
-      {visibleMessages.length === 0 &&
+      {!hideStarters && visibleMessages.length === 0 &&
         !sending &&
         (profile.scenario === 'ai_upskilling' && !reviewing ? (
           <div style={S.starterPanel}>
@@ -126,8 +153,8 @@ export default function ChatTranscript({
         ))}
       {visibleMessages.map((m, i) => (
         // eslint-disable-next-line react/no-array-index-key
+        <OnboardingTurn key={i} message={m} reviewing={Boolean(reviewing)}>
         <div
-          key={i}
           data-request-id={m.requestId}
           style={m.role === 'user' ? S.userRow : S.tutorRow}
         >
@@ -183,8 +210,8 @@ export default function ChatTranscript({
             <>
               <div style={S.tutorAvatar}>C</div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                {(m.activity && m.activity.length > 0) ||
-                (!m.activity && m.toolCalls?.length) ? (
+                {(!m.id?.startsWith('onboarding-') || reviewing) && ((m.activity && m.activity.length > 0) ||
+                (!m.activity && m.toolCalls?.length)) ? (
                   <AgentActivityList
                     requestId={m.requestId}
                     activity={
@@ -239,6 +266,7 @@ export default function ChatTranscript({
                       ))}
                     </div>
                   )}
+                {!m.isError && !m.isStreaming && <HtmlPreviewButton text={m.text} />}
                 {!m.suggestion &&
                   !isWorkspaceDenial(m) &&
                   (m.text.trim() || m.isError) && (
@@ -263,7 +291,14 @@ export default function ChatTranscript({
                           )}
                         </>
                       ) : (
-                        <TutorMessage text={m.text} />
+                        m.id?.startsWith('onboarding-') && !reviewing ? (
+                          <OnboardingMessage message={m} onProgress={() => {
+                            if (following && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+                          }}>
+                            {m.activity?.length ? <AgentActivityList activity={m.activity} interactive={false} /> : null}
+                            {afterMessage?.(m)}
+                          </OnboardingMessage>
+                        ) : <TutorMessage text={m.text} />
                       )}
                     </div>
                   )}
@@ -310,10 +345,12 @@ export default function ChatTranscript({
                       )}
                     </div>
                   )}
+                {(!m.id?.startsWith('onboarding-') || reviewing) && afterMessage?.(m)}
               </div>
             </>
           )}
         </div>
+        </OnboardingTurn>
       ))}
       {children}
       {sending && !reviewing && (

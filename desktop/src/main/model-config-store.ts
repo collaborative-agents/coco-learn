@@ -16,6 +16,7 @@ export type ProviderId =
   | 'tinker'
   | 'tinfoil'
   | 'hosted_vllm'
+  | 'nv_inference'
   | 'lm_studio'
   | 'open_anonymity';
 
@@ -114,6 +115,7 @@ const PROVIDER_KEY_ENV: Partial<Record<ProviderId, string>> = {
   tinker: 'TINKER_API_KEY',
   tinfoil: 'TINFOIL_API_KEY',
   hosted_vllm: 'HOSTED_VLLM_API_KEY',
+  nv_inference: 'NV_INFERENCE_API_KEY',
 };
 
 export const PROVIDERS: Record<
@@ -130,6 +132,11 @@ export const PROVIDERS: Record<
     label: 'OpenAI-compatible endpoint',
     requiresKey: false,
     privacy: 'self-hosted',
+  },
+  nv_inference: {
+    label: 'NVIDIA inference',
+    requiresKey: true,
+    privacy: 'cloud',
   },
   lm_studio: {
     label: 'LM Studio',
@@ -173,7 +180,9 @@ function normalizeConnection(value: unknown): ModelConnection | null {
   const expectedPrefix =
     item.provider === 'open_anonymity' ? 'oa/' : `${item.provider}/`;
   if (
-    (item.provider === 'hosted_vllm' || item.provider === 'tinker') &&
+    (item.provider === 'hosted_vllm' ||
+      item.provider === 'tinker' ||
+      item.provider === 'nv_inference') &&
     !normalizedModel.startsWith(expectedPrefix)
   ) {
     normalizedModel = `${expectedPrefix}${normalizedModel}`;
@@ -267,8 +276,16 @@ export function getModelConfigurationView(): ModelConfigurationView | null {
 
 export function saveModelConfiguration(
   input: ModelConfigurationInput,
+  { sensingEnabled = true }: { sensingEnabled?: boolean } = {},
 ): ModelConfigurationView {
   const config = validateModelConfiguration(input);
+  if (
+    [config.sensing, ...config.tutors].some(
+      (connection) =>
+        connection.provider === 'nv_inference' && !connection.baseUrl,
+    )
+  )
+    throw new Error('Enter your NVIDIA inference base URL.');
   const credentials = readCredentials();
   Object.entries(input.credentials ?? {}).forEach(([id, value]) => {
     const trimmed = value.trim();
@@ -284,7 +301,9 @@ export function saveModelConfiguration(
   });
 
   const required: Array<['sensing' | 'tutor', ProviderId]> = [
-    ['sensing', config.sensing.provider],
+    ...(sensingEnabled
+      ? [['sensing', config.sensing.provider] as ['sensing', ProviderId]]
+      : []),
     ...config.tutors.map((item): ['tutor', ProviderId] => [
       'tutor',
       item.provider,
@@ -325,6 +344,9 @@ function connectionEnv(
   if (connection.provider === 'hosted_vllm' && connection.baseUrl) {
     env.HOSTED_VLLM_API_BASE = connection.baseUrl;
   }
+  if (connection.provider === 'nv_inference' && connection.baseUrl) {
+    env.NV_INFERENCE_BASE_URL = connection.baseUrl;
+  }
   if (connection.provider === 'tinker' && fallbackEnv.TINKER_BASE_URL) {
     env.TINKER_BASE_URL = fallbackEnv.TINKER_BASE_URL;
   }
@@ -353,7 +375,9 @@ export function buildRoleModelEnvironments(
   };
 }
 
-export function resolveModelRuntime(): {
+export function resolveModelRuntime(
+  { shareTutorWithSensing = false }: { shareTutorWithSensing?: boolean } = {},
+): {
   config: ModelConfiguration;
   sensingEnv: Record<string, string>;
   tutorEnv: Record<string, string>;
@@ -361,6 +385,16 @@ export function resolveModelRuntime(): {
   const config = readModelConfiguration();
   if (!config) return null;
   const credentials = readCredentials();
+  // Local development can use the selected tutor for both roles. Only reuse
+  // its credential when model and endpoint match; normal profiles stay isolated.
+  const tutor = defaultTutor(config);
+  if (shareTutorWithSensing &&
+      config.sensing.provider === tutor.provider &&
+      config.sensing.model === tutor.model &&
+      config.sensing.baseUrl === tutor.baseUrl) {
+    const sensingKey = credentialId('sensing', tutor.provider);
+    credentials[sensingKey] ||= credentials[credentialId('tutor', tutor.provider)];
+  }
   const roleEnvironments = buildRoleModelEnvironments(
     config,
     credentials,
@@ -399,6 +433,9 @@ export function prepareModelConnectionTest(
   }
   if (connection.provider === 'hosted_vllm' && !env.HOSTED_VLLM_API_BASE) {
     throw new Error('Enter the OpenAI-compatible endpoint base URL.');
+  }
+  if (connection.provider === 'nv_inference' && !env.NV_INFERENCE_BASE_URL) {
+    throw new Error('Enter your NVIDIA inference base URL.');
   }
   return { connection, env };
 }

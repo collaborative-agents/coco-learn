@@ -1,0 +1,14 @@
+.runner-prompt-suggestions { margin:8px 18px 14px; font-family:var(--coco-font-family); }
+.runner-prompt-heading { display:block;color:var(--coco-color-text-muted);font-size:var(--coco-text-caption);margin-bottom:8px; }
+.runner-prompt-list { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px; }
+.runner-prompt-card { display:flex;align-items:stretch;border:1px solid var(--coco-color-border);border-radius:12px;background:var(--coco-color-surface-subtle);overflow:hidden; }
+.runner-prompt-card button { color:var(--coco-color-text-secondary);border:0;background:transparent;cursor:pointer;font:12px/1.5 var(--coco-font-family); }
+.runner-prompt-card button:hover:not(:disabled) { background:var(--coco-color-accent-soft);color:var(--coco-color-primary); }
+.runner-prompt-card button:disabled { cursor:default;opacity:.5; }
+.runner-prompt-card button:focus-visible { outline:2px solid var(--coco-color-primary);outline-offset:-3px;border-radius:10px; }
+.runner-prompt-use { flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;padding:11px 10px 11px 12px; }
+.runner-prompt-use > span:last-child { color:var(--coco-color-accent); }
+.runner-prompt-copy { flex:0 0 30px;display:flex;align-items:center;justify-content:center;padding:6px; }
+.runner-prompt-copy svg { width:15px;height:15px; }
+.runner-prompt-notice { display:block;margin-top:6px;color:var(--coco-color-text-muted);font-size:var(--coco-text-caption); }
+@media(max-width:700px) { .runner-prompt-list { grid-template-columns:1fr; } }

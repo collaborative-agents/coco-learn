@@ -221,3 +221,11 @@ def test_deepseek_router_ids_and_direct_provider_namespace(monkeypatch):
     )
     assert captured["model"] == "deepseek-ai/deepseek-v4-pro"
     assert captured["custom_llm_provider"] == "openai"
+
+
+def test_stream_preserves_provider_token_limit_without_sending_metadata_as_history(monkeypatch):
+    chunks = [SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="Partial", tool_calls=[]), finish_reason=None)], usage=None), SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=None, tool_calls=[]), finish_reason="length")], usage=None)]
+    monkeypatch.setattr(litellm_api, "completion", lambda **kw: iter(chunks))
+    output, _ = get_litellm_completion([], model="test/model", stream=True)
+    assert output.finish_reason == "length"
+    assert "finish_reason" not in output.model_dump()

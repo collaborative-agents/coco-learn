@@ -1768,3 +1768,16 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* Onboarding explanations use the same type as the companion's normal text. */
+.observation-bubble.is-guide .bubble-framework-overview {
+  font-size: var(--coco-text-control);
+  line-height: var(--coco-leading-body);
+  color: var(--coco-color-text);
+}
+.observation-bubble.is-guide .bubble-framework-section-label {
+  font-size: inherit;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}

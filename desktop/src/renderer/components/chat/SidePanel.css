@@ -27,14 +27,15 @@
   min-width: 320px;
   min-height: 0;
   background: var(--coco-color-surface-subtle, #f7f8fa);
+  overflow: hidden;
 }
 .side-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 8px 0 14px;
+  min-height: 48px;
+  padding: 0 12px 0 18px;
   border-bottom: 1px solid rgba(60, 60, 67, 0.12);
   background: var(--coco-color-surface, #fff);
 }
@@ -43,9 +44,9 @@
 .side-panel-actions button {
   height: 26px;
   padding: 0 10px;
-  border: 1px solid rgba(60, 60, 67, 0.18);
+  border: 0;
   border-radius: 6px;
-  background: #fff;
+  background: transparent;
   color: #1d1d1f;
   font: inherit;
   cursor: pointer;
@@ -59,7 +60,10 @@
   line-height: 1;
 }
 .side-panel-actions .side-panel-close:hover { background: rgba(118, 118, 128, 0.16); }
+.side-panel-actions button:hover { background: var(--coco-color-surface-muted); }
 .side-panel-body { flex: 1; min-height: 0; overflow: auto; }
+.side-panel-body--game { display: flex; }
+.side-panel-body--game > .onboarding-game-preview { flex: 1; }
 .side-panel-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
 .side-panel-game-note {
   display: inline-flex;

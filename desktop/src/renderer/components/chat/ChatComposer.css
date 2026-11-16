@@ -113,6 +113,17 @@
   }
 }
 
+/* Expanded previews leave a narrower chat column; keep every control reachable. */
+@container composer (max-width: 440px) {
+  .chat-composer-actions .chat-composer-understanding {
+    width: 36px !important;
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+  }
+  .chat-composer-understanding .chat-composer-action-label { display: none; }
+}
+
 .chat-understanding-spinner {
   width: 16px;
   height: 16px;

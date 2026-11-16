@@ -39,23 +39,23 @@ export interface RunnerGuide {
 export const runnerFourDPages = [
   {
     title: 'Delegation',
-    text: 'Deciding which parts of a task to hand to the agent and which to keep for yourself. Here, I write the code for your game, while you stay in charge of the idea and the final call on whether it works.',
-    help: 'You get work done faster without giving up control. Handing off the routine parts frees you to focus on the decisions that need your judgment, like what the game should be and whether it’s good enough.',
+    text: 'Choose what to hand to the agent. I write the game code; you choose the idea and decide whether it works.',
+    help: 'Save time on routine work while keeping control of the important decisions.',
   },
   {
     title: 'Description',
-    text: 'Explaining what you want clearly enough for the agent to act on: your goal, the context, and any must-haves. For a game, that could be who it’s for, how it should feel, and how the controls work.',
-    help: 'A clear description means fewer rounds of back-and-forth and results closer to what you pictured. When something comes out wrong, a sharper description is often the fastest fix.',
+    text: 'Explain your goal and must-haves. For this game, describe the look, feel, and controls you want.',
+    help: 'Clear instructions help the agent get closer to your idea with fewer revisions.',
   },
   {
     title: 'Discernment',
-    text: 'Judging the agent’s output instead of accepting it as-is. Play the game: does it run, do the controls respond, and does it match what you asked for? Notice anything that looks off.',
-    help: 'Agents can sound confident and still be wrong. Checking the result yourself catches mistakes early, before they end up in something you share or rely on.',
+    text: 'Check what the agent makes. Play the game: do the controls work, and does it match your request?',
+    help: 'Agents can make mistakes. Trying the result yourself helps you catch them early.',
   },
   {
     title: 'Diligence',
-    text: 'Taking responsibility for what you and the agent make together. Know what changed in your files, understand enough to explain it, and keep track of what still needs a closer look.',
-    help: 'You stay accountable for the work even when an agent did much of it. Keeping up with the changes protects you from surprises and builds the understanding you need to use agents well.',
+    text: 'Take responsibility for the result. Know what changed in your files and what still needs checking.',
+    help: 'Understanding the changes helps you avoid surprises and share your work responsibly.',
   },
 ];
 export interface RunnerTutorialState {

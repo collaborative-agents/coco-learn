@@ -1216,6 +1216,9 @@ Read theme.json only if you need values not covered by the schema or summary. Pr
           state: this.state(user)!,
           title: theme!.title,
           timeOfDay: theme!.timeOfDay,
+          sourcePath: r.workspaceDirectory && fs.existsSync(path.join(r.workspaceDirectory, 'coco-game.html'))
+            ? path.join(r.workspaceDirectory, 'coco-game.html')
+            : null,
           html: this.html(
             this.snapshot(r),
             r.bestScores?.[r.history[r.cursor]] ?? 0,

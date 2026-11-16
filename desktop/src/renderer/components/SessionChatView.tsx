@@ -2364,7 +2364,7 @@ function SessionChatContent() {
             width={sidePanelWidth}
             onResize={setSidePanelWidth}
             onClose={closeSidePanel}
-            game={<RunnerGameView key={runnerState?.sessionId} embedded visible={activePage === 'chat' && !showSettings} />}
+            game={actions => <RunnerGameView key={runnerState?.sessionId} embedded panelActions={actions} visible={activePage === 'chat' && !showSettings} />}
           />
         )}
         </div>

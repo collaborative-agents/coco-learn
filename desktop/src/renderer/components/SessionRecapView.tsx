@@ -69,7 +69,7 @@ export default function SessionRecapView({ docked, onDone }: { docked?: DockedRe
   return (
     <div className={`recap-root${docked ? ' is-docked' : ''}`}>
       <div className="recap-card">
-        <div className="recap-header">
+        {!docked && <div className="recap-header">
           <span className="recap-header-dot" />
           <span className="recap-header-title">
             {mode === 'check' ? 'Check your understanding' : 'Session recap'}
@@ -82,7 +82,7 @@ export default function SessionRecapView({ docked, onDone }: { docked?: DockedRe
           >
             ×
           </button>
-        </div>
+        </div>}
 
         {loading && (
           <div className="recap-loading">

@@ -37,7 +37,7 @@ export default function SidePanel({
   onClose,
 }: {
   content: SidePanelContent;
-  game: ReactNode;
+  game: (actions: ReactNode) => ReactNode;
   width: number;
   onResize: (fraction: number) => void;
   onClose: () => void;
@@ -70,6 +70,13 @@ export default function SidePanel({
     else if (!result?.canceled) setStatus(result?.error || 'Could not save the page');
   };
 
+  const actions = <div className="side-panel-actions">
+    {status && <span role="status">{status}</span>}
+    {content.kind === 'html' && <button type="button" onClick={() => void save()}>Save HTML</button>}
+    <button type="button" aria-label={width >= 0.69 ? 'Restore preview width' : 'Expand preview'} title={width >= 0.69 ? 'Restore width' : 'Expand preview'} onClick={() => onResize(width >= 0.69 ? 0.5 : 0.7)}>{width >= 0.69 ? '↙' : '↗'}</button>
+    <button type="button" className="side-panel-close" aria-label="Close side panel" title="Close" onClick={onClose}>×</button>
+  </div>;
+
   return (
     <>
       <div
@@ -80,16 +87,12 @@ export default function SidePanel({
         onPointerDown={startResize}
       />
       <aside ref={pane} className="side-panel" aria-label={TITLES[content.kind]} style={{ flexBasis: `${width * 100}%` }}>
-        <header className="side-panel-header">
+        {content.kind !== 'game' && <header className="side-panel-header">
           <span className="side-panel-title">{TITLES[content.kind]}</span>
-          <div className="side-panel-actions">
-            {status && <span role="status">{status}</span>}
-            {content.kind === 'html' && <button type="button" onClick={() => void save()}>Save HTML</button>}
-            <button type="button" className="side-panel-close" aria-label="Close side panel" title="Close" onClick={onClose}>×</button>
-          </div>
-        </header>
-        <div className="side-panel-body">
-          {content.kind === 'game' && game}
+          {actions}
+        </header>}
+        <div className={`side-panel-body side-panel-body--${content.kind}`}>
+          {content.kind === 'game' && game(actions)}
           {content.kind === 'html' && <HtmlPane html={content.html} />}
           {content.kind === 'check' && <SessionRecapView docked={content.recap} onDone={onClose} />}
         </div>

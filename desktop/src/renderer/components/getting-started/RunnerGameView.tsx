@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { RunnerTutorialState } from '../../../shared/runner-tutorial';
 import './PixelRunner.css';
 import GamePage from './GamePage';
@@ -7,15 +7,18 @@ import type { RunnerAction } from '../../../shared/runner-tutorial';
 
 export default function RunnerGameView({
   embedded = false,
+  panelActions,
 }: {
   embedded?: boolean;
   visible?: boolean;
+  panelActions?: ReactNode;
 }) {
   const [state, setState] = useState<RunnerTutorialState | null>(null);
   const [html, setHtml] = useState('');
   const playedVersion = useRef<string | null>(null);
   const [error, setError] = useState('');
   const [meta, setMeta] = useState({title: 'Your Coco game', timeOfDay: 'night'});
+  const [sourcePath, setSourcePath] = useState<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const live = useRef(state);
   live.current = state;
@@ -26,10 +29,11 @@ export default function RunnerGameView({
     try {
       const preview = (await window.electron?.ipcRenderer.invoke(
         'runner-preview',
-      )) as { state: RunnerTutorialState; html: string; title?:string;timeOfDay?:string } | null;
+      )) as { state: RunnerTutorialState; html: string; title?:string;timeOfDay?:string; sourcePath?: string | null } | null;
       if (preview && sequence === refreshSequence.current) {
         setState(preview.state);
         setMeta({title:preview.title ?? 'Your Coco game',timeOfDay:preview.timeOfDay ?? 'night'});
+        setSourcePath(preview.sourcePath ?? null);
         if (
           loadedVersion.current !==
           `${preview.state.previewRevision ?? preview.state.version}:${Boolean(preview.state.introAcknowledged)}`
@@ -113,12 +117,27 @@ export default function RunnerGameView({
   if (state?.tour === 'meet') return null;
   if (embedded) return (
     <div className="onboarding-game-preview" aria-label="Your game preview">
-      {html ? <iframe ref={frame} title="Your playable game" sandbox="allow-scripts" srcDoc={html} /> : <p role="status">Opening your game…</p>}
-      {state?.phase === 'building' && <p role="status">I’m working on your change. You can keep playing while I finish.</p>}
-      {(error || state?.error || state?.previewError) && <p role="alert">{error || state?.error || state?.previewError} <button type="button" onClick={() => state?.error ? void act('retry') : void refresh()}>Try again</button></p>}
-      <div className="onboarding-replies">
-        {state?.canUndo && <button type="button" disabled={state.phase === 'building'} onClick={() => void act('undo')}>Undo change</button>}
+      <header className="game-artifact-toolbar">
+        <div><strong>{meta.title}</strong><div className="game-artifact-meta">
+          <span className="game-artifact-source-label">Source file</span>
+          {sourcePath && <button type="button" className="game-artifact-source" title={`Show source file in Finder: ${sourcePath}`} onClick={() => window.electron?.ipcRenderer.sendMessage('shell-show-item-in-finder', sourcePath)}>coco-game.html ↗</button>}
+        </div></div>
+        <div className="game-artifact-actions">
+        <button type="button" aria-label="Restart game" disabled={!html} onClick={() => {
+          const current = frame.current;
+          if (current) { current.srcdoc = html; current.focus(); }
+        }}>↻ <span>Restart</span></button>
+        {panelActions}
+        </div>
+      </header>
+      <div className="game-artifact-stage">
+        {html ? <div className="game-artifact-frame"><iframe ref={frame} title="Your playable game" sandbox="allow-scripts" srcDoc={html} /></div> : <p role="status">Opening your game…</p>}
       </div>
+      {(error || state?.error || state?.previewError || state?.phase === 'building' || state?.canUndo) && <div className="game-artifact-footer">
+        {(error || state?.error || state?.previewError) ? <div className="game-artifact-notice" role="alert"><span>The latest change didn’t finish. You can still play this version.</span><button type="button" onClick={() => state?.error ? void act('retry') : void refresh()}>Try again</button></div>
+          : state?.phase === 'building' && <p role="status">Updating your game. Keep playing while Coco works.</p>}
+        {state?.canUndo && <button type="button" disabled={state.phase === 'building'} onClick={() => void act('undo')}>Undo change</button>}
+      </div>}
     </div>
   );
   return <GamePage {...meta} html={html} frameRef={frame}

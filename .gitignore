@@ -59,3 +59,6 @@ records_debug*/
 exp/
 profiling/
 lib/personalization
+
+# Local test captures (not needed to run the app)
+artifacts/

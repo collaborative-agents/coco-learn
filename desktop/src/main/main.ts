@@ -14,8 +14,7 @@ import type { UnderstandingCheckResult } from '../shared/understanding-check';
 import presentRunnerGuide from '../shared/runner-guide-presentation';
 import ensureChatConversation from './chat-conversation';
 import createAgent101Controller from './services/agent101-controller';
-import isInterfacePreview, { configureLocalAgent } from './interface-preview';
-import resetLocalOnboarding from './reset-local-onboarding';
+import isInterfacePreview from './interface-preview';
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -247,25 +246,14 @@ if (app.isPackaged) {
   dotenv.config();
 }
 
-const localAgent = configureLocalAgent(app.isPackaged);
-const interfacePreview = isInterfacePreview(app.isPackaged) || localAgent;
+const interfacePreview = isInterfacePreview(app.isPackaged);
 if (interfacePreview) {
   // Preview interactions must not overwrite the normal account/profile data.
   const previewDirectory = path.join(app.getPath('userData'), 'interface-preview');
   fs.mkdirSync(previewDirectory, { recursive: true });
   app.setPath('userData', previewDirectory);
-  log.info(localAgent
-    ? '[Development] Local agent mode enabled; using personal model credentials, without the hosted gateway.'
-    : '[Development] Local interface preview enabled; login and backend services are inactive.');
+  log.info('[Development] Local interface preview enabled; login and backend services are inactive.');
 }
-
-const resetOnStart = resetLocalOnboarding({
-  packaged: app.isPackaged,
-  localAgent,
-  hasSingleInstanceLock,
-  directory: app.getPath('userData'),
-});
-if (resetOnStart) log.info('[Development] Local profile cleared for a fresh onboarding test.');
 
 // Create default workspace directory if it doesn't exist
 const ensureDefaultWorkspaceExists = () => {
@@ -393,7 +381,7 @@ const recordSupportSuggestion: typeof storeRecordSupportSuggestion = (
   storeRecordSupportSuggestion(...args);
   notifyActivityChanged();
 };
-let cocoSleeping = interfacePreview && !localAgent;
+let cocoSleeping = interfacePreview;
 let postAssessmentActive = false;
 const observationSleepGuard = new ObservationSleepGuard();
 let wakeWordService: WakeWordService | null = null;
@@ -431,8 +419,8 @@ const setPostAssessmentActive = (active: boolean) => {
     active,
   });
 };
-let tutoringAllowed = localAgent;
-let studyPolicyAllowsTutoring = localAgent;
+let tutoringAllowed = false;
+let studyPolicyAllowsTutoring = false;
 let serverPreAssessmentsComplete = false;
 let currentStudyRole: StudyState['role'] | null = null;
 let adminStudentMode = false;
@@ -441,8 +429,8 @@ let studyAccessStatus:
   | 'allowed'
   | 'preassessment'
   | 'disabled'
-  | 'unavailable' = localAgent ? 'allowed' : 'checking';
-process.env.COCO_TUTORING_ALLOWED = localAgent ? '1' : '0';
+  | 'unavailable' = 'checking';
+process.env.COCO_TUTORING_ALLOWED = '0';
 
 const isStudentExperienceActive = () =>
   currentStudyRole === 'participant' || adminStudentMode;
@@ -536,7 +524,7 @@ const profilePath = () =>
   path.join(app.getPath('userData'), 'coco-profile.json');
 
 const isOnboardingComplete = (): boolean => {
-  if (interfacePreview && !resetOnStart) return true;
+  if (interfacePreview) return true;
   try {
     const raw = fs.readFileSync(profilePath(), 'utf-8');
     const profile = JSON.parse(raw);
@@ -569,7 +557,7 @@ let currentUserId = interfacePreview
   ? 'local-interface-preview'
   : process.env.COCO_GATEWAY_USER_ID?.trim() || null;
 // Local development identity is never a hosted login or saved auth token.
-let isAuthenticated = localAgent;
+let isAuthenticated = false;
 // Local guides may run offline; backend actions still require isAuthenticated.
 const hasInterfaceSession = () => isAuthenticated || interfacePreview;
 let pendingAuthLaunch: 'signin' | 'signup' | null = null;
@@ -957,7 +945,7 @@ const runnerTutorial = new RunnerTutorial({
         publishGuideHighlight();
       }
     }
-    if (!interfacePreview || localAgent) void axios.post(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/tutorial-status`, { sessionId: state.sessionId, phase: state.phase, failure: state.failure ?? null }, { headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000 }).catch(error => log.warn('[Runner] Could not update coaching context:', String(error)));
+    if (!interfacePreview) void axios.post(`http://127.0.0.1:${process.env.TUTOR_PORT || '8081'}/agent/tutorial-status`, { sessionId: state.sessionId, phase: state.phase, failure: state.failure ?? null }, { headers: { Authorization: `Bearer ${piBridgeToken}` }, timeout: 3000 }).catch(error => log.warn('[Runner] Could not update coaching context:', String(error)));
     chatWindow?.webContents.send('runner-state-changed', state);
   },
 });
@@ -1686,7 +1674,7 @@ ipcMain.handle('open-system-permissions', async (event, target?: unknown) => {
 // Centered modal; after the user completes or skips it, the profile is written
 // and the normal avatar + webapp windows are created.
 
-const createOnboardingWindow = (modelsOnly = false) => {
+const createOnboardingWindow = () => {
   clearSetupGuide();
   avatarWindow?.hide();
   onboardingWindow = new BrowserWindow({
@@ -1694,9 +1682,7 @@ const createOnboardingWindow = (modelsOnly = false) => {
     webPreferences: { preload: preloadPath() },
   });
 
-  const url = `${resolveHtmlPath('index.html')}?view=onboarding${
-    modelsOnly ? '&modelsOnly=1' : ''
-  }${isLlmRouterConfigured() ? '&routerManaged=1' : ''}${localAgent ? '&localAgent=1' : ''}`;
+  const url = `${resolveHtmlPath('index.html')}?view=onboarding`;
   onboardingWindow.loadURL(url);
 
   onboardingWindow.on('ready-to-show', () => {
@@ -1711,7 +1697,7 @@ const createOnboardingWindow = (modelsOnly = false) => {
   });
 
   onboardingWindow.on('close', (event) => {
-    if (isQuitting || (isOnboardingComplete() && (!modelsOnly || readModelConfiguration()))) {
+    if (isQuitting || isOnboardingComplete()) {
       return;
     }
     event.preventDefault();
@@ -3148,7 +3134,7 @@ function initializeChatConversation(): void {
 function setupPending(): boolean {
   if (interfacePreview) return false;
   return (
-    !isAuthenticated || !isOnboardingComplete() || !readModelConfiguration()
+    !isAuthenticated || !isOnboardingComplete()
   );
 }
 
@@ -3163,7 +3149,7 @@ function openPrimaryTrayAction(): void {
   }
   if (setupPending()) {
     if (!onboardingWindow || onboardingWindow.isDestroyed()) {
-      createOnboardingWindow(isOnboardingComplete());
+      createOnboardingWindow();
     } else {
       onboardingWindow.show();
       onboardingWindow.focus();
@@ -3316,13 +3302,6 @@ function createTray(): void {
                 'open-training': openTraining,
                 'open-chat-settings': openChatSettings,
               }),
-              ...(localAgent ? [{
-                label: 'Model setup…',
-                click: () => {
-                  if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.show();
-                  else createOnboardingWindow(true);
-                },
-              }] : []),
               { type: 'separator' },
               {
                 label: sleeping ? 'Wake Coco' : 'Sleep',
@@ -3367,7 +3346,7 @@ function applyAvatarVisibility(hidden: boolean): void {
 }
 
 const activateBridgeConversation = (sessionId: string) => {
-  if (interfacePreview && !localAgent) return;
+  if (interfacePreview) return;
   const tutorPort = process.env.TUTOR_PORT || '8081';
   axios
     .post(
@@ -3969,10 +3948,10 @@ ipcMain.handle(
   'save-model-configuration',
   async (_event, input: ModelConfigurationInput) => {
     try {
-      const config = saveModelConfiguration(input, { sensingEnabled: !localAgent });
+      const config = saveModelConfiguration(input);
       sendToChat('model-configuration-updated', null);
       modelHealthCache.clear();
-      const runtime = resolveModelRuntime({ shareTutorWithSensing: localAgent });
+      const runtime = resolveModelRuntime();
       if (observerStarted && runtime) {
         const defaultTutorModel = defaultTutor(runtime.config);
         const activeTutorModel =
@@ -4016,7 +3995,6 @@ ipcMain.handle(
           );
         }
       }
-      if (localAgent && !observerStarted) startObserver();
       return { success: true, config };
     } catch (err) {
       log.warn(
@@ -4135,16 +4113,6 @@ ipcMain.on('hide-onboarding', () => {
   clearSetupGuide();
   onboardingWindow?.hide();
   createTray();
-});
-
-ipcMain.removeAllListeners('model-configuration-complete');
-ipcMain.on('model-configuration-complete', () => {
-  // Existing users sent directly to model setup already have a profile. Once
-  // models are saved, start (or restart) the services and reveal the app
-  // without making them repeat the rest of onboarding.
-  startObserver();
-  if (onboardingWindow && !onboardingWindow.isDestroyed()) onboardingWindow.once('closed', openAfterSetup);
-  else openAfterSetup();
 });
 
 // The chat renderer announces (on mount) that its hot-key-capture listener is
@@ -6264,18 +6232,9 @@ ipcMain.on('authentication-ui-complete', () => {
 
 const createWindow = async () => {
   if (interfacePreview) {
-    if (resetOnStart && !isOnboardingComplete()) {
-      createOnboardingWindow();
-      createTray();
-      return;
-    }
     showChatPanel({ expanded: true });
     createAvatarWindow();
     createTray();
-    if (localAgent && !readModelConfiguration()) {
-      createOnboardingWindow(true);
-      return;
-    }
     welcomeToCoco();
     return;
   }
@@ -6300,15 +6259,7 @@ const createWindow = async () => {
     return;
   }
 
-  const modelConfiguration = readModelConfiguration();
-  if (!modelConfiguration) {
-    // Legacy environment variables may be sufficient to start the services,
-    // but users still need an explicit, inspectable model configuration.
-    createOnboardingWindow(true);
-    createTray();
-  } else {
-    welcomeToCoco();
-  }
+  welcomeToCoco();
 };
 
 /**
@@ -6420,7 +6371,7 @@ const showSystemPermissionWarning = async (
 // Effective model ids. Managed app configuration wins when present; legacy
 // developer environment variables remain supported as a fallback.
 const effectiveModels = (): { tutor: string; observer: string } => {
-  const runtime = resolveModelRuntime({ shareTutorWithSensing: localAgent });
+  const runtime = resolveModelRuntime();
   return {
     tutor: (runtime
       ? defaultTutor(runtime.config).model
@@ -6551,7 +6502,7 @@ const startObserver = () => {
     // must start with it instead of defaulting to everyday support. The Judge
     // itself starts only after the user accepts and a session is configured.
     serviceManager.configureServiceArg('sensing-server', 'scenario', scenario);
-    const runtime = resolveModelRuntime({ shareTutorWithSensing: localAgent });
+    const runtime = resolveModelRuntime();
     if (runtime) {
       serviceManager.configureServiceEnv(
         'tutor-server',

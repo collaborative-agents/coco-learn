@@ -5,17 +5,9 @@ import NameStep from './onboarding/NameStep';
 import PermissionsStep from './onboarding/PermissionsStep';
 import VoiceStep from './onboarding/VoiceStep';
 import AvatarStep from './onboarding/AvatarStep';
-import ModelsStep from './onboarding/ModelsStep';
-import useModelSetup from './onboarding/useModelSetup';
 import './OnboardingView.css';
-import './onboarding/ModelSetup.css';
 
 const PAGES = {
-  models: {
-    title: 'Connect Coco to your models',
-    description:
-      'Choose the models that help Coco understand your work and respond to you.',
-  },
   welcome: {
     title: 'Meet Coco, your proactive co-assistant',
     description:
@@ -45,12 +37,7 @@ const PAGES = {
 type StepKey = keyof typeof PAGES;
 
 export default function OnboardingView() {
-  const query = new URLSearchParams(window.location.search);
-  const modelsOnly = query.get('modelsOnly') === '1';
-  const models = useModelSetup(query.get('routerManaged') === '1', query.get('localAgent') === '1');
-  const [currentKey, setCurrentKey] = useState<StepKey>(
-    modelsOnly ? 'models' : 'welcome',
-  );
+  const [currentKey, setCurrentKey] = useState<StepKey>('welcome');
   const [userName, setUserName] = useState('');
   const [nameError, setNameError] = useState('');
   const [permissionsReady, setPermissionsReady] = useState(false);
@@ -65,23 +52,14 @@ export default function OnboardingView() {
   }, []);
 
   useEffect(() => {
-    if (!modelsOnly) window.electron?.ipcRenderer.sendMessage('onboarding-step', currentKey);
+    window.electron?.ipcRenderer.sendMessage('onboarding-step', currentKey);
     document.getElementById('coco-setup-title')?.focus();
     document.querySelector('.coco-setup-shell')?.scrollTo?.(0, 0);
   }, [currentKey]);
 
-  const stepKeys: StepKey[] = modelsOnly
-    ? ['models']
-    : [
-        'welcome',
-        'name',
-        'permissions',
-        'voice',
-        ...(models.routerManaged ? [] : ['models' as const]),
-        'avatar',
-      ];
+  const stepKeys: StepKey[] = ['welcome', 'name', 'permissions', 'voice', 'avatar'];
   const step = stepKeys.indexOf(currentKey);
-  const busy = models.savingModels || voiceBusy;
+  const busy = voiceBusy;
   const blocked = busy || (currentKey === 'permissions' && !permissionsReady);
   const isLast = step === stepKeys.length - 1;
 
@@ -105,27 +83,17 @@ export default function OnboardingView() {
       document.getElementById('ob-user-name')?.focus();
       return;
     }
-    if (currentKey === 'models') {
-      if (!(await models.saveModels())) return;
-      if (modelsOnly) {
-        window.electron?.ipcRenderer.sendMessage(
-          'model-configuration-complete',
-        );
-        window.close();
-        return;
-      }
-    }
     if (isLast) finish();
     else setCurrentKey(stepKeys[step + 1]);
   };
 
   let nextLabel = 'Next';
-  if (isLast) nextLabel = modelsOnly ? 'Save & start Coco' : 'Start Coco';
+  if (isLast) nextLabel = 'Start Coco';
   if (busy) nextLabel = 'Saving…';
 
   return (
     <SetupShell
-      label={modelsOnly ? 'Model setup' : 'Getting started'}
+      label="Getting started"
       title={PAGES[currentKey].title}
       illustration={null}
       description={PAGES[currentKey].description}
@@ -187,18 +155,11 @@ export default function OnboardingView() {
       )}
       {currentKey === 'permissions' && (
         <PermissionsStep
-          routerManaged={models.routerManaged}
+          routerManaged
           onReady={setPermissionsReady}
         />
       )}
       {currentKey === 'voice' && <VoiceStep onBusy={setVoiceBusy} />}
-      {currentKey === 'models' && (
-        <div className="coco-setup-panel coco-setup-panel-padded">
-          {/* Model fields and their actions are owned by the setup hook. */}
-          {/* eslint-disable-next-line react/jsx-props-no-spreading */}
-          <ModelsStep {...models.modelProps} />
-        </div>
-      )}
       {currentKey === 'avatar' && (
         <AvatarStep hidden={hideAvatar} onChange={setHideAvatar} />
       )}

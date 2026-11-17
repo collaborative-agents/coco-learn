@@ -4,22 +4,18 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
 } from '@testing-library/react';
 import OnboardingView from '../renderer/components/OnboardingView';
 
 function setup(
-  query = 'routerManaged=1',
   overrides: Record<string, unknown> = {},
 ) {
-  window.history.pushState({}, '', `/?view=onboarding&${query}`);
+  window.history.pushState({}, '', '/?view=onboarding');
   const responses: Record<string, unknown> = {
-    'get-llm-router-status': { configured: query.includes('routerManaged=1') },
     'get-profile': null,
     'get-system-permissions': { missing: [] },
     'get-wake-word-settings': { enabled: false },
     'set-wake-word-settings': { success: true },
-    'save-model-configuration': { success: true },
     ...overrides,
   };
   const invoke = jest.fn(async (channel: string) => responses[channel] ?? null);
@@ -63,33 +59,23 @@ describe('onboarding window', () => {
     expect(invoke).not.toHaveBeenCalledWith('runner-start');
   });
 
-  it('skips model selection when the packaged Router manages credentials', async () => {
-    setup();
+  it('completes the five onboarding steps', async () => {
+    const { sendMessage } = setup();
     await act(async () => {
       render(<OnboardingView />);
     });
-    expect(
-      screen.getByRole('heading', {
-        name: 'Meet Coco, your proactive co-assistant',
-      }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', {
+      name: 'Meet Coco, your proactive co-assistant',
+    })).toBeInTheDocument();
     expect(screen.getByText('1 / 5')).toBeInTheDocument();
-    expect(
-      screen.queryByText('Connect Coco to your models'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('can be hidden temporarily from model-only setup', async () => {
-    const { sendMessage } = setup('modelsOnly=1');
-    await act(async () => {
-      render(<OnboardingView />);
-    });
-    expect(screen.getByText('Model setup')).toBeInTheDocument();
-    expect(screen.getByText('1 / 1')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Close setup for now' }),
-    );
-    expect(sendMessage).toHaveBeenCalledWith('hide-onboarding');
+    await enterName();
+    await next();
+    await next();
+    expect(screen.getByRole('heading', { name: 'Ready to go' })).toBeInTheDocument();
+    expect(screen.getByText('5 / 5')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Start Coco' }));
+    expect(sendMessage).toHaveBeenCalledWith('onboarding-complete',
+      expect.objectContaining({ onboardingComplete: true }));
   });
 
   it('requires only a name and never reads or overwrites memory', async () => {
@@ -118,7 +104,7 @@ describe('onboarding window', () => {
   });
 
   it('waits for permissions and refreshes when returning from system settings', async () => {
-    const { invoke, responses } = setup('routerManaged=1', {
+    const { invoke, responses } = setup({
       'get-system-permissions': { missing: [{ target: 'screen-recording' }] },
       'open-system-permissions': { success: true },
     });
@@ -148,7 +134,7 @@ describe('onboarding window', () => {
   });
 
   it('keeps permissions blocked if their status cannot be loaded', async () => {
-    const { responses } = setup('routerManaged=1', {
+    const { responses } = setup({
       'get-system-permissions': null,
     });
     await act(async () => {
@@ -170,7 +156,7 @@ describe('onboarding window', () => {
   });
 
   it('handles microphone denial without enabling voice and allows continuing', async () => {
-    const { invoke } = setup('routerManaged=1', {
+    const { invoke } = setup({
       'set-wake-word-settings': {
         success: false,
         error: 'Microphone access is required.',
@@ -265,27 +251,12 @@ describe('onboarding window', () => {
     },
   );
 
-  it('preserves model-only saving through the existing IPC contract', async () => {
-    const { invoke, sendMessage } = setup('modelsOnly=1');
+  it('can be hidden temporarily during onboarding', async () => {
+    const { sendMessage } = setup();
     await act(async () => {
       render(<OnboardingView />);
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save & start Coco' }));
-    await waitFor(() =>
-      expect(sendMessage).toHaveBeenCalledWith('model-configuration-complete'),
-    );
-    expect(invoke).toHaveBeenCalledWith(
-      'save-model-configuration',
-      expect.objectContaining({
-        sensing: expect.any(Object),
-        tutors: expect.any(Array),
-        defaultTutorId: 'deepseek-v4-pro',
-        credentials: {},
-      }),
-    );
-    expect(sendMessage).not.toHaveBeenCalledWith(
-      'onboarding-complete',
-      expect.anything(),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close setup for now' }));
+    expect(sendMessage).toHaveBeenCalledWith('hide-onboarding');
   });
 });

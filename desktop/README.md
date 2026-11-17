@@ -72,12 +72,12 @@ The avatar surfaces observations from the sensing service in three tiers:
 
 ### How the main process orchestrates everything
 
-1. On first launch, collects separate sensing and tutor provider/model settings;
-   credentials are stored in a plaintext configuration file protected with
-   owner-only permissions (`chmod 600`) in Electron's user-data directory
+1. Signs in through the Coco gateway and automatically fetches a participant-scoped
+   Router credential when study access permits tutoring; model setup is managed
+   by Coco and never appears in onboarding
 2. Checks whether onboarding is complete; if not, opens the onboarding window
 3. `ServiceManager` spawns the Python backends (`sensing :8080`, `tutor :8081`)
-   with role-specific credentials; development `.env` remains supported
+   with the managed Router configuration
 4. An SSE client (`ObservationStream`) connects to `sensing` and forwards observation events to the avatar renderer via IPC
 5. When a Tier-2 bubble appears, the main process precomputes a tutor suggestion in the background so the response is instant when clicked
 6. Chat messages flow through `sensing/observe` (screen context) → `tutor/events` (guidance) → renderer
@@ -92,28 +92,8 @@ AI, account, and other authenticated actions remain unavailable. Remove the sett
 to `0`) and restart to restore the normal login flow. Keep this setting in the
 ignored `.env`; production and packaged builds always ignore it.
 
-To test the real agent with your own NVIDIA credentials, set `COCO_LOCAL_AGENT=1`
-in that ignored `.env` and restart. Model setup opens with the repository's
-InferenceHub endpoint and Claude Sonnet model prefilled. Enter your key in the
-app, test the connection, and save. Reopen it from the tray's **Model setup…**
-item. Keys are stored in the separate local profile with owner-only file
-permissions, outside the repository. This mode starts Coco awake and uses the
-selected vision-capable tutor model and key for both chat and screen observation.
-Screenshots go to that provider while awake; **Sleep** pauses observation.
-The hosted Coco gateway/router remains disabled. Training keeps the learning path
-visible as an offline preview; tasks and account progress require server sign-in.
-It requires an unpackaged development run; production and
-packaged builds still require login. To restore login during development,
-remove both `COCO_LOCAL_AGENT` and `COCO_INTERFACE_PREVIEW` and restart.
-
-For repeated onboarding tests, set `COCO_RESET_ON_START=1` alongside
-`COCO_LOCAL_AGENT=1` in the repository-root `.env`. Every development app launch
-(including automatic restarts after main-process edits) erases the isolated
-local profile and opens the full onboarding flow at Meet Coco. This removes
-conversations, memory, game/tutorial progress, caches, settings, saved model
-credentials, and files inside that profile’s workspace. Project folders outside
-the profile remain intact. Set `COCO_RESET_ON_START=0` to keep progress again.
-Packaged/production builds and regular signed-in profiles never use this reset.
+Coco Learn uses the authenticated Coco Router for AI in development and packaged
+builds. Personal-credential local-agent mode and model setup are not supported.
 
 | Command | What it does |
 |---|---|

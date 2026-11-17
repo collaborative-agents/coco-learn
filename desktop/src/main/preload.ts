@@ -254,7 +254,6 @@ export type Channels =
   | 'hotkey-capture-ready'
   // Onboarding
   | 'onboarding-complete'
-  | 'model-configuration-complete'
   | 'onboarding-step'
   | 'hide-onboarding'
   | 'close-chat-window'

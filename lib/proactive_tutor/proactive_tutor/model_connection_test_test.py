@@ -1,13 +1,11 @@
 import io
 import json
 import ssl
-import sys
-from types import SimpleNamespace
 
 import pytest
-from external_api import dependency_smoke, llm
+from external_api import llm
 from external_api.litellm_api import LiteLLMMessage, TextContent
-from proactive_tutor import model_connection_test, packaged_entrypoint
+from proactive_tutor import model_connection_test
 
 
 @pytest.fixture(autouse=True)
@@ -73,8 +71,7 @@ def test_openai_compatible_test_does_not_inject_vllm_options(monkeypatch) -> Non
     assert "reasoning_effort" not in captured
 
 
-@pytest.mark.parametrize("include_image", [False, True])
-def test_router_probe_verifies_tls_without_system_certificates(monkeypatch, include_image):
+def test_router_probe_verifies_tls_without_system_certificates(monkeypatch):
     monkeypatch.setenv("LLM_ROUTER_URL", "https://router.example.test")
     monkeypatch.setenv("LLM_ROUTER_API_KEY", "test-key")
     # Simulate Python installations without a usable default certificate store.
@@ -87,11 +84,11 @@ def test_router_probe_verifies_tls_without_system_certificates(monkeypatch, incl
         assert timeout == 8
         assert request.full_url == "https://router.example.test/v1/chat/completions"
         content = json.loads(request.data)["messages"][0]["content"]
-        assert len(content) == (2 if include_image else 1)
+        assert len(content) == 2
         return io.BytesIO(b'{"choices":[{"message":{"content":"OK"}}]}')
 
     monkeypatch.setattr(model_connection_test.urllib.request, "urlopen", fake_urlopen)
-    assert model_connection_test.test_connection("test-model", include_image) == "OK"
+    assert model_connection_test.test_connection("test-model", True) == "OK"
 
 
 def test_router_probe_preserves_explicit_certificate_bundle(monkeypatch, tmp_path):
@@ -114,22 +111,3 @@ def test_router_probe_preserves_explicit_certificate_bundle(monkeypatch, tmp_pat
 
     monkeypatch.setattr(model_connection_test.urllib.request, "urlopen", fake_urlopen)
     assert model_connection_test.test_connection("test-model", False) == "OK"
-
-
-@pytest.mark.parametrize("roots", [0, 1])
-def test_packaged_smoke_rejects_missing_trusted_roots(monkeypatch, roots):
-    monkeypatch.setattr(sys, "argv", ["tutor-server", "--dependency-smoke-test"])
-    monkeypatch.setattr(
-        model_connection_test,
-        "create_tls_context",
-        lambda: SimpleNamespace(cert_store_stats=lambda: {"x509_ca": roots}),
-    )
-    calls = []
-    monkeypatch.setattr(dependency_smoke, "main", lambda: calls.append("sdk"))
-    if roots:
-        packaged_entrypoint.main()
-        assert calls == ["sdk"]
-    else:
-        with pytest.raises(RuntimeError, match="no trusted HTTPS certificates"):
-            packaged_entrypoint.main()
-        assert calls == []

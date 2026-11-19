@@ -257,7 +257,8 @@ export default function TrainingView({
             </div>
             <p>
               Build your skills, one day at a time. Learn to work thoughtfully
-              with AI.
+              with AI. Check-ins guide your progress through the training tasks.
+              You can use Coco chat and Agent 101 before completing them.
             </p>
           </header>
           {(state || !hostedTrainingEnabled) && (

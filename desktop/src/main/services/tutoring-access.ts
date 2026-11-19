@@ -1,3 +1,14 @@
+import type { StudyState } from '../../shared/study';
+
+/** Assessment progress never changes access to AI, including during setup. */
+export function tutoringAccessFromPolicy(policy: StudyState) {
+  const allowed = policy.tutoring_allowed === true;
+  return {
+    tutoring_allowed: allowed,
+    status: allowed ? ('allowed' as const) : ('disabled' as const),
+  };
+}
+
 interface AccessDependencies<Policy> {
   canRefresh: () => boolean;
   isAllowed: () => boolean;

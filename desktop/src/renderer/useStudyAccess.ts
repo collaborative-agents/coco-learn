@@ -12,10 +12,7 @@ export default function useStudyAccess() {
         )) as { tutoring_allowed?: boolean; status?: string };
         if (mounted) {
           if (value?.tutoring_allowed === true) setAllowed(true);
-          else if (
-            value?.status === 'disabled' ||
-            value?.status === 'preassessment'
-          )
+          else if (value?.status === 'disabled')
             setAllowed(false);
           else if (value?.status === 'checking') setAllowed(null);
           else setAllowed('unavailable');

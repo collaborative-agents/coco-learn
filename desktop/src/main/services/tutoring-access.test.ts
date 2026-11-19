@@ -1,4 +1,5 @@
-import { createTutoringAccessRefresher } from './tutoring-access';
+import { createTutoringAccessRefresher, tutoringAccessFromPolicy } from './tutoring-access';
+import type { StudyState } from '../../shared/study';
 
 function setup(initiallyAllowed = false) {
   let allowed = initiallyAllowed;
@@ -91,4 +92,27 @@ it('does not overlap access checks', async () => {
   await pending;
   await refresh();
   expect(deps.fetchPolicy).toHaveBeenCalledTimes(2);
+});
+
+it('keeps AI available before and after assessments', async () => {
+  const { deps } = setup();
+  const policy = {
+    tutoring_allowed: true,
+    pre_assessments_complete: false,
+    post_assessment_complete: false,
+    role: 'participant',
+  } as StudyState;
+  const refresh = createTutoringAccessRefresher({
+    ...deps,
+    fetchPolicy: async () => policy,
+    applyPolicy: (value: StudyState) => deps.setAllowed(tutoringAccessFromPolicy(value).tutoring_allowed),
+    activate: jest.fn(async (_value: StudyState) => {}),
+  });
+  await refresh();
+  expect(deps.isAllowed()).toBe(true);
+  policy.pre_assessments_complete = true;
+  policy.post_assessment_complete = true;
+  await refresh();
+  expect(deps.isAllowed()).toBe(true);
+  expect(deps.deactivate).not.toHaveBeenCalled();
 });

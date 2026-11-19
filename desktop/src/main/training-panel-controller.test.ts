@@ -1,4 +1,4 @@
-import type { Dialog, IpcMain } from 'electron';
+import type { IpcMain } from 'electron';
 import registerTrainingPanel from './training-panel-controller';
 
 jest.mock('./services/study-service', () => ({ registerStudyIpc: jest.fn() }));
@@ -15,8 +15,7 @@ it('gates panel navigation and reads access again after an explicit refresh', as
   const refreshAccess = jest.fn(async () => {
     allowed = true;
   });
-  const showMessageBox = jest.fn().mockResolvedValue({ response: 0 });
-  const panel = registerTrainingPanel({
+  registerTrainingPanel({
     ipc: {
       handle: (name: string, handler: any) => {
         handlers[name] = handler;
@@ -25,7 +24,6 @@ it('gates panel navigation and reads access again after an explicit refresh', as
         listeners[name] = listener;
       },
     } as unknown as IpcMain,
-    dialog: { showMessageBox } as unknown as Pick<Dialog, 'showMessageBox'>,
     root: () => '/unused',
     user: () => 'alice',
     authenticated: () => authenticated,
@@ -37,7 +35,6 @@ it('gates panel navigation and reads access again after an explicit refresh', as
     refreshAccess,
     refreshTray: jest.fn(),
     showPanel,
-    postAssessmentChanged: jest.fn(),
   });
   listeners['open-training']();
   expect(showPanel).not.toHaveBeenCalled();
@@ -50,11 +47,4 @@ it('gates panel navigation and reads access again after an explicit refresh', as
     status: 'allowed',
   });
   expect(refreshAccess).toHaveBeenCalledTimes(1);
-  panel.showPreAssessmentLockedMessage();
-  await Promise.resolve();
-  expect(showPanel).toHaveBeenCalledTimes(2);
-  showMessageBox.mockResolvedValueOnce({ response: 1 });
-  panel.showPreAssessmentLockedMessage();
-  await Promise.resolve();
-  expect(showPanel).toHaveBeenCalledTimes(2);
 });

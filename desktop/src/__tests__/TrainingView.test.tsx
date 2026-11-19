@@ -1028,8 +1028,10 @@ it.each(['admin', 'super_admin'] as const)(
   },
 );
 
-it('starts Tool training in the regular chat instead of mounting a separate exploration screen', async () => {
+it('starts Tool training in the regular chat before assessments while practice tasks stay locked', async () => {
+  me.tutoring_allowed = true;
   render(<TrainingView />);
+  expect(await screen.findByRole('button', { name: /Day 1 Practice task/ })).toBeDisabled();
   fireEvent.click(
     await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' }),
   );

@@ -74,7 +74,6 @@ import {
 } from './services/social-service';
 import registerTrainingPanel from './training-panel-controller';
 import type { StudyState } from '../shared/study';
-import { syncPreAssessmentState } from './pre-assessment-store';
 import configureFullscreenCompanionWindow from './services/fullscreen-companion-window';
 import configureMainWindow, { resizeMainWindow } from './main-window-behavior';
 import log from 'electron-log';
@@ -105,7 +104,7 @@ import type { SessionContextInput } from './services/pi-harness';
 import isChatOutOfView from './services/chat-visibility';
 import AgentProgressReminder from './services/agent-progress-reminder';
 import { CocoGatewayClient, GatewayHttpError } from './services/gateway-client';
-import { createTutoringAccessRefresher } from './services/tutoring-access';
+import { createTutoringAccessRefresher, tutoringAccessFromPolicy } from './services/tutoring-access';
 import {
   clearAuthSession,
   readAuthSession,
@@ -383,7 +382,6 @@ const recordSupportSuggestion: typeof storeRecordSupportSuggestion = (
   notifyActivityChanged();
 };
 let cocoSleeping = interfacePreview;
-let postAssessmentActive = false;
 const observationSleepGuard = new ObservationSleepGuard();
 let wakeWordService: WakeWordService | null = null;
 let wakeWordEnabled = false;
@@ -404,42 +402,15 @@ const WAKE_WORDS = ['COCO', 'HI COCO', 'HEY COCO'] as const;
 const WAKE_WORD_MODEL = 'sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01';
 
 const isObservationPaused = () => cocoSleeping || !tutoringAllowed;
-const setPostAssessmentActive = (active: boolean) => {
-  if (postAssessmentActive === active) return;
-  postAssessmentActive = active;
-  log.info(
-    `[Post-assessment] Proactive suggestions ${active ? 'disabled' : 'enabled'}`,
-  );
-  if (active) {
-    latestSuggestionObservationId = undefined;
-    proactive.setSuggestionOpen(false);
-    proactive.dismissNotification();
-    clearAvatarInvite('ignored');
-  }
-  avatarWindow?.webContents.send('post-assessment-proactive-suppression', {
-    active,
-  });
-};
 let tutoringAllowed = false;
-let studyPolicyAllowsTutoring = false;
-let serverPreAssessmentsComplete = false;
 let currentStudyRole: StudyState['role'] | null = null;
 let adminStudentMode = false;
 let studyAccessStatus:
   | 'checking'
   | 'allowed'
-  | 'preassessment'
   | 'disabled'
   | 'unavailable' = 'checking';
 process.env.COCO_TUTORING_ALLOWED = '0';
-
-const isStudentExperienceActive = () =>
-  currentStudyRole === 'participant' || adminStudentMode;
-
-const areRequiredPreAssessmentsComplete = () =>
-  !isAuthenticated ||
-  !isStudentExperienceActive() ||
-  serverPreAssessmentsComplete;
 
 const wakeWordSettingsPath = () =>
   path.join(app.getPath('userData'), 'wake-word.json');
@@ -605,7 +576,7 @@ const proactive = createProactiveNotifications({
     Boolean(sessionRecapWindow && !sessionRecapWindow.isDestroyed()),
   allowed: () => tutoringAllowed,
   sleeping: () => cocoSleeping,
-  assessmentActive: () => postAssessmentActive,
+  assessmentActive: () => false,
   suspended: () => systemSuspended,
   avatarHidden: () => hideAvatarMode,
   adviceBlocked: () => Boolean(activeRunnerGuide),
@@ -630,9 +601,8 @@ const { showNotification, showSessionInvite, clearAvatarInvite } = proactive;
 app.on('before-quit', () => proactive.dispose());
 
 registerSocialIpcHandlers(ipcMain, new SocialService(() => gatewayClient));
-const { openTraining, showPreAssessmentLockedMessage } = registerTrainingPanel({
+const { openTraining } = registerTrainingPanel({
   ipc: ipcMain,
-  dialog,
   root: () => app.getPath('userData'),
   user: () => currentUserId,
   authenticated: hasInterfaceSession,
@@ -653,30 +623,13 @@ const { openTraining, showPreAssessmentLockedMessage } = registerTrainingPanel({
     showChatPanel({ expanded: true });
     sendToChat('open-training-panel', null);
   },
-  postAssessmentChanged: setPostAssessmentActive,
 });
 ipcMain.handle('study-student-mode', async (_event, enabled?: unknown) => {
   const available =
     currentStudyRole === 'admin' || currentStudyRole === 'super_admin';
   if (typeof enabled === 'boolean') {
     if (!available) throw new Error('Administrator access required.');
-    const wasAllowed = tutoringAllowed;
     adminStudentMode = enabled;
-    applyEffectiveStudyAccess();
-    if (!tutoringAllowed) {
-      await stopTutoringForAccess();
-    } else if (!wasAllowed) {
-      try {
-        await configureParticipantRouterCredential();
-        if (!cocoSleeping && isOnboardingComplete()) startObserver();
-      } catch (error) {
-        void agentRuns.abort();
-        studyAccessStatus = 'unavailable';
-        setTutoringAllowed(false);
-        await stopTutoringForAccess();
-        throw error;
-      }
-    }
     createTray();
   }
   return { available, enabled: available && adminStudentMode };
@@ -857,7 +810,7 @@ function publishRunnerGuide(force = false) {
 
 /** Prepare B only while the user has chosen to show Coco. */
 async function prepareAdviceAvatar(): Promise<BrowserWindow | null> {
-  if (hideAvatarMode || isObservationPaused() || postAssessmentActive || activeRunnerGuide ||
+  if (hideAvatarMode || isObservationPaused() || activeRunnerGuide ||
       onboardingWindow?.isVisible() || !hasInterfaceSession()) return null;
   createAvatarWindow();
   const target = avatarWindow!;
@@ -888,7 +841,7 @@ ipcMain.on('automatic-suggestion-response', (event, response: {observationId?: s
   const { advice, receivedAt, sessionActive } = pendingAutomaticSuggestion;
   pendingAutomaticSuggestion = null;
   if (!response.shown) return;
-  if (hideAvatarMode || isObservationPaused() || postAssessmentActive || activeRunnerGuide ||
+  if (hideAvatarMode || isObservationPaused() || activeRunnerGuide ||
       currentSessionId !== advice.sessionId || isSessionActive !== sessionActive || systemSuspended ||
       latestSuggestionObservationId !== advice.observationId ||
       interactions.movedOnSince(receivedAt)) {
@@ -3076,10 +3029,6 @@ const initializeWakeWordService = (): void => {
 };
 
 const openChatSettings = () => {
-  if (!areRequiredPreAssessmentsComplete()) {
-    showPreAssessmentLockedMessage();
-    return;
-  }
   createChatWindow();
   if (!chatWindow || chatWindow.isDestroyed()) return;
 
@@ -3097,10 +3046,6 @@ ipcMain.on('open-chat-settings', () => {
 });
 
 async function openCoco(): Promise<void> {
-  if (!areRequiredPreAssessmentsComplete()) {
-    showPreAssessmentLockedMessage();
-    return;
-  }
   if (!currentSessionId) {
     showChatPanel();
     return;
@@ -3157,10 +3102,6 @@ function openPrimaryTrayAction(): void {
     }
     return;
   }
-  if (!areRequiredPreAssessmentsComplete()) {
-    showPreAssessmentLockedMessage();
-    return;
-  }
   openCoco().catch((err) => log.warn(`[Tray] Could not open Coco: ${err}`));
 }
 
@@ -3185,10 +3126,6 @@ function revealCoco(): void {
     openPrimaryTrayAction();
     return;
   }
-  if (!areRequiredPreAssessmentsComplete()) {
-    openTraining();
-    return;
-  }
   if (!setupPending() && !tutoringAllowed) {
     openTraining();
     return;
@@ -3201,10 +3138,6 @@ function handleTrayClick(): void {
   // the user choose an explicit action instead of opening chat immediately.
   if (setupPending()) {
     openPrimaryTrayAction();
-    return;
-  }
-  if (!areRequiredPreAssessmentsComplete()) {
-    openTraining();
     return;
   }
   tray?.popUpContextMenu();
@@ -3225,8 +3158,7 @@ function createTray(): void {
     tray = new Tray(image);
     tray.on('click', handleTrayClick);
   }
-  const assessmentLocked = !areRequiredPreAssessmentsComplete();
-  const pendingSetup = setupPending() && !assessmentLocked;
+  const pendingSetup = setupPending();
   const authRequired = !isAuthenticated;
   let setupLabel = 'Continue Setup';
   if (authRequired) setupLabel = 'Sign in';
@@ -3257,22 +3189,7 @@ function createTray(): void {
   );
   tray.setContextMenu(
     Menu.buildFromTemplate(
-      assessmentLocked
-        ? [
-            ...showAvatarItems,
-            {
-              label: 'Pre-assessments required',
-              enabled: false,
-            },
-            {
-              label: 'Open Pre-assessments…',
-              click: openTraining,
-            },
-            ...updateMenuItems,
-            { type: 'separator' },
-            { label: 'Quit', click: () => app.quit() },
-          ]
-        : pendingSetup
+      pendingSetup
           ? [
               ...showAvatarItems,
               {
@@ -4810,7 +4727,7 @@ ipcMain.removeHandler('get-instant-suggestion');
 ipcMain.handle(
   'get-instant-suggestion',
   async (_event, { observationId }: { observationId?: string }) => {
-    if (!tutoringAllowed || postAssessmentActive) return { status: 'missing' };
+    if (!tutoringAllowed) return { status: 'missing' };
     const entry = observationId
       ? suggestionCache.get(observationId)
       : undefined;
@@ -6036,12 +5953,6 @@ const configureParticipantRouterCredential = async (
   confirmedPolicy?: StudyState,
 ): Promise<void> => {
   if (!gatewayClient) throw new Error('The study server is unavailable.');
-  if (currentUserId)
-    await syncPreAssessmentState(
-      app.getPath('userData'),
-      currentUserId,
-      gatewayClient,
-    );
   const policy = confirmedPolicy ?? ((await gatewayClient.requestJson(
     '/api/study/me',
     'GET',
@@ -6060,17 +5971,9 @@ const configureParticipantRouterCredential = async (
 
 function applyStudyPolicy(policy: StudyState): void {
   currentStudyRole = policy.role;
-  studyPolicyAllowsTutoring = policy.tutoring_allowed === true;
-  serverPreAssessmentsComplete = policy.pre_assessments_complete === true;
-  applyEffectiveStudyAccess();
-}
-
-function applyEffectiveStudyAccess(): void {
-  const assessmentsComplete = areRequiredPreAssessmentsComplete();
-  setTutoringAllowed(studyPolicyAllowsTutoring && assessmentsComplete);
-  if (!assessmentsComplete) studyAccessStatus = 'preassessment';
-  else if (!studyPolicyAllowsTutoring) studyAccessStatus = 'disabled';
-  else studyAccessStatus = 'allowed';
+  const access = tutoringAccessFromPolicy(policy);
+  studyAccessStatus = access.status;
+  setTutoringAllowed(access.tutoring_allowed);
 }
 
 async function stopTutoringForAccess(): Promise<void> {
@@ -6161,7 +6064,6 @@ const authenticate = async (
     isAuthenticated = true;
     agent101.notifyAccountChanged();
     currentStudyRole = null;
-    serverPreAssessmentsComplete = false;
     adminStudentMode = false;
     await configureParticipantRouterCredential();
     pendingAuthLaunch = mode;
@@ -6182,7 +6084,6 @@ const authenticate = async (
     isAuthenticated = false;
     agent101.notifyAccountChanged();
     currentStudyRole = null;
-    serverPreAssessmentsComplete = false;
     adminStudentMode = false;
     studyAccessStatus = 'unavailable';
     void agentRuns.abort();
@@ -6211,11 +6112,6 @@ ipcMain.on('authentication-ui-complete', () => {
     // Every new account finishes app setup before entering Training, even when
     // the server already marks its pre-assessments as pending.
     createOnboardingWindow();
-    createTray();
-    return;
-  }
-  if (studyAccessStatus === 'preassessment') {
-    welcomeToCoco();
     createTray();
     return;
   }
@@ -6541,7 +6437,7 @@ const startObserver = () => {
       'next-learning-review-state.json',
     ),
     onFirstUse: async ({ startTs: todayStartTs }) => {
-      if (!tutoringAllowed || postAssessmentActive) return false;
+      if (!tutoringAllowed) return false;
       // Do not replace something time-sensitive. Returning false leaves the
       // date unhandled, so the next observation retries the summary.
       if (proactive.window && !proactive.window.isDestroyed()) {
@@ -6629,20 +6525,6 @@ const startObserver = () => {
       }
 
       const status = event.status;
-      if (postAssessmentActive) {
-        // Preserve semantic activity for the automatic assessment report, but
-        // do not surface observations, precompute help, or open notifications.
-        if (status && event.observation) {
-          appendActivity({
-            ts: event.ts ?? Math.floor(Date.now() / 1000),
-            status: status as ObservationStatus,
-            observation: cleanObservation(event.observation),
-            observation_id: event.observation_id,
-            llm_metrics: event.llm_metrics,
-          });
-        }
-        return;
-      }
       const { scenario } = readProfile();
       const instantSuggestionEligible = shouldOfferInstantSuggestion(
         scenario,
@@ -6710,7 +6592,7 @@ const startObserver = () => {
         const observationId = event.observation_id;
         latestSuggestionObservationId = observationId;
         void precomputeSuggestion(event)?.then(async (value) => {
-          const stillRelevant = () => !isObservationPaused() && !postAssessmentActive &&
+          const stillRelevant = () => !isObservationPaused() &&
             !systemSuspended && !activeRunnerGuide && currentSessionId === sessionId && isSessionActive === sessionActive &&
             latestSuggestionObservationId === observationId &&
             shouldOfferInstantSuggestion(readProfile().scenario, isSessionActive, event) &&
@@ -6828,7 +6710,6 @@ app
         isAuthenticated = true;
         agent101.notifyAccountChanged();
         currentStudyRole = null;
-        serverPreAssessmentsComplete = false;
         adminStudentMode = false;
         await configureParticipantRouterCredential();
         log.info(`[Auth] restored session for ${restored.participantId}`);
@@ -6838,7 +6719,6 @@ app
         isAuthenticated = false;
         agent101.notifyAccountChanged();
         currentStudyRole = null;
-        serverPreAssessmentsComplete = false;
         adminStudentMode = false;
         log.warn(
           `[Auth] saved session could not be restored: ${String(error)}`,
@@ -6881,10 +6761,6 @@ app
     // Register global shortcut for screenshot capture (Cmd+Shift+Space).
     // Works system-wide even when Electron is not the focused app.
     globalShortcut.register('CommandOrControl+Shift+Space', () => {
-      if (!areRequiredPreAssessmentsComplete()) {
-        showPreAssessmentLockedMessage();
-        return;
-      }
       void beginHotkeyCapture();
     });
 

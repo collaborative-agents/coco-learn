@@ -155,6 +155,7 @@ import { openSystemPermissionSettings } from './open-system-permission-settings'
 import {
   defaultTutor,
   isLlmRouterConfigured,
+  isLlmRouterManaged,
   normalizeRouterManagedModelConfiguration,
   ROUTER_MANAGED_MODEL_CONFIGURATION,
   getModelConfigurationView,
@@ -3584,6 +3585,7 @@ ipcMain.handle('get-chat-content-zoom-factor', () => chatContentZoomFactor);
 // returned over IPC.
 ipcMain.handle('get-model-configuration', () => getModelConfigurationView());
 ipcMain.handle('get-llm-router-status', () => ({
+  managed: isLlmRouterManaged(),
   configured: isLlmRouterConfigured(),
   url: process.env.LLM_ROUTER_URL?.trim() || '',
 }));

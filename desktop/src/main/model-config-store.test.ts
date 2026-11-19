@@ -2,6 +2,7 @@ import {
   buildRoleModelEnvironments,
   credentialId,
   isLlmRouterConfigured,
+  isLlmRouterManaged,
   normalizeRouterManagedModelConfiguration,
   ROUTER_MANAGED_MODEL_CONFIGURATION,
   validateModelConfiguration,
@@ -55,6 +56,8 @@ describe('model configuration', () => {
   });
 
   it('recognizes a fully configured hosted router', () => {
+    expect(isLlmRouterManaged({ LLM_ROUTER_URL: 'https://router.example.test' })).toBe(true);
+    expect(isLlmRouterManaged({ LLM_ROUTER_URL: ' ' })).toBe(false);
     expect(
       isLlmRouterConfigured({
         LLM_ROUTER_URL: 'https://router.example.test',

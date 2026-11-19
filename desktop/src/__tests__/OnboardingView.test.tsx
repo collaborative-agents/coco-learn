@@ -59,8 +59,8 @@ describe('onboarding window', () => {
     expect(invoke).not.toHaveBeenCalledWith('runner-start');
   });
 
-  it('completes the five onboarding steps', async () => {
-    const { sendMessage } = setup();
+  it('completes signup onboarding without model setup or personal API keys', async () => {
+    const { invoke, sendMessage } = setup();
     await act(async () => {
       render(<OnboardingView />);
     });
@@ -73,9 +73,12 @@ describe('onboarding window', () => {
     await next();
     expect(screen.getByRole('heading', { name: 'Ready to go' })).toBeInTheDocument();
     expect(screen.getByText('5 / 5')).toBeInTheDocument();
+    expect(screen.queryByText('Connect Coco to your models')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('API key')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Start Coco' }));
     expect(sendMessage).toHaveBeenCalledWith('onboarding-complete',
       expect.objectContaining({ onboardingComplete: true }));
+    expect(invoke).not.toHaveBeenCalledWith('save-model-configuration', expect.anything());
   });
 
   it('requires only a name and never reads or overwrites memory', async () => {

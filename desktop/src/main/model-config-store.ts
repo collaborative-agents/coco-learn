@@ -99,11 +99,17 @@ export function normalizeRouterManagedModelConfiguration(
 
 type CredentialMap = Record<string, string>;
 
+// Account-managed access does not require a token yet: new accounts receive
+// their credential only after the backend permits tutoring.
+export const isLlmRouterManaged = (
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean => Boolean(environment.LLM_ROUTER_URL?.trim());
+
 export const isLlmRouterConfigured = (
   environment: NodeJS.ProcessEnv = process.env,
 ): boolean =>
   Boolean(
-    environment.LLM_ROUTER_URL?.trim() &&
+    isLlmRouterManaged(environment) &&
       environment.LLM_ROUTER_API_KEY?.trim(),
   );
 

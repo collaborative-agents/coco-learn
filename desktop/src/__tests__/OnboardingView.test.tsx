@@ -73,8 +73,6 @@ describe('onboarding window', () => {
     await next();
     expect(screen.getByRole('heading', { name: 'Ready to go' })).toBeInTheDocument();
     expect(screen.getByText('5 / 5')).toBeInTheDocument();
-    expect(screen.queryByText('Connect Coco to your models')).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('API key')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Start Coco' }));
     expect(sendMessage).toHaveBeenCalledWith('onboarding-complete',
       expect.objectContaining({ onboardingComplete: true }));

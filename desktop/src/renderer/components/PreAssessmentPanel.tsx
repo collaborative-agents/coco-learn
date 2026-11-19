@@ -260,8 +260,8 @@ export default function PreAssessmentPanel({
             <h2 id="pre-assessment-title">Complete your start check-in</h2>
             <p>
               {required
-                ? 'Complete AI literacy and the execution task to unlock training tasks. Coco chat and Agent 101 are available before you finish this check-in.'
-                : 'Admin accounts can preview and complete AI literacy and the execution task without restricting access to Coco or training.'}
+                ? 'Complete AI literacy and the execution task to unlock training tasks.'
+                : 'This is the participant pre-assessment experience. Admin accounts can preview and complete AI literacy and the execution task.'}
             </p>
           </div>
           <div

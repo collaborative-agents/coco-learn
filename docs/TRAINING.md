@@ -101,14 +101,8 @@ reference contents are not sent to the renderer or saved until requested.
 
 ## Start check-in
 
-Complete **AI literacy** and the **Execution task** before starting the training
-tasks. The final check-in remains required to unlock the follow-up assignment
-after its 14-day waiting period. These assessment requirements do not block AI
-tutoring: Coco chat and Agent 101 are available before either check-in, including
-during onboarding. Account-level admin restrictions still apply. Opening an
-assessment does not pause AI assistance.
-
-The execution task, **Count Before You Commit**, asks you to verify and revise a supply
+Complete **AI literacy** and the **Execution task** before starting training. The
+execution task, **Count Before You Commit**, asks you to verify and revise a supply
 plan for 600 kits with no more than 30 unfilled. Download its five-file toolkit,
 start the timer and recording, then submit your answer sheet as a PDF and answer
 the questionnaire. Your activity log is attached automatically. Earlier completed

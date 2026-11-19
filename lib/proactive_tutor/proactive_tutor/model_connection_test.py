@@ -6,10 +6,19 @@ import argparse
 import base64
 import json
 import os
-import urllib.request
+import ssl
 import struct
+import urllib.request
 import zlib
 
+import certifi
+
+
+def create_tls_context() -> ssl.SSLContext:
+    """Use bundled public roots unless the user explicitly configures trust."""
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _png_data_url() -> str:
@@ -52,7 +61,11 @@ def test_connection(model: str, include_image: bool) -> str:
             method="POST",
         )
         # A probe is a single bounded request, never a provider retry loop.
-        with urllib.request.urlopen(request, timeout=8) as response:
+        # Frozen services and standalone probes do not always inherit the
+        # desktop launcher's CA setup. Preserve explicit trust configuration;
+        # otherwise use the CA bundle shipped with certifi.
+        context = create_tls_context()
+        with urllib.request.urlopen(request, timeout=8, context=context) as response:
             result = json.load(response)
         reply = result["choices"][0]["message"].get("content")
         if not isinstance(reply, str) or not reply.strip():

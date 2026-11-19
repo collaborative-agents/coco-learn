@@ -11,3 +11,6 @@ it('reports access refusal plainly without claiming a working connection',()=>{
   expect(modelFailureMessage('HTTP Error 401: Unauthorized')).toContain('Sign out and sign in');
   expect(modelFailureMessage('Connection refused')).toContain('couldn’t reach');
 });
+it('distinguishes certificate verification failures from network failures',()=>{
+  expect(modelFailureMessage('<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate>')).toContain('HTTPS certificate');
+});

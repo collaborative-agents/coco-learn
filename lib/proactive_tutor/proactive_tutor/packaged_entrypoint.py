@@ -7,7 +7,14 @@ def main() -> None:
     """Run either the MCP stdio server or the normal tutor HTTP server."""
     if sys.argv[1:] == ["--dependency-smoke-test"]:
         from external_api.dependency_smoke import main as smoke_main
+        from proactive_tutor.model_connection_test import create_tls_context
 
+        # Run in the frozen executable too: a source-only test cannot catch a
+        # missing certifi bundle in the downloadable application.
+        context = create_tls_context()
+        if not context.cert_store_stats()["x509_ca"]:
+            raise RuntimeError("The model health checker has no trusted HTTPS certificates")
+        print("Certificate smoke passed: model health checker loaded trusted roots.")
         smoke_main()
         return
 

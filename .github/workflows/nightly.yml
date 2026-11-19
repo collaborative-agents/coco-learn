@@ -208,6 +208,10 @@ jobs:
         if: steps.signed.outputs.cache-hit != 'true'
         run: uv run --locked python -m external_api.dependency_smoke
 
+      - name: Test model health certificate handling
+        if: steps.signed.outputs.cache-hit != 'true'
+        run: uv run --locked python -m pytest lib/proactive_tutor/proactive_tutor/model_connection_test_test.py -q
+
       - name: Install desktop dependencies
         working-directory: ./desktop
         run: node scripts/retry-command.mjs bash -c "npm ci"
@@ -232,7 +236,7 @@ jobs:
         working-directory: ./desktop
         run: npm run build:services
 
-      - name: Check packaged SDK tool calls before caching or signing
+      - name: Check packaged certificates and SDK tool calls before caching or signing
         if: steps.signed.outputs.cache-hit != 'true'
         shell: bash
         run: |

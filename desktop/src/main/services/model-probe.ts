@@ -11,6 +11,7 @@ export function runModelProbe(executable: string, args: string[], options: {cwd:
   });
 }
 export function modelFailureMessage(error: string) {
+  if (/CERTIFICATE_VERIFY_FAILED|unable to get local issuer certificate|certificate verify failed/i.test(error)) return 'Coco couldn’t verify the model server’s HTTPS certificate. Update Coco or repair its trusted certificates, then Retry.';
   if (/401|403|unauthorized|forbidden|expired|invalid.*key/i.test(error)) return 'Coco’s model access was refused. Sign out and sign in, then Retry.';
   if (/429|quota|rate.?limit/i.test(error)) return 'The model service has reached its usage limit. Wait a moment, then Retry.';
   if (/timed? ?out|took too long/i.test(error)) return 'The model service took too long to respond. Check your connection and Retry.';

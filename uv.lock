@@ -1765,6 +1765,7 @@ name = "proactive-tutor"
 version = "0.1.0"
 source = { editable = "lib/proactive_tutor" }
 dependencies = [
+    { name = "certifi" },
     { name = "chz" },
     { name = "external-api" },
     { name = "fastapi" },
@@ -1778,6 +1779,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi" },
     { name = "chz", specifier = ">=0.3.0" },
     { name = "external-api", editable = "lib/external_api" },
     { name = "fastapi", specifier = ">=0.104.0" },

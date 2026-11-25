@@ -1,13 +1,17 @@
 import type { RunnerGuide } from './runner-tutorial';
 
 export type LearningStep = NonNullable<RunnerGuide['learningStep']>;
-export type LearningEvent = 'training-understood' | 'tool-opened' | 'side-quest-started';
+export type LearningEvent = 'training-understood' | 'tool-opened' | 'tool-reminder-due' | 'side-quest-started';
 
 /** Advance only from the expected action; merely clicking Start is not success. */
 export function nextLearningStep(step: LearningStep | undefined, event: LearningEvent): LearningStep | null {
   if (step === 'welcome' && event === 'training-understood') return 'training';
   if (step === 'training' && event === 'training-understood') return 'tool';
-  if (step === 'tool' && event === 'tool-opened') return 'side-quest';
+  if (step === 'tool' && event === 'tool-opened') return 'tool-reading';
+  if (step === 'tool-reading' && event === 'tool-reminder-due') return 'tool-flow';
+  if (step === 'tool-flow' && event === 'training-understood') return 'side-quest';
+  // Users can also choose to jump straight into practice from the module.
+  if ((step === 'tool-reading' || step === 'tool-flow') && event === 'side-quest-started') return 'side-quest-intro';
   if (step === 'side-quest' && event === 'side-quest-started') return 'side-quest-intro';
   if (step === 'side-quest-intro' && event === 'training-understood') return 'new';
   return null;
@@ -32,7 +36,18 @@ export function learningIntroduction(sessionId: string, step: LearningStep | 'ag
     case 'tool':
       return {
         ...base, highlight: 'tool', label: 'AGENT 101 · OPTIONAL SIDE QUEST',
-        text: 'You can see what an agent is doing on your behalf with Agent 101. Click Tool for a quick introduction.',
+        text: 'How does an AI agent work? Why is it different from a AI chatbot? You can learn more about this in Agent 101. Click Tool module to see what it looks like.',
+      };
+    case 'tool-reading':
+      return {
+        ...base, label: 'EXPLORE THE TOOL MODULE',
+        text: 'Read the introduction, then explore the flow.',
+      };
+    case 'tool-flow':
+      return {
+        ...base, label: 'TRY THE FLOW',
+        text: 'Click 1–4 in the diagram to explore the flow.',
+        action: 'show-around', actionLabel: 'Continue',
       };
     case 'side-quest':
       return {

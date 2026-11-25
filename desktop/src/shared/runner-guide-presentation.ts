@@ -13,3 +13,8 @@ export default function presentRunnerGuide(guide: RunnerGuide, view: RunnerChatV
     return { ...guide, action: undefined, actionLabel: undefined };
   return guide;
 }
+
+/** The two learning overview tips sit beside their controls inside the app. */
+export function isAnchoredLearningGuide(guide: RunnerGuide): boolean {
+  return Boolean(guide.learningStep && (guide.highlight === 'training' || guide.highlight === 'tool'));
+}

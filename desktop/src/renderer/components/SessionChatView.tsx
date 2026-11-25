@@ -185,7 +185,7 @@ function SessionChatContent() {
   const [onboardingEntry, setOnboardingEntry] = useState<{sessionId: string; sequence: number} | null>(null);
   const currentTabClosed = closedTabIds.current.has(reviewing?.sessionId ?? sessionIdRef.current ?? '');
   const viewedConversationId = currentTabClosed ? null : reviewing?.sessionId ?? sessionIdRef.current;
-  const { target: guideHighlight, onControlUsed } = useGuideHighlight(viewedConversationId, reviewing ? null : runnerState);
+  const { target: guideHighlight, learningStep: guideLearningStep, guide: anchoredGuide, onControlUsed } = useGuideHighlight(viewedConversationId, reviewing ? null : runnerState);
   const onboarding = useOnboardingConversation({
     state: reviewing ? null : runnerState,
     sessionId: currentTabClosed ? null : sessionIdRef.current,
@@ -1900,6 +1900,7 @@ function SessionChatContent() {
         expanded={expanded}
         chatInvited={Boolean(chatInviteArticleId)}
         guideHighlight={guideHighlight}
+        anchoredGuide={anchoredGuide}
         onGuideControlUsed={onControlUsed}
         onExpandedChange={changeExpanded}
         active={
@@ -1952,6 +1953,7 @@ function SessionChatContent() {
           <>
             <div className="workspace-training" hidden={showSettings}>
               <TrainingView
+                guideLearningStep={guideLearningStep}
                 guideHighlight={guideHighlight}
                 visible={activePage === 'tasks' && !showSettings}
                 refreshKey={trainingRefreshKey}

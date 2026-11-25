@@ -10,6 +10,7 @@ interface Props {
   expanded: boolean;
   chatInvited?: boolean;
   guideHighlight?: RunnerGuide['highlight'];
+  anchoredGuide?: RunnerGuide;
   onGuideControlUsed?: (target: RunnerGuide['highlight']) => void;
   onExpandedChange: (expanded: boolean) => void;
   active: 'chat' | 'tasks' | 'settings';
@@ -26,6 +27,7 @@ export default function DesktopWorkspace({
   expanded,
   chatInvited = false,
   guideHighlight,
+  anchoredGuide,
   onGuideControlUsed,
   onExpandedChange,
   active,
@@ -47,7 +49,7 @@ export default function DesktopWorkspace({
         if (button && !button.disabled) onGuideControlUsed?.(button.dataset.coachingControl as RunnerGuide['highlight']);
       }}
     >
-      <GuideSpotlight target={guideHighlight} />
+      <GuideSpotlight target={guideHighlight} guide={anchoredGuide} />
       {window.electron?.platform === 'darwin' && (
         <div className="workspace-native-titlebar" aria-hidden="true" />
       )}

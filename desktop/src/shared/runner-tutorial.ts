@@ -19,7 +19,7 @@ export type RunnerAction =
   | 'retry';
 export interface RunnerGuide {
   instructionId?: string;
-  learningStep?: 'welcome' | 'training' | 'tool' | 'side-quest' | 'side-quest-intro' | 'new';
+  learningStep?: 'welcome' | 'training' | 'tool' | 'tool-reading' | 'tool-flow' | 'side-quest' | 'side-quest-intro' | 'new';
   /** The actual interface control this instruction points to. */
   highlight?: 'training' | 'tool' | 'side-quest' | 'new' | 'workspace' | 'understanding';
   /** Milestones are spoken by the avatar even while the game chat is open. */

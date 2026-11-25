@@ -1,0 +1,47 @@
+/* Reuse Coco's bubble surface and typography; only placement differs. */
+.observation-bubble.coco-anchored-guide {
+  position: fixed;
+  z-index: 10002;
+  right: auto;
+  bottom: auto;
+  box-sizing: border-box;
+  width: min(290px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow: visible;
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+.coco-anchored-guide button:focus-visible {
+  outline: 2px solid var(--bubble-accent);
+  outline-offset: 3px;
+}
+.coco-anchored-guide-content {
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+}
+.coco-anchored-guide .coco-anchored-guide-pointer {
+  right: auto;
+  bottom: auto;
+}
+.points-left .coco-anchored-guide-pointer {
+  left: -6px;
+  top: var(--guide-arrow);
+  transform: translateY(-50%) rotate(-135deg);
+}
+.points-right .coco-anchored-guide-pointer {
+  right: -6px;
+  top: var(--guide-arrow);
+  transform: translateY(-50%) rotate(45deg);
+}
+.points-top .coco-anchored-guide-pointer {
+  top: -6px;
+  left: var(--guide-arrow);
+  transform: translateX(-50%) rotate(-45deg);
+}
+.points-bottom .coco-anchored-guide-pointer {
+  bottom: -6px;
+  left: var(--guide-arrow);
+  transform: translateX(-50%) rotate(135deg);
+}

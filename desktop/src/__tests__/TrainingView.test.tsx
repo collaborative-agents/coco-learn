@@ -183,6 +183,13 @@ it('keeps Agent 101 and an offline training path visible without fetching hosted
   );
   render(<TrainingView />);
   expect(await screen.findByText(/Training tasks are offline/)).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Side Quest: Agent 101' })).toBeVisible();
+  const questHelp = screen.getByRole('button', { name: 'What is Agent 101?' });
+  fireEvent.click(questHelp);
+  expect(questHelp).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByText(/Agent 101 is an optional, hands-on introduction/)).toHaveAttribute('data-open', 'true');
+  fireEvent.keyDown(questHelp, { key: 'Escape' });
+  expect(questHelp).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getByRole('heading', {name:'AI Literacy Challenge'})).toBeVisible();
   expect(screen.getByText('Training tasks')).toBeVisible();
   expect(screen.getByRole('button', {name:'Start check-in'})).toBeDisabled();
@@ -1369,5 +1376,60 @@ it.each([true, false])('advances the Tool tour only after the side quest opens s
     expect(window.electron.ipcRenderer.sendMessage).not.toHaveBeenCalledWith('learning-tour-progress', 'side-quest-started');
     expect(screen.getByText('Could not open quest')).toBeVisible();
     expect(quest).toBeEnabled();
+  }
+});
+
+it('does not automatically finish reading when the Tool page fits or is scrolled', async () => {
+  jest.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(900);
+  jest.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(900);
+  render(<TrainingView />);
+  const tool = await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' });
+  fireEvent.click(tool);
+  await act(async () => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  const dialog = screen.getByRole('dialog', { name: 'Chapter 1 · Tool' });
+  const content = dialog.querySelector('.training-dialog-content') as HTMLElement;
+  fireEvent.scroll(content, { target: { scrollTop: 900 } });
+  const send = window.electron.ipcRenderer.sendMessage as jest.Mock;
+  expect(send.mock.calls.filter(([channel]) => channel === 'learning-tour-progress')).toEqual([
+    ['learning-tour-progress', 'tool-opened'],
+  ]);
+});
+
+it('waits 10 seconds on the Tool page before requesting the flow reminder', async () => {
+  const { rerender } = render(<TrainingView guideLearningStep="tool-reading" />);
+  const tool = await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' });
+  jest.useFakeTimers();
+  try {
+    const send = window.electron.ipcRenderer.sendMessage as jest.Mock;
+    fireEvent.click(tool);
+    act(() => jest.advanceTimersByTime(9999));
+    expect(send).not.toHaveBeenCalledWith('learning-tour-progress', 'tool-reminder-due');
+    act(() => jest.advanceTimersByTime(1));
+    expect(send.mock.calls.filter(([channel, event]) => channel === 'learning-tour-progress' && event === 'tool-reminder-due')).toHaveLength(1);
+    rerender(<TrainingView guideLearningStep="tool-flow" />);
+    act(() => jest.advanceTimersByTime(30000));
+    expect(send.mock.calls.filter(([channel, event]) => channel === 'learning-tour-progress' && event === 'tool-reminder-due')).toHaveLength(1);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it('cancels the flow reminder when the Tool page is closed or hidden', async () => {
+  const { rerender } = render(<TrainingView guideLearningStep="tool-reading" />);
+  const tool = await screen.findByRole('button', { name: 'Chapter 1: Tool. Available' });
+  jest.useFakeTimers();
+  try {
+    fireEvent.click(tool);
+    act(() => jest.advanceTimersByTime(5000));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Chapter 1 · Tool' })).getByRole('button', { name: 'Close task details' }));
+    act(() => jest.advanceTimersByTime(30000));
+    expect(window.electron.ipcRenderer.sendMessage).not.toHaveBeenCalledWith('learning-tour-progress', 'tool-reminder-due');
+    fireEvent.click(tool);
+    act(() => jest.advanceTimersByTime(5000));
+    rerender(<TrainingView guideLearningStep="tool-reading" visible={false} />);
+    act(() => jest.advanceTimersByTime(30000));
+    expect(window.electron.ipcRenderer.sendMessage).not.toHaveBeenCalledWith('learning-tour-progress', 'tool-reminder-due');
+  } finally {
+    jest.useRealTimers();
   }
 });

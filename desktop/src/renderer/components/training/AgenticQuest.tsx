@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import useWorkflowChapter from './useWorkflowChapter';
 import useModelChapter from './useModelChapter';
 import useTokenChapter from './useTokenChapter';
@@ -68,6 +69,8 @@ export default function AgenticQuest({
   onOpen: (level: number) => void;
   adminMode: boolean;
 }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpPreview, setHelpPreview] = useState(false);
   const progress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
   const tokenProgress = useTokenChapter();
@@ -85,7 +88,54 @@ export default function AgenticQuest({
   );
   return (
     <section className="agentic-quest" aria-label="Agent 101">
-      <span className="agentic-quest-label">Agent 101</span>
+      <div className="agentic-quest-heading">
+        <div className="agentic-quest-title-row">
+          <h2 className="agentic-quest-label">Side Quest: Agent 101</h2>
+          <div
+            className="agentic-quest-help"
+            onMouseEnter={() => setHelpPreview(true)}
+            onMouseLeave={() => setHelpPreview(false)}
+            onFocus={() => setHelpPreview(true)}
+            onBlur={() => {
+              setHelpOpen(false);
+              setHelpPreview(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setHelpOpen(false);
+                setHelpPreview(false);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="agentic-quest-help-button"
+              aria-label="What is Agent 101?"
+              aria-expanded={helpOpen || helpPreview}
+              aria-controls="agentic-quest-help-text"
+              onClick={() => {
+                setHelpOpen((open) => !open);
+                setHelpPreview(false);
+              }}
+            >
+              ?
+            </button>
+            <p
+              id="agentic-quest-help-text"
+              className="agentic-quest-help-text"
+              data-open={helpOpen || helpPreview}
+            >
+              Agent 101 is an optional, hands-on introduction to how AI agents
+              work. Complete five short chapters at your own pace to unlock Coco
+              features, from inspecting tool calls to choosing models and
+              reusing workflows. You can return here anytime.
+            </p>
+          </div>
+        </div>
+        <p className="agentic-quest-description">
+          Discover how agents work. Unlock more of Coco as you go.
+        </p>
+      </div>
       <ol
         className="agentic-quest-path"
         aria-label={

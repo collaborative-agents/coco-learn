@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { RunnerGuide, RunnerTutorialState } from '../../../shared/runner-tutorial';
 
 type Highlight = RunnerGuide['highlight'];
-type Instruction = Pick<RunnerGuide, 'sessionId' | 'instructionId' | 'highlight'>;
+type Instruction = Pick<RunnerGuide, 'sessionId' | 'instructionId' | 'highlight' | 'learningStep'> & { guide?: RunnerGuide };
 
 export default function useGuideHighlight(sessionId: string | null, runner: RunnerTutorialState | null) {
   const [guide, setGuide] = useState<Instruction | null>(null);
@@ -26,7 +26,7 @@ export default function useGuideHighlight(sessionId: string | null, runner: Runn
       !consumed.current.has(workspaceKey)) target = 'workspace';
 
   const onControlUsed = (used: Highlight) => {
-    if (!used || used !== target) return;
+    if (!used || used !== target || guide?.guide?.learningStep === 'training') return;
     // Clear on click, including a canceled folder picker or a failed request.
     if (used === 'workspace') consumed.current.add(workspaceKey);
     if (guide?.highlight === used) {
@@ -37,5 +37,5 @@ export default function useGuideHighlight(sessionId: string | null, runner: Runn
     }
     refresh(value => value + 1);
   };
-  return { target, onControlUsed };
+  return { target, learningStep: guide?.learningStep, guide: target ? guide?.guide : undefined, onControlUsed };
 }

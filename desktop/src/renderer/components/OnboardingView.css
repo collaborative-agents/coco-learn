@@ -221,6 +221,23 @@
   max-width: 130px;
   text-align: right;
 }
+.ob-permission-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  row-gap: 14px;
+}
+.ob-permission-note {
+  grid-column: 2 / -1;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #f4c56b;
+  border-radius: 5px;
+  background: #fff3cd;
+  color: #a8580c;
+  font-size: var(--coco-text-caption);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 .ob-permission-status {
   display: block;
   color: #8d6231;
@@ -404,6 +421,13 @@
     margin-left: 38px;
     max-width: none;
     text-align: left;
+  }
+  .ob-permission-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+  .ob-permission-row .ob-permission-action {
+    grid-column: 2;
+    margin-left: 0;
   }
   .ob-permission-status {
     display: inline;

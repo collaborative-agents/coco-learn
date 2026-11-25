@@ -1,4 +1,5 @@
-import presentRunnerGuide from './runner-guide-presentation';
+import presentRunnerGuide, { isAnchoredLearningGuide } from './runner-guide-presentation';
+import { learningIntroduction } from './learning-introduction';
 import type { RunnerGuide } from './runner-tutorial';
 
 const guide: RunnerGuide = {sessionId:'game',label:'WELCOME BACK',text:'Your game is ready.',action:'focus',actionLabel:'Back to my idea'};
@@ -22,4 +23,13 @@ it.each([
 });
 it.each(['retry','play','customize','finish'] as const)('keeps the useful %s action in chat',action=>{
   expect(presentRunnerGuide({...guide,action,actionLabel:'Take the next step'},chat).action).toBe(action);
+});
+
+it('anchors the Training and Agent 101 overview tips while retaining floating tips for other steps', () => {
+  expect(isAnchoredLearningGuide(learningIntroduction('setup', 'training'))).toBe(true);
+  expect(isAnchoredLearningGuide(learningIntroduction('setup', 'tool'))).toBe(true);
+  for (const step of ['welcome', 'side-quest', 'side-quest-intro', 'new'] as const) {
+    expect(isAnchoredLearningGuide(learningIntroduction('setup', step))).toBe(false);
+  }
+  expect(isAnchoredLearningGuide({ ...guide, highlight: 'tool' })).toBe(false);
 });

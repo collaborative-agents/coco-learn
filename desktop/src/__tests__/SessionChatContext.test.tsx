@@ -1930,6 +1930,13 @@ it('clears a button highlight on click and does not restore a consumed instructi
   await act(async () => listeners.get('runner-guide-highlight')?.(null));
   expect(workspace).not.toHaveAttribute('data-coaching-target');
   expect(invoke).not.toHaveBeenCalledWith('runner-start');
+  const trainingGuide = {sessionId:'coco-setup', instructionId:'anchored-training', highlight:'training',
+    guide:{sessionId:'coco-setup', learningStep:'training', highlight:'training', label:'TRAINING TASKS', text:'Explore training.', action:'show-around', actionLabel:'Got it'}};
+  await act(async () => listeners.get('runner-guide-highlight')?.(trainingGuide));
+  fireEvent.click(screen.getByRole('button', {name:'Training tasks'}));
+  // Opening Training must leave its explanatory tip available until Got it.
+  expect(workspace).toHaveAttribute('data-coaching-target', 'training');
+  expect(sendMessage).not.toHaveBeenCalledWith('runner-guide-control-used', {instructionId:'anchored-training', target:'training'});
 });
 
 it('highlights Workspace only while awaiting a folder and scopes quiz guidance to its conversation', async () => {

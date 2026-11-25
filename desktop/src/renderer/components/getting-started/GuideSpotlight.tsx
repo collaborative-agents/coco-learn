@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import AnchoredGuide from './AnchoredGuide';
 import type { RunnerGuide } from '../../../shared/runner-tutorial';
 
 /** An outside glow leaves the actual control's shape and styling intact. */
 export default function GuideSpotlight({
   target,
+  guide,
 }: {
   target: RunnerGuide['highlight'];
+  guide?: RunnerGuide;
 }) {
   const [bounds, setBounds] = useState<{
     left: number;
@@ -79,11 +82,10 @@ export default function GuideSpotlight({
   }, [target]);
   return target && bounds
     ? createPortal(
-        <div
-          className="coco-guide-spotlight"
-          style={bounds}
-          aria-hidden="true"
-        />,
+        <>
+          <div className="coco-guide-spotlight" style={bounds} aria-hidden="true" />
+          {guide && <AnchoredGuide guide={guide} bounds={bounds} />}
+        </>,
         document.body,
       )
     : null;

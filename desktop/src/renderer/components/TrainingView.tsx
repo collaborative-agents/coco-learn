@@ -32,10 +32,12 @@ export default function TrainingView({
   visible = true,
   refreshKey = 0,
   guideHighlight,
+  guideLearningStep,
 }: {
   visible?: boolean;
   refreshKey?: number;
   guideHighlight?: RunnerGuide['highlight'];
+  guideLearningStep?: RunnerGuide['learningStep'];
 }) {
   const { state, studentMode, error, setError, refresh, hostedTrainingEnabled } = useTrainingState(
     visible,
@@ -91,6 +93,24 @@ export default function TrainingView({
     });
   }, [revealAgent101, guideHighlight, visible]);
   const [questLevel, setQuestLevel] = useState(0);
+  useEffect(() => {
+    if (!visible || !questOpen || questLevel !== 0 || guideLearningStep !== 'tool-reading') return undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleReminder = () => {
+      clearTimeout(timer);
+      if (!document.hidden) {
+        timer = setTimeout(() => {
+          window.electron?.ipcRenderer.sendMessage('learning-tour-progress', 'tool-reminder-due');
+        }, 10000);
+      }
+    };
+    scheduleReminder();
+    document.addEventListener('visibilitychange', scheduleReminder);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', scheduleReminder);
+    };
+  }, [visible, questOpen, questLevel, guideLearningStep]);
   const toolProgress = useToolChapterProgress();
   const contextProgress = useContextChapterProgress();
   const tokenProgress = useTokenChapter();

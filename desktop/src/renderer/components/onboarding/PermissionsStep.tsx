@@ -96,7 +96,7 @@ export default function PermissionsStep({
             health !== null &&
             !health.missing.some((item) => item.target === target);
           return (
-            <div className="ob-setting-row" key={target}>
+            <div className="ob-setting-row ob-permission-row" key={target}>
               <span className="ob-setting-icon" aria-hidden="true">
                 {symbol}
               </span>
@@ -125,6 +125,13 @@ export default function PermissionsStep({
                   </>
                 )}
               </div>
+              <p className="ob-permission-note">
+                {target === 'screen-recording'
+                  ? routerManaged
+                    ? 'Note: These screen images and context are sent to a secured server and deleted immediately after processing.'
+                    : 'Note: These screen images and context are sent to your configured AI models to provide assistance.'
+                  : 'Note: Raw keyboard and mouse activity is processed locally and is not sent to a model to train.'}
+              </p>
             </div>
           );
         })}

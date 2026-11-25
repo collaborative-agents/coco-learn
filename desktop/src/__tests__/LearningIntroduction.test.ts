@@ -16,6 +16,21 @@ it('waits for each real action before guiding Tool → Side quest → New', () =
   // A stale success from another quest cannot skip opening Tool.
   expect(nextLearningStep(step!, 'side-quest-started')).toBeNull();
   step = nextLearningStep(step!, 'tool-opened');
+  expect(step).toBe('tool-reading');
+  const reading = learningIntroduction('setup', step!);
+  expect(reading.label).toBe('EXPLORE THE TOOL MODULE');
+  expect(reading.action).toBeUndefined();
+  expect(reading.text).not.toContain('Scroll');
+  expect(reading.highlight).toBeUndefined();
+  expect(nextLearningStep(step!, 'tool-opened')).toBeNull();
+  expect(nextLearningStep(step!, 'training-understood')).toBeNull();
+  step = nextLearningStep(step!, 'tool-reminder-due');
+  expect(step).toBe('tool-flow');
+  expect(learningIntroduction('setup', step!)).toMatchObject({
+    text:'Click 1–4 in the diagram to explore the flow.', actionLabel:'Continue', action:'show-around',
+  });
+  expect(nextLearningStep(step!, 'tool-reminder-due')).toBeNull();
+  step = nextLearningStep(step!, 'training-understood');
   expect(step).toBe('side-quest');
   expect(learningIntroduction('setup', step!)).toMatchObject({highlight:'side-quest'});
   expect(nextLearningStep(step!, 'training-understood')).toBeNull();
@@ -31,4 +46,9 @@ it('waits for each real action before guiding Tool → Side quest → New', () =
   expect(learningIntroduction('setup', step!)).toMatchObject({highlight:'new', text:expect.stringContaining('Click New')});
   expect(nextLearningStep(step!, 'side-quest-started')).toBeNull();
   expect(nextLearningStep(undefined, 'tool-opened')).toBeNull();
+});
+
+it('allows users to choose practice directly without a delayed reading tip', () => {
+  expect(nextLearningStep('tool-reading', 'side-quest-started')).toBe('side-quest-intro');
+  expect(nextLearningStep('side-quest-intro', 'tool-opened')).toBeNull();
 });

@@ -11,7 +11,7 @@ import registerReactiveChat from './reactive-chat';
 import RunnerTutorial from './services/runner-tutorial';
 import type { RunnerGuide, RunnerAction } from '../shared/runner-tutorial';
 import type { UnderstandingCheckResult } from '../shared/understanding-check';
-import presentRunnerGuide from '../shared/runner-guide-presentation';
+import presentRunnerGuide, { isAnchoredLearningGuide } from '../shared/runner-guide-presentation';
 import ensureChatConversation from './chat-conversation';
 import createAgent101Controller from './services/agent101-controller';
 import isInterfacePreview from './interface-preview';
@@ -767,7 +767,7 @@ let lastRunnerGuidePresentation: string | null = null;
 let runnerGuideRendererReady = false;
 function publishGuideHighlight() {
   chatWindow?.webContents.send('runner-guide-highlight', activeRunnerGuide
-    ? { sessionId: activeRunnerGuide.sessionId, instructionId: activeRunnerGuide.instructionId, highlight: activeRunnerGuide.highlight ?? null }
+    ? { sessionId: activeRunnerGuide.sessionId, instructionId: activeRunnerGuide.instructionId, learningStep: activeRunnerGuide.learningStep, highlight: activeRunnerGuide.highlight ?? null, guide: isAnchoredLearningGuide(activeRunnerGuide) ? activeRunnerGuide : undefined }
     : null);
 }
 ipcMain.on('runner-guide-highlight-ready', event => {
@@ -802,10 +802,13 @@ function publishRunnerGuide(force = false) {
     visible: Boolean(chatWindow && !chatWindow.isDestroyed() && chatWindow.isVisible() && !chatWindow.isMinimized()),
     focused: Boolean(chatWindow && !chatWindow.isDestroyed() && chatWindow.isFocused()),
   });
-  const presentation = JSON.stringify(guide);
+  // Highlighted learning tips are anchored beside the real control in the app.
+  const anchored = isAnchoredLearningGuide(guide) && chatWindow?.isVisible() && !chatWindow.isMinimized();
+  const inPage = anchored || guide.learningStep === 'tool-reading';
+  const presentation = JSON.stringify(inPage ? null : guide);
   if (!force && presentation === lastRunnerGuidePresentation) return;
   lastRunnerGuidePresentation = presentation;
-  avatarWindow.webContents.send('runner-guide', guide);
+  avatarWindow.webContents.send('runner-guide', inPage ? null : guide);
 }
 
 /** Prepare B only while the user has chosen to show Coco. */
@@ -987,7 +990,7 @@ function advanceLearningIntroduction(event: LearningEvent) {
 }
 ipcMain.on('learning-tour-progress', (event, progress: LearningEvent) => {
   if (event.sender !== chatWindow?.webContents || !hasInterfaceSession()) return;
-  if (progress === 'tool-opened' || progress === 'side-quest-started') advanceLearningIntroduction(progress);
+  if (progress === 'tool-opened' || progress === 'tool-reminder-due' || progress === 'side-quest-started') advanceLearningIntroduction(progress);
 });
 ipcMain.on('runner-guide-control-used', (event, value: { instructionId?: string; target?: RunnerGuide['highlight'] } = {}) => {
   if (event.sender !== chatWindow?.webContents || !hasInterfaceSession() ||
@@ -1066,7 +1069,7 @@ ipcMain.handle(
     } = {},
   ) => {
     if (payload.sessionId === setupGuideSession) {
-      if (!hasInterfaceSession() || !currentUserId || event.sender !== avatarWindow?.webContents)
+      if (!hasInterfaceSession() || !currentUserId || (event.sender !== avatarWindow?.webContents && event.sender !== chatWindow?.webContents))
         return { error: 'Open Coco and sign in first.' };
       if (activeRunnerGuide?.sessionId !== setupGuideSession) return {};
       if (payload.action === 'show-around') advanceLearningIntroduction('training-understood');
